@@ -37,6 +37,14 @@ def _Z(t, text):
     return {'move': 'rest', 'duration': t, 'text': text}
 
 
+def _B(t, n):
+    return {'move': 'bubbles', 'duration': t, 'count': n}
+
+
+def _F(t):
+    return {'move': 'freeze', 'duration': t}
+
+
 DEFAULT_SEQUENCES = [
     ('turbo', 'Échauffement Turbo', [
         _Z(2.5, "Prêt ? On s'échauffe !"),
@@ -45,8 +53,10 @@ DEFAULT_SEQUENCES = [
         _S(), _J(2), _X(),
         _R(6, 12),
         _P('airplane'),
+        _B(10, 6),
         _C('jump', 'squat'),
         _L(), _D(),
+        _F(14),
         _R(8, 16),
         _C('left', 'jump', 'right', 'jump'),
         _S(2), _X(2),
@@ -61,8 +71,10 @@ DEFAULT_SEQUENCES = [
         _S(), _J(3),
         _P('armsUp'),
         _X(2), _L(), _D(),
+        _B(10, 6),
         _R(6, 12),
         _C('jump', 'smash'),
+        _F(14),
         _S(2), _J(2),
         _P('flamingo', 2),
         _C('squat', 'jump', 'smash'),
@@ -80,7 +92,9 @@ DEFAULT_SEQUENCES = [
         _P('airplane'),
         _L(), _D(),
         _P('flamingo', 2),
+        _B(10, 6),
         _R(6, 12),
+        _F(14),
         _C('squat', 'jump'),
         _P('star'),
         _X(2),

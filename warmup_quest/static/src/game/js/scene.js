@@ -159,6 +159,12 @@ class Scene {
     this.parts = [];
     this.floaters = [];
     this.skyStars = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random() * 0.6, r: Math.random() * 1.6 + 0.4, p: Math.random() * 6 }));
+    // Nuages sur deux plans (les plus petits, plus loin, défilent moins vite)
+    this.clouds = Array.from({ length: 6 }, (_, i) => ({
+      x: Math.random(), y: 0.07 + Math.random() * 0.2, s: i < 3 ? 0.035 : 0.06, sp: i < 3 ? 0.04 : 0.1, a: i < 3 ? 0.75 : 0.95,
+    }));
+    this.ambient = new Ambient();
+    this.sky = null; // dégradé du ciel mis en cache
     this.last = performance.now();
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -173,11 +179,67 @@ class Scene {
 
   setWorld(theme) {
     this.theme = theme;
+    this.ambient.setKinds(theme && theme.ambient);
+    // Couleurs dérivées (shade() vient de creatures.js)
+    if (theme) this.pal = {
+      bush: shade(theme.mid, -0.2), bushHi: shade(theme.mid, 0.12), hillEdge: shade(theme.mid, 0.22),
+      farEdge: shade(theme.far, 0.2), tuft: shade(theme.groundTop, -0.25), grassDark: shade(theme.groundTop, -0.12),
+    };
     this.obs = null; this.parts = []; this.floaters = [];
     Object.assign(this.hero, { x: 0.28, tx: 0.28, y: 0, vy: 0, pose: null, holdPose: null });
   }
 
   get groundY() { return this.H * 0.8; }
+
+  // Dégradé du ciel, recalculé seulement quand le monde ou la taille change
+  skyLayer() {
+    const th = this.theme, key = `${th.id}|${this.c.width}|${this.c.height}`;
+    if (this.sky && this.sky.key === key) return this.sky.canvas;
+    const cv = document.createElement('canvas');
+    cv.width = this.c.width; cv.height = this.c.height;
+    const c = cv.getContext('2d'), k = cv.width / this.W;
+    c.scale(k, k);
+    const g = c.createLinearGradient(0, 0, 0, this.groundY);
+    g.addColorStop(0, th.sky[0]); g.addColorStop(1, th.sky[1]);
+    c.fillStyle = g; c.fillRect(0, 0, this.W, this.H);
+    this.sky = { key, canvas: cv };
+    return cv;
+  }
+
+  // Colline : forme remplie + liseré clair qui suit le sommet
+  hill(yAt, color, edge) {
+    const ctx = this.ctx, W = this.W, gy = this.groundY;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(0, gy);
+    for (let x = 0; x <= W + 12; x += 12) ctx.lineTo(x, yAt(x));
+    ctx.lineTo(W, gy); ctx.fill();
+    ctx.strokeStyle = edge; ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = 0; x <= W + 12; x += 12) (x ? ctx.lineTo(x, yAt(x) + 2) : ctx.moveTo(x, yAt(x) + 2));
+    ctx.stroke();
+  }
+
+  // Mer à l'horizon : vagues, reflets et un petit voilier
+  drawSea(now) {
+    const ctx = this.ctx, W = this.W, H = this.H, th = this.theme;
+    const top = this.groundY - H * 0.17;
+    ctx.fillStyle = th.sea; ctx.fillRect(0, top, W, this.groundY - top);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(0, top, W, 3);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'; ctx.lineWidth = 2;
+    for (let row = 0; row < 3; row++) {
+      const y = top + H * (0.03 + row * 0.04), off = (this.scroll * (0.05 + row * 0.03) + now * 0.01) % 60;
+      for (let x = -60; x < W + 60; x += 60) {
+        ctx.beginPath(); ctx.arc(x - off + (row % 2) * 30, y, 9, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+      }
+    }
+    const bx = W - ((now * 0.012 + this.scroll * 0.03) % (W + 200)) + 100, by = top + H * 0.035 + Math.sin(now * 0.002) * 2;
+    ctx.fillStyle = '#8d5a3b';
+    ctx.beginPath(); ctx.moveTo(bx - 22, by); ctx.lineTo(bx + 22, by); ctx.lineTo(bx + 14, by + 9); ctx.lineTo(bx - 14, by + 9); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.moveTo(bx + 2, by - 2); ctx.lineTo(bx + 2, by - 34); ctx.lineTo(bx + 22, by - 4); ctx.fill();
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath(); ctx.moveTo(bx - 2, by - 4); ctx.lineTo(bx - 2, by - 26); ctx.lineTo(bx - 16, by - 4); ctx.fill();
+  }
   get size() { return Math.min(this.H * 0.2, this.W * 0.16); }
   heroPx() { return { x: this.hero.x * this.W, y: this.groundY + this.hero.y }; }
 
@@ -291,10 +353,10 @@ class Scene {
     if (h.y > 0) { h.y = 0; h.vy = 0; }
     h.x += (h.tx - h.x) * Math.min(1, dt * 6);
 
+    const gy = this.groundY, pal = this.pal;
+
     // Ciel
-    const g = ctx.createLinearGradient(0, 0, 0, this.groundY);
-    g.addColorStop(0, th.sky[0]); g.addColorStop(1, th.sky[1]);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(this.skyLayer(), 0, 0, W, H);
     if (th.night) {
       for (const st of this.skyStars) {
         ctx.globalAlpha = 0.5 + 0.5 * Math.sin(now * 0.002 + st.p);
@@ -302,36 +364,72 @@ class Scene {
         ctx.beginPath(); ctx.arc(st.x * W, st.y * H, st.r, 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#fff6d5';
-      ctx.beginPath(); ctx.arc(W * 0.78, H * 0.16, H * 0.06, 0, Math.PI * 2); ctx.fill();
+      drawMoon(ctx, W * 0.8, H * 0.16, H * 0.055);
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      for (let i = 0; i < 4; i++) {
-        const cx = ((i * W * 0.37 - this.scroll * 0.08) % (W * 1.4) + W * 1.4) % (W * 1.4) - W * 0.2;
-        const cy = H * (0.12 + (i % 2) * 0.1);
-        for (const [dx, dy, r] of [[0, 0, 30], [30, -12, 36], [64, 0, 28]]) {
-          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, r * H / 700, 0, Math.PI * 2); ctx.fill();
-        }
+      drawSun(ctx, W * 0.82, H * 0.15, H * 0.06, now);
+      for (const c of this.clouds) {
+        const span = W + 400;
+        const x = ((c.x * span - this.scroll * c.sp - now * 0.004) % span + span) % span - 200;
+        drawCloud(ctx, x, H * c.y, H * c.s, c.a);
       }
     }
 
-    // Collines lointaines
-    ctx.fillStyle = th.far;
-    ctx.beginPath(); ctx.moveTo(0, this.groundY);
-    for (let x = 0; x <= W; x += 12) {
-      const wx = x + this.scroll * 0.2;
-      ctx.lineTo(x, this.groundY - H * 0.12 - Math.sin(wx * 0.006) * H * 0.06 - Math.sin(wx * 0.013) * H * 0.03);
-    }
-    ctx.lineTo(W, this.groundY); ctx.fill();
-    ctx.fillStyle = th.mid;
-    ctx.beginPath(); ctx.moveTo(0, this.groundY);
-    for (let x = 0; x <= W; x += 12) {
-      const wx = x + this.scroll * 0.45;
-      ctx.lineTo(x, this.groundY - H * 0.04 - Math.max(0, Math.sin(wx * 0.009)) * H * 0.07);
-    }
-    ctx.lineTo(W, this.groundY); ctx.fill();
+    // Arrière-plan : montagnes enneigées ou mer
+    if (th.backdrop === 'mountains') drawMountains(ctx, W, gy - H * 0.08, this.scroll * 0.06, H, th.mount, th.snow);
+    else if (th.backdrop === 'sea') this.drawSea(now);
 
-    // Décor (emojis génériques)
+    // Collines lointaines (avec un liseré clair sur le dessus)
+    const farY = (x) => { const wx = x + this.scroll * 0.2; return gy - H * 0.12 - Math.sin(wx * 0.006) * H * 0.06 - Math.sin(wx * 0.013) * H * 0.03; };
+    this.hill(farY, th.far, pal.farEdge);
+    // Collines proches + buissons ronds
+    const midY = (x) => gy - H * 0.04 - Math.max(0, Math.sin((x + this.scroll * 0.45) * 0.009)) * H * 0.07;
+    this.hill(midY, th.mid, pal.hillEdge);
+    const bsp = 150, boff = this.scroll * 0.45;
+    for (let k = Math.floor(boff / bsp) - 1; k * bsp - boff < W + bsp; k++) {
+      if (hash01(k) < 0.45) continue;
+      const x = k * bsp - boff + bsp * hash01(k + 3), r = H * (0.018 + 0.014 * hash01(k + 5));
+      const y = midY(x) + r * 0.5;
+      ctx.fillStyle = pal.bush;
+      for (const [dx, dy, rr] of [[-0.8, 0.2, 0.75], [0, -0.2, 1], [0.8, 0.2, 0.75]]) { ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, rr * r, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = pal.bushHi;
+      ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.5, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Petite vie : oiseaux, papillons, pétales
+    this.ambient.update(dt, W, H, gy, this.speed * W * 0.12);
+    this.ambient.draw(ctx);
+
+    // Sol : terre, cailloux, herbe festonnée, touffes et fleurs
+    ctx.fillStyle = th.ground; ctx.fillRect(0, gy, W, H - gy);
+    const tile = 90, toff = this.scroll % tile, tbase = Math.floor(this.scroll / tile);
+    ctx.fillStyle = th.stripe;
+    for (let i = -1; i < W / tile + 2; i++) {
+      const k = tbase + i, x0 = i * tile - toff;
+      for (let j = 0; j < 3; j++) {
+        const px = x0 + tile * hash01(k * 3 + j), py = gy + 26 + (H - gy - 36) * hash01(k * 7 + j);
+        ctx.beginPath(); ctx.ellipse(px, py, 7 + 6 * hash01(k + j), 4 + 3 * hash01(k - j), 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = th.groundTop; ctx.fillRect(0, gy, W, 12);
+    const sc = 26, soff = this.scroll % sc;
+    for (let x = -sc; x < W + sc; x += sc) { ctx.beginPath(); ctx.arc(x - soff + sc / 2, gy + 12, sc / 2, 0, Math.PI); ctx.fill(); }
+    ctx.fillStyle = pal.grassDark; ctx.fillRect(0, gy + 9, W, 3);
+    const fsp = 64, fbase = Math.floor(this.scroll / fsp), foff = this.scroll % fsp;
+    for (let i = -1; i < W / fsp + 2; i++) {
+      const k = fbase + i, x = i * fsp - foff + fsp * hash01(k + 11), h = hash01(k + 13);
+      if (h < 0.5) {
+        ctx.strokeStyle = pal.tuft; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        for (const a of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.moveTo(x, gy + 2); ctx.lineTo(x + a * 10, gy - 9 - (a ? 0 : 4)); ctx.stroke(); }
+      } else if (h < 0.75) {
+        ctx.strokeStyle = pal.tuft; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, gy + 2); ctx.lineTo(x, gy - 12); ctx.stroke();
+        ctx.fillStyle = ['#ff6b9a', '#ffffff', '#ffd166', '#b388eb'][Math.floor(hash01(k + 17) * 4)];
+        for (let p = 0; p < 5; p++) { const a = p * 1.2566; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 4, gy - 12 + Math.sin(a) * 4, 3, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = '#ffb703'; ctx.beginPath(); ctx.arc(x, gy - 12, 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // Décor (émojis) posés sur l'herbe, avec une ombre et un léger balancement
     const gap = Math.max(220, W * 0.22);
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     const off = (this.scroll * 0.7) % gap;
@@ -339,19 +437,16 @@ class Scene {
       const idx = Math.floor((this.scroll * 0.7) / gap) + i;
       const d = th.deco[((idx % th.deco.length) + th.deco.length) % th.deco.length];
       const sz = this.size * (0.6 + ((idx * 37) % 5) * 0.08);
+      const x = i * gap - off + gap * 0.5;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.beginPath(); ctx.ellipse(x, gy + 6, sz * 0.32, sz * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save();
+      ctx.translate(x, gy + 8);
+      ctx.rotate(Math.sin(now * 0.0015 + idx) * 0.04);
       ctx.font = `${sz}px serif`;
-      ctx.fillText(d, i * gap - off + gap * 0.5, this.groundY + 4);
+      ctx.fillText(d, 0, 0);
+      ctx.restore();
     }
-
-    // Sol
-    ctx.fillStyle = th.ground; ctx.fillRect(0, this.groundY, W, H - this.groundY);
-    ctx.fillStyle = th.stripe;
-    const tile = 60, toff = this.scroll % tile;
-    for (let x = -tile; x < W + tile; x += tile) {
-      ctx.fillRect(x - toff, this.groundY + 26, tile * 0.5, 10);
-      ctx.fillRect(x - toff + tile * 0.25, this.groundY + 56, tile * 0.5, 10);
-    }
-    ctx.fillStyle = th.groundTop; ctx.fillRect(0, this.groundY, W, 16);
 
     // Lignes de vitesse
     if (this.speed > 1.5) {

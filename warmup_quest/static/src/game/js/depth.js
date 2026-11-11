@@ -106,6 +106,8 @@ class DepthScene {
     this.parts = [];
     this.floaters = [];
     this.skyStars = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random() * 0.35, r: Math.random() * 1.5 + 0.4, p: Math.random() * 6 }));
+    this.clouds = Array.from({ length: 5 }, () => ({ x: Math.random(), y: 0.06 + Math.random() * 0.18, s: 0.03 + Math.random() * 0.03, sp: 0.006 + Math.random() * 0.01 }));
+    this.ambient = new Ambient();
     this.last = performance.now();
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -283,8 +285,16 @@ class DepthScene {
       }
       ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = col('sun');
-    ctx.beginPath(); ctx.arc(W * 0.72, hy * 0.38, H * 0.06, 0, Math.PI * 2); ctx.fill();
+    if (bio.night) drawMoon(ctx, W * 0.72, hy * 0.38, H * 0.05, col('sun'));
+    else {
+      drawSun(ctx, W * 0.72, hy * 0.38, H * 0.055, now);
+      // Nuages qui dérivent lentement (légère parallaxe selon le couloir)
+      for (const c of this.clouds) {
+        const span = W + 300;
+        const x = ((c.x * span - now * c.sp - h.lane * W * 0.02) % span + span) % span - 150;
+        drawCloud(ctx, x, H * c.y, H * c.s, 0.9);
+      }
+    }
 
     // Montagnes (parallaxe selon le couloir)
     const px = -h.lane * W * 0.01;
@@ -351,6 +361,11 @@ class DepthScene {
     items.push({ z: this.heroZ() - 0.01, draw: () => this.drawHero(now) });
     items.sort((a, b) => b.z - a.z);
     for (const it of items) it.draw();
+
+    // Petite vie du biome : oiseaux, mouettes, papillons, pétales, lucioles
+    this.ambient.setKinds(bio.cur.ambient);
+    this.ambient.update(dt, W, H, bio.cur.ambient && bio.cur.ambient.includes('fireflies') ? H : hy + H * 0.2, 0);
+    this.ambient.draw(ctx);
 
     // Brume à l'horizon
     const fog = ctx.createLinearGradient(0, hy - H * 0.04, 0, hy + H * 0.07);

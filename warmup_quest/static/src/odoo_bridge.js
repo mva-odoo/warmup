@@ -66,6 +66,9 @@
     players() {
       return selected().map((p) => ({ name: p.name, color: p.color }));
     },
+    // Gommettes : gardées dans ce navigateur, par profil Odoo
+    getStickers(i = 0) { const p = selected()[i]; return p ? ls.get('stickers_' + p.id) || [] : []; },
+    addSticker(i, sticker) { const p = selected()[i]; if (p) ls.set('stickers_' + p.id, [...this.getStickers(i), sticker]); },
     duoToggle() { return null; }, // le choix se fait avec les profils « Qui joue ? »
     finish(result) {
       const list = selected();

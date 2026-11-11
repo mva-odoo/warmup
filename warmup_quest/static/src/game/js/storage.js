@@ -23,6 +23,10 @@ const WUQStore = {
   // Appelé à la fin de chaque partie avec le résumé
   finish(result) {},
 
+  // Gommettes gagnées par le joueur n° i de la partie (liste d'émojis)
+  getStickers(i = 0) { return this._get('stickers_' + i) || []; },
+  addSticker(i, sticker) { this._set('stickers_' + i, [...this.getStickers(i), sticker]); },
+
   // Joueurs de la partie : 1 ou 2 (coopératif) — { name, color }
   players() {
     return this._get('duo')

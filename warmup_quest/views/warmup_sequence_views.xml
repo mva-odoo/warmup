@@ -46,8 +46,8 @@
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
                                     <field name="move"/>
-                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash')"/>
-                                    <field name="duration" invisible="move not in ('run', 'rest')"/>
+                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash', 'bubbles')"/>
+                                    <field name="duration" invisible="move not in ('run', 'rest', 'bubbles', 'freeze')"/>
                                     <field name="target" invisible="move != 'run'"/>
                                     <field name="pose" invisible="move != 'pose'"/>
                                     <field name="hold" invisible="move != 'pose'"/>

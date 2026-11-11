@@ -35,6 +35,9 @@
   <section id="carnet" class="screen hidden">
     <h2>📖 Carnet des créatures</h2>
     <p id="carnetInfo" class="subtitle"></p>
+    <h3 class="albumTitle">🌟 Mes gommettes</h3>
+    <div id="stickerAlbum"></div>
+    <h3 class="albumTitle">🐾 Mes créatures</h3>
     <div id="carnetGrid" class="carnetGrid"></div>
     <button class="btn" id="carnetBack">Retour</button>
   </section>
@@ -98,6 +101,7 @@
     <div id="resStars" class="stars"></div>
     <div class="resScore"><span id="resScore">0</span> points</div>
     <p id="resDetail"></p>
+    <div id="resSticker" class="stickerWin"></div>
     <div id="resTeam" class="team"></div>
     <p id="resBest" class="best"></p>
     <div class="row">
@@ -109,23 +113,22 @@
   <!-- Caméra -->
   <div id="camBox" class="hidden">
     <video id="video" playsinline muted></video>
-    <canvas id="mirror"></canvas>
+    <canvas id="camOverlay" width="640" height="480"></canvas>
     <div id="camStatus"></div>
     <div id="camPerf"></div>
     <div id="camEvent"></div>
-    <div id="camHint">C : voir la caméra</div>
   </div>
 
   <div id="simHelp" class="simHelp hidden">
     <b>Mode clavier</b> · Espace/↑ saut · ↓ accroupi · ← → côtés · S smash · R pas de course ·
-    1 bras en l'air · 2 avion · 3 étoile · 4 flamant · Entrée = commencer
+    1 girafe · 2 aigle · 3 étoile · 4 flamant · B bulle · Entrée = commencer
   </div>
 
   <script src="js/storage.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/worlds.js"></script>
   <script src="js/pose.js"></script>
-  <script src="js/avatar.js"></script>
+  <script src="js/decor.js"></script>
   <script src="js/scene.js"></script>
   <script src="js/creatures.js"></script>
   <script src="js/depth.js"></script>

@@ -14,8 +14,12 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 - **Warm-Up Quest › ▶ Jouer** : ouvre le jeu (`/warmup`) dans un nouvel onglet ; choisir « Qui joue ? » puis un monde.
   - **À deux (coopératif)** : cliquer sur deux prénoms. Chaque défi doit être réussi par les deux enfants ;
     la partie est enregistrée pour chacun. Il faut assez de recul pour que les deux soient entiers à l'image.
-  - Les joueurs sont dessinés comme des personnages du jeu qui imitent leurs mouvements (la vidéo n'est pas affichée) ;
-    touche **C** pour voir la vraie caméra et se placer. Pendant une pose, une silhouette montre la position à prendre.
+  - Pendant une pose, une silhouette jaune sur la vidéo montre la position à prendre ; le squelette devient vert quand c'est réussi.
+  - Pensé pour les 4–6 ans : consignes « animaux » à la voix, jamais d'échec (au moins 1 étoile et une fête à la fin),
+    mode **Facile** et **partie courte** par défaut, une **gommette** gagnée à chaque partie (album dans le carnet,
+    gardé dans le navigateur).
+  - Deux jeux en plus : **éclater des bulles** avec les mains et **statues musicales** (danser, puis se figer quand la musique s'arrête).
+  - Course : un pas compte quand un genou (ou un pied) se lève ; le genou s'allume en jaune sur la vidéo.
   - Le badge « img/s » indique la vitesse de détection : en dessous de 15 (🐢), le PC est trop lent (essayer Chrome/Edge avec l'accélération matérielle).
 - **Parties** : historique, graphique de progression et tableau croisé.
 - **Carnets** : créatures devenues amies de chaque joueur (évolution à 3).

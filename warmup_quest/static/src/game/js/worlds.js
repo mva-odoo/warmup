@@ -1,14 +1,15 @@
 // Mouvements, séquences et les 3 mondes (univers originaux).
 
+// Chaque mouvement est un animal à imiter : plus parlant pour les petits.
 const POSES = {
-  armsUp:   { icon: '🙌', label: "Bras en l'air !",            say: "Les bras en l'air !" },
-  airplane: { icon: '✈️', label: "Fais l'avion !",             say: "Fais l'avion, bras tendus !" },
-  star:     { icon: '⭐', label: "Fais l'étoile !",            say: "Fais l'étoile ! Bras et jambes écartés !" },
-  flamingo: { icon: '🦩', label: 'Le flamant : sur un pied !', say: 'Le flamant rose ! Tiens sur un pied !' },
+  armsUp:   { icon: '🦒', label: 'Grand comme une girafe !',     say: 'Grand comme une girafe ! Les bras tout en haut !' },
+  airplane: { icon: '🦅', label: 'Vole comme un aigle !',        say: 'Vole comme un aigle ! Les bras bien écartés !' },
+  star:     { icon: '⭐', label: "Fais l'étoile de mer !",       say: "Fais l'étoile de mer ! Bras et jambes écartés !" },
+  flamingo: { icon: '🦩', label: 'Le flamant : sur un pied !',  say: 'Le flamant rose ! Tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🏃', jump: '🦘', squat: '🐸', left: '⬅️', right: '➡️', smash: '💥', rest: '😮‍💨' };
-const MOVE_SHORT = { jump: 'Saute', squat: 'Accroupi', left: 'Gauche', right: 'Droite', smash: 'Smash' };
+const MOVE_ICONS = { run: '🐆', jump: '🦘', squat: '🐸', left: '⬅️', right: '➡️', smash: '🦍', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵' };
+const MOVE_SHORT = { jump: 'Saute', squat: 'Accroupi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
 const R = (t, target) => ({ m: 'run', t, target });
@@ -20,6 +21,11 @@ const D = () => ({ m: 'right' });
 const P = (pose, hold = 1.5) => ({ m: 'pose', pose, hold });
 const C = (...parts) => ({ m: 'combo', parts });
 const Z = (t, text) => ({ m: 'rest', t, text });
+const B = (t, n) => ({ m: 'bubbles', t, n });   // éclater n bulles avec les mains
+const F = (t) => ({ m: 'freeze', t });          // statues musicales
+
+// Statues musicales : une manche ≈ 7 s (danse puis statue)
+const freezeRounds = (s) => Math.max(1, Math.round(s.t / 7));
 
 function stepIcon(s) {
   if (s.m === 'pose') return POSES[s.pose].icon;
@@ -29,12 +35,14 @@ function stepIcon(s) {
 
 function stepLabel(s) {
   switch (s.m) {
-    case 'run': return 'Cours sur place !';
-    case 'jump': return s.n > 1 ? `Saute ${s.n} fois !` : 'Saute !';
-    case 'squat': return s.n > 1 ? `Accroupis-toi ${s.n} fois !` : 'Accroupis-toi !';
-    case 'smash': return s.n > 1 ? `${s.n} smashs !` : 'Smash !';
-    case 'left': return 'Va à gauche !';
-    case 'right': return 'Va à droite !';
+    case 'run': return 'Cours comme un guépard !';
+    case 'jump': return s.n > 1 ? `Saute ${s.n} fois comme un kangourou !` : 'Saute comme un kangourou !';
+    case 'squat': return s.n > 1 ? `Cache-toi ${s.n} fois comme une grenouille !` : 'Cache-toi comme une grenouille !';
+    case 'smash': return s.n > 1 ? `Tape ${s.n} fois comme un gorille !` : 'Tape fort comme un gorille !';
+    case 'left': return 'Glisse à gauche comme un pingouin !';
+    case 'right': return 'Glisse à droite comme un pingouin !';
+    case 'bubbles': return 'Éclate les bulles !';
+    case 'freeze': return 'Danse… et fais la statue !';
     case 'pose': return POSES[s.pose].label;
     case 'combo': return 'Combo !';
     case 'rest': return s.text;
@@ -45,7 +53,8 @@ function stepSpeech(s) {
   switch (s.m) {
     case 'pose': return POSES[s.pose].say;
     case 'combo': return 'Combo ! ' + s.parts.map((p) => MOVE_SHORT[p]).join(', ') + ' !';
-    case 'smash': return s.n > 1 ? `${s.n} smashs !` : 'Smash !';
+    case 'bubbles': return 'Éclate les bulles avec tes mains !';
+    case 'freeze': return "Statues musicales ! Danse avec la musique, et quand elle s'arrête, fais la statue !";
     default: return stepLabel(s);
   }
 }
@@ -53,7 +62,7 @@ function stepSpeech(s) {
 // Durée de la fenêtre (secondes, avant le multiplicateur de difficulté)
 function stepDuration(s) {
   switch (s.m) {
-    case 'run': case 'rest': return s.t;
+    case 'run': case 'rest': case 'bubbles': case 'freeze': return s.t;
     case 'jump': return 1.8 + 1.0 * s.n;
     case 'squat': return 2.0 + 1.6 * s.n;
     case 'smash': return 2.0 + 1.2 * s.n;
@@ -70,6 +79,8 @@ function maxPoints(s) {
     case 'left': case 'right': return 150;
     case 'pose': return 200;
     case 'combo': return s.parts.length * 100 + 200;
+    case 'bubbles': return s.n * 50 + 50;
+    case 'freeze': return freezeRounds(s) * 150;
     default: return 0;
   }
 }
@@ -85,6 +96,7 @@ const WORLDS = [
     sky: ['#4cc3ff', '#d4f4ff'], far: '#8fdc9a', mid: '#46b86d',
     ground: '#c98b4b', groundTop: '#5ccb5f', stripe: '#b57a3e',
     deco: ['🌴', '🌻', '🌴', '🌵'],
+    backdrop: 'mountains', mount: '#9cc7e6', snow: '#ffffff', ambient: ['birds', 'butterflies'],
     obstacle: '#7c6a5c', flyer: '#ef476f',
     endText: 'Zéphyr a battu le record de vitesse !',
     sequence: [
@@ -94,8 +106,10 @@ const WORLDS = [
       S(), J(2), X(),
       R(6, 12),
       P('airplane'),
+      B(10, 6),
       C('jump', 'squat'),
       L(), D(),
+      F(14),
       R(8, 16),
       C('left', 'jump', 'right', 'jump'),
       S(2), X(2),
@@ -115,6 +129,7 @@ const WORLDS = [
     sky: ['#7fc8f8', '#ffe5d0'], far: '#b5d96b', mid: '#6a994e',
     ground: '#bc6c25', groundTop: '#90be6d', stripe: '#a35a1c',
     deco: ['🌳', '🍄', '🌳', '🌼'],
+    backdrop: 'sea', sea: '#3fa7f5', ambient: ['gulls', 'butterflies', 'petals'],
     obstacle: '#8d5a3b', flyer: '#5e60ce',
     endText: 'Pip a rempli son sac d\'étoiles !',
     sequence: [
@@ -123,8 +138,10 @@ const WORLDS = [
       S(), J(3),
       P('armsUp'),
       X(2), L(), D(),
+      B(10, 6),
       R(6, 12),
       C('jump', 'smash'),
+      F(14),
       S(2), J(2),
       P('flamingo', 2),
       C('squat', 'jump', 'smash'),
@@ -144,19 +161,20 @@ const WORLDS = [
     biomes: [
       { name: 'Forêt', sky0: '#5aa9e6', sky1: '#cdeffd', sun: '#fff6c2', mount0: '#86aecb', mount1: '#4f8a6b',
         grass: '#5cb85c', grass2: '#53a953', path: '#d9b779', path2: '#cdaa6a', fog: '#e8f7ff',
-        deco: ['🌲', '🌳', '🍄', '🌸', '🌲', '🌼'] },
+        deco: ['🌲', '🌳', '🍄', '🌸', '🌲', '🌼'], ambient: ['birds', 'butterflies', 'petals'] },
       { name: 'Plage', sky0: '#3fa7f5', sky1: '#ffe9c7', sun: '#fff1a8', mount0: '#7ec8e3', mount1: '#4fb0c6',
         grass: '#f1d7a0', grass2: '#e8cc90', path: '#e3b873', path2: '#d8ab64', fog: '#fff6e6',
-        deco: ['🌴', '🐚', '🌺', '🌴', '🪸', '⛱️'] },
+        deco: ['🌴', '🐚', '🌺', '🌴', '🪸', '⛱️'], ambient: ['gulls'] },
       { name: 'Vallée étoilée', night: true, sky0: '#1b1d4f', sky1: '#5b4b8a', sun: '#fff6d5', mount0: '#3a3370', mount1: '#2b5d63',
         grass: '#2f6f5e', grass2: '#2a6455', path: '#8e7cc3', path2: '#8170b5', fog: '#b9a7ff',
-        deco: ['🌲', '🍄', '✨', '🌸', '🌲', '💎'] },
+        deco: ['🌲', '🍄', '✨', '🌸', '🌲', '💎'], ambient: ['fireflies'] },
     ],
     hero: { type: 'creature', body: '#b388eb', belly: '#f3e8ff', limb: '#8a5cc7', accent: '#72efdd' },
     collectible: '🫐',
     sky: ['#232661', '#7b5ea7'], far: '#3d348b', mid: '#2a7f78',
     ground: '#4a3f35', groundTop: '#43aa8b', stripe: '#3d342b',
     deco: ['🌲', '🍄', '🌲', '🌸'],
+    ambient: ['fireflies'],
     obstacle: '#6b5b4e', flyer: '#ffd166',
     night: true,
     endText: 'Lumi et ses nouveaux amis te disent bravo !',
@@ -168,7 +186,9 @@ const WORLDS = [
       P('airplane'),
       L(), D(),
       P('flamingo', 2),
+      B(10, 6),
       R(6, 12),
+      F(14),
       C('squat', 'jump'),
       P('star'),
       X(2),
@@ -184,7 +204,7 @@ const WORLDS = [
 ];
 
 const SPEEDS = [
-  { id: 'easy', label: 'Facile', mul: 1.4 },
+  { id: 'easy', label: 'Facile', mul: 1.5 },
   { id: 'normal', label: 'Normal', mul: 1 },
   { id: 'fast', label: 'Rapide', mul: 0.75 },
 ];

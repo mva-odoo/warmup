@@ -8,12 +8,51 @@ const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmar
 
 const POSE_NAMES = ['armsUp', 'airplane', 'star', 'flamingo'];
 
+const SKELETON = [
+  [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+  [11, 23], [12, 24], [23, 24],
+  [23, 25], [25, 27], [24, 26], [26, 28],
+];
+
+// Silhouette de chaque pose, en longueurs de torse depuis le milieu des épaules
+// (x positif = côté gauche du joueur, c'est-à-dire x croissant dans l'image non inversée).
+const TARGET_BONES = [
+  ['sL', 'sR'], ['sL', 'eL'], ['eL', 'wL'], ['sR', 'eR'], ['eR', 'wR'],
+  ['sL', 'hL'], ['sR', 'hR'], ['hL', 'hR'], ['hL', 'kL'], ['kL', 'aL'], ['hR', 'kR'], ['kR', 'aR'],
+];
+const TARGET_BODY = { sL: [0.35, 0], sR: [-0.35, 0], hL: [0.25, 1], hR: [-0.25, 1] };
+const STRAIGHT_LEGS = { kL: [0.25, 1.9], aL: [0.25, 2.8], kR: [-0.25, 1.9], aR: [-0.25, 2.8] };
+const TARGET_POSES = {
+  armsUp: { ...TARGET_BODY, ...STRAIGHT_LEGS, eL: [0.5, -0.5], wL: [0.45, -1.05], eR: [-0.5, -0.5], wR: [-0.45, -1.05] },
+  airplane: { ...TARGET_BODY, ...STRAIGHT_LEGS, eL: [0.9, 0], wL: [1.45, 0], eR: [-0.9, 0], wR: [-1.45, 0] },
+  star: { ...TARGET_BODY, eL: [0.75, -0.4], wL: [1.1, -0.85], eR: [-0.75, -0.4], wR: [-1.1, -0.85],
+    kL: [0.55, 1.85], aL: [0.8, 2.7], kR: [-0.55, 1.85], aR: [-0.8, 2.7] },
+  flamingo: { ...TARGET_BODY, eL: [0.7, 0.25], wL: [1.05, 0.45], eR: [-0.7, 0.25], wR: [-1.05, 0.45],
+    kL: [0.25, 1.9], aL: [0.25, 2.8], kR: [-0.4, 1.45], aR: [-0.2, 1.95] },
+};
+
+function drawTarget(ctx, w, h, sh, T, pose) {
+  const G = TARGET_POSES[pose];
+  if (!G) return;
+  const ax = T * (h / w); // le torse est mesuré en hauteur d'image
+  const P = (k) => [(sh.x + G[k][0] * ax) * w, (sh.y + G[k][1] * T) * h];
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255, 224, 102, 0.8)';
+  ctx.lineWidth = 14;
+  ctx.setLineDash([2, 18]);
+  for (const [a, b] of TARGET_BONES) {
+    const [x1, y1] = P(a), [x2, y2] = P(b);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function emptyState() {
   return {
     present: false, upperBody: false, fullBody: false, kneesOK: false, anklesOK: false,
     side: 'center', squat: false, jumpUp: false,
     armsUp: false, airplane: false, star: false, flamingo: false,
-    lift: null, checks: null,
   };
 }
 
@@ -31,8 +70,12 @@ class Body {
     this.T = null;         // longueur du torse (échelle du corps dans l'image)
     this.offSince = 0;
     this.foot = { L: false, R: false };
+    // Référence « jambe posée » mesurée sur CE joueur (les enfants n'ont pas les proportions d'un adulte)
+    this.legRef = { L: null, R: null };
     this.wristUp = { L: 0, R: 0 };
     this.bob = null;
+    this.motion = 0;       // quantité de mouvement lissée (statues musicales)
+    this.prevLm = null;
     this.center = null;    // milieu des épaules (sert à reconnaître qui est qui)
   }
 
@@ -46,6 +89,7 @@ class Body {
     this.T = dist(sh, mid(lm[23], lm[24]));
     this.mode = this.state.anklesOK ? 'full' : this.state.kneesOK ? 'knees' : 'upper';
     this.bob = { dir: 'down', ext: sh.y };
+    this.legRef = { L: null, R: null };
   }
 
   process(lm, now, emit) {
@@ -53,7 +97,6 @@ class Body {
     this.lm = lm || null;
     if (!lm) {
       s.present = s.upperBody = s.fullBody = false;
-      s.lift = null;
       return;
     }
     const vis = (i) => (lm[i].visibility == null ? 1 : lm[i].visibility);
@@ -65,11 +108,17 @@ class Body {
     s.present = shOK;
     s.upperBody = shOK && hipOK && vis(0) > 0.5 && inFrame(0);
     s.fullBody = s.upperBody && s.anklesOK;
-    if (!s.present) { s.lift = null; return; }
+    if (!s.present) return;
 
     const sh = mid(lm[11], lm[12]);
     const hip = mid(lm[23], lm[24]);
     this.center = sh;
+    if (this.prevLm && this.T) {
+      let m = 0;
+      for (const i of [0, 13, 14, 15, 16, 25, 26]) m += Math.hypot(lm[i].x - this.prevLm[i].x, lm[i].y - this.prevLm[i].y);
+      this.motion += (m / 7 / this.T - this.motion) * 0.3;
+    }
+    this.prevLm = lm;
     const Tnow = hipOK ? dist(sh, hip) : this.T;
     if (this.T == null) this.T = Tnow || 0.2;
     if (this.base == null) this.base = sh.y;
@@ -106,18 +155,23 @@ class Body {
     }
 
     // --- Course sur place
-    s.lift = null;
     if (!s.squat) {
       if (useKnees) {
-        // chaque genou (ou pied) qui se lève = un pas
-        const ankDiff = s.anklesOK ? (lm[28].y - lm[27].y) / T : 0;
-        const legs = [['L', kneeL, ankDiff], ['R', kneeR, -ankDiff]];
-        // 0 = jambe tendue, 1 = assez haut pour compter un pas
-        const liftOf = (kr, ankUp) => Math.max(0, Math.min(1.2, Math.max((0.9 - kr) / 0.2, ankUp / 0.22)));
-        s.lift = { L: liftOf(kneeL, ankDiff), R: liftOf(kneeR, -ankDiff) };
-        for (const [k, kr, ankUp] of legs) {
-          if (!this.foot[k] && (kr < 0.7 || ankUp > 0.22)) { this.foot[k] = true; emit('step'); }
-          else if (this.foot[k] && kr > 0.78 && ankUp < 0.1) this.foot[k] = false;
+        // Chaque genou (ou pied) qui se lève = un pas.
+        // On compare à la position « jambe posée » de ce joueur, apprise en continu :
+        // elle remonte vite quand la jambe se repose et ne baisse que très lentement.
+        const legs = [['L', kneeL, 27], ['R', kneeR, 28]];
+        for (const [k, kr, ank] of legs) {
+          const footY = s.anklesOK ? lm[ank].y / T : null;
+          const ref = this.legRef[k] || (this.legRef[k] = { knee: kr, foot: footY });
+          ref.knee += (kr - ref.knee) * (kr > ref.knee ? 0.3 : 0.004);
+          if (footY != null) {
+            if (ref.foot == null) ref.foot = footY;
+            ref.foot += (footY - ref.foot) * (footY > ref.foot ? 0.3 : 0.004);
+          }
+          const up = Math.max(ref.knee - kr, footY != null ? ref.foot - footY : 0);
+          if (!this.foot[k] && up > 0.12) { this.foot[k] = true; emit('step'); }
+          else if (this.foot[k] && up < 0.05) this.foot[k] = false;
         }
       } else {
         // haut du corps seulement : chaque rebond des épaules = un pas
@@ -151,25 +205,11 @@ class Body {
     // Jambes écartées : chevilles si visibles, sinon genoux, sinon on ne regarde que les bras
     const legsApart = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T > 0.75
       : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) / T > 0.55 : true;
-    const handsHigh = lw.y < nose.y && rw.y < nose.y;
-    const armsLevel = level(lw) && level(rw);
-    const armsWide = spread > 1.8;
-    const starArmsUp = lw.y < sh.y - 0.15 * T && rw.y < sh.y - 0.15 * T;
-    const starArmsWide = spread > 1.3;
-    const footUp = useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
+    s.armsUp = lw.y < nose.y && rw.y < nose.y;
+    s.airplane = level(lw) && level(rw) && spread > 1.8;
+    s.star = lw.y < sh.y - 0.15 * T && rw.y < sh.y - 0.15 * T && spread > 1.3 && legsApart;
+    s.flamingo = !s.squat && useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
       (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8));
-    s.armsUp = handsHigh;
-    s.airplane = armsLevel && armsWide;
-    s.star = starArmsUp && starArmsWide && legsApart;
-    s.flamingo = !s.squat && footUp;
-    // Ce qui est bon / pas bon, pour aider l'enfant pendant la pose
-    s.checks = {
-      armsUp: [['Mains au-dessus de la tête', handsHigh]],
-      airplane: [['Bras à hauteur des épaules', armsLevel], ['Bras bien écartés', armsWide]],
-      star: [['Bras levés', starArmsUp], ['Bras écartés', starArmsWide],
-        ...(s.kneesOK ? [['Jambes écartées', legsApart]] : [])],
-      flamingo: [['Un genou levé', footUp], ['Reste debout', !s.squat]],
-    };
 
     // --- Smash : main au-dessus de la tête puis descente rapide
     for (const [k, w] of [['L', lw], ['R', rw]]) {
@@ -303,6 +343,36 @@ class Tracker {
     if (this.sim) { for (const b of this.bodies) { b.calib = { cx: 0.5 }; b.mode = 'full'; } }
     else for (const b of this.bodies) b.calibrate();
     this.calibrated = true;
+  }
+
+  // Dessine les squelettes sur la vidéo (le canvas est retourné en miroir par le CSS).
+  // Pendant une pose : silhouette jaune à imiter, et squelette vert quand c'est réussi.
+  draw(ctx, w, h, { colors = [], target = null } = {}) {
+    ctx.clearRect(0, 0, w, h);
+    if (this.sim) return;
+    for (const b of this.bodies) {
+      const lm = b.lm;
+      if (!lm) continue;
+      if (target && b.T) drawTarget(ctx, w, h, mid(lm[11], lm[12]), b.T, target);
+      const done = target && b.state[target];
+      const color = done ? '#4ade80' : colors[b.idx] || (b.state.upperBody ? '#4ade80' : '#fb923c');
+      ctx.lineWidth = done ? 10 : 7; ctx.lineCap = 'round';
+      ctx.strokeStyle = color;
+      for (const [i, j] of SKELETON) {
+        if ((lm[i].visibility ?? 1) < 0.4 || (lm[j].visibility ?? 1) < 0.4) continue;
+        ctx.beginPath(); ctx.moveTo(lm[i].x * w, lm[i].y * h); ctx.lineTo(lm[j].x * w, lm[j].y * h); ctx.stroke();
+      }
+      for (const [k, i] of [['L', 25], ['R', 26]]) {
+        if (!b.foot[k] || (lm[i].visibility ?? 1) < 0.4) continue;
+        ctx.fillStyle = '#ffe066';
+        ctx.beginPath(); ctx.arc(lm[i].x * w, lm[i].y * h, 16, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      for (const i of [0, 15, 16, 27, 28]) {
+        if ((lm[i].visibility ?? 1) < 0.4) continue;
+        ctx.beginPath(); ctx.arc(lm[i].x * w, lm[i].y * h, 7, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
 
   // Résumé lisible : « 24 img/s · GPU » (🐢 si la détection rame)

@@ -14,6 +14,8 @@ MOVES = [
     ('pose', 'Pose à tenir'),
     ('combo', 'Combo'),
     ('rest', 'Pause / respiration'),
+    ('bubbles', 'Éclater des bulles'),
+    ('freeze', 'Statues musicales'),
 ]
 
 POSES = [

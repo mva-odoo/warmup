@@ -2,6 +2,7 @@
 
 const Audio8 = (() => {
   let ctx = null;
+  let musicTimer = 0;
   const ac = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
 
   function tone(freq, dur, type = 'square', vol = 0.1, when = 0, slideTo = null) {
@@ -75,6 +76,24 @@ const Audio8 = (() => {
     miss() { tone(320, 0.3, 'sawtooth', 0.06, 0, 140); },
     tick() { tone(880, 0.1, 'sine', 0.15); },
     go() { tone(1320, 0.35, 'sine', 0.18); },
+    soft() { tone(520, 0.12, 'sine', 0.08); tone(660, 0.16, 'sine', 0.07, 0.1); },
+    pop() { tone(900, 0.06, 'sine', 0.12, 0, 1800); tone(1400, 0.05, 'triangle', 0.05, 0.04); },
+    // Petite musique joyeuse en boucle (mélodie originale, gamme pentatonique)
+    music(on) {
+      if (!on) { clearInterval(musicTimer); musicTimer = 0; return; }
+      if (musicTimer) return;
+      let i = 0;
+      const mel = [0, 2, 4, 2, 5, 4, 2, 0, 3, 5, 6, 5, 4, 2, 3, 1];
+      const scale = [523, 587, 659, 784, 880, 1047, 1175];
+      const bass = [131, 131, 175, 196];
+      musicTimer = setInterval(() => {
+        tone(scale[mel[i % mel.length]], 0.16, 'triangle', 0.07);
+        if (i % 4 === 0) tone(bass[(i / 4) % bass.length | 0], 0.3, 'sine', 0.12);
+        if (i % 2 === 1) tone(2400, 0.03, 'square', 0.015);
+        i++;
+      }, 190);
+    },
+    musicOn: () => !!musicTimer,
     win() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.12, i * 0.12)); },
   };
 })();

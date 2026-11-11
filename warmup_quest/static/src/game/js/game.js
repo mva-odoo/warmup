@@ -6,31 +6,27 @@ const sceneSide = new Scene($('scene'));
 const sceneDepth = new DepthScene($('scene'));
 let scene = sceneSide;
 const video = $('video');
-const mirror = new Mirror($('mirror'));
+const camCtx = $('camOverlay').getContext('2d');
 
-// Joueurs de la partie (1, ou 2 en coopératif) et leurs couleurs d'avatar
+// Joueurs de la partie : 1, ou 2 en coopératif (chacun a sa couleur sur la vidéo)
+const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 let team = [{ name: '', color: null }];
-let palettes = [];
-// shade() vient de creatures.js
-const paletteFrom = (hex, i) => {
-  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) hex = AVATAR_PALETTES[i % 2].body;
-  return { body: hex, belly: shade(hex, 0.75), limb: shade(hex, -0.3), accent: '#ffd166' };
-};
+let colors = [];
 const duo = () => team.length > 1;
-const who = (i) => team[i] && team[i].name ? team[i].name : `Joueur ${i + 1}`;
-const whoTag = (i) => `<span class="who" style="--pc:${(palettes[i] || {}).body || '#1e1b4b'}">${who(i)}</span>`;
+// Pastille de couleur du joueur (les petits ne lisent pas encore : couleur + initiale)
+const whoTag = (i) => `<span class="who" style="--pc:${colors[i]}">${((team[i] && team[i].name) || String(i + 1)).charAt(0).toUpperCase()}</span>`;
 
 const FEEDBACK = {
   perfect: ['Parfait !', 'Génial !', 'Incroyable !', 'Trop fort !'],
   good: ['Bien joué !', 'Super !', 'Bravo !'],
   ok: ['Pas mal !', 'Continue !'],
-  miss: ['Oups ! Pas grave', 'On continue !'],
+  miss: ['On continue !', 'Presque !'],
 };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 let phase = 'menu'; // menu | loading | calib | countdown | play | results
 let world = WORLDS[0];
-let speed = SPEEDS[1];
+let speed = SPEEDS[0];
 let game = null;
 let calibState = { stage: '', holdStart: 0 };
 let lostSince = 0;
@@ -88,7 +84,7 @@ function buildMenu() {
   const sp = $('speeds');
   sp.innerHTML = '';
   const saved = store('speed');
-  speed = SPEEDS.find((s) => s.id === saved) || SPEEDS[1];
+  speed = SPEEDS.find((s) => s.id === saved) || SPEEDS[0];
   for (const s of SPEEDS) {
     const b = document.createElement('button');
     b.className = 'btn small' + (s === speed ? '' : ' ghost');
@@ -96,6 +92,12 @@ function buildMenu() {
     b.onclick = () => { speed = s; store('speed', s.id); buildMenu(); };
     sp.appendChild(b);
   }
+  const short = store('short') !== false; // partie courte par défaut (petits)
+  const sb = document.createElement('button');
+  sb.className = 'btn small' + (short ? '' : ' ghost');
+  sb.textContent = short ? '⏱️ Partie courte ✓' : '⏱️ Partie longue';
+  sb.onclick = () => { store('short', !short); buildMenu(); };
+  sp.appendChild(sb);
   $('simToggle').checked = !!store('sim');
   const dr = $('duoRow');
   dr.innerHTML = '';
@@ -122,6 +124,7 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   phase = 'menu'; game = null; frozen = false;
+  Audio8.music(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
   show('menu');
   scene.setWorld(null);
@@ -135,9 +138,8 @@ async function startWorld(w) {
   world = w;
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
-  palettes = duo() ? team.map((p, i) => paletteFrom(p.color, i)) : [w.hero];
+  colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
   tracker.setPlayers(team.length);
-  mirror.view = null;
   $('camBox').classList.toggle('duo', duo());
   Audio8.unlock();
   Audio8.say(' ');
@@ -242,9 +244,9 @@ function holdCalib(now) {
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
-  if ((e.key === 'c' || e.key === 'C') && !tracker.sim) {
-    mirror.showVideo = !mirror.showVideo;
-    $('camBox').classList.toggle('showVideo', mirror.showVideo);
+  if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'bubbles' && !game.cur.done) {
+    game.cur.bubbles.push({ x: 0.5, y: 0.5, r: 0.1, born: 0, p: 0 });
+    game.popBubble(game.cur, game.cur.bubbles.length - 1, performance.now());
   }
   const pauseKey = e.key === 'Escape' || e.key === 'p' || e.key === 'P';
   if (pauseKey && phase === 'play') pauseGame();
@@ -264,6 +266,7 @@ function pauseGame(reason) {
   pausedAt = performance.now();
   resumeHold = 0;
   if ('speechSynthesis' in window) speechSynthesis.cancel();
+  Audio8.music(false);
   $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : '';
   $('pauseBar').style.width = '0%';
   show('lost', false);
@@ -328,10 +331,17 @@ function startCountdown(done = startGame) {
 }
 
 // ---------------- Partie ----------------
+// Partie courte : on garde l'intro, la fin, les nouveaux jeux, et une étape sur deux du reste
+function shortSteps(steps) {
+  if (steps.length < 8) return steps;
+  const mid = steps.slice(1, -1);
+  return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || st.m === 'bubbles' || st.m === 'freeze'), steps[steps.length - 1]];
+}
+
 class Game {
   constructor(w, mul) {
     this.world = w;
-    this.steps = WUQStore.steps(w);
+    this.steps = store('short') !== false ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     this.mul = mul;
     this.startedAt = performance.now();
     this.pausedTotal = 0;
@@ -369,12 +379,13 @@ class Game {
     this.i++;
     if (this.i >= this.steps.length) return this.finish();
     const s = this.adapt(this.steps[this.i]);
-    const fixed = s.m === 'run' || s.m === 'rest';
+    const fixed = s.m === 'run' || s.m === 'rest' || s.m === 'freeze';
     const dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
-      counts: Array(this.np).fill(0), parts: Array(this.np).fill(0) };
+      counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
+      bubbles: [], pops: [], popped: 0, phase: null, okRounds: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
-    ui.setDetail(this.detail(this.cur, tracker.state));
+    ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
     scene.onStep(s, dur);
     if (s.m === 'pose' && scene.setDemoPose) scene.setDemoPose(s.pose);
@@ -427,24 +438,92 @@ class Game {
     }
   }
 
-  // Aide affichée sous la consigne (par joueur en coopératif)
-  detail(c, st = tracker.state) {
-    const s = c.s, bodies = tracker.bodies, np = this.np;
-    const rows = (fn) => np === 1 ? fn(0) : bodies.map((b, i) => `<div class="checkRow">${whoTag(i)}${fn(i)}</div>`).join('');
+  // Progression sous la consigne : points, puces, barre (une ligne par joueur en coopératif)
+  detail(c) {
+    const s = c.s, np = this.np;
+    const rows = (fn) => np === 1 ? fn(0) : c.counts.map((_, i) => `<div class="playerRow">${whoTag(i)}${fn(i)}</div>`).join('');
     switch (s.m) {
-      case 'run': {
-        const idle = c.idle;
-        const g = rows((i) => liftGauges(bodies[i].state.lift, idle, np > 1));
-        return runDetail(c.count, s.target * np) + g;
-      }
+      case 'run': return runDetail(c.count, s.target * np);
       case 'jump': case 'squat': case 'smash':
-        if (s.n === 1 && np === 1) return '';
-        return np === 1 ? dots(c.counts[0], s.n) : '<div class="duoDots">' + bodies.map((b, i) => whoTag(i) + dots(c.counts[i], s.n)).join('') + '</div>';
+        return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
-      case 'pose':
-        return holdBar(c.hold / (s.hold * 1000), s.creature, np > 1) +
-          rows((i) => poseChecks(bodies[i].state.checks && bodies[i].state.checks[s.pose]));
+      case 'pose': return holdBar(c.hold / (s.hold * 1000), s.creature);
+      case 'bubbles': return `<div class="runCount"><b>${c.popped}</b> / ${s.n} 🫧</div>`;
+      case 'freeze': return `<div class="bigIcon">${c.phase === 'freeze' ? '🗿 Statue !' : '💃 Danse !'}</div>`;
       default: return '';
+    }
+  }
+
+  // ---------- Bulles à éclater avec les mains (coordonnées de la caméra, 0..1)
+  spawnBubble(c, b, now) {
+    const sh = mid(b.lm[11], b.lm[12]), T = b.T, ax = T * 0.75; // 0.75 = hauteur / largeur de l'image
+    const side = Math.random() < 0.5 ? -1 : 1;
+    c.bubbles.push({
+      x: Math.max(0.08, Math.min(0.92, sh.x + side * (0.5 + Math.random() * 0.9) * ax)),
+      y: Math.max(0.1, Math.min(0.9, sh.y + (-1.1 + Math.random() * 1.5) * T)),
+      r: 0.2 * T, born: now, p: Math.random() * 6,
+    });
+  }
+
+  popBubble(c, i, now) {
+    const bb = c.bubbles.splice(i, 1)[0];
+    c.pops.push({ x: bb.x, y: bb.y, r: bb.r, t: now });
+    c.popped++;
+    this.add(50, '+50');
+    this.collect();
+    Audio8.pop();
+    ui.setDetail(this.detail(c));
+    if (c.popped >= c.s.n) this.complete(now);
+  }
+
+  updateBubbles(c, now) {
+    const bodies = tracker.bodies.filter((b) => b.lm && b.T && b.state.present);
+    while (!tracker.sim && bodies.length && c.bubbles.length < 3) this.spawnBubble(c, bodies[Math.floor(Math.random() * bodies.length)], now);
+    for (let i = c.bubbles.length - 1; i >= 0 && !c.done; i--) {
+      const bb = c.bubbles[i];
+      if (now - bb.born < 300) continue; // le temps de la voir apparaître
+      const hit = bodies.some((b) => [15, 16, 19, 20].some((w) => (b.lm[w].visibility ?? 1) > 0.4 &&
+        Math.hypot((b.lm[w].x - bb.x) * 640, (b.lm[w].y - bb.y) * 480) < bb.r * 480 + 18));
+      if (hit) this.popBubble(c, i, now);
+    }
+    c.pops = c.pops.filter((p) => now - p.t < 400);
+  }
+
+  // ---------- Statues musicales : danse quand la musique joue, statue quand elle s'arrête
+  updateFreeze(c, now) {
+    const n = freezeRounds(c.s), cyc = c.dur / n, t = now - c.start;
+    const round = Math.min(n - 1, Math.floor(t / cyc));
+    const phase = t - round * cyc < cyc * 0.6 ? 'dance' : 'freeze';
+    if (phase !== c.phase || round !== c.round) {
+      if (c.phase === 'freeze') this.scoreFreeze(c);
+      c.phase = phase; c.round = round;
+      c.still = Array(this.np).fill(0); c.frames = 0; c.phaseAt = now;
+      if (phase === 'dance') { Audio8.music(true); Audio8.say(duo() ? 'Dansez !' : 'Danse !'); scene.targetSpeed = 1.3; }
+      else { Audio8.music(false); Audio8.tick(); Audio8.say('Statue !'); scene.targetSpeed = 0; }
+      ui.setDetail(this.detail(c));
+    }
+    if (phase === 'dance') {
+      if (!Audio8.musicOn()) Audio8.music(true); // après une pause
+      if (scene.setDemoPose) scene.setDemoPose(Math.floor(now / 450) % 2 ? 'star' : 'armsUp');
+    } else {
+      if (scene.setDemoPose) scene.setDemoPose(null);
+      if (now - c.phaseAt > 400) { // un petit délai pour s'arrêter
+        c.frames++;
+        tracker.bodies.forEach((b, i) => { if (tracker.sim || b.motion < 0.02) c.still[i]++; });
+      }
+    }
+  }
+
+  scoreFreeze(c) {
+    if (!c.frames) return;
+    if (c.still.every((k) => k / c.frames >= 0.6)) {
+      c.okRounds++;
+      this.add(150, '+150');
+      Audio8.perfect();
+      ui.feedback(duo() ? 'Super statues !' : 'Super statue !', 'perfect');
+    } else {
+      Audio8.soft();
+      ui.feedback('Presque !', 'ok');
     }
   }
 
@@ -492,7 +571,18 @@ class Game {
     this.gapUntil = now + 900;
     if (s.m === 'rest') { this.gapUntil = now; return; }
     let rating;
-    if (s.m === 'run') {
+    if (s.m === 'freeze') {
+      if (c.phase === 'freeze') this.scoreFreeze(c);
+      Audio8.music(false);
+      scene.setDemoPose && scene.setDemoPose(null);
+      const n = freezeRounds(s);
+      rating = c.okRounds >= n ? 'perfect' : c.okRounds > 0 ? 'good' : 'ok';
+      if (c.okRounds > 0) this.success++;
+    } else if (s.m === 'bubbles') {
+      const r = c.popped / s.n;
+      rating = r >= 0.5 ? 'good' : 'ok';
+      if (r >= 0.5) this.success++;
+    } else if (s.m === 'run') {
       const r = c.count / s.target;
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -503,8 +593,8 @@ class Game {
     }
     if (rating === 'miss' || rating === 'ok') { this.streak = 0; ui.setStreak(0); }
     else { this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); ui.setStreak(this.streak); }
-    rating === 'miss' ? Audio8.miss() : rating === 'perfect' ? Audio8.perfect() : Audio8.good();
-    ui.feedback(pick(FEEDBACK[rating]), rating);
+    rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
+    ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
   }
 
   update(now) {
@@ -520,19 +610,21 @@ class Game {
       const ok = st[s.pose];
       scene.setHoldPose(ok ? s.pose : null);
       c.hold = ok ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
-      ui.setDetail(this.detail(c, st));
+      ui.setDetail(this.detail(c));
       if (scene.setHoldProgress) scene.setHoldProgress(Math.min(1, c.hold / (s.hold * 1000)));
       if (c.hold >= s.hold * 1000) { this.add(150, '+150'); return this.complete(now); }
     }
+    if (s.m === 'bubbles') this.updateBubbles(c, now);
+    if (s.m === 'freeze') this.updateFreeze(c, now);
     if (s.m === 'run' && now - (c.uiAt || 0) > 100) {
       c.uiAt = now;
-      c.idle = now - (c.lastStep || c.start) > 2500;
-      if (c.idle && !c.tipped && !tracker.sim) {
+      // Aucun pas compté depuis un moment : un conseil à voix haute
+      if (now - (c.lastStep || c.start) > 2500 && !c.tipped && !tracker.sim) {
         c.tipped = true;
-        const knees = tracker.bodies.some((b) => b.state.lift);
+        const knees = tracker.mode !== 'upper';
         Audio8.say(duo() ? (knees ? 'Levez bien les genoux !' : 'Rebondissez sur place !') : (knees ? 'Lève bien les genoux !' : 'Rebondis sur place !'));
       }
-      ui.setDetail(this.detail(c, st));
+      ui.setDetail(this.detail(c));
     }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (now >= c.end) this.timeout(now);
@@ -541,7 +633,7 @@ class Game {
   finish() {
     this.over = true;
     const ratio = this.maxScore ? this.score / this.maxScore : 0;
-    const stars = ratio >= 0.75 ? 3 : ratio >= 0.45 ? 2 : ratio >= 0.15 ? 1 : 0;
+    const stars = ratio >= 0.6 ? 3 : ratio >= 0.3 ? 2 : 1; // au moins 1 étoile : on a bougé, c'est gagné
     const id = this.world.id;
     const best = WUQStore.getBest(id);
     const isBest = this.score > best.score;
@@ -573,16 +665,16 @@ function startGame() {
   lostSince = 0;
 }
 
-const EVENT_LABELS = { jump: '🦘 Saut', squat: '🐸 Accroupi', smash: '💥 Smash', left: '⬅️ Gauche', right: '➡️ Droite', step: '🏃 Pas' };
+const EVENT_ICONS = { jump: '🦘', squat: '🐸', smash: '💥', left: '⬅️', right: '➡️', step: '👟' };
 let camEventTimer = 0;
 tracker.on((type, now, idx) => {
   if (phase !== 'play' && phase !== 'calib') return;
-  mirror.pop(idx);
   const el = $('camEvent');
-  el.textContent = (duo() ? who(idx) + ' : ' : 'Vu : ') + (EVENT_LABELS[type] || type);
+  el.textContent = EVENT_ICONS[type] || '';
+  el.style.background = duo() ? colors[idx] : '';
   el.className = 'show';
   clearTimeout(camEventTimer);
-  camEventTimer = setTimeout(() => (el.className = ''), 700);
+  camEventTimer = setTimeout(() => (el.className = ''), 600);
 });
 
 tracker.on((type, now, idx) => {
@@ -595,18 +687,9 @@ tracker.on((type, now, idx) => {
 // ---------------- Interface ----------------
 const dots = (n, total) => '<div class="dots">' + Array.from({ length: total }, (_, i) => `<span class="${i < n ? 'on' : ''}"></span>`).join('') + '</div>';
 const runDetail = (n, target) => `<div class="runCount"><b>${n}</b> / ${target} pas</div>`;
-const holdBar = (p, cr, many) => `<div class="holdbar small"><div style="width:${Math.min(100, p * 100)}%"></div></div><div class="hint">${cr ? `${many ? 'Tenez' : 'Tiens'} la pose pour devenir ami avec <b>${cr.name}</b> (${cr.element})` : many ? 'Tenez la pose tous les deux !' : 'Tiens la pose !'}</div>`;
+const holdBar = (p, cr) => `<div class="holdbar small"><div style="width:${Math.min(100, p * 100)}%"></div></div>${cr ? `<div class="hint">${cr.name} (${cr.element})</div>` : ''}`;
 const comboChips = (parts, done) => '<div class="chips">' + parts.map((p, i) =>
   `<span class="chip ${i < done ? 'ok' : i === done ? 'now' : ''}">${MOVE_ICONS[p]} ${MOVE_SHORT[p]}</span>`).join('<i>›</i>') + '</div>';
-
-const poseChecks = (list) => !list ? '' : '<div class="checks">' + list.map(([label, ok]) =>
-  `<span class="${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'} ${label}</span>`).join('') + '</div>';
-const liftGauges = (lift, idle, compact) => {
-  if (!lift) return `<div class="hint">${idle ? '⬆️ Rebondis plus fort sur place !' : 'Rebondis sur place'}</div>`;
-  const g = (k, name) => `<div class="lift"><span>${name}</span><div class="liftBar"><div style="width:${Math.min(100, lift[k] / 1.2 * 100)}%" class="${lift[k] >= 1 ? 'ok' : ''}"></div><i></i></div></div>`;
-  return `<div class="lifts${compact ? ' compact' : ''}">${g('L', compact ? 'G' : 'Genou G')}${g('R', compact ? 'D' : 'Genou D')}</div>` +
-    (compact ? '' : `<div class="hint">${idle ? '⬆️ Lève plus les genoux : la barre doit passer le trait !' : 'Lève les genoux jusqu\'au trait'}</div>`);
-};
 
 const ui = {
   reset(w) {
@@ -621,7 +704,7 @@ const ui = {
   setTimer(p, rest) {
     const el = $('cardTimer');
     el.style.width = Math.max(0, p * 100) + '%';
-    el.className = rest ? 'rest' : p < 0.3 ? 'low' : '';
+    el.className = rest ? 'rest' : '';
   },
   showStep(s, next, i, total) {
     const card = $('card');
@@ -646,11 +729,23 @@ const ui = {
   },
 };
 
+// Gommettes à collectionner
+const STICKERS = ['🦄', '🐳', '🦖', '🌈', '🚀', '🍦', '🐙', '🦋', '🌟', '🍉', '🐢', '🎈', '🦊', '🐝', '🍭', '🏆', '🐼', '🦜', '🌻', '🎨', '🐬', '🍓', '🦁', '🪁'];
+
+// Pluie de confettis sur le décor
+function celebrate() {
+  const colors = ['#ff6b9a', '#ffd166', '#4ade80', '#7bdff2', '#b388eb', '#ff9f1c'];
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => scene.burst(innerWidth * (0.1 + Math.random() * 0.8), innerHeight * (0.15 + Math.random() * 0.3), 36, colors), i * 280);
+  }
+}
+
 function showResults(g, stars, isBest, prevBest) {
   phase = 'results';
+  Audio8.music(false);
   show('hud', false); show('camBox', false);
   show('results');
-  $('resTitle').textContent = stars >= 2 ? g.world.endText : 'Bien essayé ! On recommence ?';
+  $('resTitle').textContent = g.world.endText;
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;
   $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
@@ -664,8 +759,20 @@ function showResults(g, stars, isBest, prevBest) {
     team.appendChild(title);
     for (const cr of g.team) team.appendChild(creatureCard(cr, true, Carnet.evolved(cr.id)));
   }
+  // Gommette pour chaque joueur
+  const won = team.map((p, i) => {
+    const own = WUQStore.getStickers(i);
+    const fresh = STICKERS.filter((st) => !own.includes(st));
+    const st = (fresh.length ? fresh : STICKERS)[Math.floor(Math.random() * (fresh.length || STICKERS.length))];
+    WUQStore.addSticker(i, st);
+    return st;
+  });
+  $('resSticker').innerHTML = won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
+  celebrate();
   Audio8.win();
-  Audio8.say(`Bravo ! Tu as gagné ${stars} étoile${stars > 1 ? 's' : ''} et ${g.score} points !`);
+  const names = team.map((p) => p.name).filter(Boolean);
+  const bravo = names.length ? `Bravo ${names.join(' et ')} !` : 'Bravo !';
+  Audio8.say(`${bravo} ${duo() ? 'Vous avez' : 'Tu as'} gagné ${stars} étoile${stars > 1 ? 's' : ''} et ${duo() ? 'des nouvelles gommettes' : 'une nouvelle gommette'} !`);
   scene.targetSpeed = 0.2;
   scene.obs = null;
   scene.setHoldPose('armsUp');
@@ -699,6 +806,12 @@ function openCarnet() {
   }
   const met = CREATURES.filter((c) => data[c.id]).length;
   $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures rencontrées · deviens ${EVOLVE_AT} fois ami avec une créature pour la faire évoluer !`;
+  const players = WUQStore.players();
+  $('stickerAlbum').innerHTML = players.map((p, i) => {
+    const own = WUQStore.getStickers(i);
+    return `<div class="album">${players.length > 1 || p.name ? `<div class="albumName">${p.name || 'Joueur ' + (i + 1)}</div>` : ''}<div class="albumGrid">` +
+      STICKERS.map((st) => `<span class="${own.includes(st) ? 'got' : ''}">${own.includes(st) ? st : '?'}</span>`).join('') + '</div></div>';
+  }).join('');
   show('menu', false);
   show('carnet');
 }
@@ -707,6 +820,34 @@ $('carnetBack').onclick = () => { show('carnet', false); show('menu'); };
 
 $('againBtn').onclick = () => { show('results', false); startWorld(world); };
 $('menuBtn').onclick = goMenu;
+
+// Bulles sur la vidéo (le canvas est en miroir : pas de texte ici)
+function drawBubbles(ctx, c, now) {
+  for (const bb of c.bubbles) {
+    const grow = Math.min(1, (now - bb.born) / 300);
+    const x = bb.x * 640, y = bb.y * 480 + Math.sin(now * 0.003 + bb.p) * 6, r = bb.r * 480 * grow;
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+    g.addColorStop(0.7, 'rgba(173, 232, 255, 0.25)');
+    g.addColorStop(1, 'rgba(255, 170, 230, 0.6)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath(); ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.18, r * 0.1, -0.6, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const p of c.pops) {
+    const k = (now - p.t) / 400, x = p.x * 640, y = p.y * 480, r = p.r * 480;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${1 - k})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, r * (1 + k), 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(173, 232, 255, ${1 - k})`;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + k * 1.5), y + Math.sin(a) * r * (1 + k * 1.5), 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
 
 // ---------------- Boucle ----------------
 function updateCamStatus(now) {
@@ -741,8 +882,10 @@ function loop(now) {
   if (!$('camBox').classList.contains('hidden')) {
     const cur = phase === 'play' && game && game.cur;
     const posing = !!(cur && cur.s.m === 'pose' && !cur.done);
-    mirror.render(tracker, { palettes, names: duo() ? team.map((p, i) => who(i)) : null, target: posing ? cur.s.pose : null });
-    $('camBox').classList.toggle('pose', posing);
+    const bubbling = !!(cur && cur.s.m === 'bubbles' && !cur.done);
+    tracker.draw(camCtx, 640, 480, { colors, target: posing ? cur.s.pose : null });
+    if (cur && cur.s.m === 'bubbles') drawBubbles(camCtx, cur, now);
+    $('camBox').classList.toggle('pose', posing || bubbling);
     updateCamStatus(now);
   }
 }
