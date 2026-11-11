@@ -26,6 +26,7 @@
         <button class="btn small ghost" id="voiceTest">▶ Tester</button>
       </div>
       <p id="voiceTip" class="voiceTip hidden">💡 Pour une voix bien plus naturelle, ouvre le jeu avec <b>Microsoft Edge</b> (voix « Natural »).</p>
+      <div class="duoRow" id="duoRow"></div>
       <label class="sim"><input type="checkbox" id="simToggle"> Mode clavier (test sans caméra)</label>
     </div>
   </section>
@@ -108,8 +109,11 @@
   <!-- Caméra -->
   <div id="camBox" class="hidden">
     <video id="video" playsinline muted></video>
-    <canvas id="camOverlay" width="640" height="480"></canvas>
+    <canvas id="mirror"></canvas>
     <div id="camStatus"></div>
+    <div id="camPerf"></div>
+    <div id="camEvent"></div>
+    <div id="camHint">C : voir la caméra</div>
   </div>
 
   <div id="simHelp" class="simHelp hidden">
@@ -121,6 +125,7 @@
   <script src="js/audio.js"></script>
   <script src="js/worlds.js"></script>
   <script src="js/pose.js"></script>
+  <script src="js/avatar.js"></script>
   <script src="js/scene.js"></script>
   <script src="js/creatures.js"></script>
   <script src="js/depth.js"></script>

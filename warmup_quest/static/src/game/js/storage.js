@@ -23,6 +23,22 @@ const WUQStore = {
   // Appelé à la fin de chaque partie avec le résumé
   finish(result) {},
 
+  // Joueurs de la partie : 1 ou 2 (coopératif) — { name, color }
+  players() {
+    return this._get('duo')
+      ? [{ name: 'Joueur 1', color: '#ff6b35' }, { name: 'Joueur 2', color: '#4ea8ff' }]
+      : [{ name: '', color: null }];
+  },
+  // Bouton du menu pour passer en 2 joueurs (le module Odoo le remplace par le choix des profils)
+  duoToggle(rebuild) {
+    const b = document.createElement('button');
+    const on = !!this._get('duo');
+    b.className = 'btn small' + (on ? '' : ' ghost');
+    b.textContent = on ? '👥 2 joueurs (coopératif) ✓' : '👥 Jouer à 2 (coopératif)';
+    b.onclick = () => { this._set('duo', !on); rebuild(); };
+    return b;
+  },
+
   // Éléments optionnels ajoutés au menu (sélecteur de joueur, etc.)
   menuExtras(rebuild) { return null; },
   cardExtra(world, rebuild) { return null; },

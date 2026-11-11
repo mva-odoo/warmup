@@ -112,7 +112,7 @@ class DepthScene {
   }
 
   resize() {
-    const d = devicePixelRatio || 1;
+    const d = Math.min(devicePixelRatio || 1, 1.5);
     this.W = innerWidth; this.H = innerHeight;
     this.c.width = this.W * d; this.c.height = this.H * d;
     this.ctx.setTransform(d, 0, 0, d, 0, 0);
@@ -176,6 +176,8 @@ class DepthScene {
   }
 
   setHoldPose(p) { this.hero.holdPose = p; }
+  // Le héros montre la pose à faire (sans l'anneau de réussite)
+  setDemoPose(p) { this.hero.demoPose = p; }
 
   shift(d) {
     const o = this.obs, e = this.enc;
@@ -191,6 +193,7 @@ class DepthScene {
     this.obs = null;
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
     this.hero.holdPose = null;
+    this.hero.demoPose = null;
     this.targetSpeed = s.m === 'run' ? 2.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' ? 0.35 : 1;
     const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -411,6 +414,7 @@ class DepthScene {
     else if (this.live.squat) pose = 'duck';
     else if (h.pose && now < h.poseUntil) pose = h.pose;
     else if (h.holdPose) pose = h.holdPose;
+    else if (h.demoPose) pose = h.demoPose;
     else if (this.enc && this.enc.state === 'befriend') pose = 'happy';
     else pose = this.speed < 0.5 ? 'idle' : 'run';
     const z = this.heroZ(), k = this.k(z);

@@ -86,16 +86,35 @@ h1 span { color: var(--brand2); }
 
 /* ---------- Caméra ---------- */
 #camBox {
-  position: fixed; right: 16px; bottom: 16px; z-index: 20;
-  width: clamp(200px, 22vw, 320px); aspect-ratio: 4 / 3;
-  border-radius: 20px; overflow: hidden; border: 5px solid #fff; background: #111;
-  box-shadow: var(--shadow); transition: all 0.4s ease;
+  position: fixed; right: 12px; bottom: 8px; z-index: 20;
+  width: max(200px, min(26vw, 40vh)); aspect-ratio: 3 / 4;
+  border-radius: 24px; overflow: hidden; background: transparent;
+  transition: width 0.4s ease, right 0.4s ease, bottom 0.4s ease, transform 0.4s ease;
 }
-#camBox.big { width: min(720px, 86vw); right: 50%; bottom: 50%; transform: translate(50%, 58%); }
-#camBox video, #camBox canvas {
+/* Halo léger pour que le personnage ressorte sur le décor */
+#camBox::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 55% at 50% 72%, rgba(255, 255, 255, 0.35), transparent 70%);
+}
+#camBox.duo { aspect-ratio: 1 / 1; width: max(260px, min(34vw, 50vh)); }
+#camBox.big { width: min(520px, 80vw, 54vh); right: 50%; bottom: 50%; transform: translate(50%, 55%); }
+#camBox.duo.big { width: min(680px, 86vw, 70vh); }
+#camBox.pose:not(.big) { width: max(240px, min(34vw, 50vh)); }
+#camBox.duo.pose:not(.big) { width: max(300px, min(42vw, 60vh)); }
+#camBox video {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   transform: scaleX(-1); /* effet miroir */
+  opacity: 0; transition: opacity 0.3s;
 }
+#camBox.showVideo video { opacity: 1; }
+#camBox.showVideo { background: #111; border: 5px solid #fff; }
+#camBox canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#camHint {
+  position: absolute; left: 50%; top: 40px; transform: translateX(-50%); white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: #fff; background: rgba(0, 0, 0, 0.35);
+  padding: 1px 10px; border-radius: 99px; opacity: 0; transition: opacity 0.3s;
+}
+#camBox.big #camHint { opacity: 1; }
 #camStatus {
   position: absolute; left: 8px; top: 8px; padding: 2px 12px; border-radius: 99px;
   font-weight: 700; font-size: 15px; color: #fff; background: rgba(0, 0, 0, 0.55);
@@ -103,6 +122,31 @@ h1 span { color: var(--brand2); }
 #camStatus.ok { background: rgba(34, 197, 94, 0.85); }
 #camStatus.warn { background: rgba(245, 158, 11, 0.9); }
 #camStatus.bad { background: rgba(239, 68, 68, 0.85); }
+#camPerf {
+  position: absolute; right: 8px; top: 8px; padding: 1px 10px; border-radius: 99px;
+  font-size: 12px; font-weight: 700; color: #fff; background: rgba(0, 0, 0, 0.45);
+}
+#camPerf:empty { display: none; }
+#camPerf.slow { background: rgba(239, 68, 68, 0.85); }
+#camEvent {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%) scale(0.8);
+  padding: 2px 14px; border-radius: 99px; font-weight: 800; font-size: 18px; white-space: nowrap;
+  color: #1e1b4b; background: #ffe066; opacity: 0; transition: opacity 0.15s, transform 0.15s;
+}
+#camEvent.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+/* ---------- Aide : critères de pose et genoux ---------- */
+.checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.checks span { padding: 2px 12px; border-radius: 99px; font-weight: 700; font-size: 17px; }
+.checks .ok { background: var(--ok); color: #fff; }
+.checks .ko { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
+.lifts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 6px; }
+.lift { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.lift span { white-space: nowrap; }
+.liftBar { position: relative; flex: 1; height: 14px; border-radius: 99px; background: rgba(30, 27, 75, 0.12); overflow: hidden; }
+.liftBar > div { height: 100%; background: #fbbf24; border-radius: 99px; transition: width 0.1s linear; }
+.liftBar > div.ok { background: var(--ok); }
+.liftBar > i { position: absolute; top: 0; bottom: 0; left: 83.3%; width: 3px; background: #1e1b4b; }
 
 /* ---------- Compte à rebours ---------- */
 #countdown {
@@ -226,3 +270,14 @@ body.sim .next { bottom: 78px; }
   .card { top: 120px; padding: 12px 16px 18px; }
   .next { display: none; }
 }
+
+/* ---------- Joueurs : coopératif ---------- */
+.duoRow { display: flex; justify-content: center; }
+.duoRow:empty { display: none; }
+.checkRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.checkRow .checks { margin-top: 0; }
+.who { font-weight: 800; font-size: 15px; padding: 1px 10px; border-radius: 99px; color: #fff; background: var(--pc, #1e1b4b); }
+.duoDots { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; }
+.duoDots .who + .dots { margin-top: 0; }
+.lifts.compact { display: flex; gap: 10px; margin-top: 0; flex: 1; min-width: 160px; }
+.lifts.compact .lift { flex: 1; }

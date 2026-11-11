@@ -6,7 +6,19 @@ const sceneSide = new Scene($('scene'));
 const sceneDepth = new DepthScene($('scene'));
 let scene = sceneSide;
 const video = $('video');
-const camCtx = $('camOverlay').getContext('2d');
+const mirror = new Mirror($('mirror'));
+
+// Joueurs de la partie (1, ou 2 en coopératif) et leurs couleurs d'avatar
+let team = [{ name: '', color: null }];
+let palettes = [];
+// shade() vient de creatures.js
+const paletteFrom = (hex, i) => {
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) hex = AVATAR_PALETTES[i % 2].body;
+  return { body: hex, belly: shade(hex, 0.75), limb: shade(hex, -0.3), accent: '#ffd166' };
+};
+const duo = () => team.length > 1;
+const who = (i) => team[i] && team[i].name ? team[i].name : `Joueur ${i + 1}`;
+const whoTag = (i) => `<span class="who" style="--pc:${(palettes[i] || {}).body || '#1e1b4b'}">${who(i)}</span>`;
 
 const FEEDBACK = {
   perfect: ['Parfait !', 'Génial !', 'Incroyable !', 'Trop fort !'],
@@ -85,6 +97,10 @@ function buildMenu() {
     sp.appendChild(b);
   }
   $('simToggle').checked = !!store('sim');
+  const dr = $('duoRow');
+  dr.innerHTML = '';
+  const dt = WUQStore.duoToggle(buildMenu);
+  if (dt) dr.appendChild(dt);
 }
 
 $('simToggle').onchange = (e) => store('sim', e.target.checked);
@@ -117,6 +133,12 @@ async function startWorld(w) {
   const ok = WUQStore.canStart();
   if (ok !== true) { alert(ok); return; }
   world = w;
+  team = WUQStore.players();
+  if (!team.length) team = [{ name: '', color: null }];
+  palettes = duo() ? team.map((p, i) => paletteFrom(p.color, i)) : [w.hero];
+  tracker.setPlayers(team.length);
+  mirror.view = null;
+  $('camBox').classList.toggle('duo', duo());
   Audio8.unlock();
   Audio8.say(' ');
   scene.setWorld(null);
@@ -148,7 +170,10 @@ async function startWorld(w) {
 function cameraHelp(e) {
   const name = e && e.name;
   let msg = '';
-  if (name === 'NotAllowedError') msg = "L'accès à la caméra a été refusé. Clique sur l'icône 🎥 dans la barre d'adresse et autorise la caméra.";
+  if (!window.isSecureContext || !navigator.mediaDevices) {
+    msg = `La caméra n'est disponible qu'en HTTPS (ou sur http://localhost). Cette page est ouverte sur ${location.origin} : ` +
+      "ouvre Odoo via https:// ou via http://localhost:8069.";
+  } else if (name === 'NotAllowedError') msg = "L'accès à la caméra a été refusé. Clique sur l'icône 🎥 dans la barre d'adresse et autorise la caméra.";
   else if (name === 'NotFoundError') msg = 'Aucune webcam détectée sur cet ordinateur.';
   else if (name === 'NotReadableError') msg = 'La webcam est déjà utilisée par une autre application (Teams, Zoom…).';
   else msg = 'Vérifie ta connexion internet (le modèle de détection se télécharge) et utilise Chrome ou Edge.';
@@ -180,10 +205,21 @@ function updateCalib(now) {
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
     return;
   }
-  if (!s.upperBody) {
+  if (duo() && !s.upperBody) {
+    calibState.holdStart = 0;
+    $('calibBar').style.width = '0%';
+    const n = tracker.bodies.filter((b) => b.state.upperBody).length;
+    setCalibStage('far' + n, 'Mettez-vous à deux face à la caméra 👀',
+      `Je vois ${n} joueur${n > 1 ? 's' : ''} sur 2 · on doit voir vos têtes et vos hanches`,
+      n ? 'Je ne vois qu\'un joueur ! Mettez-vous côte à côte et reculez un peu.' : 'Mettez-vous à deux face à la caméra !');
+  } else if (!s.upperBody) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
     setCalibStage('far', 'Mets-toi face à la caméra 👀', 'On doit voir au moins ta tête et tes hanches', 'Mets-toi face à la caméra, recule un peu !');
+  } else if (duo() && !s.armsUp) {
+    calibState.holdStart = 0;
+    $('calibBar').style.width = '0%';
+    setCalibStage('arms2', 'Super ! Levez tous les deux les bras 🙌', 'Gardez les bras en l\'air pour commencer', 'Super ! Levez tous les deux les bras pour commencer !');
   } else if (!s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -206,6 +242,10 @@ function holdCalib(now) {
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
+  if ((e.key === 'c' || e.key === 'C') && !tracker.sim) {
+    mirror.showVideo = !mirror.showVideo;
+    $('camBox').classList.toggle('showVideo', mirror.showVideo);
+  }
   const pauseKey = e.key === 'Escape' || e.key === 'p' || e.key === 'P';
   if (pauseKey && phase === 'play') pauseGame();
   else if (pauseKey && phase === 'paused') resumeGame();
@@ -306,6 +346,7 @@ class Game {
     this.cur = null;
     this.over = false;
     this.team = [];
+    this.np = tracker.bodies.length; // joueurs (coopératif : chaque défi doit être fait par tous)
   }
 
   // Décale toutes les échéances après une pause
@@ -330,10 +371,13 @@ class Game {
     const s = this.adapt(this.steps[this.i]);
     const fixed = s.m === 'run' || s.m === 'rest';
     const dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
-    this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0 };
+    this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
+      counts: Array(this.np).fill(0), parts: Array(this.np).fill(0) };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
+    ui.setDetail(this.detail(this.cur, tracker.state));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
     scene.onStep(s, dur);
+    if (s.m === 'pose' && scene.setDemoPose) scene.setDemoPose(s.pose);
     if (scene.setProgress) scene.setProgress(this.i / this.steps.length);
   }
 
@@ -345,35 +389,62 @@ class Game {
 
   collect(n = 1) { this.collected += n; ui.setCollect(this.collected); }
 
-  onEvent(type, now) {
+  // Points d'un mouvement : partagés entre les joueurs (le score maximum reste le même)
+  pts(n) { return Math.round(n / this.np); }
+
+  onEvent(type, now, idx = 0) {
     const c = this.cur;
-    if (!c || c.done) return;
+    if (!c || c.done || idx >= this.np) return;
     const s = c.s;
     if (s.m === 'run' && type === 'step') {
       c.count++;
-      if (c.count <= s.target) this.add(10);
+      c.lastStep = now; c.tipped = false;
+      if (c.count <= s.target * this.np) this.add(this.pts(10));
       this.collect();
       scene.action('step');
       Audio8.coin();
-      ui.setDetail(runDetail(c.count, s.target));
     } else if ((s.m === 'jump' || s.m === 'squat' || s.m === 'smash') && type === s.m) {
+      if (c.counts[idx] >= s.n) return; // ce joueur a fini, on attend l'autre
+      c.counts[idx]++;
       c.count++;
-      this.add(100, '+100');
+      this.add(this.pts(100), '+' + this.pts(100));
       scene.action(type);
       Audio8.good();
-      ui.setDetail(dots(c.count, s.n));
-      if (c.count >= s.n) this.complete(now);
+      ui.setDetail(this.detail(c));
+      if (c.counts.every((n) => n >= s.n)) this.complete(now);
     } else if (s.m === 'combo') {
-      if (type === s.parts[c.part]) {
-        c.part++;
-        this.add(100, '+100');
+      if (c.parts[idx] < s.parts.length && type === s.parts[c.parts[idx]]) {
+        c.parts[idx]++;
+        c.part = Math.min(...c.parts);
+        this.add(this.pts(100), '+' + this.pts(100));
         scene.action(type);
         Audio8.good();
-        ui.setDetail(comboChips(s.parts, c.part));
-        if (c.part >= s.parts.length) { this.add(200, 'COMBO +200'); this.complete(now); }
+        ui.setDetail(this.detail(c));
+        if (c.parts.every((n) => n >= s.parts.length)) { this.add(200, 'COMBO +200'); this.complete(now); }
       }
-    } else if ((s.m === 'left' || s.m === 'right') && type === s.m) {
+    } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
       this.sideDone(now);
+    }
+  }
+
+  // Aide affichée sous la consigne (par joueur en coopératif)
+  detail(c, st = tracker.state) {
+    const s = c.s, bodies = tracker.bodies, np = this.np;
+    const rows = (fn) => np === 1 ? fn(0) : bodies.map((b, i) => `<div class="checkRow">${whoTag(i)}${fn(i)}</div>`).join('');
+    switch (s.m) {
+      case 'run': {
+        const idle = c.idle;
+        const g = rows((i) => liftGauges(bodies[i].state.lift, idle, np > 1));
+        return runDetail(c.count, s.target * np) + g;
+      }
+      case 'jump': case 'squat': case 'smash':
+        if (s.n === 1 && np === 1) return '';
+        return np === 1 ? dots(c.counts[0], s.n) : '<div class="duoDots">' + bodies.map((b, i) => whoTag(i) + dots(c.counts[i], s.n)).join('') + '</div>';
+      case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
+      case 'pose':
+        return holdBar(c.hold / (s.hold * 1000), s.creature, np > 1) +
+          rows((i) => poseChecks(bodies[i].state.checks && bodies[i].state.checks[s.pose]));
+      default: return '';
     }
   }
 
@@ -426,7 +497,7 @@ class Game {
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
     } else {
-      const partial = c.count > 0 || c.part > 0 || c.hold > 0;
+      const partial = c.count > 0 || c.parts.some((n) => n > 0) || c.hold > 0;
       rating = partial ? 'ok' : 'miss';
       scene.resolve(false);
     }
@@ -449,9 +520,19 @@ class Game {
       const ok = st[s.pose];
       scene.setHoldPose(ok ? s.pose : null);
       c.hold = ok ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
-      ui.setDetail(holdBar(c.hold / (s.hold * 1000), s.creature));
+      ui.setDetail(this.detail(c, st));
       if (scene.setHoldProgress) scene.setHoldProgress(Math.min(1, c.hold / (s.hold * 1000)));
       if (c.hold >= s.hold * 1000) { this.add(150, '+150'); return this.complete(now); }
+    }
+    if (s.m === 'run' && now - (c.uiAt || 0) > 100) {
+      c.uiAt = now;
+      c.idle = now - (c.lastStep || c.start) > 2500;
+      if (c.idle && !c.tipped && !tracker.sim) {
+        c.tipped = true;
+        const knees = tracker.bodies.some((b) => b.state.lift);
+        Audio8.say(duo() ? (knees ? 'Levez bien les genoux !' : 'Rebondissez sur place !') : (knees ? 'Lève bien les genoux !' : 'Rebondis sur place !'));
+      }
+      ui.setDetail(this.detail(c, st));
     }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (now >= c.end) this.timeout(now);
@@ -492,19 +573,40 @@ function startGame() {
   lostSince = 0;
 }
 
-tracker.on((type, now) => {
+const EVENT_LABELS = { jump: '🦘 Saut', squat: '🐸 Accroupi', smash: '💥 Smash', left: '⬅️ Gauche', right: '➡️ Droite', step: '🏃 Pas' };
+let camEventTimer = 0;
+tracker.on((type, now, idx) => {
+  if (phase !== 'play' && phase !== 'calib') return;
+  mirror.pop(idx);
+  const el = $('camEvent');
+  el.textContent = (duo() ? who(idx) + ' : ' : 'Vu : ') + (EVENT_LABELS[type] || type);
+  el.className = 'show';
+  clearTimeout(camEventTimer);
+  camEventTimer = setTimeout(() => (el.className = ''), 700);
+});
+
+tracker.on((type, now, idx) => {
   if (phase !== 'play' || !game) return;
   // En vue profondeur, le héros imite toujours les sauts/smashs du joueur
   if (scene === sceneDepth && (type === 'jump' || type === 'smash')) scene.action(type);
-  game.onEvent(type, now);
+  game.onEvent(type, now, idx);
 });
 
 // ---------------- Interface ----------------
 const dots = (n, total) => '<div class="dots">' + Array.from({ length: total }, (_, i) => `<span class="${i < n ? 'on' : ''}"></span>`).join('') + '</div>';
 const runDetail = (n, target) => `<div class="runCount"><b>${n}</b> / ${target} pas</div>`;
-const holdBar = (p, cr) => `<div class="holdbar small"><div style="width:${Math.min(100, p * 100)}%"></div></div><div class="hint">${cr ? `Tiens la pose pour devenir ami avec <b>${cr.name}</b> (${cr.element})` : 'Tiens la pose !'}</div>`;
+const holdBar = (p, cr, many) => `<div class="holdbar small"><div style="width:${Math.min(100, p * 100)}%"></div></div><div class="hint">${cr ? `${many ? 'Tenez' : 'Tiens'} la pose pour devenir ami avec <b>${cr.name}</b> (${cr.element})` : many ? 'Tenez la pose tous les deux !' : 'Tiens la pose !'}</div>`;
 const comboChips = (parts, done) => '<div class="chips">' + parts.map((p, i) =>
   `<span class="chip ${i < done ? 'ok' : i === done ? 'now' : ''}">${MOVE_ICONS[p]} ${MOVE_SHORT[p]}</span>`).join('<i>›</i>') + '</div>';
+
+const poseChecks = (list) => !list ? '' : '<div class="checks">' + list.map(([label, ok]) =>
+  `<span class="${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'} ${label}</span>`).join('') + '</div>';
+const liftGauges = (lift, idle, compact) => {
+  if (!lift) return `<div class="hint">${idle ? '⬆️ Rebondis plus fort sur place !' : 'Rebondis sur place'}</div>`;
+  const g = (k, name) => `<div class="lift"><span>${name}</span><div class="liftBar"><div style="width:${Math.min(100, lift[k] / 1.2 * 100)}%" class="${lift[k] >= 1 ? 'ok' : ''}"></div><i></i></div></div>`;
+  return `<div class="lifts${compact ? ' compact' : ''}">${g('L', compact ? 'G' : 'Genou G')}${g('R', compact ? 'D' : 'Genou D')}</div>` +
+    (compact ? '' : `<div class="hint">${idle ? '⬆️ Lève plus les genoux : la barre doit passer le trait !' : 'Lève les genoux jusqu\'au trait'}</div>`);
+};
 
 const ui = {
   reset(w) {
@@ -611,10 +713,16 @@ function updateCamStatus(now) {
   const s = tracker.state;
   const el = $('camStatus');
   if (tracker.sim) { el.textContent = '⌨️ Mode clavier'; el.className = 'ok'; return; }
-  if (s.fullBody) { el.textContent = '✅ Corps entier'; el.className = 'ok'; }
+  if (duo()) {
+    const n = tracker.bodies.filter((b) => b.state.present).length;
+    if (n === 2) { el.textContent = '✅ 2 joueurs'; el.className = 'ok'; }
+    else { el.textContent = `👀 ${n} joueur${n > 1 ? 's' : ''} sur 2`; el.className = n ? 'warn' : 'bad'; }
+  } else if (s.fullBody) { el.textContent = '✅ Corps entier'; el.className = 'ok'; }
   else if (s.upperBody) { el.textContent = s.kneesOK ? '✅ Jusqu\'aux genoux' : '✅ Haut du corps'; el.className = 'ok'; }
   else if (s.present) { el.textContent = '↔️ Recule un peu'; el.className = 'warn'; }
   else { el.textContent = '❓ Personne'; el.className = 'bad'; }
+  $('camPerf').textContent = tracker.perfLabel();
+  $('camPerf').classList.toggle('slow', tracker.perf.fps > 0 && tracker.perf.fps < 15);
   if (phase === 'play') {
     if (!s.present) { if (!lostSince) lostSince = now; } else lostSince = 0;
     show('lost', lostSince && now - lostSince > 1200);
@@ -631,7 +739,10 @@ function loop(now) {
   if (scene.setLive) scene.setLive(phase === 'play' || phase === 'countdown' ? tracker.state : { side: 'center', squat: false });
   if (!frozen) scene.render(now);
   if (!$('camBox').classList.contains('hidden')) {
-    tracker.drawSkeleton(camCtx, 640, 480);
+    const cur = phase === 'play' && game && game.cur;
+    const posing = !!(cur && cur.s.m === 'pose' && !cur.done);
+    mirror.render(tracker, { palettes, names: duo() ? team.map((p, i) => who(i)) : null, target: posing ? cur.s.pose : null });
+    $('camBox').classList.toggle('pose', posing);
     updateCamStatus(now);
   }
 }

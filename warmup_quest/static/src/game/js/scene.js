@@ -165,7 +165,7 @@ class Scene {
   }
 
   resize() {
-    const d = devicePixelRatio || 1;
+    const d = Math.min(devicePixelRatio || 1, 1.5);
     this.W = innerWidth; this.H = innerHeight;
     this.c.width = this.W * d; this.c.height = this.H * d;
     this.ctx.setTransform(d, 0, 0, d, 0, 0);
@@ -198,6 +198,8 @@ class Scene {
   }
 
   setHoldPose(p) { this.hero.holdPose = p; }
+  // Le héros montre la pose à faire (sans l'anneau de réussite)
+  setDemoPose(p) { this.hero.demoPose = p; }
 
   shift(d) {
     const o = this.obs;
@@ -210,6 +212,7 @@ class Scene {
     const now = performance.now();
     this.obs = null;
     this.hero.holdPose = null;
+    this.hero.demoPose = null;
     if (s.m !== 'left' && s.m !== 'right') this.hero.tx = 0.28;
     this.targetSpeed = s.m === 'run' ? 2.6 : s.m === 'rest' ? 0.2 : 1;
     const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
@@ -368,6 +371,7 @@ class Scene {
     else if (h.y < -2) pose = 'jump';
     else if (h.pose && now < h.poseUntil) pose = h.pose;
     else if (h.holdPose) pose = h.holdPose;
+    else if (h.demoPose) pose = h.demoPose;
     else pose = this.speed < 0.5 ? 'idle' : 'run';
     const hp = this.heroPx();
     ctx.fillStyle = 'rgba(0,0,0,0.18)';

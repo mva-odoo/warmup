@@ -9,10 +9,13 @@
     set(k, v) { try { localStorage.setItem('wuq_odoo_' + k, JSON.stringify(v)); } catch {} },
   };
 
-  let playerId = ls.get('player');
+  // 1 ou 2 joueurs (coopératif) ; le premier sert pour les records et le carnet affichés
+  const byId = (id) => cfg.players.find((p) => p.id === id) || null;
+  let playerIds = (ls.get('players') || [ls.get('player')]).filter((id) => byId(id)).slice(0, 2);
+  if (!playerIds.length && cfg.players.length) playerIds = [cfg.players[0].id];
   const seqChoice = ls.get('seq') || {}; // monde -> id de séquence choisi
-  const player = () => cfg.players.find((p) => p.id === playerId) || null;
-  if (!player() && cfg.players.length) playerId = cfg.players[0].id;
+  const player = () => byId(playerIds[0]);
+  const selected = () => playerIds.map(byId).filter(Boolean);
 
   const sequencesFor = (world) => (cfg.sequences && cfg.sequences[world]) || [];
   const currentSeq = (world) => {
@@ -60,13 +63,18 @@
     canStart() {
       return player() ? true : "Crée d'abord un joueur dans Odoo (Warm-Up Quest › Joueurs), puis recharge cette page.";
     },
+    players() {
+      return selected().map((p) => ({ name: p.name, color: p.color }));
+    },
+    duoToggle() { return null; }, // le choix se fait avec les profils « Qui joue ? »
     finish(result) {
-      const p = player();
-      if (!p) return;
+      const list = selected();
+      if (!list.length) return;
       const seq = currentSeq(result.world);
-      rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false })
-        .then((res) => {
-          if (res) { p.carnet = res.carnet; p.best = res.best; }
+      // En coopératif, la partie est enregistrée pour chaque joueur
+      Promise.all(list.map((p) => rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false })
+        .then((res) => { if (res) { p.carnet = res.carnet; p.best = res.best; } })))
+        .then(() => {
           const best = document.getElementById('resBest');
           if (best) best.textContent += ' · ✅ Enregistré dans Odoo';
         })
@@ -87,13 +95,25 @@
       }
       box.appendChild(el('span', 'odooLabel', 'Qui joue ?'));
       for (const p of cfg.players) {
-        const chip = el('button', 'playerChip' + (p.id === playerId ? ' on' : ''));
+        const pos = playerIds.indexOf(p.id);
+        const chip = el('button', 'playerChip' + (pos >= 0 ? ' on' : ''));
         chip.style.setProperty('--pc', p.color);
         chip.innerHTML = (p.avatar
           ? `<img src="${esc(p.avatar)}" alt="">`
-          : `<span class="ini">${esc(p.name.charAt(0).toUpperCase())}</span>`) + `<span>${esc(p.name)}</span>`;
-        chip.onclick = () => { playerId = p.id; ls.set('player', p.id); rebuild(); };
+          : `<span class="ini">${esc(p.name.charAt(0).toUpperCase())}</span>`) + `<span>${esc(p.name)}</span>` +
+          (playerIds.length > 1 && pos >= 0 ? `<span class="num">J${pos + 1}</span>` : '');
+        // Clic : ajoute le joueur (2 maximum) ou le retire (il en reste toujours 1)
+        chip.onclick = () => {
+          if (pos >= 0) { if (playerIds.length > 1) playerIds.splice(pos, 1); }
+          else playerIds = [...playerIds, p.id].slice(-2);
+          ls.set('players', playerIds);
+          rebuild();
+        };
         box.appendChild(chip);
+      }
+      if (cfg.players.length > 1) {
+        box.appendChild(el('span', 'odooHint2', playerIds.length > 1
+          ? '👥 À deux, en coopératif !' : 'Clique sur un 2ᵉ prénom pour jouer à deux'));
       }
       return box;
     },
@@ -121,6 +141,8 @@
     .playerChip.on { background:#fff; color:#1e1b4b; border-color:var(--pc); box-shadow:0 0 0 4px rgba(255,255,255,.25); }
     .playerChip img, .playerChip .ini { width:34px; height:34px; border-radius:50%; object-fit:cover; }
     .playerChip .ini { display:flex; align-items:center; justify-content:center; background:var(--pc); color:#fff; }
+    .playerChip .num { font-size:13px; background:var(--pc); color:#fff; border-radius:99px; padding:0 8px; }
+    .odooHint2 { font-size:15px; opacity:.85; width:100%; text-align:center; }
     .seqSelect { margin-top:8px; width:100%; font-family:inherit; font-size:15px; border:0; border-radius:10px; padding:4px 8px; }
   `;
   document.head.appendChild(style);
