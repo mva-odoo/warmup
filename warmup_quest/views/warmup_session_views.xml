@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_warmup_session_list" model="ir.ui.view">
+        <field name="name">warmup.session.list</field>
+        <field name="model">warmup.session</field>
+        <field name="arch" type="xml">
+            <list string="Parties" create="0">
+                <field name="date"/>
+                <field name="player_id"/>
+                <field name="world"/>
+                <field name="sequence_id" optional="hide"/>
+                <field name="score" sum="Total"/>
+                <field name="stars"/>
+                <field name="score_percent" widget="progressbar"/>
+                <field name="success" optional="show"/>
+                <field name="steps" optional="hide"/>
+                <field name="duration_min" sum="Total"/>
+                <field name="mode" optional="show"/>
+                <field name="speed" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_warmup_session_form" model="ir.ui.view">
+        <field name="name">warmup.session.form</field>
+        <field name="model">warmup.session</field>
+        <field name="arch" type="xml">
+            <form string="Partie" create="0" edit="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="player_id"/></h1>
+                        <h3><field name="world"/> · <field name="date"/></h3>
+                    </div>
+                    <group>
+                        <group string="Résultat">
+                            <field name="score"/>
+                            <field name="max_score"/>
+                            <field name="score_percent" widget="progressbar"/>
+                            <field name="stars"/>
+                        </group>
+                        <group string="Détails">
+                            <field name="success"/>
+                            <field name="steps"/>
+                            <field name="best_streak"/>
+                            <field name="collected"/>
+                            <field name="duration_min"/>
+                            <field name="mode"/>
+                            <field name="speed"/>
+                            <field name="sequence_id"/>
+                        </group>
+                    </group>
+                    <group string="Créatures devenues amies" invisible="not creature_ids">
+                        <field name="creature_ids" widget="many2many_tags" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_warmup_session_graph" model="ir.ui.view">
+        <field name="name">warmup.session.graph</field>
+        <field name="model">warmup.session</field>
+        <field name="arch" type="xml">
+            <graph string="Progression" type="line">
+                <field name="date" interval="day"/>
+                <field name="player_id"/>
+                <field name="score" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_warmup_session_pivot" model="ir.ui.view">
+        <field name="name">warmup.session.pivot</field>
+        <field name="model">warmup.session</field>
+        <field name="arch" type="xml">
+            <pivot string="Analyse des parties">
+                <field name="player_id" type="row"/>
+                <field name="world" type="col"/>
+                <field name="score" type="measure"/>
+                <field name="duration_min" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_warmup_session_search" model="ir.ui.view">
+        <field name="name">warmup.session.search</field>
+        <field name="model">warmup.session</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="player_id"/>
+                <field name="sequence_id"/>
+                <filter name="this_week" string="7 derniers jours"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="three_stars" string="3 étoiles" domain="[('stars', '=', 3)]"/>
+                <separator/>
+                <filter name="group_player" string="Joueur" context="{'group_by': 'player_id'}"/>
+                <filter name="group_world" string="Monde" context="{'group_by': 'world'}"/>
+                <filter name="group_date" string="Jour" context="{'group_by': 'date:day'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_warmup_session" model="ir.actions.act_window">
+        <field name="name">Parties</field>
+        <field name="res_model">warmup.session</field>
+        <field name="view_mode">list,graph,pivot,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aucune partie pour l'instant</p>
+            <p>Lance le jeu depuis le menu « Jouer » : chaque partie terminée apparaît ici.</p>
+        </field>
+    </record>
+</odoo>

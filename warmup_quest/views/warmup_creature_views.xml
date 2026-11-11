@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_warmup_creature_list" model="ir.ui.view">
+        <field name="name">warmup.creature.list</field>
+        <field name="model">warmup.creature</field>
+        <field name="arch" type="xml">
+            <list string="Créatures" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="element"/>
+                <field name="code" readonly="id"/>
+                <field name="color" widget="color"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_warmup_creature" model="ir.actions.act_window">
+        <field name="name">Créatures</field>
+        <field name="res_model">warmup.creature</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="view_warmup_catch_list" model="ir.ui.view">
+        <field name="name">warmup.creature.catch.list</field>
+        <field name="model">warmup.creature.catch</field>
+        <field name="arch" type="xml">
+            <list string="Carnets" editable="bottom">
+                <field name="player_id"/>
+                <field name="creature_id"/>
+                <field name="element"/>
+                <field name="count"/>
+                <field name="evolved"/>
+                <field name="last_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_warmup_catch_search" model="ir.ui.view">
+        <field name="name">warmup.creature.catch.search</field>
+        <field name="model">warmup.creature.catch</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="player_id"/>
+                <field name="creature_id"/>
+                <filter name="evolved" string="Évoluées" domain="[('evolved', '=', True)]"/>
+                <filter name="group_player" string="Joueur" context="{'group_by': 'player_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_warmup_catch" model="ir.actions.act_window">
+        <field name="name">Carnets des créatures</field>
+        <field name="res_model">warmup.creature.catch</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_group_player': 1}</field>
+    </record>
+</odoo>

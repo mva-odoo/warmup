@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="creature_flammeche" model="warmup.creature">
+            <field name="code">flammeche</field><field name="name">Flammèche</field>
+            <field name="element">Feu</field><field name="color">#ff7b39</field><field name="sequence">1</field>
+        </record>
+        <record id="creature_gouttin" model="warmup.creature">
+            <field name="code">gouttin</field><field name="name">Gouttin</field>
+            <field name="element">Eau</field><field name="color">#4ea8ff</field><field name="sequence">2</field>
+        </record>
+        <record id="creature_feuillou" model="warmup.creature">
+            <field name="code">feuillou</field><field name="name">Feuillou</field>
+            <field name="element">Plante</field><field name="color">#5cc96b</field><field name="sequence">3</field>
+        </record>
+        <record id="creature_volticube" model="warmup.creature">
+            <field name="code">volticube</field><field name="name">Volticube</field>
+            <field name="element">Électrique</field><field name="color">#7c8cff</field><field name="sequence">4</field>
+        </record>
+        <record id="creature_rocaille" model="warmup.creature">
+            <field name="code">rocaille</field><field name="name">Rocaille</field>
+            <field name="element">Roche</field><field name="color">#a3958a</field><field name="sequence">5</field>
+        </record>
+        <record id="creature_nuagon" model="warmup.creature">
+            <field name="code">nuagon</field><field name="name">Nuagon</field>
+            <field name="element">Air</field><field name="color">#eef2ff</field><field name="sequence">6</field>
+        </record>
+        <record id="creature_givrette" model="warmup.creature">
+            <field name="code">givrette</field><field name="name">Givrette</field>
+            <field name="element">Glace</field><field name="color">#9fe8f5</field><field name="sequence">7</field>
+        </record>
+        <record id="creature_nocturne" model="warmup.creature">
+            <field name="code">nocturne</field><field name="name">Nocturne</field>
+            <field name="element">Nuit</field><field name="color">#6a4c93</field><field name="sequence">8</field>
+        </record>
+    </data>
+</odoo>

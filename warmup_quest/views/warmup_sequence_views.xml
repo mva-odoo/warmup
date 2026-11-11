@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_warmup_sequence_list" model="ir.ui.view">
+        <field name="name">warmup.sequence.list</field>
+        <field name="model">warmup.sequence</field>
+        <field name="arch" type="xml">
+            <list string="Séquences">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="world"/>
+                <field name="step_count"/>
+                <field name="est_duration"/>
+                <field name="session_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_warmup_sequence_form" model="ir.ui.view">
+        <field name="name">warmup.sequence.form</field>
+        <field name="model">warmup.sequence</field>
+        <field name="arch" type="xml">
+            <form string="Séquence d'échauffement">
+                <header>
+                    <button name="action_play" type="object" string="▶ Jouer" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archivée" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="ex. Échauffement du matin"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="world"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="step_count"/>
+                            <field name="est_duration"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Notes (optionnel)…"/>
+                    <notebook>
+                        <page string="Étapes" name="steps">
+                            <field name="step_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="move"/>
+                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash')"/>
+                                    <field name="duration" invisible="move not in ('run', 'rest')"/>
+                                    <field name="target" invisible="move != 'run'"/>
+                                    <field name="pose" invisible="move != 'pose'"/>
+                                    <field name="hold" invisible="move != 'pose'"/>
+                                    <field name="combo" invisible="move != 'combo'" placeholder="jump,squat,smash"/>
+                                    <field name="text" invisible="move != 'rest'"/>
+                                    <field name="summary" optional="hide"/>
+                                </list>
+                            </field>
+                            <div class="text-muted small">
+                                Combo : mouvements séparés par des virgules parmi
+                                <code>jump</code>, <code>squat</code>, <code>smash</code>, <code>left</code>, <code>right</code>.
+                                Pour le monde des Créatures, chaque « Pose » fait apparaître une créature à rendre amie.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_warmup_sequence_search" model="ir.ui.view">
+        <field name="name">warmup.sequence.search</field>
+        <field name="model">warmup.sequence</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <filter name="turbo" string="Vallée Turbo" domain="[('world', '=', 'turbo')]"/>
+                <filter name="island" string="Île Bondissante" domain="[('world', '=', 'island')]"/>
+                <filter name="forest" string="Monde des Créatures" domain="[('world', '=', 'forest')]"/>
+                <separator/>
+                <filter name="archived" string="Archivées" domain="[('active', '=', False)]"/>
+                <filter name="group_world" string="Monde" context="{'group_by': 'world'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_warmup_sequence" model="ir.actions.act_window">
+        <field name="name">Séquences d'échauffement</field>
+        <field name="res_model">warmup.sequence</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_world': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crée une séquence d'échauffement</p>
+            <p>La première séquence de chaque monde est jouée par défaut ; s'il y en a plusieurs, le jeu propose de choisir.</p>
+        </field>
+    </record>
+</odoo>
