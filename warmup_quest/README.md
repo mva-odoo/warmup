@@ -29,6 +29,7 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     coraux et poissons, planètes, bonbons géants, grange et moulin, volcan qui fume, dino, château…), neige, bulles,
     lucioles, nuit étoilée, et le paysage change pendant la partie. Réglage parent « Graphismes 2D (léger) » pour les PC
     trop faibles ; repli automatique sur le chemin 2D si la 3D ne se charge pas.
+  - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** à taper autour de son personnage, **copie les poses**.
   - **11 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
     Pays des Bonbons, Ferme, Vallée des Dinos, Château) + une carte **🎲 Surprise** qui en choisit un au hasard.
   - Jeux : éviter les obstacles, sauter, se baisser, taper, aller à gauche / à droite, **attraper les étoiles**

@@ -410,7 +410,19 @@ class Scene3D extends DepthScene {
     const g = this.makeRock(); g.position.x = hz.lane * LANE; return g;
   }
 
+  makeTunnel() {
+    const T = this.T, g = new T.Group(), cols = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'];
+    for (let i = 0; i < 7; i++) {
+      const hoop = new T.Mesh(new T.TorusGeometry(1, 0.12, 8, 24, Math.PI), this.lam(cols[i % cols.length]));
+      hoop.scale.set(LANE * 1.6, 1.45, 1);
+      hoop.position.z = -4.5 + i * 1.5;
+      g.add(hoop);
+    }
+    return this.shadow(g);
+  }
+
   makeObstacle(o) {
+    if (o.kind === 'tunnel') return this.makeTunnel();
     if (o.kind === 'low') return this.makeLog();
     if (o.kind === 'high') return this.makeArch();
     if (o.kind === 'crate') return this.makeRock(0.95);
@@ -530,7 +542,8 @@ class Scene3D extends DepthScene {
       } else {
         const since = now - o.t0, k = Math.max(0, 1 - since / (o.state === 'cleared' ? 400 : 700));
         this.obsMesh.scale.setScalar(Math.max(0.01, k));
-        if (o.state === 'cleared') this.obsMesh.position.y = (1 - k) * 1.2;
+        if (o.state === 'cleared' && o.kind === 'tunnel') this.obsMesh.position.z = this.z3(o.zc) + since * 0.012;
+        else if (o.state === 'cleared') this.obsMesh.position.y = (1 - k) * 1.2;
         if (k <= 0) this.obs = null;
       }
     }
@@ -541,6 +554,7 @@ class Scene3D extends DepthScene {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.W, this.H);
     this.drawBubbles(now);
+    this.drawMoles(now);
     this.drawRope(now);
     this.drawFlashes(now);
     this.drawFx(dt);

@@ -318,6 +318,10 @@ function holdCalib(now) {
 addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
   if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
+  if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'moles' && !game.cur.done) {
+    const c = game.cur; c.bonked++; game.add(50, '+50'); Audio8.boing(); ui.setDetail(game.detail(c));
+    if (c.bonked >= c.s.n) game.complete(performance.now());
+  }
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'bubbles' && !game.cur.done) {
     game.cur.bubbles.push({ hero: 0, u: 1, v: -0.5, r: 0.32, born: 0, p: 0 });
     game.popBubble(game.cur, game.cur.bubbles.length - 1, performance.now());
@@ -409,7 +413,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope'];
+  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -443,6 +447,8 @@ class Game {
       if (c.phaseAt) c.phaseAt += d;
       for (const hz of c.hazards) hz.arrive += d; // (leur départ est décalé par la scène)
       for (const bb of c.bubbles) bb.born += d;
+      for (const m of c.moles) { m.born += d; m.until += d; if (m.t) m.t += d; }
+      if (c.lastMole) c.lastMole += d;
     }
     if (this.gapUntil) this.gapUntil += d;
     this.pausedTotal += d;
@@ -451,6 +457,7 @@ class Game {
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
+    if (s.m === 'posemix' && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
     if (s.m === 'pose' && this.world.creatures) {
       s = { ...s, creature: Carnet.pick(this.team.map((c) => c.id)) };
     }
@@ -468,12 +475,14 @@ class Game {
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
-      ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0 };
+      ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
     scene.onStep(s, dur);
     if (s.m === 'pose') scene.setDemoPose(s.pose);
+    if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
+    if (s.m === 'moles') scene.moles = this.cur.moles;
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
     if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
     scene.setProgress(this.i / this.steps.length);
@@ -532,6 +541,11 @@ class Game {
       case 'bubbles': return `<div class="runCount"><b>${c.popped}</b> / ${s.n} 🫧</div>`;
       case 'catch': return `<div class="runCount"><b>${c.caught}</b> / ${catchCount(s)} ${this.world.collectible}</div>`;
       case 'rope': return dots(c.ropeOk, s.n);
+      case 'tunnel': return holdBar(c.hold / (s.t * 700));
+      case 'moles': return `<div class="runCount"><b>${c.bonked}</b> / ${s.n} 🐹</div>`;
+      case 'posemix': return '<div class="chips">' + s.poses.map((p, i) =>
+        `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${POSES[p].icon}</span>`).join('<i>›</i>') + '</div>' +
+        (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
       case 'freeze': return `<div class="bigIcon">${c.phase === 'freeze' ? '🗿 Statue !' : '💃 Danse !'}</div>`;
       default: return '';
     }
@@ -661,6 +675,65 @@ class Game {
     }
   }
 
+  // ---------- Tunnel : rester baissé pendant qu'on le traverse
+  updateTunnel(c, now, dt) {
+    if (now - c.start < 1500) return; // le tunnel arrive
+    const ok = tracker.state.squat;
+    tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state.squat ? 'duck' : null, i));
+    c.hold = ok ? c.hold + dt : Math.max(0, c.hold - dt * 0.3);
+    if (!ok && !c.tipped && now - c.start > 2600) { c.tipped = true; Audio8.say(duo() ? 'Baissez-vous dans le tunnel !' : 'Baisse-toi dans le tunnel !'); }
+    ui.setDetail(this.detail(c));
+    if (c.hold >= c.s.t * 700) { this.add(150, '+150'); this.complete(now); }
+  }
+
+  // ---------- Taupes : elles sortent à gauche / à droite, en haut / en bas ; on les tape avec la main
+  updateMoles(c, now) {
+    const SPOTS = [[-1.15, -0.85], [1.15, -0.85], [-1.3, 0.75], [1.3, 0.75]];
+    const up = 1700 * Math.min(1.3, this.mul), gap = 900 * Math.min(1.3, this.mul);
+    const hands = tracker.bodies.map((b) => this.handsOf(b));
+    scene.hands = hands;
+    // Une nouvelle taupe de temps en temps (2 maximum par joueur)
+    if (!tracker.sim && now - (c.lastMole || 0) > gap) {
+      const i = (c.moleTurn = ((c.moleTurn || 0) + 1) % this.np);
+      const busy = c.moles.filter((m) => m.hero === i && m.state === 'up');
+      if (hands[i] && busy.length < 2) {
+        const free = SPOTS.filter(([u, v]) => !busy.some((m) => m.u === u && m.v === v));
+        const [u, v] = free[Math.floor(Math.random() * free.length)];
+        c.moles.push({ hero: i, u, v, born: now, until: now + up, state: 'up' });
+        c.lastMole = now;
+      }
+    }
+    for (const m of c.moles) {
+      if (m.state !== 'up') continue;
+      const hs = hands[m.hero];
+      if (now - m.born > 200 && hs && hs.some((hd) => Math.hypot(hd.u - m.u, hd.v - (m.v - 0.15)) < 0.5)) {
+        m.state = 'bonk'; m.t = now; c.bonked++;
+        this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
+        ui.setDetail(this.detail(c));
+        if (c.bonked >= c.s.n) { this.complete(now); return; }
+      } else if (now > m.until) { m.state = 'hide'; m.t = now; }
+    }
+    c.moles = c.moles.filter((m) => m.state === 'up' || now - m.t < 500);
+    scene.moles = c.moles;
+  }
+
+  // ---------- Copie les poses : une suite de poses à tenir un court instant chacune
+  updatePosemix(c, now, dt) {
+    const s = c.s, pose = s.poses[c.pi];
+    tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[pose] ? pose : null, i));
+    c.hold = tracker.state[pose] ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
+    if (c.hold >= s.hold * 1000) {
+      c.pi++; c.hold = 0;
+      this.add(this.pts(100) * this.np, '+100');
+      scene.flash(null, true);
+      if (c.pi >= s.poses.length) { this.complete(now); return; }
+      Audio8.good();
+      scene.setDemoPose(s.poses[c.pi]);
+      Audio8.say(POSES[s.poses[c.pi]].label);
+    }
+    ui.setDetail(this.detail(c));
+  }
+
   // ---------- Statues musicales : danse quand la musique joue, statue quand elle s'arrête
   updateFreeze(c, now) {
     const n = freezeRounds(c.s), cyc = c.dur / n, t = now - c.start;
@@ -735,7 +808,7 @@ class Game {
     scene.flash(null, true);
     scene.resolve(true);
     scene.setHoldPose(null);
-    scene.bubbles = []; scene.hands = [];
+    scene.bubbles = []; scene.hands = []; scene.moles = [];
     if (!c.s.creature) this.gapUntil = now + 1100;
   }
 
@@ -743,7 +816,7 @@ class Game {
     const c = this.cur, s = c.s;
     c.done = true;
     scene.setHoldPose(null);
-    scene.bubbles = []; scene.hands = [];
+    scene.bubbles = []; scene.hands = []; scene.moles = [];
     this.gapUntil = now + 1100;
     if (s.m === 'rest') { this.gapUntil = now; return; }
     let rating;
@@ -758,8 +831,9 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (s.m === 'catch' || s.m === 'rope') {
-      const r = s.m === 'catch' ? c.caught / catchCount(s) : c.ropeOk / s.n;
+    } else if (s.m === 'catch' || s.m === 'rope' || s.m === 'moles' || s.m === 'posemix' || s.m === 'tunnel') {
+      const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
+        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700) }[s.m]();
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
       scene.rope = null;
@@ -804,6 +878,9 @@ class Game {
     if (s.m === 'run') this.updateDodge(c, now);
     if (s.m === 'catch') this.updateCatch(c, now);
     if (s.m === 'rope') { this.updateRope(c, now); if (c.done) return; }
+    if (s.m === 'tunnel') { this.updateTunnel(c, now, dt); if (c.done) return; }
+    if (s.m === 'moles') this.updateMoles(c, now);
+    if (s.m === 'posemix') { this.updatePosemix(c, now, dt); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (now >= c.end) this.timeout(now);
   }
@@ -1043,7 +1120,8 @@ function loop(now) {
   if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
-    drawPicto(pictoCtx, 150, 150, c.s, now, c.s.m === 'combo' ? c.s.parts[Math.min(c.s.parts.length - 1, Math.min(...c.parts))] : null);
+    if (c.s.m === 'posemix') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
+    else drawPicto(pictoCtx, 150, 150, c.s, now, c.s.m === 'combo' ? c.s.parts[Math.min(c.s.parts.length - 1, Math.min(...c.parts))] : null);
   }
   if (!$('camBox').classList.contains('hidden')) {
     const cur = phase === 'play' && game && game.cur;

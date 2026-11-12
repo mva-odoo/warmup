@@ -126,6 +126,20 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       ctx.beginPath(); ctx.moveTo(gx - S * 0.35, gy - S * 0.45); ctx.quadraticCurveTo(gx, 2 * cy - (gy - S * 0.45), gx + S * 0.35, gy - S * 0.45); ctx.stroke();
       break;
     }
+    case 'tunnel': { // accroupi sous les arceaux
+      ctx.strokeStyle = '#ff595e'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.ellipse(gx, gy, S * 0.42, S * 0.6, 0, Math.PI, 0); ctx.stroke();
+      stickFigure(ctx, { ...base, crouch: 1, armL: 0.6, armR: 0.6, legL: 0.23, legR: 0.23 });
+      break;
+    }
+    case 'moles': { // une taupe sort, la main la tape
+      const k = cyc(1000), side = Math.floor(t / 1000) % 2 ? 1 : -1, up = Math.min(1, k * 3);
+      const mx = gx + side * S * 0.36, my = gy - S * 0.1;
+      ctx.fillStyle = '#5c3d2e'; ctx.beginPath(); ctx.ellipse(mx, my + S * 0.08, S * 0.12, S * 0.035, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#9c6644'; ctx.beginPath(); ctx.arc(mx, my + S * 0.08 - up * S * 0.12, S * 0.08, Math.PI, 0); ctx.fill();
+      stickFigure(ctx, { ...base, x: gx - side * S * 0.05, armL: side < 0 ? (k > 0.5 ? 0.9 : 2.2) : 0.4, armR: side > 0 ? (k > 0.5 ? 0.9 : 2.2) : 0.4 });
+      break;
+    }
     case 'pose': {
       const f = POSE_FIGURES[s.pose] || POSE_FIGURES.armsUp;
       stickFigure(ctx, { ...base, lift: Math.sin(t * 0.004) * S * 0.01, ...f }, '#16a34a');

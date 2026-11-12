@@ -9,7 +9,7 @@ const POSES = {
   flamingo: { icon: '🦩', label: 'Tiens sur un pied !',       say: 'Lève un genou et tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢' };
+const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸' };
 const MOVE_SHORT = { jump: 'Saute', squat: 'Baisse-toi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
@@ -26,6 +26,9 @@ const B = (t, n) => ({ m: 'bubbles', t, n });   // éclater n bulles avec les ma
 const F = (t) => ({ m: 'freeze', t });          // statues musicales
 const K = (t) => ({ m: 'catch', t });           // attraper les étoiles qui tombent (gauche / milieu / droite)
 const Q = (n) => ({ m: 'rope', n });            // sauter à la corde n fois
+const U = (t) => ({ m: 'tunnel', t });          // rester baissé t secondes dans le tunnel
+const M = (t, n) => ({ m: 'moles', t, n });     // taper n taupes qui sortent autour du personnage
+const PM = (...poses) => ({ m: 'posemix', poses, hold: 0.8 }); // copier une suite de poses
 
 // Attraper : nombre d'étoiles pendant l'étape
 const catchCount = (s) => Math.max(3, Math.round(s.t / 1.6));
@@ -51,6 +54,9 @@ function stepLabel(s) {
     case 'freeze': return 'Danse… puis statue !';
     case 'catch': return 'Attrape les étoiles !';
     case 'rope': return s.n > 1 ? `Saute ${s.n} fois à la corde !` : 'Saute à la corde !';
+    case 'tunnel': return 'Reste baissé dans le tunnel !';
+    case 'moles': return 'Tape les taupes !';
+    case 'posemix': return 'Copie les poses !';
     case 'pose': return POSES[s.pose].label;
     case 'combo': return 'Enchaîne !';
     case 'rest': return s.text;
@@ -69,6 +75,9 @@ function stepSpeech(s) {
     case 'pose': return POSES[s.pose].say;
     case 'catch': return 'Attrape les étoiles qui arrivent : va à gauche, au milieu ou à droite pour être dessous !';
     case 'rope': return 'Saute à la corde ! Saute quand la corde passe sous tes pieds !';
+    case 'tunnel': return 'Un tunnel ! Baisse-toi et reste en bas jusqu\'à la sortie !';
+    case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
+    case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
     case 'bubbles': return 'Des bulles autour de ton personnage ! Touche-les avec tes mains pour les éclater !';
     case 'freeze': return "Statues musicales ! Danse avec la musique. Quand elle s'arrête, ne bouge plus !";
     case 'combo': return 'Enchaîne : ' + s.parts.map((p) => MOVE_SHORT[p]).join(', puis ') + ' !';
@@ -91,6 +100,9 @@ function stepDuration(s) {
     case 'combo': return 1.5 + 1.7 * s.parts.length;
     case 'catch': return s.t;
     case 'rope': return 1.8 + 1.7 * s.n;
+    case 'tunnel': return 1.5 + s.t + 1.5;
+    case 'moles': return s.t;
+    case 'posemix': return 2 + s.poses.length * 3;
   }
 }
 
@@ -105,6 +117,9 @@ function maxPoints(s) {
     case 'freeze': return freezeRounds(s) * 150;
     case 'catch': return catchCount(s) * 50;
     case 'rope': return s.n * 100 + 50;
+    case 'tunnel': return 150 + 50;
+    case 'moles': return s.n * 50 + 50;
+    case 'posemix': return s.poses.length * 100 + 50;
     default: return 0;
   }
 }
@@ -455,6 +470,12 @@ const WORLD_KITS = {
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
   dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'],
 };
-WORLDS.forEach((w) => {
+// Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
+const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'], ['star', 'airplane', 'armsUp']];
+WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
+  const seq = w.sequence, n = seq.length;
+  seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
+  seq.splice(Math.round(n * 0.5), 0, M(12, 6));
+  seq.splice(Math.round(n * 0.25), 0, U(4));
 });

@@ -108,6 +108,7 @@ class DepthScene {
     this.bubbles = [];   // bulles autour des héros { hero, u, v, r, born, p } (unités : torse du héros)
     this.pops = [];
     this.hands = [];     // mains des joueurs, par héros : [{ u, v }, { u, v }]
+    this.moles = [];     // taupes qui sortent autour des héros { hero, u, v, born, state, t }
     this.obs = null;
     this.enc = null;
     this.decor = [];
@@ -162,7 +163,7 @@ class DepthScene {
   setWorld(theme, palettes = null) {
     this.theme = theme;
     this.obs = null; this.enc = null; this.parts = []; this.floaters = [];
-    this.hazards = []; this.bubbles = []; this.pops = []; this.hands = []; this.rope = null;
+    this.hazards = []; this.bubbles = []; this.pops = []; this.hands = []; this.moles = []; this.rope = null;
     this.progress = 0;
     const pals = palettes || [theme ? theme.hero : null];
     this.heroes = pals.map((pal, i) => newHero(pal, pals.length > 1 ? (i ? 0.55 : -0.55) : 0));
@@ -253,11 +254,12 @@ class DepthScene {
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
     this.setHoldPose(null);
     this.setDemoPose(null);
-    this.bubbles = []; this.hands = [];
-    this.targetSpeed = s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.bubbles = []; this.hands = []; this.moles = [];
+    this.targetSpeed = s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
     if (s.m === 'pose' && !s.creature) this.obs = { kind: 'wall', pose: s.pose, born: now, dur, state: 'coming', t0: now };
+    if (s.m === 'tunnel') this.obs = { kind: 'tunnel', born: now, dur, state: 'coming', t0: now };
     this.rope = null;
     if (s.m === 'pose' && s.creature) {
       this.enc = { cr: s.creature, pose: s.pose, born: now, state: 'waiting', t0: now, hold: 0, evolved: Carnet.evolved(s.creature.id) };
@@ -266,6 +268,10 @@ class DepthScene {
 
   obsZ(now) {
     const o = this.obs;
+    if (o.kind === 'tunnel') { // le tunnel arrive et entoure le héros
+      const p = Math.min(1, (now - o.born) / 1500);
+      return this.Zfar - (this.Zfar - this.heroZ()) * p;
+    }
     if (o.kind === 'wall') { // le mur s'approche puis attend devant le héros
       const p = Math.min(1, (now - o.born) / Math.min(1800, o.dur * 0.4));
       return this.Zfar - (this.Zfar - 3.6) * p;
@@ -436,6 +442,7 @@ class DepthScene {
     this.ambient.draw(ctx);
 
     this.drawBubbles(now);
+    this.drawMoles(now);
     this.drawRope(now);
 
     // Brume à l'horizon
@@ -561,6 +568,44 @@ class DepthScene {
     ctx.beginPath(); ctx.moveTo(xl, hand); ctx.quadraticCurveTo(this.W / 2, 2 * cy - hand, xr, hand); ctx.stroke();
   }
 
+  // Taupes rigolotes qui sortent de leur trou autour du héros (à taper avec les mains)
+  drawMoles(now) {
+    const ctx = this.ctx;
+    for (const m of this.moles) {
+      const A = this.anchor(m.hero), x = A.x + m.u * A.u, y = A.y + m.v * A.u, r = A.u * 0.34;
+      let k = Math.min(1, (now - m.born) / 200);                     // sortie du trou
+      if (m.state === 'hide') k = Math.max(0, 1 - (now - m.t) / 250);
+      const bonk = m.state === 'bonk' ? Math.max(0, 1 - (now - m.t) / 450) : 0;
+      // Trou
+      ctx.fillStyle = 'rgba(60, 35, 20, 0.85)';
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.9, r * 1.2, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      if (k <= 0) continue;
+      // Corps qui sort (coupé au niveau du trou)
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x - r * 2, y - r * 3, r * 4, r * 3.9); ctx.clip();
+      const by = y + r * 0.9 - (r * 1.9) * k + bonk * r * 0.6;
+      ctx.fillStyle = '#9c6644';
+      ctx.beginPath(); ctx.ellipse(x, by + r, r, r * (1.05 - bonk * 0.3), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ddb892';
+      ctx.beginPath(); ctx.ellipse(x, by + r * 1.3, r * 0.55, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      // Visage : yeux (en croix quand on l'a tapée), nez rose, dents
+      ctx.fillStyle = '#1e1b4b'; ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = Math.max(2, r * 0.08);
+      for (const sg of [-1, 1]) {
+        const ex = x + sg * r * 0.35, ey = by + r * 0.7;
+        if (bonk) { ctx.beginPath(); ctx.moveTo(ex - r * 0.1, ey - r * 0.1); ctx.lineTo(ex + r * 0.1, ey + r * 0.1); ctx.moveTo(ex + r * 0.1, ey - r * 0.1); ctx.lineTo(ex - r * 0.1, ey + r * 0.1); ctx.stroke(); }
+        else { ctx.beginPath(); ctx.arc(ex, ey, r * 0.1, 0, Math.PI * 2); ctx.fill(); }
+      }
+      ctx.fillStyle = '#ff8fab';
+      ctx.beginPath(); ctx.ellipse(x, by + r * 0.98, r * 0.16, r * 0.11, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x - r * 0.1, by + r * 1.1, r * 0.2, r * 0.16);
+      ctx.restore();
+      if (bonk) { // petites étoiles
+        ctx.fillStyle = `rgba(255, 224, 102, ${bonk})`;
+        for (let i = 0; i < 5; i++) { const a = i * 1.2566 + now * 0.01; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 1.4, by + Math.sin(a) * r * 0.5, r * 0.14, 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+  }
+
   // Bulles autour des héros et mains des joueurs (gants lumineux)
   drawBubbles(now) {
     const ctx = this.ctx;
@@ -667,7 +712,7 @@ class DepthScene {
     ctx.save();
     ctx.globalAlpha = alpha;
     if (o.kind === 'low') this.drawLog(z, s, gy);          // tronc : sauter par-dessus
-    else if (o.kind === 'high') this.drawArch(z, s, gy);   // branche : passer dessous
+    else if (o.kind === 'high' || o.kind === 'tunnel') this.drawArch(z, s, gy);   // branche / tunnel : passer dessous
     else if (o.kind === 'crate') {                         // gros rocher à casser
       const sh = o.shake && now - o.shake < 200 ? Math.sin(now * 0.2) * s * 0.05 : 0;
       this.drawRock(this.sx(0, z) + sh, s, gy);
