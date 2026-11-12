@@ -84,8 +84,6 @@ class WarmupStep(models.Model):
     duration = fields.Float(string='Durée (s)', default=6,
                             help='Durée pour « Éviter les obstacles », « Pause / respiration », '
                                  '« Éclater des bulles » et « Statues musicales » (une manche ≈ 7 s).')
-    target = fields.Integer(string='Objectif de pas', default=12,
-                            help='Nombre de pas à faire pendant « Courir sur place ».')
     pose = fields.Selection(POSES, default='armsUp')
     hold = fields.Float(string='Tenir (s)', default=1.5, help='Temps pendant lequel la pose doit être tenue.')
     combo = fields.Char(string='Enchaînement',
@@ -94,7 +92,7 @@ class WarmupStep(models.Model):
     text = fields.Char(string='Message', translate=True, help='Texte affiché pendant une pause.')
     summary = fields.Char(string='Résumé', compute='_compute_summary')
 
-    @api.depends('move', 'count', 'duration', 'target', 'pose', 'hold', 'combo', 'text')
+    @api.depends('move', 'count', 'duration', 'pose', 'hold', 'combo', 'text')
     def _compute_summary(self):
         moves = dict(MOVES)
         poses = dict(POSES)
@@ -167,7 +165,7 @@ class WarmupStep(models.Model):
                 raise ValidationError(
                     "Mouvement inconnu dans le combo : %s. Autorisés : %s." % (', '.join(bad), ', '.join(COMBO_PARTS)))
 
-    @api.constrains('count', 'duration', 'target', 'hold')
+    @api.constrains('count', 'duration', 'hold')
     def _check_values(self):
         for s in self:
             if s.move in ('jump', 'squat', 'smash', 'rope') and not 1 <= s.count <= 10:
@@ -180,8 +178,6 @@ class WarmupStep(models.Model):
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
             if s.move == 'tunnel' and not 2 <= s.duration <= 20:
                 raise ValidationError('La durée du tunnel doit être entre 2 et 20 secondes.')
-            if s.move == 'run' and s.target < 1:
-                raise ValidationError("L'objectif de pas doit être d'au moins 1.")
             if s.move in ('pose', 'posemix', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
@@ -189,7 +185,7 @@ class WarmupStep(models.Model):
         self.ensure_one()
         m = self.move
         if m == 'run':
-            return {'m': 'run', 't': self.duration or 6, 'target': self.target or 12}
+            return {'m': 'run', 't': self.duration or 6}
         if m in ('jump', 'squat', 'smash'):
             return {'m': m, 'n': max(1, self.count)}
         if m in ('left', 'right'):
