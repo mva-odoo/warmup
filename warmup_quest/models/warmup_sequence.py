@@ -6,8 +6,12 @@ from .warmup_constants import COMBO_PARTS, MOVES, POSES, WORLDS
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
-    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch'):
+    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch', 'moles'):
         return step.duration or 0
+    if m == 'tunnel':
+        return 3 + (step.duration or 0)
+    if m == 'posemix':
+        return 2 + 3 * len(step._combo_parts())
     if m == 'rope':
         return 1.8 + 1.7 * max(1, step.count)
     if m == 'jump':
@@ -109,6 +113,13 @@ class WarmupStep(models.Model):
                 s.summary = f"Attraper les étoiles pendant {s.duration:g} s"
             elif s.move == 'rope':
                 s.summary = f"Sauter {max(1, s.count)} fois à la corde"
+            elif s.move == 'tunnel':
+                s.summary = f"Rester baissé {s.duration:g} s dans le tunnel"
+            elif s.move == 'moles':
+                s.summary = f"Taper {max(1, s.count)} taupes en {s.duration:g} s"
+            elif s.move == 'posemix':
+                labels = dict(POSES)
+                s.summary = 'Poses : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
             elif s.move == 'freeze':
                 s.summary = f"Statues musicales {s.duration:g} s"
             else:
@@ -117,6 +128,17 @@ class WarmupStep(models.Model):
     def _combo_parts(self):
         self.ensure_one()
         return [p.strip() for p in (self.combo or '').split(',') if p.strip()]
+
+    @api.constrains('move', 'combo')
+    def _check_posemix(self):
+        for s in self.filtered(lambda r: r.move == 'posemix'):
+            parts = s._combo_parts()
+            if len(parts) < 2:
+                raise ValidationError("Une suite de poses doit contenir au moins 2 poses (ex. : armsUp,star,airplane).")
+            bad = [p for p in parts if p not in dict(POSES)]
+            if bad:
+                raise ValidationError(
+                    "Pose inconnue : %s. Autorisées : %s." % (', '.join(bad), ', '.join(dict(POSES))))
 
     @api.constrains('move', 'combo')
     def _check_combo(self):
@@ -134,15 +156,17 @@ class WarmupStep(models.Model):
         for s in self:
             if s.move in ('jump', 'squat', 'smash', 'rope') and not 1 <= s.count <= 10:
                 raise ValidationError('Le nombre de répétitions doit être entre 1 et 10.')
-            if s.move == 'bubbles' and not 1 <= s.count <= 30:
-                raise ValidationError('Le nombre de bulles doit être entre 1 et 30.')
+            if s.move in ('bubbles', 'moles') and not 1 <= s.count <= 30:
+                raise ValidationError('Le nombre de bulles ou de taupes doit être entre 1 et 30.')
             if s.move in ('run', 'rest') and not 1 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 1 et 60 secondes.')
-            if s.move in ('bubbles', 'freeze', 'catch') and not 5 <= s.duration <= 60:
+            if s.move in ('bubbles', 'freeze', 'catch', 'moles') and not 5 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
+            if s.move == 'tunnel' and not 2 <= s.duration <= 20:
+                raise ValidationError('La durée du tunnel doit être entre 2 et 20 secondes.')
             if s.move == 'run' and s.target < 1:
                 raise ValidationError("L'objectif de pas doit être d'au moins 1.")
-            if s.move == 'pose' and not 0.5 <= s.hold <= 10:
+            if s.move in ('pose', 'posemix') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
     def _to_game(self):
@@ -169,4 +193,11 @@ class WarmupStep(models.Model):
             return {'m': 'catch', 't': self.duration or 10}
         if m == 'rope':
             return {'m': 'rope', 'n': max(1, self.count)}
+        if m == 'tunnel':
+            return {'m': 'tunnel', 't': self.duration or 4}
+        if m == 'moles':
+            return {'m': 'moles', 't': self.duration or 12, 'n': max(1, self.count)}
+        if m == 'posemix':
+            parts = [p for p in self._combo_parts() if p in dict(POSES)]
+            return {'m': 'posemix', 'poses': parts, 'hold': self.hold or 0.8} if len(parts) >= 2 else None
         return None

@@ -45,6 +45,22 @@ def _F(t):
     return {'move': 'freeze', 'duration': t}
 
 
+def _U(t):
+    return {'move': 'tunnel', 'duration': t}
+
+
+def _M(t, n):
+    return {'move': 'moles', 'duration': t, 'count': n}
+
+
+def _PM(*poses):
+    return {'move': 'posemix', 'combo': ','.join(poses), 'hold': 0.8}
+
+
+# Épreuves rigolotes ajoutées à chaque séquence par défaut (aussi utilisé par la migration 20.0.2.0.0)
+FUN_STEPS = [_U(4), _M(12, 6), _PM('armsUp', 'star', 'airplane')]
+
+
 DEFAULT_SEQUENCES = [
     ('turbo', 'Échauffement Turbo', [
         _Z(2.5, "Prêt ? On s'échauffe !"),
@@ -109,6 +125,15 @@ DEFAULT_SEQUENCES = [
 ]
 
 
+def _with_fun(steps):
+    """Insère tunnel, taupes et suite de poses à 1/4, 1/2 et 3/4 de la séquence."""
+    steps = list(steps)
+    n = len(steps)
+    for step, at in zip(reversed(FUN_STEPS), (round(n * 0.75), round(n * 0.5), round(n * 0.25))):
+        steps.insert(at, step)
+    return steps
+
+
 def post_init_hook(env):
     Sequence = env['warmup.sequence']
     for world, name, steps in DEFAULT_SEQUENCES:
@@ -117,5 +142,5 @@ def post_init_hook(env):
         Sequence.create({
             'name': name,
             'world': world,
-            'step_ids': [(0, 0, dict(step, sequence=(i + 1) * 10)) for i, step in enumerate(steps)],
+            'step_ids': [(0, 0, dict(step, sequence=(i + 1) * 10)) for i, step in enumerate(_with_fun(steps))],
         })

@@ -1,5 +1,5 @@
 WORLDS = [
-    ('jardin3d', 'Jardin 3D (essai)'),
+    ('jardin3d', 'Jardin Fleuri'),
     ('turbo', 'Vallée Turbo'),
     ('island', 'Île Bondissante'),
     ('forest', 'Monde des Créatures'),
@@ -26,6 +26,9 @@ MOVES = [
     ('freeze', 'Statues musicales'),
     ('catch', 'Attraper les étoiles'),
     ('rope', 'Sauter à la corde'),
+    ('tunnel', 'Rester baissé dans le tunnel'),
+    ('moles', 'Taper les taupes'),
+    ('posemix', 'Copier une suite de poses'),
 ]
 
 POSES = [
