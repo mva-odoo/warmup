@@ -11,8 +11,9 @@ const WUQStore = {
   setCarnet(c) { this._set('carnet', c); },
 
   // Meilleur score par monde : { score, stars }
-  getBest(worldId) { return this._get('best_' + worldId) || { stars: 0, score: 0 }; },
-  setBest(worldId, b) { this._set('best_' + worldId, b); },
+  // (i = joueur dans la partie : 0, ou 1 en coopératif)
+  getBest(worldId, i = 0) { return this._get('best_' + worldId + (i ? '_' + i : '')) || { stars: 0, score: 0 }; },
+  setBest(worldId, b, i = 0) { this._set('best_' + worldId + (i ? '_' + i : ''), b); },
 
   // Étapes à jouer pour un monde
   steps(world) { return world.sequence; },

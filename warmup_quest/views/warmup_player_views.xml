@@ -49,6 +49,7 @@
                             <field name="total_minutes"/>
                             <field name="creature_count"/>
                             <field name="evolved_count"/>
+                            <field name="sticker_count"/>
                         </group>
                     </group>
                     <notebook>
@@ -64,6 +65,10 @@
                                     <field name="mode" optional="show"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Gommettes" name="stickers">
+                            <field name="sticker_display" readonly="1" nolabel="1" class="fs-1"
+                                   placeholder="Pas encore de gommette : elles se gagnent à la fin de chaque partie !"/>
                         </page>
                         <page string="Carnet des créatures" name="carnet">
                             <field name="catch_ids">

@@ -46,12 +46,13 @@
   Object.assign(WUQStore, {
     getCarnet() { const p = player(); return p ? { ...(p.carnet || {}) } : {}; },
     setCarnet(c) { const p = player(); if (p) p.carnet = c; },
-    getBest(world) {
-      const p = player();
+    // Records par joueur (i = position dans la partie)
+    getBest(world, i = 0) {
+      const p = selected()[i];
       return (p && p.best && p.best[world]) || { stars: 0, score: 0 };
     },
-    setBest(world, b) {
-      const p = player();
+    setBest(world, b, i = 0) {
+      const p = selected()[i];
       if (!p) return;
       p.best = p.best || {};
       p.best[world] = b;
@@ -68,17 +69,28 @@
     players() {
       return selected().map((p) => ({ name: p.name, color: p.color }));
     },
-    // Gommettes : gardées dans ce navigateur, par profil Odoo
-    getStickers(i = 0) { const p = selected()[i]; return p ? ls.get('stickers_' + p.id) || [] : []; },
-    addSticker(i, sticker) { const p = selected()[i]; if (p) ls.set('stickers_' + p.id, [...this.getStickers(i), sticker]); },
+    // Gommettes : enregistrées dans la fiche du joueur (Odoo). Les anciennes, gardées dans ce
+    // navigateur, sont reprises automatiquement à la prochaine partie.
+    getStickers(i = 0) {
+      const p = selected()[i];
+      if (!p) return [];
+      const legacy = ls.get('stickers_' + p.id) || [];
+      return [...(p.stickers || []), ...legacy.filter((s) => !(p.stickers || []).includes(s))];
+    },
+    addSticker(i, sticker) {
+      const p = selected()[i];
+      if (!p) return;
+      p.stickers = [...this.getStickers(i), sticker];
+      try { localStorage.removeItem('wuq_odoo_stickers_' + p.id); } catch {}
+    },
     duoToggle() { return null; }, // le choix se fait avec les profils « Qui joue ? »
     finish(result) {
       const list = selected();
       if (!list.length) return;
       const seq = currentSeq(result.world);
       // En coopératif, la partie est enregistrée pour chaque joueur
-      Promise.all(list.map((p) => rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false })
-        .then((res) => { if (res) { p.carnet = res.carnet; p.best = res.best; } })))
+      Promise.all(list.map((p) => rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false, stickers: p.stickers || [] })
+        .then((res) => { if (res) { p.carnet = res.carnet; p.best = res.best; p.stickers = res.stickers; } })))
         .then(() => {
           const best = document.getElementById('resBest');
           if (best) best.textContent += ' · ✅ Enregistré dans Odoo';

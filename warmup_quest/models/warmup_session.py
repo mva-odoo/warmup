@@ -92,5 +92,9 @@ class WarmupSession(models.Model):
             else:
                 Catch.create({'player_id': player.id, 'creature_id': creature.id, 'count': 1, 'last_date': now})
 
+        # Album de gommettes (liste complète tenue par le jeu)
+        if isinstance(data.get('stickers'), list):
+            player._set_stickers(data['stickers'])
+
         data = player._game_data()
-        return {'carnet': data['carnet'], 'best': data['best']}
+        return {'carnet': data['carnet'], 'best': data['best'], 'stickers': data['stickers']}

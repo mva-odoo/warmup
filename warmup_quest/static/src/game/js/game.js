@@ -952,10 +952,22 @@ class Game {
     const ratio = this.maxScore ? this.score / this.maxScore : 0;
     const stars = ratio >= 0.6 ? 3 : ratio >= 0.3 ? 2 : 1; // au moins 1 étoile : on a bougé, c'est gagné
     const id = this.world.id;
-    const best = WUQStore.getBest(id);
-    const isBest = this.score > best.score;
-    if (isBest) WUQStore.setBest(id, { stars: Math.max(stars, best.stars), score: this.score });
-    else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars });
+    // Record de chaque joueur (la partie compte pour tous en coopératif)
+    this.records = team.map((p, i) => {
+      const best = WUQStore.getBest(id, i);
+      const isBest = this.score > best.score;
+      if (isBest) WUQStore.setBest(id, { stars: Math.max(stars, best.stars), score: this.score }, i);
+      else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
+      return { name: p.name, isBest, prev: best.score };
+    });
+    // Gommette de chaque joueur, choisie avant l'enregistrement pour qu'elle parte dans Odoo
+    this.won = team.map((p, i) => {
+      const own = WUQStore.getStickers(i);
+      const fresh = STICKERS.filter((st) => !own.includes(st));
+      const st = (fresh.length ? fresh : STICKERS)[Math.floor(Math.random() * (fresh.length || STICKERS.length))];
+      WUQStore.addSticker(i, st);
+      return st;
+    });
     WUQStore.finish({
       world: id,
       score: this.score,
@@ -970,7 +982,7 @@ class Game {
       speed: speed.id,
       catches: this.team.map((c) => c.id),
     });
-    showResults(this, stars, isBest, best);
+    showResults(this, stars);
   }
 }
 
@@ -1065,7 +1077,7 @@ function updateResults(now) {
   } else { againHold = 0; $('againBar').style.width = '0%'; }
 }
 
-function showResults(g, stars, isBest, prevBest) {
+function showResults(g, stars) {
   phase = 'results';
   resultsAt = performance.now(); againHold = 0; againSaid = false;
   $('againBar').style.width = '0%';
@@ -1076,7 +1088,8 @@ function showResults(g, stars, isBest, prevBest) {
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;
   $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
-  $('resBest').textContent = isBest ? '🏆 Nouveau record !' : `Record : ${prevBest.score} pts`;
+  $('resBest').textContent = g.records.map((r, i) => (duo() ? (r.name || 'Joueur ' + (i + 1)) + ' : ' : '') +
+    (r.isBest ? '🏆 nouveau record !' : `record ${r.prev} pts`)).join(' · ');
   const friends = $('resTeam');
   friends.innerHTML = '';
   if (g.team.length) {
@@ -1086,15 +1099,8 @@ function showResults(g, stars, isBest, prevBest) {
     friends.appendChild(title);
     for (const cr of g.team) friends.appendChild(creatureCard(cr, true, Carnet.evolved(cr.id)));
   }
-  // Gommette pour chaque joueur
-  const won = team.map((p, i) => {
-    const own = WUQStore.getStickers(i);
-    const fresh = STICKERS.filter((st) => !own.includes(st));
-    const st = (fresh.length ? fresh : STICKERS)[Math.floor(Math.random() * (fresh.length || STICKERS.length))];
-    WUQStore.addSticker(i, st);
-    return st;
-  });
-  $('resSticker').innerHTML = won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
+  // Gommette de chaque joueur (choisie dans finish)
+  $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
   Audio8.win();
   const names = team.map((p) => p.name).filter(Boolean);

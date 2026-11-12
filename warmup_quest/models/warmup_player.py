@@ -21,6 +21,9 @@ class WarmupPlayer(models.Model):
     session_ids = fields.One2many('warmup.session', 'player_id', string='Parties')
     catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
 
+    stickers = fields.Json(string='Gommettes', default=list, help='Gommettes gagnées (émojis), dans l\'ordre.')
+    sticker_count = fields.Integer(string='Nombre de gommettes', compute='_compute_stickers')
+    sticker_display = fields.Char(string='Album', compute='_compute_stickers')
     session_count = fields.Integer(string='Parties jouées', compute='_compute_stats')
     best_score = fields.Integer(string='Meilleur score', compute='_compute_stats')
     total_minutes = fields.Float(string="Minutes d'échauffement", compute='_compute_stats', digits=(6, 1))
@@ -38,6 +41,18 @@ class WarmupPlayer(models.Model):
             p.total_minutes = sum(p.session_ids.mapped('duration')) / 60.0
             p.creature_count = len(p.catch_ids.filtered(lambda c: c.count > 0))
             p.evolved_count = len(p.catch_ids.filtered('evolved'))
+
+    @api.depends('stickers')
+    def _compute_stickers(self):
+        for p in self:
+            items = p.stickers if isinstance(p.stickers, list) else []
+            p.sticker_count = len(items)
+            p.sticker_display = ' '.join(items)
+
+    def _set_stickers(self, items):
+        """Album envoyé par le jeu : liste de petits textes (émojis), longueur raisonnable."""
+        clean = [s for s in (items or []) if isinstance(s, str) and 0 < len(s) <= 8][:300]
+        self.write({'stickers': clean})
 
     def action_view_sessions(self):
         self.ensure_one()
@@ -75,6 +90,7 @@ class WarmupPlayer(models.Model):
             'avatar': f'/web/image/warmup.player/{self.id}/image_128' if self.image_128 else False,
             'carnet': carnet,
             'best': best,
+            'stickers': self.stickers if isinstance(self.stickers, list) else [],
         }
 
     @api.model
