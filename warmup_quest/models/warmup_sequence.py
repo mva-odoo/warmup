@@ -6,8 +6,10 @@ from .warmup_constants import COMBO_PARTS, MOVES, POSES, WORLDS
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
-    if m in ('run', 'rest', 'bubbles', 'freeze'):
+    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch'):
         return step.duration or 0
+    if m == 'rope':
+        return 1.8 + 1.7 * max(1, step.count)
     if m == 'jump':
         return 1.8 + 1.0 * max(1, step.count)
     if m == 'squat':
@@ -74,7 +76,7 @@ class WarmupStep(models.Model):
     count = fields.Integer(string='Répétitions', default=1,
                            help='Nombre de sauts, accroupis ou smashs à faire, ou de bulles à éclater.')
     duration = fields.Float(string='Durée (s)', default=6,
-                            help='Durée pour « Courir sur place », « Pause / respiration », '
+                            help='Durée pour « Éviter les obstacles », « Pause / respiration », '
                                  '« Éclater des bulles » et « Statues musicales » (une manche ≈ 7 s).')
     target = fields.Integer(string='Objectif de pas', default=12,
                             help='Nombre de pas à faire pendant « Courir sur place ».')
@@ -92,7 +94,7 @@ class WarmupStep(models.Model):
         poses = dict(POSES)
         for s in self:
             if s.move == 'run':
-                s.summary = f"Courir {s.duration:g} s (objectif {s.target} pas)"
+                s.summary = f"Éviter les obstacles pendant {s.duration:g} s"
             elif s.move in ('jump', 'squat', 'smash'):
                 s.summary = f"{moves[s.move]} ×{max(1, s.count)}"
             elif s.move == 'pose':
@@ -103,6 +105,10 @@ class WarmupStep(models.Model):
                 s.summary = f"Pause {s.duration:g} s : {s.text or ''}"
             elif s.move == 'bubbles':
                 s.summary = f"Éclater {max(1, s.count)} bulles en {s.duration:g} s"
+            elif s.move == 'catch':
+                s.summary = f"Attraper les étoiles pendant {s.duration:g} s"
+            elif s.move == 'rope':
+                s.summary = f"Sauter {max(1, s.count)} fois à la corde"
             elif s.move == 'freeze':
                 s.summary = f"Statues musicales {s.duration:g} s"
             else:
@@ -126,13 +132,13 @@ class WarmupStep(models.Model):
     @api.constrains('count', 'duration', 'target', 'hold')
     def _check_values(self):
         for s in self:
-            if s.move in ('jump', 'squat', 'smash') and not 1 <= s.count <= 10:
+            if s.move in ('jump', 'squat', 'smash', 'rope') and not 1 <= s.count <= 10:
                 raise ValidationError('Le nombre de répétitions doit être entre 1 et 10.')
             if s.move == 'bubbles' and not 1 <= s.count <= 30:
                 raise ValidationError('Le nombre de bulles doit être entre 1 et 30.')
             if s.move in ('run', 'rest') and not 1 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 1 et 60 secondes.')
-            if s.move in ('bubbles', 'freeze') and not 5 <= s.duration <= 60:
+            if s.move in ('bubbles', 'freeze', 'catch') and not 5 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
             if s.move == 'run' and s.target < 1:
                 raise ValidationError("L'objectif de pas doit être d'au moins 1.")
@@ -159,4 +165,8 @@ class WarmupStep(models.Model):
             return {'m': 'bubbles', 't': self.duration or 10, 'n': max(1, self.count)}
         if m == 'freeze':
             return {'m': 'freeze', 't': self.duration or 14}
+        if m == 'catch':
+            return {'m': 'catch', 't': self.duration or 10}
+        if m == 'rope':
+            return {'m': 'rope', 'n': max(1, self.count)}
         return None

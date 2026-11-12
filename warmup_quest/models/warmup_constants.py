@@ -2,13 +2,20 @@ WORLDS = [
     ('turbo', 'Vallée Turbo'),
     ('island', 'Île Bondissante'),
     ('forest', 'Monde des Créatures'),
+    ('banquise', 'Banquise Glacée'),
+    ('ocean', "Fond de l'Océan"),
+    ('espace', "Voyage dans l'Espace"),
+    ('bonbons', 'Pays des Bonbons'),
+    ('ferme', 'La Ferme Joyeuse'),
+    ('dinos', 'Vallée des Dinos'),
+    ('chateau', 'Château Enchanté'),
 ]
 
 MOVES = [
-    ('run', 'Courir sur place'),
+    ('run', 'Éviter les obstacles'),  # code « run » gardé pour les séquences existantes
     ('jump', 'Sauter'),
-    ('squat', "S'accroupir"),
-    ('smash', 'Smash'),
+    ('squat', 'Se baisser'),
+    ('smash', 'Taper (bras en haut puis en bas)'),
     ('left', 'Aller à gauche'),
     ('right', 'Aller à droite'),
     ('pose', 'Pose à tenir'),
@@ -16,6 +23,8 @@ MOVES = [
     ('rest', 'Pause / respiration'),
     ('bubbles', 'Éclater des bulles'),
     ('freeze', 'Statues musicales'),
+    ('catch', 'Attraper les étoiles'),
+    ('rope', 'Sauter à la corde'),
 ]
 
 POSES = [
