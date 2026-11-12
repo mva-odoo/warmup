@@ -153,7 +153,7 @@ const WORLDS = [
     name: 'Jardin Fleuri',
     tagline: 'Un jardin plein de fleurs et de surprises !',
     heroName: 'Bouton',
-    hero: { body: '#ff8fab', belly: '#ffe5ec', limb: '#e05780', accent: '#ffd166' },
+    hero: { body: '#ff8fab', belly: '#ffe5ec', limb: '#e05780', accent: '#ffd166', extra: 'flower' },
     collectible: '🍓',
     sky: ['#6ec6ff', '#dff3ff'],
     biomes: [
@@ -175,7 +175,7 @@ const WORLDS = [
     name: 'Piste de Danse',
     tagline: 'Danse comme Tempo !',
     heroName: 'Tempo',
-    hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166' },
+    hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166', extra: 'headphones' },
     collectible: '🎵',
     sky: ['#1a0b3a', '#5a189a'],
     biomes: [
@@ -199,7 +199,7 @@ const WORLDS = [
     name: 'Dojo des Petits Tigres',
     tagline: 'Imite le maître karatéka !',
     heroName: 'Maître Bambou',
-    hero: { body: '#ffb703', belly: '#fff3c4', limb: '#fb8500', accent: '#1e1b4b' },
+    hero: { body: '#ffb703', belly: '#fff3c4', limb: '#fb8500', accent: '#1e1b4b', extra: 'headband' },
     collectible: '🏅',
     sky: ['#ffcdb2', '#fff1e6'],
     biomes: [
@@ -227,7 +227,7 @@ const WORLDS = [
     name: 'Vallée Turbo',
     tagline: 'Cours plus vite que le vent !',
     heroName: 'Zéphyr',
-    hero: { body: '#2ec4b6', belly: '#d9fbf7', limb: '#1b8a80', accent: '#ff9f1c' },
+    hero: { body: '#2ec4b6', belly: '#d9fbf7', limb: '#1b8a80', accent: '#ff9f1c', extra: 'scarf' },
     collectible: '⚡',
     sky: ['#4cc3ff', '#d4f4ff'],
     biomes: [
@@ -268,7 +268,7 @@ const WORLDS = [
     name: 'Île Bondissante',
     tagline: 'Saute partout et casse les caisses !',
     heroName: 'Pip',
-    hero: { body: '#ffb703', belly: '#fff3c4', limb: '#d18a00', accent: '#e63946' },
+    hero: { body: '#ffb703', belly: '#fff3c4', limb: '#d18a00', accent: '#e63946', extra: 'propellerCap' },
     collectible: '⭐',
     sky: ['#7fc8f8', '#ffe5d0'],
     biomes: [
@@ -354,7 +354,7 @@ const WORLDS = [
     name: 'Banquise Glacée',
     tagline: 'Glisse sur la glace et attrape les flocons !',
     heroName: 'Flocon',
-    hero: { body: '#9ad7ff', belly: '#f0faff', limb: '#4f9fd1', accent: '#ff7eb6' },
+    hero: { body: '#9ad7ff', belly: '#f0faff', limb: '#4f9fd1', accent: '#ff7eb6', extra: 'beanie' },
     collectible: '❄️',
     sky: ['#9ad7ff', '#eef8ff'],
     biomes: [
@@ -379,7 +379,7 @@ const WORLDS = [
     name: 'Fond de l\'Océan',
     tagline: 'Nage entre les coraux et éclate les bulles !',
     heroName: 'Plouf',
-    hero: { body: '#2ec4b6', belly: '#d9fbf7', limb: '#168f84', accent: '#ffbe0b' },
+    hero: { body: '#2ec4b6', belly: '#d9fbf7', limb: '#168f84', accent: '#ffbe0b', extra: 'goggles' },
     collectible: '🐚',
     sky: ['#1e90c8', '#7fdbff'],
     biomes: [
@@ -407,7 +407,7 @@ const WORLDS = [
     name: 'Voyage dans l\'Espace',
     tagline: 'Saute de planète en planète !',
     heroName: 'Comète',
-    hero: { body: '#9b5de5', belly: '#efe3ff', limb: '#6a2fbf', accent: '#00f5d4' },
+    hero: { body: '#9b5de5', belly: '#efe3ff', limb: '#6a2fbf', accent: '#00f5d4', extra: 'helmet' },
     collectible: '⭐',
     sky: ['#0b0c2a', '#2e2a6b'],
     biomes: [
@@ -435,7 +435,7 @@ const WORLDS = [
     name: 'Pays des Bonbons',
     tagline: 'Un chemin tout en sucre !',
     heroName: 'Praline',
-    hero: { body: '#ff70a6', belly: '#ffe5ef', limb: '#d94c84', accent: '#70d6ff' },
+    hero: { body: '#ff70a6', belly: '#ffe5ef', limb: '#d94c84', accent: '#70d6ff', extra: 'bow' },
     collectible: '🍬',
     sky: ['#ffc8dd', '#fff0f6'],
     biomes: [
@@ -460,7 +460,7 @@ const WORLDS = [
     name: 'La Ferme Joyeuse',
     tagline: 'Aide les animaux de la ferme !',
     heroName: 'Grain',
-    hero: { body: '#f4a259', belly: '#fff1e0', limb: '#c97a2e', accent: '#5b8e7d' },
+    hero: { body: '#f4a259', belly: '#fff1e0', limb: '#c97a2e', accent: '#5b8e7d', extra: 'strawHat' },
     collectible: '🥕',
     sky: ['#8ecae6', '#e8f6ff'],
     biomes: [
@@ -485,7 +485,7 @@ const WORLDS = [
     name: 'Vallée des Dinos',
     tagline: 'Saute par-dessus les fougères géantes !',
     heroName: 'Croc',
-    hero: { body: '#70c16f', belly: '#e8f8df', limb: '#3f8f3e', accent: '#ff9f1c' },
+    hero: { body: '#70c16f', belly: '#e8f8df', limb: '#3f8f3e', accent: '#ff9f1c', extra: 'spikes' },
     collectible: '🥚',
     sky: ['#9ad1d4', '#e8f6ef'],
     biomes: [
@@ -510,7 +510,7 @@ const WORLDS = [
     name: 'Château Enchanté',
     tagline: 'Traverse le jardin magique du château !',
     heroName: 'Étincelle',
-    hero: { body: '#c77dff', belly: '#f6e8ff', limb: '#9d4edd', accent: '#ffd60a' },
+    hero: { body: '#c77dff', belly: '#f6e8ff', limb: '#9d4edd', accent: '#ffd60a', extra: 'crown' },
     collectible: '💎',
     sky: ['#cdb4db', '#fdf0ff'],
     biomes: [

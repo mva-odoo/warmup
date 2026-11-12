@@ -781,9 +781,14 @@ class DepthScene {
   }
 
   drawEncounter(now) {
-    const e = this.enc, ctx = this.ctx;
-    const z = this.encZ(now), k = this.k(z), s = this.size * 2.1 * k;
-    let x = this.sx(0, z), gy = this.sy(z);
+    const z = this.encZ(now), k = this.k(z);
+    this.drawEncounterAt(now, { z, x: this.sx(0, z), gy: this.sy(z), s: this.size * 2.1 * k });
+  }
+
+  // Créature à apprivoiser, dessinée à la position écran g = { z, x, gy (sol), s (taille) }
+  drawEncounterAt(now, g) {
+    const e = this.enc, ctx = this.ctx, z = g.z, s = g.s;
+    let x = g.x, gy = g.gy;
     const since = now - e.t0;
     let alpha = this.fade(z), scale = 1, pose = e.pose, jump = 0;
     if (e.state === 'leaving') {

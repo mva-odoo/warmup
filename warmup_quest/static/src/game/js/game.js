@@ -46,6 +46,7 @@ function show(id, on = true) { $(id).classList.toggle('hidden', !on); }
 
 // ---------------- Menu ----------------
 function buildMenu() {
+  const previews = [];
   const wrap = $('worlds');
   wrap.innerHTML = '';
   const extra = $('menuExtra');
@@ -68,11 +69,12 @@ function buildMenu() {
     const cctx = card.querySelector('canvas').getContext('2d');
     let drawn = false;
     const anim = (t) => {
-      if (!card.isConnected) return;
+      if (!card.isConnected || card.has3d) return;
       const hover = card.matches(':hover, :focus-visible');
       if (phase === 'menu' && (hover || !drawn)) { drawWorldPreview(cctx, 200, 150, w, t, hover); drawn = !hover; }
       requestAnimationFrame(anim);
     };
+    previews.push({ card, cctx, w });
     requestAnimationFrame(anim);
     const ce = WUQStore.cardExtra(w, buildMenu);
     if (ce) {
@@ -93,6 +95,13 @@ function buildMenu() {
   sur.onclick = go;
   sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   wrap.appendChild(sur);
+  // Aperçus 3D (même rendu que le jeu) dès que la 3D est prête ; sinon on garde le dessin 2D
+  if (store('3d') !== false) {
+    scene3d.load().then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
+      if (!card.isConnected) return;
+      try { cctx.drawImage(scene3d.thumb(w), 0, 0, 200, 150); card.has3d = true; } catch (e) { console.warn(e); }
+    }, i * 60))).catch(() => {});
+  }
   const sp = $('speeds');
   sp.innerHTML = '';
   const saved = store('speed');
@@ -204,7 +213,7 @@ async function startWorld(w) {
   Audio8.unlock();
   Audio8.say(' ');
   // En duo, chaque joueur a son personnage, à sa couleur
-  const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166' })) : null;
+  const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166', extra: w.hero.extra })) : null;
   const next = store('3d') !== false ? scene3d : sceneFlat;
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
@@ -458,7 +467,7 @@ class Game {
   adapt(s) {
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
     if (s.m === 'posemix' && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
-    if (s.m === 'pose' && this.world.creatures) {
+    if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
       s = { ...s, creature: Carnet.pick(this.team.map((c) => c.id)) };
     }
     return s;

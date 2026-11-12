@@ -41,6 +41,8 @@ class Scene3D extends DepthScene {
     this.resize3d();
     addEventListener('resize', () => this.resize3d());
     this.emojiTex = new Map();
+    this.thumbs = new Map();
+    this.helpers();
     this.ready = true;
     if (this.theme) this.build(this.theme);
   }
@@ -59,21 +61,27 @@ class Scene3D extends DepthScene {
     if (theme) this.build(theme);
   }
 
+  // Outils partagés : matériaux, formes, catalogue de décors
+  helpers() {
+    const T = this.T;
+    this.P = this.P || new Props3D(T);
+    this.lam = (color, extra = {}) => new T.MeshLambertMaterial({ color, ...extra });
+    this.shadow = (m) => { m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return m; };
+    this.geo = this.geo || {
+      cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
+      ball: new T.IcosahedronGeometry(1, 1), sphere: new T.SphereGeometry(1, 14, 10),
+      rock: new T.DodecahedronGeometry(1, 0), stem: new T.CylinderGeometry(0.03, 0.03, 1, 5),
+    };
+  }
+
   // ---------- Construction du monde (une fois), puis paysage courant (change pendant la partie)
   build(theme) {
     const T = this.T;
     this.clear3d();
     const scene = new T.Scene();
     this.s3 = scene;
-    this.P = this.P || new Props3D(T);
-    const lam = (color, extra = {}) => new T.MeshLambertMaterial({ color, ...extra });
-    const shadow = (m) => { m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return m; };
-    this.lam = lam; this.shadow = shadow;
-    this.geo = {
-      cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
-      ball: new T.IcosahedronGeometry(1, 1), sphere: new T.SphereGeometry(1, 14, 10),
-      rock: new T.DodecahedronGeometry(1, 0), stem: new T.CylinderGeometry(0.03, 0.03, 1, 5),
-    };
+    this.helpers();
+    const lam = this.lam;
     this.mat = { leaf2: lam('#5cb85c', { flatShading: true }), rock: lam('#9a9184', { flatShading: true }) };
 
     // Ciel (dégradé redessiné à chaque paysage) et brume
@@ -124,7 +132,7 @@ class Scene3D extends DepthScene {
     }
 
     // Héros (un par joueur)
-    for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1); scene.add(h.m3.group); }
+    for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1, theme.hero.extra); scene.add(h.m3.group); }
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
     this.decor = []; this.backdrops = null; this.particles = null; this.stars = null;
@@ -255,7 +263,7 @@ class Scene3D extends DepthScene {
   isEmojiTex(tex) { for (const t of this.emojiTex.values()) if (t === tex) return true; return false; }
 
   // Personnage jouet : corps rond, oreilles, antenne-feuille, bras et jambes articulés (vu de dos)
-  makeHero(pal, small) {
+  makeHero(pal, small, extra = null) {
     const T = this.T, lam = this.lam, G = this.geo;
     const group = new T.Group(), inner = new T.Group();
     group.add(inner);
@@ -287,10 +295,11 @@ class Scene3D extends DepthScene {
       const disk = new T.Mesh(new T.CircleGeometry(0.75, 32), new T.MeshBasicMaterial({ color: pal.body, transparent: true, opacity: 0.55 }));
       disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; group.add(disk);
     }
-    this.shadow(inner);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
-    return { group, inner, armL, armR, legL, legR, ring, scale };
+    const anims = this.addAccessory(inner, extra || pal.extra, pal);
+    this.shadow(inner);
+    return { group, inner, armL, armR, legL, legR, ring, scale, anims };
   }
 
   // Coach (danse / karaté) : grand personnage jouet tourné vers le joueur, au fond de la scène
@@ -323,6 +332,129 @@ class Scene3D extends DepthScene {
     if (c.style === 'dance') { m.group.rotation.z = Math.sin(now * 0.008) * 0.12; m.inner.position.y += Math.abs(Math.sin(now * 0.008)) * 0.12; }
   }
 
+  // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles
+  addAccessory(inner, kind, pal) {
+    const T = this.T, G = this.geo, lam = this.lam, anims = [];
+    const add = (geo, color, x, y, z, sx, sy = sx, sz = sx, rot = null, extra = {}) => {
+      const m = new T.Mesh(geo, lam(color, extra)); m.position.set(x, y, z); m.scale.set(sx, sy, sz);
+      if (rot) m.rotation.set(...rot); inner.add(m); return m;
+    };
+    const torus = (r, t) => new T.TorusGeometry(r, t, 8, 28);
+    switch (kind) {
+      case 'scarf': { // écharpe au vent
+        add(torus(0.42, 0.09), '#ff9f1c', 0, 1.42, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        const tail = add(G.sphere, '#ff9f1c', 0.25, 1.3, 0.55, 0.1, 0.06, 0.38);
+        anims.push((t) => { tail.rotation.x = Math.sin(t * 0.012) * 0.4; tail.position.x = 0.25 + Math.sin(t * 0.01) * 0.06; });
+        break;
+      }
+      case 'propellerCap': { // casquette à hélice
+        add(new T.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#e63946', 0, 1.52, 0, 0.42, 0.3, 0.42);
+        const blades = new T.Group(); blades.position.set(0, 1.86, 0); inner.add(blades);
+        for (const r of [0, Math.PI]) { const b = new T.Mesh(G.sphere, lam('#ffd166')); b.scale.set(0.3, 0.03, 0.07); b.position.x = Math.cos(r) * 0.28; b.position.z = Math.sin(r) * 0.28; blades.add(b); }
+        add(G.stem, '#3d3d3d', 0, 1.78, 0, 1.5, 0.2, 1.5);
+        anims.push((t) => { blades.rotation.y = t * 0.02; });
+        break;
+      }
+      case 'beanie': // bonnet à pompon
+        add(new T.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), '#4cc9f0', 0, 1.48, 0, 0.5, 0.38, 0.48);
+        add(torus(0.48, 0.07), '#ffffff', 0, 1.5, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        add(G.sphere, '#ffffff', 0, 1.92, 0, 0.12);
+        break;
+      case 'goggles': // masque de plongée et tuba
+        add(torus(0.5, 0.05), '#1e1b4b', 0, 1.35, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        add(G.stem, '#ffbe0b', 0.42, 1.55, 0.1, 2.5, 0.7, 2.5);
+        add(G.sphere, '#ffbe0b', 0.42, 1.92, 0.1, 0.07);
+        break;
+      case 'helmet': // casque d'astronaute (bulle transparente)
+        add(G.sphere, '#bde0fe', 0, 1.2, 0, 0.78, 0.78, 0.78, null, { transparent: true, opacity: 0.28, depthWrite: false });
+        add(torus(0.62, 0.07), '#e9ecef', 0, 0.72, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        add(G.stem, '#adb5bd', 0.3, 1.95, 0, 1.2, 0.35, 1.2);
+        add(G.sphere, '#ff4d6d', 0.3, 2.14, 0, 0.05, 0.05, 0.05, null, { emissive: '#ff4d6d', emissiveIntensity: 0.8 });
+        break;
+      case 'bow': // gros nœud
+        for (const sg of [-1, 1]) add(G.sphere, '#ff4d8d', sg * 0.2, 1.68, 0, 0.18, 0.12, 0.08, [0, 0, sg * 0.4]);
+        add(G.sphere, '#ff4d8d', 0, 1.68, 0, 0.07);
+        break;
+      case 'strawHat': // chapeau de paille
+        add(new T.CylinderGeometry(1, 1, 1, 24), '#e9c46a', 0, 1.55, 0, 0.72, 0.03, 0.72);
+        add(new T.CylinderGeometry(0.7, 1, 1, 20), '#e9c46a', 0, 1.7, 0, 0.36, 0.28, 0.36);
+        add(torus(0.36, 0.035), '#d62828', 0, 1.6, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        break;
+      case 'spikes': // crête de petit dino le long du dos
+        for (let i = 0; i < 5; i++) add(G.cone, '#ff9f1c', 0, 0.6 + i * 0.25, 0.5 - Math.abs(i - 2) * 0.04, 0.1, 0.18, 0.1, [Math.PI / 2 - 0.4, 0, 0]);
+        break;
+      case 'crown': // petite couronne
+        add(new T.CylinderGeometry(1, 1, 1, 12, 1, true), '#ffd60a', 0, 1.62, 0, 0.26, 0.12, 0.26, null, { side: T.DoubleSide, emissive: '#ffb703', emissiveIntensity: 0.3 });
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; add(G.cone, '#ffd60a', Math.cos(a) * 0.24, 1.75, Math.sin(a) * 0.24, 0.05, 0.12, 0.05); }
+        break;
+      case 'flower': // fleur sur la tête
+        for (let i = 0; i < 5; i++) { const a = i * 1.2566; add(G.sphere, '#ffffff', 0.12 + Math.cos(a) * 0.1, 1.72, Math.sin(a) * 0.1, 0.08); }
+        add(G.sphere, '#ffd166', 0.12, 1.72, 0, 0.06);
+        break;
+      case 'headphones': // casque audio
+        add(new T.TorusGeometry(0.5, 0.05, 8, 24, Math.PI), '#1e1b4b', 0, 1.3, 0, 1, 1, 1);
+        for (const sg of [-1, 1]) add(new T.CylinderGeometry(1, 1, 1, 16), '#f15bb5', sg * 0.55, 1.3, 0, 0.15, 0.1, 0.15, [0, 0, Math.PI / 2]);
+        break;
+      case 'headband': { // bandeau et rubans
+        add(torus(0.5, 0.05), '#d62828', 0, 1.38, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+        const r1 = add(G.sphere, '#d62828', 0.1, 1.3, 0.55, 0.05, 0.04, 0.22), r2 = add(G.sphere, '#d62828', -0.1, 1.28, 0.55, 0.05, 0.04, 0.2);
+        anims.push((t) => { r1.rotation.x = Math.sin(t * 0.01) * 0.3; r2.rotation.x = Math.sin(t * 0.01 + 1) * 0.3; });
+        break;
+      }
+    }
+    return anims;
+  }
+
+  // ---------- Aperçu d'un monde pour le menu (rendu 3D une seule fois, puis réutilisé)
+  thumb(world) {
+    if (this.thumbs.has(world.id)) return this.thumbs.get(world.id);
+    const T = this.T;
+    if (!this.thumbR) {
+      const cv = document.createElement('canvas'); cv.width = 400; cv.height = 300;
+      this.thumbR = new T.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+      this.thumbR.shadowMap.enabled = true;
+    }
+    const b = world.biomes[0], kit = KITS[b.kit] || KITS.meadow, night = !!(kit.night || b.night);
+    const scene = new T.Scene(), disposables = [];
+    const sky = document.createElement('canvas'); sky.width = 2; sky.height = 128;
+    const sc = sky.getContext('2d'), gr = sc.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, b.sky0); gr.addColorStop(1, b.sky1); sc.fillStyle = gr; sc.fillRect(0, 0, 2, 128);
+    const skyTex = new T.CanvasTexture(sky); skyTex.colorSpace = T.SRGBColorSpace; scene.background = skyTex; disposables.push(skyTex);
+    scene.fog = new T.Fog(b.fog || b.sky1, 18, 60);
+    scene.add(new T.HemisphereLight(b.sky0, b.grass, night ? 0.6 : 1.1));
+    const sun = new T.DirectionalLight(0xffffff, night ? 0.5 : 1.6);
+    sun.position.set(5, 10, 6); sun.castShadow = true; sun.shadow.mapSize.set(512, 512);
+    Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 });
+    scene.add(sun);
+    const ground = new T.Mesh(new T.PlaneGeometry(160, 160), this.lam(b.grass)); ground.rotation.x = -Math.PI / 2; ground.position.z = -40; ground.receiveShadow = true; scene.add(ground);
+    const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 80), this.lam(b.path)); path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -36); path.receiveShadow = true; scene.add(path);
+    for (const name of kit.backdrop || []) scene.add(this.P.backdrop(name, b));
+    for (let i = 0; i < 16; i++) {
+      const d = this.P.make(this.P.pick(b.kit || 'meadow'), b);
+      d.position.set((i % 2 ? 1 : -1) * (LANE * 1.5 + 1 + Math.random() * 5), 0, -1 - i * 2.2);
+      d.rotation.y = Math.random() * 6; scene.add(d);
+    }
+    const hero = this.makeHero(world.hero, false, world.hero.extra);
+    hero.armL.rotation.z = -0.6; hero.armR.rotation.z = 0.6; hero.group.rotation.y = 0.5;
+    scene.add(hero.group);
+    const cam = new T.PerspectiveCamera(50, 4 / 3, 0.1, 120);
+    cam.position.set(1.2, 2.4, 4.6); cam.lookAt(0, 1.1, -4);
+    this.thumbR.render(scene, cam);
+    const out = document.createElement('canvas'); out.width = 400; out.height = 300;
+    out.getContext('2d').drawImage(this.thumbR.domElement, 0, 0);
+    disposables.forEach((x) => x.dispose());
+    this.thumbs.set(world.id, out);
+    return out;
+  }
+
+  // Créature à apprivoiser (calque 2D placé sur le chemin 3D)
+  drawEncounter3D(now) {
+    if (!this.enc) return;
+    const z = this.encZ(now), wz = this.z3(z);
+    const foot = this.project(0, 0, wz), top = this.project(0, 2.4, wz);
+    this.drawEncounterAt(now, { z, x: foot.x, gy: foot.y, s: Math.abs(foot.y - top.y) });
+  }
+
   // ---------- Conversions et projection écran
   z3(depth) { return -(depth - this.heroZ()) * DEPTH_SCALE; }
   heroY3(h) { return -h.y * 5 / this.H; }
@@ -347,6 +479,7 @@ class Scene3D extends DepthScene {
   resolve(success) {
     if (!this.ready || !this.theme) return super.resolve(success);
     const now = performance.now(), o = this.obs;
+    if (this.enc && this.enc.state === 'waiting') { this.enc.state = success ? 'befriend' : 'leaving'; this.enc.t0 = now; }
     if (!o || o.state !== 'coming') return;
     o.zc = this.obsZ(now); o.state = success ? 'cleared' : 'missed'; o.t0 = now;
     const lx = o.kind === 'gemL' ? -1 : o.kind === 'gemR' ? 1 : 0;
@@ -508,6 +641,7 @@ class Scene3D extends DepthScene {
     m.group.rotation.z = rotZ;
     m.ring.visible = !!h.holdPose;
     m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
+    if (m.anims) for (const a of m.anims) a(now);
   }
 
   // ---------- Rendu
@@ -524,7 +658,7 @@ class Scene3D extends DepthScene {
       h.lane += (h.targetLane - h.lane) * Math.min(1, dt * 8);
       h.vy += this.H * 5 * dt; h.y += h.vy * dt;
       if (h.y > 0) { h.y = 0; h.vy = 0; }
-      if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1); this.s3.add(h.m3.group); }
+      if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1, this.theme.hero.extra); this.s3.add(h.m3.group); }
       this.applyPose(h, now);
     }
     // Paysage suivant quand on avance dans la partie
@@ -585,6 +719,7 @@ class Scene3D extends DepthScene {
     // Calque 2D : bulles, mains, corde, ✔ / ✗, particules
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.W, this.H);
+    this.drawEncounter3D(now);
     this.drawBubbles(now);
     this.drawMoles(now);
     this.drawRope(now);
