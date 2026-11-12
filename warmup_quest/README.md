@@ -56,7 +56,21 @@ Sur un serveur, mettre Odoo derrière un proxy HTTPS (nginx, Caddy, Traefik…).
 La détection des mouvements tourne dans le navigateur : aucune image n'est envoyée au serveur.
 Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis jsDelivr / Google).
 
-## Mettre à jour le jeu
-Le jeu est développé dans le dossier racine du projet (`index.html`, `js/`, `css/`).
-Après une modification, lancer `sync-odoo.ps1` pour le recopier dans
-`static/src/game/`, puis mettre à jour le module (le numéro de version sert au cache).
+## Faire évoluer le jeu
+Le jeu se développe **directement dans ce module** : il n'y a plus de projet séparé à recopier
+(l'ancien script `sync-odoo.ps1` ne doit plus être utilisé, il écraserait le jeu).
+Après une modification, augmenter la version dans `__manifest__.py` puis mettre à jour le module
+(le numéro de version sert à recharger les fichiers du jeu dans les navigateurs).
+
+| Fichier (`static/src/game/js/`) | Rôle |
+|---|---|
+| `worlds.js` | mondes, paysages, programmes, consignes et voix |
+| `game.js` | menu, calibrage, déroulé des épreuves, résultats |
+| `pose.js` | détection des mouvements (MediaPipe), 1 ou 2 joueurs |
+| `scene3d.js`, `props3d.js` | monde en 3D (Three.js) et catalogue de décors |
+| `depth.js`, `decor.js` | chemin 2D (repli) et éléments partagés (bulles, taupes, créatures) |
+| `picto.js` | petit bonhomme animé qui montre chaque mouvement |
+| `../odoo_bridge.js` | lien avec Odoo : joueurs, séquences, gommettes, enregistrement des parties |
+
+Les programmes par défaut des séquences Odoo (`hooks.py`) reprennent ceux de `worlds.js` :
+si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à jour aussi.
