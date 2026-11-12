@@ -1,36 +1,58 @@
-// Catalogue de décors 3D (style jouet low-poly), tous construits avec des formes simples.
-// Chaque paysage (« kit ») indique quels objets poser le long du chemin, son arrière-plan,
-// ses particules d'ambiance et s'il fait nuit. Les objets animés ont userData.anim(t).
+// Catalogue de décors 3D, style cartoon (ombrage en aplats).
+// Deux sources d'objets :
+//  - « k:nom » : modèles 3D libres de droits du Nature Kit de Kenney (CC0, models/kenney/), mis à
+//    l'échelle et passés en style cartoon au chargement ;
+//  - les autres noms : objets à thème construits ici (bonbons, coraux, cristaux, lanternes…).
+// Chaque paysage (« kit ») indique ses objets (avec leur poids), son arrière-plan, ses particules,
+// s'il fait nuit et s'il y a des hautes herbes au bord du chemin.
+
+// Dossier des modèles, déduit de l'adresse de ce script (fonctionne aussi servi par Odoo)
+const MODELS_BASE = (document.currentScript && document.currentScript.src)
+  ? document.currentScript.src.replace(/js\/[^/]*$/, 'models/') : 'models/';
 
 const KITS = {
-  meadow:   { props: [['pine', 1], ['roundTree', 3], ['bush', 3], ['flower', 4], ['rock', 1], ['mushroom', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
-  mountain: { props: [['snowPine', 3], ['pine', 2], ['rock', 3], ['bush', 1]], backdrop: ['mountains'] },
-  desert:   { props: [['cactus', 4], ['rock', 3], ['palm', 1]], backdrop: ['mesas'] },
-  beach:    { props: [['palm', 4], ['umbrella', 2], ['rock', 1], ['flower', 1]], backdrop: ['sea'] },
-  jungle:   { props: [['palm', 2], ['fern', 4], ['bigFlower', 2], ['bush', 2], ['roundTree', 2]], backdrop: ['hills'], particles: 'petals' },
-  volcano:  { props: [['palm', 2], ['rock', 3], ['fern', 2]], backdrop: ['volcano'], particles: 'embers' },
-  forest:   { props: [['pine', 4], ['mushroom', 2], ['bigMushroom', 1], ['bush', 2], ['flower', 2]], backdrop: ['hills'], particles: 'petals' },
-  night:    { props: [['pine', 3], ['crystal', 2], ['bigMushroom', 2], ['lantern', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
-  glacier:  { props: [['snowPine', 3], ['snowman', 1], ['iceBlock', 3], ['igloo', 1]], backdrop: ['mountains'], particles: 'snow' },
-  aurora:   { props: [['snowPine', 3], ['iceBlock', 2], ['crystal', 1], ['snowman', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
-  lagoon:   { props: [['coral', 3], ['seaweed', 3], ['rock', 1], ['fish', 2], ['chest', 1]], backdrop: ['hills'], particles: 'bubbles' },
-  reef:     { props: [['coral', 4], ['seaweed', 3], ['fish', 3]], backdrop: ['hills'], particles: 'bubbles' },
+  meadow:   { grass: true, props: [['k:tree_oak', 2], ['k:tree_default', 2], ['k:tree_fat', 1], ['k:plant_bushLarge', 2], ['k:plant_bush', 2], ['k:flower_redA', 1], ['k:flower_yellowA', 1], ['k:flower_purpleA', 1], ['k:mushroom_red', 1], ['k:rock_smallA', 1], ['k:stump_round', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
+  mountain: { grass: true, props: [['k:tree_pineTallA_detailed', 3], ['k:tree_pineRoundA', 2], ['k:rock_largeA', 2], ['k:rock_tallA', 1], ['snowPine', 1], ['k:log', 1]], backdrop: ['mountains'] },
+  desert:   { props: [['k:cactus_tall', 3], ['k:cactus_short', 3], ['k:rock_largeB', 2], ['k:rock_smallFlatA', 1], ['k:tree_palmShort', 1]], backdrop: ['mesas'] },
+  beach:    { props: [['k:tree_palmTall', 2], ['k:tree_palmBend', 2], ['k:tree_palmDetailedShort', 1], ['umbrella', 2], ['k:rock_smallB', 1], ['k:canoe', 1]], backdrop: ['sea'] },
+  jungle:   { grass: true, props: [['k:tree_palmDetailedTall', 2], ['k:plant_flatTall', 3], ['k:plant_bushDetailed', 2], ['k:tree_detailed', 2], ['bigFlower', 1], ['k:hanging_moss', 1]], backdrop: ['hills'], particles: 'petals' },
+  volcano:  { props: [['k:tree_palmShort', 2], ['k:rock_tallB', 2], ['k:rock_largeC', 2], ['k:plant_flatShort', 2]], backdrop: ['volcano'], particles: 'embers' },
+  forest:   { grass: true, props: [['k:tree_pineRoundB', 2], ['k:tree_detailed', 2], ['k:mushroom_redGroup', 2], ['k:mushroom_tanTall', 1], ['k:stump_old', 1], ['k:log_stack', 1], ['k:plant_bush', 2], ['k:flower_purpleB', 1], ['bigMushroom', 1]], backdrop: ['hills'], particles: 'petals' },
+  night:    { grass: true, props: [['k:tree_detailed_dark', 2], ['k:tree_pineRoundC', 2], ['crystal', 2], ['bigMushroom', 2], ['lantern', 1], ['k:mushroom_redTall', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
+  glacier:  { props: [['snowPine', 3], ['snowman', 1], ['iceBlock', 2], ['igloo', 1], ['k:tree_pineSmallA', 1], ['k:rock_largeD', 1]], backdrop: ['mountains'], particles: 'snow' },
+  aurora:   { props: [['snowPine', 3], ['iceBlock', 2], ['crystal', 1], ['snowman', 1], ['k:tent_detailedOpen', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
+  lagoon:   { props: [['coral', 3], ['seaweed', 3], ['k:rock_smallC', 1], ['fish', 2], ['chest', 1], ['k:lily_large', 1]], backdrop: ['hills'], particles: 'bubbles' },
+  reef:     { props: [['coral', 4], ['seaweed', 3], ['fish', 3], ['k:rock_smallA', 1]], backdrop: ['hills'], particles: 'bubbles' },
   abyss:    { props: [['seaweed', 3], ['crystal', 2], ['coral', 2], ['fish', 2]], backdrop: [], particles: 'bubbles', night: true },
-  moon:     { props: [['crater', 3], ['rock', 3], ['rocket', 1]], backdrop: ['planets'], particles: 'stars', night: true },
-  mars:     { props: [['rock', 4], ['crater', 2], ['crystal', 1]], backdrop: ['planets', 'mesas'], night: true },
-  nebula:   { props: [['crystal', 4], ['rock', 2]], backdrop: ['planets'], particles: 'fireflies', night: true },
+  moon:     { props: [['crater', 3], ['k:stone_largeA', 2], ['k:stone_tallA', 2], ['rocket', 1]], backdrop: ['planets'], particles: 'stars', night: true },
+  mars:     { props: [['k:rock_tallC', 3], ['k:rock_largeB', 2], ['crater', 2], ['crystal', 1]], backdrop: ['planets', 'mesas'], night: true },
+  nebula:   { props: [['crystal', 4], ['k:stone_tallB', 2], ['k:stone_largeB', 1]], backdrop: ['planets'], particles: 'fireflies', night: true },
   candy:    { props: [['lollipop', 3], ['candyCane', 3], ['cupcake', 2], ['gumdrop', 3], ['donut', 1]], backdrop: ['hills'], particles: 'petals' },
   icecream: { props: [['iceCream', 3], ['lollipop', 2], ['gumdrop', 2], ['candyCane', 1]], backdrop: ['hills', 'mountains'] },
-  farm:     { props: [['hayBale', 3], ['fence', 3], ['sunflower', 3], ['roundTree', 1]], backdrop: ['barn', 'windmill', 'hills'] },
-  orchard:  { props: [['appleTree', 4], ['fence', 2], ['hayBale', 1], ['bush', 2]], backdrop: ['barn', 'hills'] },
-  ferns:    { props: [['fern', 4], ['palm', 3], ['egg', 1], ['bigMushroom', 1], ['dino', 1]], backdrop: ['volcano'] },
-  dinoland: { props: [['rock', 3], ['fern', 2], ['egg', 2], ['dino', 1]], backdrop: ['volcano'], particles: 'embers' },
-  garden:   { props: [['roseBush', 3], ['roundTree', 2], ['lantern', 1], ['flower', 3]], backdrop: ['castle', 'hills'], particles: 'petals' },
-  magic:    { props: [['crystal', 3], ['bigMushroom', 2], ['lantern', 2], ['pine', 2]], backdrop: ['castle'], particles: 'fireflies', night: true },
+  farm:     { grass: true, props: [['k:crop_pumpkin', 2], ['k:crops_cornStageD', 2], ['k:crops_wheatStageB', 2], ['k:fence_simple', 2], ['hayBale', 2], ['sunflower', 1], ['k:tree_oak', 1]], backdrop: ['barn', 'windmill', 'hills'] },
+  orchard:  { grass: true, props: [['appleTree', 2], ['k:tree_fat_fall', 1], ['k:tree_oak', 2], ['k:fence_planks', 2], ['k:crop_melon', 1], ['k:crop_carrot', 1]], backdrop: ['barn', 'hills'] },
+  ferns:    { grass: true, props: [['k:plant_flatTall', 3], ['k:tree_palmDetailedTall', 2], ['egg', 1], ['dino', 1], ['k:rock_largeC', 1], ['fern', 1]], backdrop: ['volcano'] },
+  dinoland: { props: [['k:rock_tallC', 2], ['k:plant_flatShort', 2], ['egg', 2], ['dino', 1], ['k:stump_oldTall', 1]], backdrop: ['volcano'], particles: 'embers' },
+  garden:   { grass: true, props: [['roseBush', 2], ['k:tree_simple', 2], ['k:plant_bushLargeTriangle', 2], ['k:flower_redB', 1], ['k:flower_yellowB', 1], ['k:flower_purpleA', 1], ['k:statue_column', 1], ['lantern', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
+  magic:    { grass: true, props: [['crystal', 3], ['k:tree_tall_dark', 2], ['bigMushroom', 2], ['lantern', 2], ['k:statue_obelisk', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
-  dojo:     { props: [['bamboo', 4], ['cherryTree', 3], ['stoneLantern', 2], ['rock', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
-  dojoNight: { props: [['bamboo', 3], ['cherryTree', 2], ['stoneLantern', 3]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
+  dojo:     { grass: true, props: [['bamboo', 3], ['cherryTree', 3], ['stoneLantern', 2], ['k:crops_bambooStageB', 2], ['k:rock_smallFlatA', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
+  dojoNight: { grass: true, props: [['bamboo', 3], ['cherryTree', 2], ['stoneLantern', 3], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
 };
+
+// Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
+const MODEL_HEIGHT = [
+  [/^tree_palm/, 5.2], [/^tree_pineTall/, 5.5], [/^tree_pineSmall/, 2.6], [/^tree_/, 4.4], [/^plant_flatTall/, 1.8],
+  [/^plant_/, 1.2], [/^grass/, 0.7], [/^flower_/, 0.75], [/^mushroom_.*Tall/, 1.1], [/^mushroom_/, 0.7],
+  [/^rock_tall|^stone_tall/, 2.2], [/^rock_large|^stone_large/, 1.4], [/^rock_small/, 0.55], [/^stump/, 0.7],
+  [/^log/, 0.7], [/^cactus_tall/, 2.6], [/^cactus/, 1.4], [/^crops_corn/, 1.8], [/^crops_bamboo/, 2.6], [/^crop/, 0.9],
+  [/^fence/, 1.1], [/^lily/, 0.15], [/^canoe/, 0.6], [/^tent/, 2.0], [/^campfire/, 0.6], [/^statue/, 2.6], [/^hanging_moss/, 1.6],
+];
+// Objet construit à utiliser tant qu'un modèle n'est pas chargé
+const MODEL_FALLBACK = [
+  [/^tree_palm/, 'palm'], [/^tree_pine/, 'pine'], [/^tree_/, 'roundTree'], [/^(plant_|grass|crop|hanging)/, 'bush'],
+  [/^flower_/, 'flower'], [/^mushroom_/, 'mushroom'], [/^cactus/, 'cactus'], [/^fence/, 'fence'], [/^lily/, 'flower'],
+];
 
 class Props3D {
   constructor(T) {
@@ -49,8 +71,70 @@ class Props3D {
   mat(color, opts = {}) {
     const key = color + JSON.stringify(opts);
     let m = this.mats.get(key);
-    if (!m) { m = new this.T.MeshLambertMaterial({ color, ...opts }); this.mats.set(key, m); }
+    if (!m) { m = this.toon(color, opts); this.mats.set(key, m); }
     return m;
+  }
+
+  // Matériau « cartoon » : 3 niveaux de lumière francs (look dessin animé)
+  toon(color, opts = {}) {
+    const { flatShading, ...rest } = opts; // (option non prise en charge par l'ombrage cartoon)
+    if (!this.gradient) {
+      const T = this.T, data = new Uint8Array([90, 175, 255]);
+      this.gradient = new T.DataTexture(data, 3, 1, T.RedFormat);
+      this.gradient.minFilter = this.gradient.magFilter = T.NearestFilter;
+      this.gradient.needsUpdate = true;
+    }
+    return new this.T.MeshToonMaterial({ color, gradientMap: this.gradient, ...rest });
+  }
+
+  // ---------- Modèles Kenney (CC0) : chargés une fois, mis à l'échelle, passés en cartoon
+  async preload(names) {
+    const T = this.T;
+    if (!this.loader) {
+      const { GLTFLoader } = await import(GLTF_URL);
+      this.loader = new GLTFLoader();
+      this.models = new Map();
+      this.loading = new Map();
+    }
+    const base = MODELS_BASE + 'kenney/';
+    await Promise.all([...new Set(names)].filter((n) => !this.models.has(n)).map((n) => {
+      if (!this.loading.has(n)) {
+        this.loading.set(n, this.loader.loadAsync(base + n + '.glb').then((gltf) => {
+          const root = gltf.scene;
+          root.traverse((o) => {
+            if (!o.isMesh) return;
+            const old = o.material;
+            o.material = this.toon(old.color ? '#' + old.color.getHexString() : '#ffffff', old.map ? { map: old.map } : {});
+            old.dispose();
+            o.castShadow = true; o.receiveShadow = true;
+          });
+          // À l'échelle du jeu, posé au sol, centré
+          const box = new T.Box3().setFromObject(root), size = box.getSize(new T.Vector3());
+          const target = (MODEL_HEIGHT.find(([re]) => re.test(n)) || [null, 1.5])[1];
+          const k = target / Math.max(0.01, size.y);
+          const holder = new T.Group();
+          root.scale.setScalar(k);
+          const c = box.getCenter(new T.Vector3());
+          root.position.set(-c.x * k, -box.min.y * k, -c.z * k);
+          holder.add(root);
+          this.models.set(n, holder);
+        }).catch((e) => console.warn('Modèle introuvable :', n, e)));
+      }
+      return this.loading.get(n);
+    }));
+  }
+
+  // Tous les modèles d'une liste de paysages
+  modelsOf(kits) {
+    const out = [];
+    for (const k of kits) for (const [n] of (KITS[k] || KITS.meadow).props) if (n.startsWith('k:')) out.push(n.slice(2));
+    if (kits.some((k) => (KITS[k] || {}).grass)) out.push('grass_large', 'grass_leafsLarge', 'grass');
+    return out;
+  }
+
+  model(n) {
+    const m = this.models && this.models.get(n);
+    return m ? m.clone(true) : null;
   }
 
   // Ajoute une forme au groupe : geo, couleur, position, échelle (sx, sy, sz), rotation éventuelle
@@ -64,6 +148,11 @@ class Props3D {
 
   // Objet du kit, couleurs du paysage (pal = biome)
   make(name, pal) {
+    if (name.startsWith('k:')) {
+      const n = name.slice(2), m = this.model(n);
+      if (m) return m;
+      name = (MODEL_FALLBACK.find(([re]) => re.test(n)) || [null, 'rock'])[1];
+    }
     const g = new this.T.Group();
     (this[name] || this.bush).call(this, g, pal);
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });

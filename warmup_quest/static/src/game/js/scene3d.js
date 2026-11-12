@@ -3,7 +3,9 @@
 // Les éléments d'interface (bulles, mains, corde, ✔ / ✗, confettis) restent en 2D par-dessus,
 // placés sur la projection du personnage 3D. Three.js n'est chargé qu'à l'ouverture de ce monde.
 
-const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+// Three.js et son chargeur de modèles glTF depuis le même paquet (une seule copie de Three.js)
+const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
+const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
 const LANE = 1.6;          // largeur d'un couloir (unités 3D)
 const DEPTH_SCALE = 1.3;   // profondeur DepthScene -> unités 3D
 
@@ -65,7 +67,8 @@ class Scene3D extends DepthScene {
   helpers() {
     const T = this.T;
     this.P = this.P || new Props3D(T);
-    this.lam = (color, extra = {}) => new T.MeshLambertMaterial({ color, ...extra });
+    this.lam = (color, extra = {}) => this.P.toon(color, extra); // ombrage cartoon partout
+    this.outlineMat = this.outlineMat || new T.MeshBasicMaterial({ color: '#1e1b4b', side: T.BackSide });
     this.shadow = (m) => { m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return m; };
     this.geo = this.geo || {
       cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
@@ -135,7 +138,7 @@ class Scene3D extends DepthScene {
     for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1, theme.hero.extra); scene.add(h.m3.group); }
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
-    this.decor = []; this.backdrops = null; this.particles = null; this.stars = null;
+    this.decor = []; this.tufts = []; this.backdrops = null; this.particles = null; this.stars = null;
     this.coachMesh = null; this.coachStyle = null;
     this.biomeIdx = -1;
     this.applyBiome(0);
@@ -178,6 +181,18 @@ class Scene3D extends DepthScene {
     if (this.stars) { scene.remove(this.stars); this.stars.geometry.dispose(); this.stars = null; }
     if (night || kit.particles === 'stars') this.stars = this.makeStars();
 
+    // Hautes herbes en bordure du chemin (paysages herbeux)
+    for (const t of this.tufts) scene.remove(t);
+    this.tufts = [];
+    if (kit.grass) {
+      for (let k = 0; k < 40; k++) {
+        const t = this.makeTuft();
+        if (!t) break;
+        t.position.set((k % 2 ? 1 : -1) * (LANE * 1.5 + 0.55 + Math.random() * 1.6), 0, -78 + k * 2.1);
+        scene.add(t); this.tufts.push(t);
+      }
+    }
+
     // Décor : on remplit au départ ; ensuite les objets lointains changent tout de suite, les proches en défilant
     if (!this.decor.length) {
       for (let k = 0; k < 46; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); }
@@ -188,6 +203,14 @@ class Scene3D extends DepthScene {
         const n = this.makeDecor(); this.placeDecor(n, z); scene.add(n); return n;
       });
     }
+  }
+
+  makeTuft() {
+    const t = this.P.model(['grass_large', 'grass_leafsLarge', 'grass'][Math.floor(Math.random() * 3)]);
+    if (!t) return null;
+    t.scale.multiplyScalar(0.9 + Math.random() * 0.8);
+    t.rotation.y = Math.random() * Math.PI * 2;
+    return t;
   }
 
   makeDecor() {
@@ -293,12 +316,13 @@ class Scene3D extends DepthScene {
     // En duo : disque de couleur sous le personnage
     if (small) {
       const disk = new T.Mesh(new T.CircleGeometry(0.75, 32), new T.MeshBasicMaterial({ color: pal.body, transparent: true, opacity: 0.55 }));
-      disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; group.add(disk);
+      disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; disk.userData.noOutline = true; group.add(disk);
     }
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
     const anims = this.addAccessory(inner, extra || pal.extra, pal);
     this.shadow(inner);
+    this.outline(inner);
     return { group, inner, armL, armR, legL, legR, ring, scale, anims };
   }
 
@@ -330,6 +354,23 @@ class Scene3D extends DepthScene {
     m.ring.visible = false;
     m.group.position.z = -6.5;
     if (c.style === 'dance') { m.group.rotation.z = Math.sin(now * 0.008) * 0.12; m.inner.position.y += Math.abs(Math.sin(now * 0.008)) * 0.12; }
+  }
+
+  // Contour noir façon dessin animé (copie agrandie de chaque forme, vue de l'intérieur)
+  outline(root, k = 1.07) {
+    const meshes = [];
+    root.traverse((o) => { if (o.isMesh && !o.userData.noOutline && !(o.material && o.material.transparent)) meshes.push(o); });
+    for (const m of meshes) {
+      const o = new this.T.Mesh(m.geometry, this.outlineMat);
+      o.scale.setScalar(k); o.userData.noOutline = true;
+      m.add(o);
+    }
+    return root;
+  }
+
+  // Modèles du monde (Kenney) chargés avant de jouer
+  preloadWorld(world) {
+    return this.load().then(() => this.P.preload(this.P.modelsOf(world.biomes.map((b) => b.kit || 'meadow'))));
   }
 
   // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles
@@ -674,6 +715,7 @@ class Scene3D extends DepthScene {
       const n = this.makeDecor(); this.placeDecor(n, d.position.z - 88); this.s3.add(n); return n;
     });
     if (this.backdrops) this.backdrops.children.forEach((g) => g.userData.anim && g.userData.anim(now));
+    for (const t of this.tufts) { t.position.z += move; if (t.position.z > 8) t.position.z -= 84; }
     this.updateParticles(now, dt, move);
     for (const c of this.clouds) { c.position.x += dt * 0.6; if (c.position.x > 45) c.position.x = -45; }
     const avg = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length;

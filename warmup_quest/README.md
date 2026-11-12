@@ -74,3 +74,9 @@ Après une modification, augmenter la version dans `__manifest__.py` puis mettre
 
 Les programmes par défaut des séquences Odoo (`hooks.py`) reprennent ceux de `worlds.js` :
 si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à jour aussi.
+
+## Crédits
+- Modèles 3D de nature (arbres, plantes, rochers, champignons, cultures…) : **Nature Kit de Kenney**
+  ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) — voir `static/src/game/models/kenney/License.txt`.
+- Moteur 3D : Three.js ; détection des mouvements : MediaPipe (chargés depuis jsDelivr).
+- Personnages, créatures, mondes et musiques : créations originales de ce module.

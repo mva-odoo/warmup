@@ -97,7 +97,9 @@ function buildMenu() {
   wrap.appendChild(sur);
   // Aperçus 3D (même rendu que le jeu) dès que la 3D est prête ; sinon on garde le dessin 2D
   if (store('3d') !== false) {
-    scene3d.load().then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
+    scene3d.load()
+      .then(() => scene3d.P.preload(scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))])))
+      .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
       if (!card.isConnected) return;
       try { cctx.drawImage(scene3d.thumb(w), 0, 0, 200, 150); card.has3d = true; } catch (e) { console.warn(e); }
     }, i * 60))).catch(() => {});
@@ -222,6 +224,8 @@ async function startWorld(w) {
     show('loading'); show('loadingError', false); show('loadingBack', false);
     try {
       await scene.load((t) => ($('loadingText').textContent = t));
+      $('loadingText').textContent = 'Chargement des décors…';
+      await scene.preloadWorld(w);
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
