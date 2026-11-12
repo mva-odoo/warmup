@@ -116,6 +116,12 @@ function buildMenu() {
   fb.textContent = full ? '⛶ Plein écran ✓' : '⛶ Plein écran';
   fb.onclick = () => { store('fullscreen', !full); buildMenu(); };
   sp.appendChild(fb);
+  const g3 = store('3d') !== false; // mondes en 3D (plus beau et plus fluide) ; sinon chemin 2D
+  const gb = document.createElement('button');
+  gb.className = 'btn small' + (g3 ? '' : ' ghost');
+  gb.textContent = g3 ? '🎮 Graphismes 3D ✓' : '🎮 Graphismes 2D (léger)';
+  gb.onclick = () => { store('3d', !g3); buildMenu(); };
+  sp.appendChild(gb);
   $('simToggle').checked = !!store('sim');
   const dr = $('duoRow');
   dr.innerHTML = '';
@@ -199,7 +205,7 @@ async function startWorld(w) {
   Audio8.say(' ');
   // En duo, chaque joueur a son personnage, à sa couleur
   const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166' })) : null;
-  const next = w.view === '3d' ? scene3d : sceneFlat;
+  const next = store('3d') !== false ? scene3d : sceneFlat;
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
   if (scene.load) {

@@ -112,10 +112,9 @@ function maxPoints(s) {
 const WORLDS = [
   {
     id: 'jardin3d',
-    name: 'Jardin 3D (essai)',
-    tagline: 'Le même jeu, en vraie 3D !',
+    name: 'Jardin Fleuri',
+    tagline: 'Un jardin plein de fleurs et de surprises !',
     heroName: 'Bouton',
-    view: '3d', // dessiné par Scene3D (Three.js) ; repli automatique sur le chemin 2D si besoin
     hero: { body: '#ff8fab', belly: '#ffe5ec', limb: '#e05780', accent: '#ffd166' },
     collectible: '🍓',
     sky: ['#6ec6ff', '#dff3ff'],
@@ -126,7 +125,7 @@ const WORLDS = [
     ],
     endText: 'Bouton a traversé tout le jardin !',
     sequence: [
-      Z(2.5, 'Prêt ? On découvre le jardin en 3D !'),
+      Z(2.5, 'Prêt ? On découvre le jardin !'),
       R(6), J(), K(10), S(), P('armsUp'),
       L(), D(), Q(3), X(2), B(10, 6),
       C('jump', 'squat'), P('star'), F(14), R(6),
@@ -448,3 +447,14 @@ const SPEEDS = [
   { id: 'normal', label: 'Normal', mul: 1 },
   { id: 'fast', label: 'Rapide', mul: 0.75 },
 ];
+
+// Paysage 3D (« kit » de décor, voir props3d.js) de chaque partie de chaque monde
+const WORLD_KITS = {
+  jardin3d: ['meadow'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
+  forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
+  espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
+  dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'],
+};
+WORLDS.forEach((w) => {
+  (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
+});

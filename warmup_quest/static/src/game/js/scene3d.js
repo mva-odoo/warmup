@@ -59,27 +59,32 @@ class Scene3D extends DepthScene {
     if (theme) this.build(theme);
   }
 
-  // ---------- Construction du monde
+  // ---------- Construction du monde (une fois), puis paysage courant (change pendant la partie)
   build(theme) {
-    const T = this.T, b = theme.biomes[0];
+    const T = this.T;
     this.clear3d();
     const scene = new T.Scene();
     this.s3 = scene;
+    this.P = this.P || new Props3D(T);
     const lam = (color, extra = {}) => new T.MeshLambertMaterial({ color, ...extra });
     const shadow = (m) => { m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return m; };
     this.lam = lam; this.shadow = shadow;
+    this.geo = {
+      cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
+      ball: new T.IcosahedronGeometry(1, 1), sphere: new T.SphereGeometry(1, 14, 10),
+      rock: new T.DodecahedronGeometry(1, 0), stem: new T.CylinderGeometry(0.03, 0.03, 1, 5),
+    };
+    this.mat = { leaf2: lam('#5cb85c', { flatShading: true }), rock: lam('#9a9184', { flatShading: true }) };
 
-    // Ciel en dégradé, brume au loin
-    const sky = document.createElement('canvas'); sky.width = 2; sky.height = 256;
-    const sc = sky.getContext('2d'), g = sc.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, b.sky0); g.addColorStop(0.6, b.sky1); g.addColorStop(1, b.sky1);
-    sc.fillStyle = g; sc.fillRect(0, 0, 2, 256);
-    const skyTex = new T.CanvasTexture(sky); skyTex.colorSpace = T.SRGBColorSpace;
-    scene.background = skyTex;
-    scene.fog = new T.Fog(b.fog || b.sky1, 24, 72);
+    // Ciel (dégradé redessiné à chaque paysage) et brume
+    this.skyCv = document.createElement('canvas'); this.skyCv.width = 2; this.skyCv.height = 256;
+    this.skyTex = new T.CanvasTexture(this.skyCv); this.skyTex.colorSpace = T.SRGBColorSpace;
+    scene.background = this.skyTex;
+    scene.fog = new T.Fog('#ffffff', 24, 72);
 
-    // Lumières : ciel + soleil qui projette des ombres
-    scene.add(new T.HemisphereLight(b.sky0, b.grass, 1.1));
+    // Lumières
+    this.hemi = new T.HemisphereLight('#ffffff', '#88aa66', 1.1);
+    scene.add(this.hemi);
     const sun = new T.DirectionalLight(0xffffff, 1.7);
     sun.position.set(6, 12, 5);
     sun.target.position.set(0, 0, -4);
@@ -87,48 +92,24 @@ class Scene3D extends DepthScene {
     sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 40 });
     scene.add(sun, sun.target);
-    // Soleil visible au fond
-    const disc = new T.Mesh(new T.SphereGeometry(4, 24, 16), new T.MeshBasicMaterial({ color: b.sun || '#fff6c2', fog: false }));
-    disc.position.set(-18, 22, -80);
-    scene.add(disc);
+    this.sun = sun;
+    this.disc = new T.Mesh(new T.SphereGeometry(4, 24, 16), new T.MeshBasicMaterial({ color: '#fff6c2', fog: false }));
+    this.disc.position.set(-18, 22, -80);
+    scene.add(this.disc);
 
-    // Sol et chemin (bandes + pointillés des couloirs qui défilent)
-    const ground = new T.Mesh(new T.PlaneGeometry(220, 220), lam(b.grass));
-    ground.rotation.x = -Math.PI / 2; ground.position.z = -60; ground.receiveShadow = true;
-    scene.add(ground);
-    const pc = document.createElement('canvas'); pc.width = 128; pc.height = 128;
-    const p2 = pc.getContext('2d');
-    p2.fillStyle = b.path; p2.fillRect(0, 0, 128, 128);
-    p2.fillStyle = b.path2; p2.fillRect(0, 0, 128, 64);
-    p2.fillStyle = 'rgba(255,255,255,0.7)';
-    for (const x of [128 / 3, 256 / 3]) p2.fillRect(x - 2, 10, 4, 40);
-    const tex = new T.CanvasTexture(pc);
+    // Sol et chemin
+    this.ground = new T.Mesh(new T.PlaneGeometry(220, 220), lam('#7ccf6a'));
+    this.ground.rotation.x = -Math.PI / 2; this.ground.position.z = -60; this.ground.receiveShadow = true;
+    scene.add(this.ground);
+    this.pathCv = document.createElement('canvas'); this.pathCv.width = this.pathCv.height = 128;
+    const tex = new T.CanvasTexture(this.pathCv);
     tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(1, 30);
     this.pathTex = tex;
     const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 160), lam('#ffffff', { map: tex }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -70); path.receiveShadow = true;
     scene.add(path);
 
-    // Décor low-poly le long du chemin
-    this.geo = {
-      cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
-      ball: new T.IcosahedronGeometry(1, 1), sphere: new T.SphereGeometry(1, 14, 10),
-      rock: new T.DodecahedronGeometry(1, 0), stem: new T.CylinderGeometry(0.03, 0.03, 1, 5),
-      cap: new T.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-    };
-    const leaf = shade(b.grass, -0.25), leaf2 = shade(b.grass, -0.1);
-    this.mat = {
-      trunk: lam('#8a5a2b'), leaf: lam(leaf, { flatShading: true }), leaf2: lam(leaf2, { flatShading: true }),
-      rock: lam('#9a9184', { flatShading: true }), white: lam('#ffffff'), red: lam('#e63946'), yellow: lam('#ffd166'),
-      petals: ['#ff6b9a', '#ffffff', '#b388eb', '#ffd166'].map((c) => lam(c)),
-    };
-    this.decor = [];
-    for (let i = 0; i < 46; i++) {
-      const d = shadow(this.makeDecor());
-      this.placeDecor(d, -80 + Math.random() * 86);
-      scene.add(d); this.decor.push(d);
-    }
-    // Nuages
+    // Nuages (cachés la nuit)
     this.clouds = [];
     for (let i = 0; i < 7; i++) {
       const c = new T.Group();
@@ -146,54 +127,131 @@ class Scene3D extends DepthScene {
     for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1); scene.add(h.m3.group); }
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
+    this.decor = []; this.backdrops = null; this.particles = null; this.stars = null;
+    this.biomeIdx = -1;
+    this.applyBiome(0);
+  }
+
+  // Paysage n° i du monde : couleurs, ciel, nuit, arrière-plan, particules et objets du décor
+  applyBiome(i) {
+    const T = this.T, scene = this.s3, b = this.theme.biomes[i], kit = KITS[b.kit] || KITS.meadow;
+    const night = !!(kit.night || b.night);
+    this.biomeIdx = i; this.pal = b; this.kitName = b.kit || 'meadow';
+    const sc = this.skyCv.getContext('2d'), g = sc.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, b.sky0); g.addColorStop(0.6, b.sky1); g.addColorStop(1, b.sky1);
+    sc.fillStyle = g; sc.fillRect(0, 0, 2, 256);
+    this.skyTex.needsUpdate = true;
+    scene.fog.color.set(b.fog || b.sky1);
+    this.hemi.color.set(b.sky0); this.hemi.groundColor.set(b.grass);
+    this.hemi.intensity = night ? 0.55 : 1.1;
+    this.sun.intensity = night ? 0.45 : 1.7;
+    this.disc.material.color.set(b.sun || '#fff6c2');
+    this.disc.scale.setScalar(night ? 0.6 : 1);
+    for (const c of this.clouds) c.visible = !night;
+    this.ground.material.color.set(b.grass);
+    this.mat.leaf2.color.set(shade(b.grass, -0.1));
+    const p2 = this.pathCv.getContext('2d');
+    p2.fillStyle = b.path; p2.fillRect(0, 0, 128, 128);
+    p2.fillStyle = b.path2; p2.fillRect(0, 0, 128, 64);
+    p2.fillStyle = 'rgba(255,255,255,0.7)';
+    for (const x of [128 / 3, 256 / 3]) p2.fillRect(x - 2, 10, 4, 40);
+    this.pathTex.needsUpdate = true;
+
+    // Arrière-plan du paysage
+    if (this.backdrops) scene.remove(this.backdrops);
+    this.backdrops = new T.Group();
+    for (const name of kit.backdrop || []) this.backdrops.add(this.P.backdrop(name, b));
+    scene.add(this.backdrops);
+
+    // Particules d'ambiance (+ étoiles la nuit)
+    if (this.particles) { scene.remove(this.particles.points); this.particles.points.geometry.dispose(); this.particles = null; }
+    if (kit.particles && kit.particles !== 'stars') this.particles = this.makeParticles(kit.particles);
+    if (this.stars) { scene.remove(this.stars); this.stars.geometry.dispose(); this.stars = null; }
+    if (night || kit.particles === 'stars') this.stars = this.makeStars();
+
+    // Décor : on remplit au départ ; ensuite les objets lointains changent tout de suite, les proches en défilant
+    if (!this.decor.length) {
+      for (let k = 0; k < 46; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); }
+    } else {
+      this.decor = this.decor.map((d) => {
+        if (d.position.z > -18) return d;
+        const z = d.position.z; scene.remove(d);
+        const n = this.makeDecor(); this.placeDecor(n, z); scene.add(n); return n;
+      });
+    }
+  }
+
+  makeDecor() {
+    const name = this.P.pick(this.kitName);
+    const d = this.P.make(name, this.pal);
+    d.userData.name = name;
+    d.scale.multiplyScalar(0.8 + Math.random() * 0.5);
+    d.rotation.y = Math.random() * Math.PI * 2;
+    return d;
+  }
+
+  placeDecor(d, z) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const big = ['dino', 'igloo', 'palm', 'bigMushroom', 'appleTree', 'roundTree'].includes(d.userData.name) ? 1.5 : 0;
+    d.position.set(side * (LANE * 1.5 + 1.2 + big + Math.random() * 10), 0, z);
+  }
+
+  // Particules : neige, bulles, lucioles, pétales, braises
+  makeParticles(kind) {
+    const T = this.T, n = 260, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * 40; pos[i * 3 + 1] = Math.random() * 14; pos[i * 3 + 2] = -60 + Math.random() * 68; }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+    const look = {
+      snow: ['#ffffff', 0.18], bubbles: ['#e0f7ff', 0.14], fireflies: ['#fff59d', 0.26],
+      petals: ['#ffafcc', 0.2], embers: ['#ff8c42', 0.18],
+    }[kind] || ['#ffffff', 0.15];
+    const points = new T.Points(geo, new T.PointsMaterial({ color: look[0], size: look[1], transparent: true, opacity: 0.9, depthWrite: false }));
+    this.s3.add(points);
+    const vel = { snow: [0.3, -1.2], bubbles: [0.2, 1.0], fireflies: [0.6, 0.15], petals: [0.5, -0.8], embers: [0.3, 1.4] }[kind] || [0.2, -0.5];
+    return { points, kind, vel };
+  }
+
+  makeStars() {
+    const T = this.T, n = 400, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * 220; pos[i * 3 + 1] = 12 + Math.random() * 60; pos[i * 3 + 2] = -95 - Math.random() * 10; }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+    const stars = new T.Points(geo, new T.PointsMaterial({ color: '#ffffff', size: 2, sizeAttenuation: false, fog: false }));
+    this.s3.add(stars);
+    return stars;
+  }
+
+  updateParticles(now, dt, move) {
+    const p = this.particles;
+    if (!p) return;
+    const a = p.points.geometry.attributes.position, arr = a.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i] += Math.sin(now * 0.001 + i) * p.vel[0] * dt;
+      arr[i + 1] += p.vel[1] * dt * (p.kind === 'fireflies' ? Math.sin(now * 0.002 + i) : 1);
+      arr[i + 2] += move;
+      if (arr[i + 1] < 0) arr[i + 1] = 14;
+      if (arr[i + 1] > 14) arr[i + 1] = 0;
+      if (arr[i + 2] > 8) arr[i + 2] -= 68;
+    }
+    a.needsUpdate = true;
   }
 
   // Libère le monde précédent (mémoire de la carte graphique) avant d'en construire un nouveau
   clear3d() {
     if (!this.s3) return;
-    const seen = new Set();
+    const shared = new Set();
+    if (this.P) { for (const g of Object.values(this.P.geo)) shared.add(g); for (const m of this.P.mats.values()) shared.add(m); }
     this.s3.traverse((o) => {
       for (const res of [o.geometry, ...(Array.isArray(o.material) ? o.material : [o.material])]) {
-        if (res && !seen.has(res)) { seen.add(res); if (res.map && !this.isEmojiTex(res.map)) res.map.dispose(); res.dispose(); }
+        if (res && !shared.has(res)) { shared.add(res); if (res.map && !this.isEmojiTex(res.map)) res.map.dispose(); res.dispose(); }
       }
     });
-    if (this.s3.background && this.s3.background.dispose) this.s3.background.dispose();
+    if (this.skyTex) this.skyTex.dispose();
     this.s3 = null;
   }
 
   isEmojiTex(tex) { for (const t of this.emojiTex.values()) if (t === tex) return true; return false; }
-
-  makeDecor() {
-    const T = this.T, g = new T.Group(), G = this.geo, M = this.mat, r = Math.random();
-    const add = (geo, mat, x, y, z, sx, sy = sx, sz = sx) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); g.add(m); return m; };
-    if (r < 0.22) { // sapin
-      add(G.trunk, M.trunk, 0, 0.3, 0, 1, 0.6, 1);
-      add(G.cone, M.leaf, 0, 1.0, 0, 1.0); add(G.cone, M.leaf, 0, 1.6, 0, 0.8); add(G.cone, M.leaf, 0, 2.15, 0, 0.55);
-    } else if (r < 0.42) { // arbre rond
-      add(G.trunk, M.trunk, 0, 0.6, 0, 1.2, 1.2, 1.2);
-      add(G.ball, M.leaf2, 0, 1.9, 0, 1.05);
-    } else if (r < 0.66) { // buisson
-      add(G.ball, M.leaf2, 0, 0.35, 0, 0.5); add(G.ball, M.leaf2, 0.45, 0.28, 0.1, 0.4); add(G.ball, M.leaf2, -0.42, 0.26, -0.05, 0.38);
-    } else if (r < 0.86) { // fleur
-      add(G.stem, M.leaf, 0, 0.25, 0, 1, 0.5, 1);
-      const pm = M.petals[Math.floor(Math.random() * M.petals.length)];
-      for (let k = 0; k < 5; k++) { const a = k * 1.2566; add(G.sphere, pm, Math.cos(a) * 0.12, 0.52, Math.sin(a) * 0.12, 0.09); }
-      add(G.sphere, M.yellow, 0, 0.52, 0, 0.07);
-    } else if (r < 0.95) { // rocher
-      add(G.rock, M.rock, 0, 0.3, 0, 0.45 + Math.random() * 0.3);
-    } else { // champignon
-      add(G.trunk, M.white, 0, 0.18, 0, 0.6, 0.35, 0.6);
-      add(G.cap, M.red, 0, 0.33, 0, 0.32);
-    }
-    g.scale.multiplyScalar(0.8 + Math.random() * 0.6);
-    g.rotation.y = Math.random() * Math.PI * 2;
-    return g;
-  }
-
-  placeDecor(d, z) {
-    const side = Math.random() < 0.5 ? -1 : 1;
-    d.position.set(side * (LANE * 1.5 + 1.2 + Math.random() * 10), 0, z);
-  }
 
   // Personnage jouet : corps rond, oreilles, antenne-feuille, bras et jambes articulés (vu de dos)
   makeHero(pal, small) {
@@ -426,9 +484,20 @@ class Scene3D extends DepthScene {
       if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1); this.s3.add(h.m3.group); }
       this.applyPose(h, now);
     }
-    // Le chemin et le décor défilent vers nous
+    // Paysage suivant quand on avance dans la partie
+    const bi = Math.min(this.theme.biomes.length - 1, Math.floor(this.progress * this.theme.biomes.length));
+    if (bi !== this.biomeIdx) this.applyBiome(bi);
+    // Le chemin et le décor défilent vers nous ; un objet qui sort est remplacé par un objet du paysage courant
     this.pathTex.offset.y = (this.pathTex.offset.y + move / (160 / 30)) % 1;
-    for (const d of this.decor) { d.position.z += move; if (d.position.z > 8) this.placeDecor(d, d.position.z - 88); }
+    this.decor = this.decor.map((d) => {
+      d.position.z += move;
+      if (d.userData.anim) d.userData.anim(now);
+      if (d.position.z <= 8) return d;
+      this.s3.remove(d);
+      const n = this.makeDecor(); this.placeDecor(n, d.position.z - 88); this.s3.add(n); return n;
+    });
+    if (this.backdrops) this.backdrops.children.forEach((g) => g.userData.anim && g.userData.anim(now));
+    this.updateParticles(now, dt, move);
     for (const c of this.clouds) { c.position.x += dt * 0.6; if (c.position.x > 45) c.position.x = -45; }
     const avg = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length;
     this.camera.position.x += (avg * LANE * 0.35 - this.camera.position.x) * Math.min(1, dt * 3);
