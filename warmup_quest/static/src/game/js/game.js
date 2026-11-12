@@ -2,8 +2,11 @@
 
 const $ = (id) => document.getElementById(id);
 const tracker = new Tracker();
-// Tout le jeu se passe sur le chemin, personnage vu de dos (gauche = gauche)
-const scene = new DepthScene($('scene'));
+// Tout le jeu se passe sur le chemin, personnage vu de dos (gauche = gauche).
+// Les mondes « 3d » utilisent Scene3D (Three.js), qui garde exactement la même logique.
+const sceneFlat = new DepthScene($('scene'));
+const scene3d = new Scene3D($('scene'));
+let scene = sceneFlat;
 const video = $('video');
 const camCtx = $('camOverlay').getContext('2d');
 const pictoCtx = $('cardPicto').getContext('2d');
@@ -196,8 +199,21 @@ async function startWorld(w) {
   Audio8.say(' ');
   // En duo, chaque joueur a son personnage, à sa couleur
   const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166' })) : null;
-  scene.setWorld(w, pals);
+  const next = w.view === '3d' ? scene3d : sceneFlat;
+  if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
+  if (scene.load) {
+    phase = 'loading';
+    show('loading'); show('loadingError', false); show('loadingBack', false);
+    try {
+      await scene.load((t) => ($('loadingText').textContent = t));
+    } catch (e) {
+      console.error('3D indisponible, on joue sur le chemin classique', e);
+      scene = sceneFlat;
+    }
+    show('loading', false);
+  }
+  scene.setWorld(w, pals);
   if ($('simToggle').checked) {
     tracker.enableSim();
     show('simHelp');

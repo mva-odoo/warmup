@@ -1,4 +1,5 @@
 WORLDS = [
+    ('jardin3d', 'Jardin 3D (essai)'),
     ('turbo', 'Vallée Turbo'),
     ('island', 'Île Bondissante'),
     ('forest', 'Monde des Créatures'),

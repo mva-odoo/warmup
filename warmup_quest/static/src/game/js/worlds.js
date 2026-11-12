@@ -111,6 +111,29 @@ function maxPoints(s) {
 
 const WORLDS = [
   {
+    id: 'jardin3d',
+    name: 'Jardin 3D (essai)',
+    tagline: 'Le même jeu, en vraie 3D !',
+    heroName: 'Bouton',
+    view: '3d', // dessiné par Scene3D (Three.js) ; repli automatique sur le chemin 2D si besoin
+    hero: { body: '#ff8fab', belly: '#ffe5ec', limb: '#e05780', accent: '#ffd166' },
+    collectible: '🍓',
+    sky: ['#6ec6ff', '#dff3ff'],
+    biomes: [
+      { name: 'Jardin', sky0: '#6ec6ff', sky1: '#dff3ff', sun: '#fff4b8', mount0: '#a8d5ba', mount1: '#6fbf73',
+        grass: '#7ccf6a', grass2: '#72c460', path: '#e6c28f', path2: '#dbb47e', fog: '#e8f6ff',
+        deco: ['🌳', '🌷', '🍄', '🌼', '🌳', '🌷'], ambient: ['butterflies'] },
+    ],
+    endText: 'Bouton a traversé tout le jardin !',
+    sequence: [
+      Z(2.5, 'Prêt ? On découvre le jardin en 3D !'),
+      R(6), J(), K(10), S(), P('armsUp'),
+      L(), D(), Q(3), X(2), B(10, 6),
+      C('jump', 'squat'), P('star'), F(14), R(6),
+      Z(3, 'Bravo ! Respire bien…'),
+    ],
+  },
+  {
     id: 'turbo',
     name: 'Vallée Turbo',
     tagline: 'Cours plus vite que le vent !',
