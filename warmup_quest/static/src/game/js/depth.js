@@ -818,7 +818,7 @@ class DepthScene {
     if (scale < 1) {
       drawOrb(ctx, x, gy - s * 0.5, s * 0.35 * (1.2 - scale * 0.2), now);
     }
-    if (scale > 0) {
+    if (scale > 0 && !g.noBody) {
       ctx.translate(x, gy - jump);
       ctx.scale(scale, scale);
       drawCreature(ctx, 0, 0, s, e.cr, pose, now, e.evolved);

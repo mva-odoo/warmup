@@ -139,7 +139,7 @@ class Scene3D extends DepthScene {
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
     this.decor = []; this.tufts = []; this.backdrops = null; this.particles = null; this.stars = null;
-    this.coachMesh = null; this.coachStyle = null;
+    this.coachMesh = null; this.coachStyle = null; this.encMesh = null; this.encRef = null;
     this.biomeIdx = -1;
     this.applyBiome(0);
   }
@@ -214,6 +214,7 @@ class Scene3D extends DepthScene {
   }
 
   makeDecor() {
+    if (Math.random() < 0.06) { const w = this.makeWildCreature(); if (w) { w.position.y = 0; return w; } }
     const name = this.P.pick(this.kitName);
     const d = this.P.make(name, this.pal);
     d.userData.name = name;
@@ -224,6 +225,7 @@ class Scene3D extends DepthScene {
 
   placeDecor(d, z) {
     const side = Math.random() < 0.5 ? -1 : 1;
+    if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.0 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const big = ['dino', 'igloo', 'palm', 'bigMushroom', 'appleTree', 'roundTree'].includes(d.userData.name) ? 1.5 : 0;
     d.position.set(side * (LANE * 1.5 + 1.2 + big + Math.random() * 10), 0, z);
   }
@@ -493,7 +495,68 @@ class Scene3D extends DepthScene {
     if (!this.enc) return;
     const z = this.encZ(now), wz = this.z3(z);
     const foot = this.project(0, 0, wz), top = this.project(0, 2.4, wz);
-    this.drawEncounterAt(now, { z, x: foot.x, gy: foot.y, s: Math.abs(foot.y - top.y) });
+    this.drawEncounterAt(now, { z, x: foot.x, gy: foot.y, s: Math.abs(foot.y - top.y), noBody: true });
+  }
+
+  // Créature 3D de la rencontre : arrive, montre la pose, saute de joie ou repart en saluant
+  updateEncounter3D(now) {
+    const e = this.enc;
+    if (!e) { if (this.encMesh) { this.s3.remove(this.encMesh.group); this.encMesh = null; this.encRef = null; } return; }
+    if (e !== this.encRef) {
+      if (this.encMesh) this.s3.remove(this.encMesh.group);
+      this.encMesh = buildCreature3D(this, e.cr, e.evolved);
+      this.s3.add(this.encMesh.group);
+      this.encRef = e;
+    }
+    const m = this.encMesh, since = now - e.t0;
+    let x = 0, k = 1.9, mode = 'idle';
+    if (e.state === 'leaving') { mode = 'wave'; x = since * 0.004; k = 1.9 * Math.max(0.01, 1 - since / 900); }
+    else if (e.state === 'befriend') { mode = 'happy'; if (since > 900) k = 1.9 * Math.max(0.01, 1 - (since - 900) / 400); }
+    m.group.position.set(x, 0, this.z3(this.encZ(now)));
+    m.group.scale.setScalar(k * (e.evolved ? 1.25 : 1));
+    m.animate(now, mode, e.state === 'waiting' ? e.pose : null);
+  }
+
+  // Créature de ce paysage qui se promène au bord du chemin
+  makeWildCreature() {
+    const list = creaturesOf(this.kitName);
+    if (!list.length) return null;
+    const c = buildCreature3D(this, list[Math.floor(Math.random() * list.length)], Math.random() < 0.2);
+    c.group.scale.multiplyScalar(0.8);
+    c.group.userData.name = 'creature';
+    const ph = Math.random() * 6, turn = Math.random() * 6;
+    c.group.userData.anim = (t) => {
+      c.animate(t + ph * 1000, Math.sin(t * 0.0007 + ph) > 0.7 ? 'happy' : 'idle');
+      c.group.rotation.y = turn + Math.sin(t * 0.0005 + ph) * 0.8;
+    };
+    return c.group;
+  }
+
+  // Rendu 3D d'une créature pour l'album (fond transparent), mis en cache
+  creatureThumb(cr, evolved) {
+    const key = cr.id + (evolved ? '+' : '');
+    this.crThumbs = this.crThumbs || new Map();
+    if (this.crThumbs.has(key)) return this.crThumbs.get(key);
+    const T = this.T;
+    if (!this.crR) {
+      const cv = document.createElement('canvas'); cv.width = 280; cv.height = 260;
+      this.crR = new T.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    }
+    const scene = new T.Scene();
+    scene.add(new T.HemisphereLight('#ffffff', '#bbbbbb', 1.2));
+    const sun = new T.DirectionalLight(0xffffff, 1.4); sun.position.set(2, 4, 5); scene.add(sun);
+    const c = buildCreature3D(this, cr, evolved);
+    c.animate(0, 'idle', 'armsUp');
+    c.group.rotation.y = -0.35;
+    scene.add(c.group);
+    const cam = new T.PerspectiveCamera(35, 280 / 260, 0.1, 50);
+    cam.position.set(0, 1.3, evolved ? 5.6 : 4.8); cam.lookAt(0, evolved ? 0.95 : 0.8, 0);
+    this.crR.setClearColor(0x000000, 0);
+    this.crR.render(scene, cam);
+    const out = document.createElement('canvas'); out.width = 280; out.height = 260;
+    out.getContext('2d').drawImage(this.crR.domElement, 0, 0);
+    this.crThumbs.set(key, out);
+    return out;
   }
 
   // ---------- Conversions et projection écran
@@ -756,6 +819,7 @@ class Scene3D extends DepthScene {
     }
 
     this.updateCoach(now);
+    this.updateEncounter3D(now);
     this.renderer.render(this.s3, this.camera);
 
     // Calque 2D : bulles, mains, corde, ✔ / ✗, particules

@@ -77,6 +77,14 @@ const Audio8 = (() => {
     tick() { tone(880, 0.1, 'sine', 0.15); },
     go() { tone(1320, 0.35, 'sine', 0.18); },
     soft() { tone(520, 0.12, 'sine', 0.08); tone(660, 0.16, 'sine', 0.07, 0.1); },
+    // Petit cri propre à chaque créature (hauteur tirée de son nom) ; plus joyeux quand elle devient amie
+    cry(id, happy = false) {
+      let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 997;
+      const base = 380 + (h % 9) * 70;
+      tone(base, 0.12, 'triangle', 0.1, 0, base * 1.5);
+      tone(base * 1.25, 0.14, 'sine', 0.08, 0.13, base * (happy ? 2.2 : 0.9));
+      if (happy) tone(base * 1.6, 0.18, 'triangle', 0.07, 0.3, base * 2.4);
+    },
     boing() { tone(300, 0.18, 'sine', 0.14, 0, 700); tone(500, 0.12, 'triangle', 0.06, 0.08, 250); },
     pop() { tone(900, 0.06, 'sine', 0.12, 0, 1800); tone(1400, 0.05, 'triangle', 0.05, 0.04); },
     // Musiques en boucle (mélodies originales) : 'fun' (statues), 'dance' (disco), 'karate' (tambours)

@@ -1,6 +1,6 @@
 {
     'name': 'Warm-Up Quest',
-    'version': '20.0.2.3.0',
+    'version': '20.0.2.4.0',
     'summary': "Jeu d'échauffement pour enfants contrôlé par webcam (détection des mouvements)",
     'description': """
 Warm-Up Quest

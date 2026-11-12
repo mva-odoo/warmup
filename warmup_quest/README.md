@@ -33,6 +33,9 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Piste de Danse** : imite Tempo, le danseur, pas à pas en musique (comme dans un miroir).
     **Dojo des Petits Tigres** : imite Maître Bambou (parade, coup de genou, position du cavalier, tranche, saut du tigre).
     Chaque geste est noté ✔ / raté ; les parents peuvent créer leurs chorégraphies (gestes séparés par des virgules).
+  - **16 créatures originales en 3D** (éléments feu, eau, plante, électrique, glace, roche, air, nuit, sable, fée,
+    étoile, sucre, lumière…), chacune avec ses lieux de vie, son petit cri et sa forme évoluée. On les voit se promener
+    dans les hautes herbes ; elles viennent montrer une pose à copier pour devenir amies, puis rejoignent le carnet.
   - **13 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
     Pays des Bonbons, Ferme, Vallée des Dinos, Château) + une carte **🎲 Surprise** qui en choisit un au hasard.
   - Jeux : éviter les obstacles, sauter, se baisser, taper, aller à gauche / à droite, **attraper les étoiles**

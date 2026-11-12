@@ -33,5 +33,37 @@
             <field name="code">nocturne</field><field name="name">Nocturne</field>
             <field name="element">Nuit</field><field name="color">#6a4c93</field><field name="sequence">8</field>
         </record>
+        <record id="creature_sablou" model="warmup.creature">
+            <field name="code">sablou</field><field name="name">Sablou</field>
+            <field name="element">Sable</field><field name="color">#e9c46a</field><field name="sequence">9</field>
+        </record>
+        <record id="creature_coraline" model="warmup.creature">
+            <field name="code">coraline</field><field name="name">Coraline</field>
+            <field name="element">Eau</field><field name="color">#ff8fab</field><field name="sequence">10</field>
+        </record>
+        <record id="creature_braisou" model="warmup.creature">
+            <field name="code">braisou</field><field name="name">Braisou</field>
+            <field name="element">Feu</field><field name="color">#c1121f</field><field name="sequence">11</field>
+        </record>
+        <record id="creature_petalune" model="warmup.creature">
+            <field name="code">petalune</field><field name="name">Pétalune</field>
+            <field name="element">Fée</field><field name="color">#cdb4db</field><field name="sequence">12</field>
+        </record>
+        <record id="creature_cosmino" model="warmup.creature">
+            <field name="code">cosmino</field><field name="name">Cosmino</field>
+            <field name="element">Étoile</field><field name="color">#3a0ca3</field><field name="sequence">13</field>
+        </record>
+        <record id="creature_sucrette" model="warmup.creature">
+            <field name="code">sucrette</field><field name="name">Sucrette</field>
+            <field name="element">Sucre</field><field name="color">#ffafcc</field><field name="sequence">14</field>
+        </record>
+        <record id="creature_laineton" model="warmup.creature">
+            <field name="code">laineton</field><field name="name">Laineton</field>
+            <field name="element">Air</field><field name="color">#8d99ae</field><field name="sequence">15</field>
+        </record>
+        <record id="creature_lucibulle" model="warmup.creature">
+            <field name="code">lucibulle</field><field name="name">Lucibulle</field>
+            <field name="element">Lumière</field><field name="color">#ffd166</field><field name="sequence">16</field>
+        </record>
     </data>
 </odoo>

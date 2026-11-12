@@ -472,7 +472,8 @@ class Game {
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
     if (s.m === 'posemix' && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
     if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
-      s = { ...s, creature: Carnet.pick(this.team.map((c) => c.id)) };
+      const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 1) / this.steps.length) * bs.length))].kit;
+      s = { ...s, creature: Carnet.pick(this.team.map((c) => c.id), kit) };
     }
     return s;
   }
@@ -495,6 +496,7 @@ class Game {
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
+    if (s.creature) Audio8.cry(s.creature.id);
     scene.onStep(s, dur);
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
@@ -866,6 +868,7 @@ class Game {
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
     if (c.s.creature) {
       const cr = c.s.creature;
+      Audio8.cry(cr.id, true);
       const n = Carnet.add(cr.id);
       this.team.push(cr);
       const evolvedNow = n === EVOLVE_AT;
@@ -1134,6 +1137,9 @@ function creatureCard(cr, known, evolved, count) {
     <div class="crName">${known ? cr.name + (evolved ? ' ★' : '') : '???'}</div>
     <div class="crElem">${known ? cr.element + (count ? ` · vu ${count}×` : '') : 'Pas encore rencontré'}</div>`;
   const cctx = el.querySelector('canvas').getContext('2d');
+  if (known && scene3d.ready && store('3d') !== false) {
+    try { cctx.drawImage(scene3d.creatureThumb(cr, evolved), 0, 0, 140, 130); return el; } catch (e) { console.warn(e); }
+  }
   const anim = (t) => {
     if (!el.isConnected) return;
     cctx.clearRect(0, 0, 140, 130);

@@ -9,7 +9,27 @@ const CREATURES = [
   { id: 'nuagon', name: 'Nuagon', element: 'Air', color: '#eef2ff', belly: '#ffffff', shape: 'cloud', feature: 'none' },
   { id: 'givrette', name: 'Givrette', element: 'Glace', color: '#9fe8f5', belly: '#e9fbff', shape: 'round', feature: 'crystal' },
   { id: 'nocturne', name: 'Nocturne', element: 'Nuit', color: '#6a4c93', belly: '#c9b6e4', shape: 'round', feature: 'batEars' },
+  { id: 'sablou', name: 'Sablou', element: 'Sable', color: '#e9c46a', belly: '#fff3d6', shape: 'egg', feature: 'shell' },
+  { id: 'coraline', name: 'Coraline', element: 'Eau', color: '#ff8fab', belly: '#ffe5ec', shape: 'drop', feature: 'coralCrown' },
+  { id: 'braisou', name: 'Braisou', element: 'Feu', color: '#c1121f', belly: '#ffb4a2', shape: 'round', feature: 'magma' },
+  { id: 'petalune', name: 'Pétalune', element: 'Fée', color: '#cdb4db', belly: '#ffffff', shape: 'round', feature: 'petalWings' },
+  { id: 'cosmino', name: 'Cosmino', element: 'Étoile', color: '#3a0ca3', belly: '#c77dff', shape: 'round', feature: 'ring' },
+  { id: 'sucrette', name: 'Sucrette', element: 'Sucre', color: '#ffafcc', belly: '#ffffff', shape: 'drop', feature: 'candyHorns' },
+  { id: 'laineton', name: 'Laineton', element: 'Air', color: '#8d99ae', belly: '#edf2f4', shape: 'round', feature: 'wool' },
+  { id: 'lucibulle', name: 'Lucibulle', element: 'Lumière', color: '#ffd166', belly: '#fff9db', shape: 'egg', feature: 'lantern' },
 ];
+
+// Où vit chaque créature (paysages 3D, voir KITS) : on la rencontre surtout là
+const HABITATS = {
+  flammeche: ['volcano', 'dinoland', 'desert'], gouttin: ['beach', 'lagoon', 'reef'],
+  feuillou: ['meadow', 'jungle', 'forest', 'garden', 'ferns'], volticube: ['disco', 'mountain', 'nebula'],
+  rocaille: ['mountain', 'desert', 'dinoland', 'moon', 'mars'], nuagon: ['meadow', 'mountain', 'dojo', 'farm'],
+  givrette: ['glacier', 'aurora', 'icecream'], nocturne: ['night', 'magic', 'dojoNight', 'abyss'],
+  sablou: ['desert', 'beach'], coraline: ['lagoon', 'reef', 'abyss'], braisou: ['volcano', 'dinoland'],
+  petalune: ['garden', 'meadow', 'dojo', 'magic'], cosmino: ['moon', 'mars', 'nebula'], sucrette: ['candy', 'icecream'],
+  laineton: ['farm', 'orchard', 'mountain'], lucibulle: ['night', 'aurora', 'dojoNight', 'magic', 'disco'],
+};
+const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(kit));
 const EVOLVE_AT = 3;
 
 const Carnet = {
@@ -21,10 +41,12 @@ const Carnet = {
     return c[id];
   },
   evolved(id) { return (this.get()[id] || 0) >= EVOLVE_AT; },
-  // Choisit de préférence une créature jamais rencontrée
-  pick(exclude = []) {
+  // Choisit de préférence une créature de ce paysage, et jamais rencontrée
+  pick(exclude = [], kit = null) {
     const c = this.get();
-    const pool = CREATURES.filter((k) => !exclude.includes(k.id));
+    const all = CREATURES.filter((k) => !exclude.includes(k.id));
+    const local = kit ? all.filter((k) => (HABITATS[k.id] || []).includes(kit)) : [];
+    const pool = local.length ? local : all;
     const fresh = pool.filter((k) => !c[k.id]);
     const list = fresh.length ? fresh : pool.length ? pool : CREATURES;
     return list[Math.floor(Math.random() * list.length)];
