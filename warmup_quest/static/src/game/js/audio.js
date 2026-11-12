@@ -79,20 +79,34 @@ const Audio8 = (() => {
     soft() { tone(520, 0.12, 'sine', 0.08); tone(660, 0.16, 'sine', 0.07, 0.1); },
     boing() { tone(300, 0.18, 'sine', 0.14, 0, 700); tone(500, 0.12, 'triangle', 0.06, 0.08, 250); },
     pop() { tone(900, 0.06, 'sine', 0.12, 0, 1800); tone(1400, 0.05, 'triangle', 0.05, 0.04); },
-    // Petite musique joyeuse en boucle (mélodie originale, gamme pentatonique)
-    music(on) {
+    // Musiques en boucle (mélodies originales) : 'fun' (statues), 'dance' (disco), 'karate' (tambours)
+    music(on, style = 'fun') {
       if (!on) { clearInterval(musicTimer); musicTimer = 0; return; }
       if (musicTimer) return;
       let i = 0;
-      const mel = [0, 2, 4, 2, 5, 4, 2, 0, 3, 5, 6, 5, 4, 2, 3, 1];
       const scale = [523, 587, 659, 784, 880, 1047, 1175];
-      const bass = [131, 131, 175, 196];
+      const songs = {
+        fun: { ms: 190, mel: [0, 2, 4, 2, 5, 4, 2, 0, 3, 5, 6, 5, 4, 2, 3, 1], bass: [131, 131, 175, 196] },
+        dance: { ms: 150, mel: [4, -1, 4, 5, 6, -1, 5, 4, 2, -1, 2, 4, 5, 4, 2, 0], bass: [110, 110, 147, 165] },
+        karate: { ms: 230, mel: [-1, -1, -1, 4, -1, -1, 5, -1, -1, -1, -1, 3, -1, 2, -1, -1], bass: [87, 87, 98, 87] },
+      };
+      const song = songs[style] || songs.fun;
       musicTimer = setInterval(() => {
-        tone(scale[mel[i % mel.length]], 0.16, 'triangle', 0.07);
-        if (i % 4 === 0) tone(bass[(i / 4) % bass.length | 0], 0.3, 'sine', 0.12);
-        if (i % 2 === 1) tone(2400, 0.03, 'square', 0.015);
+        const note = song.mel[i % song.mel.length];
+        if (note >= 0) tone(scale[note], style === 'karate' ? 0.35 : 0.16, style === 'karate' ? 'sine' : 'triangle', style === 'karate' ? 0.05 : 0.07);
+        if (style === 'dance') {
+          if (i % 2 === 0) tone(90, 0.12, 'sine', 0.22, 0, 45);          // grosse caisse
+          if (i % 2 === 1) tone(5200, 0.03, 'square', 0.012);            // charleston
+          if (i % 8 === 4) tone(220, 0.08, 'square', 0.03);               // claquement
+        } else if (style === 'karate') {
+          if (i % 4 === 0 || i % 16 === 14) tone(95, 0.35, 'sine', 0.28, 0, 50); // tambour
+          if (i % 4 === 2) tone(160, 0.12, 'triangle', 0.08, 0, 90);
+        } else {
+          if (i % 2 === 1) tone(2400, 0.03, 'square', 0.015);
+        }
+        if (i % 4 === 0) tone(song.bass[(i / 4) % song.bass.length | 0], 0.3, 'sine', style === 'karate' ? 0.06 : 0.12);
         i++;
-      }, 190);
+      }, song.ms);
     },
     musicOn: () => !!musicTimer,
     win() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.12, i * 0.12)); },

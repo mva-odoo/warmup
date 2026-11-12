@@ -109,6 +109,7 @@ class DepthScene {
     this.pops = [];
     this.hands = [];     // mains des joueurs, par héros : [{ u, v }, { u, v }]
     this.moles = [];     // taupes qui sortent autour des héros { hero, u, v, born, state, t }
+    this.coach = null;   // coach à imiter (danse / karaté) : { move, style, pal, t0 }
     this.obs = null;
     this.enc = null;
     this.decor = [];
@@ -204,6 +205,27 @@ class DepthScene {
     });
   }
 
+  setCoach(c) { this.coach = c; }
+
+  // Pose du coach pour un geste (les deux scènes) : pose dessinable + petits mouvements
+  coachPose(now) {
+    const c = this.coach, m = c && c.move;
+    if (!m) return { pose: c && c.style === 'dance' ? 'run' : 'idle', lane: 0, y: 0 };
+    if (m === 'squat') return { pose: 'duck', lane: 0, y: 0 };
+    if (m === 'jump') return { pose: 'jump', lane: 0, y: Math.abs(Math.sin((now - (c.t0 || 0)) * 0.006)) };
+    if (m === 'left' || m === 'right') return { pose: 'armsUp', lane: m === 'left' ? -1 : 1, y: 0 };
+    if (m === 'smash') return { pose: ((now - (c.t0 || 0)) % 900) < 450 ? 'armsUp' : 'smash', lane: 0, y: 0 };
+    return { pose: m, lane: 0, y: 0 };
+  }
+
+  drawCoach2D(now) {
+    const cp = this.coachPose(now), z = 7, k = this.k(z), s = this.size * k * 1.7;
+    const x = this.sx(cp.lane, z), gy = this.sy(z) - cp.y * s * 0.4;
+    this.ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    this.ctx.beginPath(); this.ctx.ellipse(x, this.sy(z) + 2, s * 0.4, s * 0.08, 0, 0, Math.PI * 2); this.ctx.fill();
+    drawHeroBack(this.ctx, x, gy, s, this.coach.pal || this.theme.hero, cp.pose, now);
+  }
+
   setHoldPose(p, idx = null) { this.heroes.forEach((h, i) => { if (idx == null || i === idx) h.holdPose = p; }); }
   // Le héros montre la pose à faire (sans l'anneau de réussite)
   setDemoPose(p) { this.heroes.forEach((h) => (h.demoPose = p)); }
@@ -254,8 +276,8 @@ class DepthScene {
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
     this.setHoldPose(null);
     this.setDemoPose(null);
-    this.bubbles = []; this.hands = []; this.moles = [];
-    this.targetSpeed = s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.bubbles = []; this.hands = []; this.moles = []; this.coach = null;
+    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
     if (s.m === 'pose' && !s.creature) this.obs = { kind: 'wall', pose: s.pose, born: now, dur, state: 'coming', t0: now };
@@ -433,6 +455,7 @@ class DepthScene {
     this.hazards = this.hazards.filter((hz) => this.hazardZ(hz, now) > -0.9 && !(hz.t0 && now - hz.t0 > 600));
     for (const hz of this.hazards) items.push({ z: Math.max(-0.8, this.hazardZ(hz, now)), draw: () => this.drawHazard(hz, now) });
     items.push({ z: this.heroZ() - 0.01, draw: () => this.drawHero(now) });
+    if (this.coach) items.push({ z: 7, draw: () => this.drawCoach2D(now) });
     items.sort((a, b) => b.z - a.z);
     for (const it of items) it.draw();
 
@@ -572,7 +595,7 @@ class DepthScene {
   drawMoles(now) {
     const ctx = this.ctx;
     for (const m of this.moles) {
-      const A = this.anchor(m.hero), x = A.x + m.u * A.u, y = A.y + m.v * A.u, r = A.u * 0.34;
+      const A = this.anchor(m.hero), x = A.x + m.u * A.u, y = A.y + m.v * A.u, r = A.u * 0.62;
       let k = Math.min(1, (now - m.born) / 200);                     // sortie du trou
       if (m.state === 'hide') k = Math.max(0, 1 - (now - m.t) / 250);
       const bonk = m.state === 'bonk' ? Math.max(0, 1 - (now - m.t) / 450) : 0;

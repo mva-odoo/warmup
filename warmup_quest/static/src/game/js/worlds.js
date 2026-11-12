@@ -9,11 +9,11 @@ const POSES = {
   flamingo: { icon: '🦩', label: 'Tiens sur un pied !',       say: 'Lève un genou et tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸' };
+const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', dance: '💃', karate: '🥋' };
 const MOVE_SHORT = { jump: 'Saute', squat: 'Baisse-toi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
-const R = (t, target) => ({ m: 'run', t, target });
+const R = (t) => ({ m: 'run', t });            // éviter les obstacles pendant t secondes
 const J = (n = 1) => ({ m: 'jump', n });
 const S = (n = 1) => ({ m: 'squat', n });
 const X = (n = 1) => ({ m: 'smash', n });
@@ -29,6 +29,23 @@ const Q = (n) => ({ m: 'rope', n });            // sauter à la corde n fois
 const U = (t) => ({ m: 'tunnel', t });          // rester baissé t secondes dans le tunnel
 const M = (t, n) => ({ m: 'moles', t, n });     // taper n taupes qui sortent autour du personnage
 const PM = (...poses) => ({ m: 'posemix', poses, hold: 0.8 }); // copier une suite de poses
+const DN = (...moves) => ({ m: 'dance', moves, beat: 1.8 });   // danser : imiter Tempo pas à pas
+const KA = (...moves) => ({ m: 'karate', moves, beat: 2.0 });  // karaté : imiter le maître geste par geste
+
+// « Imite le coach » : gestes reconnus par la caméra, avec leurs mots et icônes selon le style
+const MIMIC_ICONS = { armsUp: '🙌', airplane: '✈️', star: '⭐', flamingo: '🦵', squat: '⬇️', left: '⬅️', right: '➡️', jump: '⬆️', smash: '👊' };
+const MIMIC = {
+  dance: {
+    coach: 'Tempo', pal: { body: '#ffd166', belly: '#fff3c4', limb: '#9b5de5', accent: '#f15bb5' },
+    say: { armsUp: 'En haut !', airplane: "L'avion !", star: "L'étoile !", flamingo: 'Sur un pied !', squat: 'En bas !',
+      left: 'À gauche !', right: 'À droite !', jump: 'Saute !', smash: 'Et on frappe !' },
+  },
+  karate: {
+    coach: 'Maître Bambou', pal: { body: '#ffffff', belly: '#f1f1f1', limb: '#f4f4f4', accent: '#e63946' },
+    say: { armsUp: 'Parade !', airplane: 'Bras tendus !', star: "L'étoile du tigre !", flamingo: 'Coup de genou !',
+      squat: 'Position du cavalier !', left: 'Pas à gauche !', right: 'Pas à droite !', jump: 'Saut du tigre !', smash: 'Tranche !' },
+  },
+};
 
 // Attraper : nombre d'étoiles pendant l'étape
 const catchCount = (s) => Math.max(3, Math.round(s.t / 1.6));
@@ -57,6 +74,8 @@ function stepLabel(s) {
     case 'tunnel': return 'Reste baissé dans le tunnel !';
     case 'moles': return 'Tape les taupes !';
     case 'posemix': return 'Copie les poses !';
+    case 'dance': return 'Danse comme Tempo !';
+    case 'karate': return 'Imite le maître karatéka !';
     case 'pose': return POSES[s.pose].label;
     case 'combo': return 'Enchaîne !';
     case 'rest': return s.text;
@@ -78,6 +97,8 @@ function stepSpeech(s) {
     case 'tunnel': return 'Un tunnel ! Baisse-toi et reste en bas jusqu\'à la sortie !';
     case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
+    case 'dance': return 'Danse avec Tempo ! Fais comme lui, comme dans un miroir !';
+    case 'karate': return 'Le maître karatéka te montre les gestes. Imite-le ! Kiaï !';
     case 'bubbles': return 'Des bulles autour de ton personnage ! Touche-les avec tes mains pour les éclater !';
     case 'freeze': return "Statues musicales ! Danse avec la musique. Quand elle s'arrête, ne bouge plus !";
     case 'combo': return 'Enchaîne : ' + s.parts.map((p) => MOVE_SHORT[p]).join(', puis ') + ' !';
@@ -103,6 +124,7 @@ function stepDuration(s) {
     case 'tunnel': return 1.5 + s.t + 1.5;
     case 'moles': return s.t;
     case 'posemix': return 2 + s.poses.length * 3;
+    case 'dance': case 'karate': return 2.6 + s.moves.length * s.beat;
   }
 }
 
@@ -120,6 +142,7 @@ function maxPoints(s) {
     case 'tunnel': return 150 + 50;
     case 'moles': return s.n * 50 + 50;
     case 'posemix': return s.poses.length * 100 + 50;
+    case 'dance': case 'karate': return s.moves.length * 100 + 50;
     default: return 0;
   }
 }
@@ -148,6 +171,58 @@ const WORLDS = [
     ],
   },
   {
+    id: 'disco',
+    name: 'Piste de Danse',
+    tagline: 'Danse comme Tempo !',
+    heroName: 'Tempo',
+    hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166' },
+    collectible: '🎵',
+    sky: ['#1a0b3a', '#5a189a'],
+    biomes: [
+      { name: 'Scène', night: true, sky0: '#1a0b3a', sky1: '#5a189a', sun: '#fff0ff', mount0: '#3c096c', mount1: '#240046',
+        grass: '#2d1b4e', grass2: '#26173f', path: '#ff70a6', path2: '#70d6ff', fog: '#5a189a',
+        deco: ['🎵', '🪩', '🎤', '🎶', '✨', '🎵'], ambient: ['fireflies'] },
+    ],
+    endText: 'Tempo dit : quel danseur !',
+    sequence: [
+      Z(2.5, 'Prêt ? Musique !'),
+      DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'),
+      DN('star', 'jump', 'star', 'jump', 'airplane', 'armsUp'),
+      F(14),
+      DN('left', 'armsUp', 'right', 'armsUp', 'squat', 'jump', 'star', 'airplane'),
+      DN('flamingo', 'armsUp', 'squat', 'jump', 'left', 'right'),
+      Z(3, 'Bravo ! Salue le public…'),
+    ],
+  },
+  {
+    id: 'dojo',
+    name: 'Dojo des Petits Tigres',
+    tagline: 'Imite le maître karatéka !',
+    heroName: 'Maître Bambou',
+    hero: { body: '#ffb703', belly: '#fff3c4', limb: '#fb8500', accent: '#1e1b4b' },
+    collectible: '🏅',
+    sky: ['#ffcdb2', '#fff1e6'],
+    biomes: [
+      { name: 'Jardin du dojo', sky0: '#ffcdb2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
+        grass: '#8ab17d', grass2: '#7fa672', path: '#d4a373', path2: '#c8955f', fog: '#fff1e6',
+        deco: ['🎋', '🌸', '🏯', '🌸', '🎋', '🪨'], ambient: ['petals'] },
+      { name: 'Dojo du soir', night: true, sky0: '#22223b', sky1: '#9a8c98', sun: '#fefae0', mount0: '#4a4e69', mount1: '#22223b',
+        grass: '#52796f', grass2: '#4a6d63', path: '#bc8a5f', path2: '#a9784f', fog: '#c9ada7',
+        deco: ['🎋', '🏮', '🌸', '🏯', '🏮', '🎋'], ambient: ['fireflies'] },
+    ],
+    endText: 'Le maître te salue : bravo, petit tigre !',
+    sequence: [
+      Z(2.5, 'Salue le maître… Prêt ? Kiaï !'),
+      KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
+      KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'),
+      P('airplane'),
+      KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'),
+      M(12, 6),
+      KA('left', 'smash', 'right', 'smash', 'squat', 'jump'),
+      Z(3, 'Salue le maître… et respire.'),
+    ],
+  },
+  {
     id: 'turbo',
     name: 'Vallée Turbo',
     tagline: 'Cours plus vite que le vent !',
@@ -169,21 +244,21 @@ const WORLDS = [
     endText: 'Zéphyr a battu le record de vitesse !',
     sequence: [
       Z(2.5, 'Prêt ? On s\'échauffe !'),
-      R(6, 12), J(), R(5, 10),
+      R(6), J(), R(5),
       L(), D(), L(), D(),
       S(), J(2), X(),
-      R(6, 12),
+      R(6),
       P('airplane'),
       B(10, 6),
       K(10),
       C('jump', 'squat'),
       L(), D(),
       F(14),
-      R(8, 16),
+      R(8),
       C('left', 'jump', 'right', 'jump'),
       S(2), X(2),
       P('star'),
-      R(6, 12),
+      R(6),
       C('jump', 'squat', 'smash'),
       Z(3, 'Bravo ! Respire bien…'),
     ],
@@ -210,20 +285,20 @@ const WORLDS = [
     endText: 'Pip a rempli son sac d\'étoiles !',
     sequence: [
       Z(2.5, 'Prêt ? On saute !'),
-      R(5, 10), J(), J(2), X(),
+      R(5), J(), J(2), X(),
       S(), J(3),
       P('armsUp'),
       X(2), L(), D(),
       B(10, 6),
       Q(3),
-      R(6, 12),
+      R(6),
       C('jump', 'smash'),
       F(14),
       S(2), J(2),
       P('flamingo', 2),
       C('squat', 'jump', 'smash'),
       X(3),
-      R(6, 12),
+      R(6),
       C('left', 'smash', 'right', 'smash'),
       J(3),
       Z(3, 'Super ! Souffle un peu…'),
@@ -252,14 +327,14 @@ const WORLDS = [
     endText: 'Lumi et ses nouveaux amis te disent bravo !',
     sequence: [
       Z(2.5, 'Prêt ? On imite Lumi !'),
-      R(5, 10),
+      R(5),
       P('armsUp'), P('star'),
       S(), J(),
       P('airplane'),
       L(), D(),
       P('flamingo', 2),
       B(10, 6),
-      R(6, 12),
+      R(6),
       K(10),
       F(14),
       C('squat', 'jump'),
@@ -267,7 +342,7 @@ const WORLDS = [
       X(2),
       C('left', 'right', 'jump'),
       P('airplane', 2),
-      R(6, 12),
+      R(6),
       S(2), J(2),
       P('armsUp', 2),
       C('jump', 'squat', 'smash'),
@@ -468,12 +543,13 @@ const WORLD_KITS = {
   jardin3d: ['meadow'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
-  dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'],
+  dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
 const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'], ['star', 'airplane', 'armsUp']];
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
+  if (w.id === 'disco' || w.id === 'dojo') return; // ces mondes ont leur propre programme
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.5), 0, M(12, 6));

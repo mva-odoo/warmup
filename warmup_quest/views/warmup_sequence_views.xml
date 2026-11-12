@@ -50,8 +50,8 @@
                                     <field name="duration" invisible="move not in ('run', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles')"/>
                                     <field name="target" column_invisible="1" invisible="1"/>
                                     <field name="pose" invisible="move != 'pose'"/>
-                                    <field name="hold" invisible="move not in ('pose', 'posemix')"/>
-                                    <field name="combo" invisible="move not in ('combo', 'posemix')" placeholder="jump,squat,smash  —  ou poses : armsUp,star,airplane"/>
+                                    <field name="hold" invisible="move not in ('pose', 'posemix', 'dance', 'karate')"/>
+                                    <field name="combo" invisible="move not in ('combo', 'posemix', 'dance', 'karate')" placeholder="jump,squat,smash  —  poses : armsUp,star,airplane  —  danse / karaté : armsUp,squat,left,right,jump,smash"/>
                                     <field name="text" invisible="move != 'rest'"/>
                                     <field name="summary" optional="hide"/>
                                 </list>

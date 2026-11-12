@@ -10,6 +10,8 @@ WORLDS = [
     ('ferme', 'La Ferme Joyeuse'),
     ('dinos', 'Vallée des Dinos'),
     ('chateau', 'Château Enchanté'),
+    ('disco', 'Piste de Danse'),
+    ('dojo', 'Dojo des Petits Tigres'),
 ]
 
 MOVES = [
@@ -29,7 +31,15 @@ MOVES = [
     ('tunnel', 'Rester baissé dans le tunnel'),
     ('moles', 'Taper les taupes'),
     ('posemix', 'Copier une suite de poses'),
+    ('dance', 'Danser comme Tempo'),
+    ('karate', 'Imiter le maître karatéka'),
 ]
+
+# Gestes que le coach (danse / karaté) peut demander
+MIMIC_MOVES = {
+    'armsUp': "Bras en l'air", 'airplane': "L'avion", 'star': "L'étoile", 'flamingo': 'Genou levé',
+    'squat': 'Accroupi', 'left': 'À gauche', 'right': 'À droite', 'jump': 'Saut', 'smash': 'Frappe',
+}
 
 POSES = [
     ('armsUp', "Bras en l'air"),

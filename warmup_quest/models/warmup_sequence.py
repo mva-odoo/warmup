@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .warmup_constants import COMBO_PARTS, MOVES, POSES, WORLDS
+from .warmup_constants import COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
 
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
@@ -12,6 +12,8 @@ def _step_seconds(step):
         return 3 + (step.duration or 0)
     if m == 'posemix':
         return 2 + 3 * len(step._combo_parts())
+    if m in ('dance', 'karate'):
+        return 2.6 + (step.hold or 1.8) * len(step._combo_parts())
     if m == 'rope':
         return 1.8 + 1.7 * max(1, step.count)
     if m == 'jump':
@@ -120,6 +122,9 @@ class WarmupStep(models.Model):
             elif s.move == 'posemix':
                 labels = dict(POSES)
                 s.summary = 'Poses : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
+            elif s.move in ('dance', 'karate'):
+                s.summary = ('Danse : ' if s.move == 'dance' else 'Karaté : ') + \
+                    ' → '.join(MIMIC_MOVES.get(p, p) for p in s._combo_parts())
             elif s.move == 'freeze':
                 s.summary = f"Statues musicales {s.duration:g} s"
             else:
@@ -139,6 +144,17 @@ class WarmupStep(models.Model):
             if bad:
                 raise ValidationError(
                     "Pose inconnue : %s. Autorisées : %s." % (', '.join(bad), ', '.join(dict(POSES))))
+
+    @api.constrains('move', 'combo')
+    def _check_mimic(self):
+        for s in self.filtered(lambda r: r.move in ('dance', 'karate')):
+            parts = s._combo_parts()
+            if len(parts) < 2:
+                raise ValidationError("Il faut au moins 2 gestes (ex. : armsUp,squat,left,right).")
+            bad = [p for p in parts if p not in MIMIC_MOVES]
+            if bad:
+                raise ValidationError(
+                    "Geste inconnu : %s. Autorisés : %s." % (', '.join(bad), ', '.join(MIMIC_MOVES)))
 
     @api.constrains('move', 'combo')
     def _check_combo(self):
@@ -166,7 +182,7 @@ class WarmupStep(models.Model):
                 raise ValidationError('La durée du tunnel doit être entre 2 et 20 secondes.')
             if s.move == 'run' and s.target < 1:
                 raise ValidationError("L'objectif de pas doit être d'au moins 1.")
-            if s.move in ('pose', 'posemix') and not 0.5 <= s.hold <= 10:
+            if s.move in ('pose', 'posemix', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
     def _to_game(self):
@@ -197,6 +213,9 @@ class WarmupStep(models.Model):
             return {'m': 'tunnel', 't': self.duration or 4}
         if m == 'moles':
             return {'m': 'moles', 't': self.duration or 12, 'n': max(1, self.count)}
+        if m in ('dance', 'karate'):
+            parts = [p for p in self._combo_parts() if p in MIMIC_MOVES]
+            return {'m': m, 'moves': parts, 'beat': self.hold or 1.8} if len(parts) >= 2 else None
         if m == 'posemix':
             parts = [p for p in self._combo_parts() if p in dict(POSES)]
             return {'m': 'posemix', 'poses': parts, 'hold': self.hold or 0.8} if len(parts) >= 2 else None

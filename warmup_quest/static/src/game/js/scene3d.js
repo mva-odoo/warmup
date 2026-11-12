@@ -128,6 +128,7 @@ class Scene3D extends DepthScene {
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
     this.decor = []; this.backdrops = null; this.particles = null; this.stars = null;
+    this.coachMesh = null; this.coachStyle = null;
     this.biomeIdx = -1;
     this.applyBiome(0);
   }
@@ -290,6 +291,36 @@ class Scene3D extends DepthScene {
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
     return { group, inner, armL, armR, legL, legR, ring, scale };
+  }
+
+  // Coach (danse / karaté) : grand personnage jouet tourné vers le joueur, au fond de la scène
+  updateCoach(now) {
+    const c = this.coach;
+    if (!c) { if (this.coachMesh) this.coachMesh.group.visible = false; return; }
+    if (!this.coachMesh || this.coachStyle !== c.style) {
+      if (this.coachMesh) this.s3.remove(this.coachMesh.group);
+      const m = this.makeHero(c.pal || this.theme.hero, false);
+      if (c.style === 'karate') { // ceinture noire et bandeau rouge
+        const belt = new this.T.Mesh(new this.T.TorusGeometry(0.56, 0.05, 8, 32), this.lam('#1e1b4b'));
+        belt.rotation.x = Math.PI / 2; belt.position.y = 0.82; m.inner.add(belt);
+        const band = new this.T.Mesh(new this.T.TorusGeometry(0.5, 0.05, 8, 32), this.lam('#e63946'));
+        band.rotation.x = Math.PI / 2; band.position.y = 1.35; band.scale.set(1, 0.95, 1); m.inner.add(band);
+      }
+      m.group.rotation.y = Math.PI;
+      m.group.scale.setScalar(1.6);
+      this.s3.add(m.group);
+      this.coachMesh = m; this.coachStyle = c.style;
+    }
+    const cp = this.coachPose(now), m = this.coachMesh;
+    const fake = { y: -cp.y * this.H * 0.12, squat: cp.pose === 'duck', pose: cp.pose === 'smash' ? 'smash' : null,
+      poseUntil: (c.t0 || 0) + Math.ceil(((now - (c.t0 || 0)) + 1) / 900) * 900, holdPose: ['armsUp', 'airplane', 'star', 'flamingo', 'run', 'jump'].includes(cp.pose) ? cp.pose : null,
+      demoPose: null, bumpUntil: 0, lane: cp.lane * 0.9, m3: m };
+    if (fake.holdPose === 'run' || fake.holdPose === 'jump') fake.holdPose = null;
+    m.group.visible = true;
+    this.applyPose(fake, now);
+    m.ring.visible = false;
+    m.group.position.z = -6.5;
+    if (c.style === 'dance') { m.group.rotation.z = Math.sin(now * 0.008) * 0.12; m.inner.position.y += Math.abs(Math.sin(now * 0.008)) * 0.12; }
   }
 
   // ---------- Conversions et projection écran
@@ -548,6 +579,7 @@ class Scene3D extends DepthScene {
       }
     }
 
+    this.updateCoach(now);
     this.renderer.render(this.s3, this.camera);
 
     // Calque 2D : bulles, mains, corde, ✔ / ✗, particules

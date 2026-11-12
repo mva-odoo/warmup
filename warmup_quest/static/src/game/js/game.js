@@ -413,7 +413,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix'];
+  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'dance', 'karate'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -436,7 +436,7 @@ class Game {
     this.over = false;
     this.team = [];
     this.np = tracker.bodies.length; // joueurs (coopératif : chaque défi doit être fait par tous)
-    this.lastEv = { jump: [], squat: [] }; // dernier saut / accroupi de chaque joueur (évitements)
+    this.lastEv = { jump: [], squat: [], smash: [] }; // dernier saut / accroupi / frappe de chaque joueur
   }
 
   // Décale toutes les échéances après une pause
@@ -472,10 +472,13 @@ class Game {
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     const ropePeriod = 1700 * Math.min(1.3, this.mul);
     if (s.m === 'rope') dur = 1200 + s.n * ropePeriod + 700;
+    const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
+    if (s.m === 'dance' || s.m === 'karate') dur = 2000 + s.moves.length * beat + 600;
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
-      ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0 };
+      ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
+      beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
@@ -483,6 +486,7 @@ class Game {
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
     if (s.m === 'moles') scene.moles = this.cur.moles;
+    if (s.m === 'dance' || s.m === 'karate') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
     if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
     scene.setProgress(this.i / this.steps.length);
@@ -543,6 +547,8 @@ class Game {
       case 'rope': return dots(c.ropeOk, s.n);
       case 'tunnel': return holdBar(c.hold / (s.t * 700));
       case 'moles': return `<div class="runCount"><b>${c.bonked}</b> / ${s.n} 🐹</div>`;
+      case 'dance': case 'karate': return '<div class="chips">' + s.moves.map((m, i) =>
+        `<span class="chip ${i < c.mimicRes.length ? (c.mimicRes[i] ? 'ok' : 'miss') : i === c.mi ? 'now' : ''}">${MIMIC_ICONS[m]}</span>`).join('') + '</div>';
       case 'posemix': return '<div class="chips">' + s.poses.map((p, i) =>
         `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${POSES[p].icon}</span>`).join('<i>›</i>') + '</div>' +
         (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
@@ -688,7 +694,7 @@ class Game {
 
   // ---------- Taupes : elles sortent à gauche / à droite, en haut / en bas ; on les tape avec la main
   updateMoles(c, now) {
-    const SPOTS = [[-1.15, -0.85], [1.15, -0.85], [-1.3, 0.75], [1.3, 0.75]];
+    const SPOTS = [[-1.55, -0.95], [1.55, -0.95], [-1.65, 0.7], [1.65, 0.7]];
     const up = 1700 * Math.min(1.3, this.mul), gap = 900 * Math.min(1.3, this.mul);
     const hands = tracker.bodies.map((b) => this.handsOf(b));
     scene.hands = hands;
@@ -706,7 +712,7 @@ class Game {
     for (const m of c.moles) {
       if (m.state !== 'up') continue;
       const hs = hands[m.hero];
-      if (now - m.born > 200 && hs && hs.some((hd) => Math.hypot(hd.u - m.u, hd.v - (m.v - 0.15)) < 0.5)) {
+      if (now - m.born > 200 && hs && hs.some((hd) => Math.hypot(hd.u - m.u, hd.v - (m.v - 0.3)) < 0.8)) {
         m.state = 'bonk'; m.t = now; c.bonked++;
         this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
         ui.setDetail(this.detail(c));
@@ -731,6 +737,59 @@ class Game {
       scene.setDemoPose(s.poses[c.pi]);
       Audio8.say(POSES[s.poses[c.pi]].label);
     }
+    ui.setDetail(this.detail(c));
+  }
+
+  // ---------- Imite le coach (danse / karaté) : un geste par temps, noté à la fin de chaque temps
+  mimicOk(b, move, k, c) {
+    if (move === 'jump') return b.state.jumpUp || (this.lastEv.jump[k] || 0) >= c.winStart - 250;
+    if (move === 'smash') return (this.lastEv.smash[k] || 0) >= c.winStart - 250;
+    if (move === 'squat') return b.state.squat;
+    if (move === 'left' || move === 'right') return b.state.side === move;
+    return !!b.state[move];
+  }
+
+  updateMimic(c, now) {
+    const s = c.s, n = s.moves.length, t = now - c.start - 2000;
+    if (!Audio8.musicOn()) Audio8.music(true, s.m); // après une pause
+    // Le coach montre chaque geste un peu en avance, pour avoir le temps de le copier
+    const showI = Math.floor((t + 350) / c.beat);
+    if (showI !== c.showI) {
+      c.showI = showI;
+      const move = showI >= 0 && showI < n ? s.moves[showI] : null;
+      scene.setCoach({ move, style: s.m, pal: MIMIC[s.m].pal, t0: now });
+      if (move) Audio8.say(MIMIC[s.m].say[move]);
+    }
+    if (t < 0) return;
+    const i = Math.floor(t / c.beat);
+    if (i !== c.mi) {
+      if (c.mi >= 0 && c.mi < n) this.scoreMimic(c);
+      c.mi = i; c.okF = Array(this.np).fill(0); c.frames = 0; c.winStart = now;
+      if (i >= n) {
+        scene.setCoach(null);
+        Audio8.music(false);
+        if (c.mimicRes.every(Boolean)) this.complete(now); else this.timeout(now);
+        return;
+      }
+      Audio8.tick();
+      ui.setDetail(this.detail(c));
+    }
+    const move = s.moves[i];
+    c.frames++;
+    tracker.bodies.forEach((b, k) => {
+      const ok = this.mimicOk(b, move, k, c);
+      if (ok) c.okF[k]++;
+      scene.setHoldPose(ok && POSES[move] ? move : null, k);
+    });
+  }
+
+  scoreMimic(c) {
+    const move = c.s.moves[c.mi], event = move === 'jump' || move === 'smash';
+    const oks = c.okF.map((f) => (event ? f > 0 : c.frames && f / c.frames >= 0.35));
+    oks.forEach((ok, k) => { scene.flash(k, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), k); });
+    const all = oks.every(Boolean);
+    c.mimicRes.push(all);
+    all ? Audio8.good() : Audio8.soft();
     ui.setDetail(this.detail(c));
   }
 
@@ -831,9 +890,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (s.m === 'catch' || s.m === 'rope' || s.m === 'moles' || s.m === 'posemix' || s.m === 'tunnel') {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'tunnel', 'dance', 'karate'].includes(s.m)) {
+      const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
-        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700) }[s.m]();
+        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic }[s.m]();
+      if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
       scene.rope = null;
@@ -881,6 +942,7 @@ class Game {
     if (s.m === 'tunnel') { this.updateTunnel(c, now, dt); if (c.done) return; }
     if (s.m === 'moles') this.updateMoles(c, now);
     if (s.m === 'posemix') { this.updatePosemix(c, now, dt); if (c.done) return; }
+    if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (now >= c.end) this.timeout(now);
   }
@@ -1041,6 +1103,7 @@ function showResults(g, stars, isBest, prevBest) {
   scene.targetSpeed = 0.2;
   scene.obs = null;
   scene.hazards = [];
+  scene.setCoach(null);
   scene.setHoldPose('armsUp');
 }
 
@@ -1121,6 +1184,10 @@ function loop(now) {
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
     if (c.s.m === 'posemix') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
+    else if (c.s.m === 'dance' || c.s.m === 'karate') {
+      const mv = c.s.moves[Math.max(0, Math.min(c.s.moves.length - 1, c.showI))];
+      drawPicto(pictoCtx, 150, 150, POSES[mv] ? { m: 'pose', pose: mv } : { m: mv === 'squat' ? 'squat' : mv }, now);
+    }
     else drawPicto(pictoCtx, 150, 150, c.s, now, c.s.m === 'combo' ? c.s.parts[Math.min(c.s.parts.length - 1, Math.min(...c.parts))] : null);
   }
   if (!$('camBox').classList.contains('hidden')) {

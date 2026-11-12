@@ -27,6 +27,9 @@ const KITS = {
   dinoland: { props: [['rock', 3], ['fern', 2], ['egg', 2], ['dino', 1]], backdrop: ['volcano'], particles: 'embers' },
   garden:   { props: [['roseBush', 3], ['roundTree', 2], ['lantern', 1], ['flower', 3]], backdrop: ['castle', 'hills'], particles: 'petals' },
   magic:    { props: [['crystal', 3], ['bigMushroom', 2], ['lantern', 2], ['pine', 2]], backdrop: ['castle'], particles: 'fireflies', night: true },
+  disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
+  dojo:     { props: [['bamboo', 4], ['cherryTree', 3], ['stoneLantern', 2], ['rock', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
+  dojoNight: { props: [['bamboo', 3], ['cherryTree', 2], ['stoneLantern', 3]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
 };
 
 class Props3D {
@@ -281,6 +284,50 @@ class Props3D {
     for (const y of [0.35, 0.7]) this.add(g, 'box', '#ffffff', 0, y, 0, 1.6, 0.1, 0.06);
   }
 
+  // ---------- Disco
+  speaker(g) {
+    this.add(g, 'box', '#1b1b2f', 0, 0.8, 0, 0.9, 1.6, 0.7);
+    for (const [y, r] of [[1.15, 0.28], [0.5, 0.2]]) this.add(g, 'cyl', '#4a4e69', 0, y, 0.36, r, 0.05, r, {}, [Math.PI / 2, 0, 0]);
+    const glow = this.add(g, 'box', '#f15bb5', 0, 1.62, 0, 0.92, 0.05, 0.72, { emissive: '#f15bb5', emissiveIntensity: 0.8 });
+    g.userData.anim = (t) => { glow.material.emissiveIntensity = 0.4 + 0.6 * Math.abs(Math.sin(t * 0.008)); };
+  }
+  balloon(g) {
+    const col = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93', '#f15bb5'][Math.floor(Math.random() * 6)];
+    const b = this.add(g, 'sphere', col, 0, 2.2, 0, 0.4, 0.48, 0.4);
+    this.add(g, 'cyl', '#ffffff', 0, 1.0, 0, 0.01, 2.0, 0.01);
+    const ph = Math.random() * 6;
+    g.userData.anim = (t) => { b.position.y = 2.2 + Math.sin(t * 0.002 + ph) * 0.15; };
+  }
+  lightPole(g) {
+    this.add(g, 'cyl', '#3d3d3d', 0, 1.2, 0, 0.06, 2.4, 0.06);
+    const bulb = this.add(g, 'sphere', '#ffffff', 0, 2.5, 0, 0.28, 0.28, 0.28, { emissive: '#ffffff', emissiveIntensity: 1 });
+    bulb.material = bulb.material.clone(); // couleur propre à chaque poteau
+    const ph = Math.random() * 6;
+    g.userData.anim = (t) => { const c = bulb.material.emissive; c.setHSL(((t * 0.0003 + ph) % 1), 0.9, 0.6); bulb.material.color.copy(c); };
+  }
+
+  // ---------- Dojo
+  bamboo(g) {
+    for (let k = 0; k < 3; k++) {
+      const x = (k - 1) * 0.25, h = 2.5 + Math.random() * 1.5;
+      for (let i = 0; i < 6; i++) this.add(g, 'cyl', i % 2 ? '#6a994e' : '#7cb518', x, (i + 0.5) * h / 6, 0, 0.07, h / 6 - 0.03, 0.07);
+      const l = this.add(g, 'sphere', '#55a630', x + 0.25, h, 0, 0.35, 0.05, 0.1); l.rotation.z = -0.4;
+    }
+  }
+  cherryTree(g) {
+    this.add(g, 'cyl', '#6b4226', 0, 0.7, 0, 0.16, 1.4, 0.16);
+    this.add(g, 'ball', '#ffafcc', 0, 2.0, 0, 1.0, 0.85, 1.0, { flatShading: true });
+    this.add(g, 'ball', '#ffc8dd', 0.6, 1.75, 0.2, 0.55, 0.5, 0.55, { flatShading: true });
+    this.add(g, 'ball', '#ffc8dd', -0.55, 1.8, -0.2, 0.5, 0.45, 0.5, { flatShading: true });
+  }
+  stoneLantern(g) {
+    this.add(g, 'cyl', '#9a9184', 0, 0.35, 0, 0.18, 0.7, 0.18);
+    const light = this.add(g, 'box', '#fff3b0', 0, 0.85, 0, 0.42, 0.32, 0.42, { emissive: '#ffd166', emissiveIntensity: 0.6 });
+    this.add(g, 'cone', '#7d7568', 0, 1.18, 0, 0.45, 0.35, 0.45, { flatShading: true });
+    this.add(g, 'sphere', '#7d7568', 0, 1.4, 0, 0.08);
+    g.userData.anim = (t) => { light.material.emissiveIntensity = 0.5 + 0.2 * Math.sin(t * 0.003); };
+  }
+
   // ---------- Arrière-plans (posés loin, une fois par paysage)
   backdrop(name, pal) {
     const T = this.T, g = new T.Group();
@@ -337,6 +384,37 @@ class Props3D {
         add('box', '#c1121f', 16, 3, -40, 7, 6, 6);
         add('cyl', '#7f0000', 16, 6.6, -40, 4.3, 7, 4.3, {}, [Math.PI / 2, 0, 0]).geometry = new T.CylinderGeometry(1, 1, 1, 3);
         add('box', '#ffffff', 16, 2, -36.9, 2.6, 3.6, 0.1);
+        break;
+      }
+      case 'stage': {
+        // Scène disco : arche lumineuse, boule à facettes qui tourne, projecteurs qui balaient
+        add('box', '#2b1055', 0, 0.4, -16, 14, 0.8, 7);
+        const arch = this.add(g, 'arc', '#f15bb5', 0, 0.8, -18.5, 7, 7, 1, { emissive: '#f15bb5', emissiveIntensity: 0.7 });
+        const ball = new T.Mesh(new T.IcosahedronGeometry(1.2, 1), new T.MeshLambertMaterial({ color: '#e0e0ff', emissive: '#8888ff', emissiveIntensity: 0.4, flatShading: true }));
+        ball.position.set(0, 8.5, -14); g.add(ball);
+        const beams = [];
+        ['#ff595e', '#ffca3a', '#8ac926', '#1982c4'].forEach((c, i) => {
+          const beam = new T.Mesh(new T.ConeGeometry(1.4, 12, 16, 1, true), new T.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.18, depthWrite: false, side: T.DoubleSide, fog: false }));
+          beam.position.set(-9 + i * 6, 6, -18); g.add(beam); beams.push(beam);
+        });
+        g.userData.anim = (t) => {
+          ball.rotation.y = t * 0.0008;
+          arch.material.emissiveIntensity = 0.5 + 0.4 * Math.abs(Math.sin(t * 0.004));
+          beams.forEach((b, i) => { b.rotation.z = Math.sin(t * 0.0012 + i * 1.3) * 0.5; b.rotation.x = 0.3 + Math.cos(t * 0.001 + i) * 0.2; });
+        };
+        break;
+      }
+      case 'pagoda': {
+        // Pagode à étages et portique au bout du chemin
+        for (let i = 0; i < 4; i++) {
+          const y = 2 + i * 3.4, w = 9 - i * 1.6;
+          add('box', '#f2e8cf', -16, y, -60, w * 0.75, 2.6, w * 0.75);
+          add('cone', '#bc4749', -16, y + 1.9, -60, w * 0.8, 1.4, w * 0.8, { flatShading: true }, [0, Math.PI / 4, 0]);
+        }
+        for (const x of [-3.6, 3.6]) add('cyl', '#d62828', x, 3, -26, 0.35, 6, 0.35);
+        add('box', '#d62828', 0, 6.2, -26, 9.6, 0.5, 0.6);
+        add('box', '#1e1b4b', 0, 6.65, -26, 10.4, 0.35, 0.8);
+        add('box', '#d62828', 0, 5.1, -26, 7.6, 0.35, 0.4);
         break;
       }
       case 'windmill': {
