@@ -1,12 +1,6 @@
-// Éléments de décor partagés par les deux scènes : soleil, lune, nuages, montagnes,
+// Éléments de décor de la scène : soleil, lune, nuages,
 // et petite « vie » ambiante (oiseaux, papillons, lucioles, pétales).
 // Tout est dessiné au canvas, sans image, et reste léger pour les PC modestes.
-
-// Nombre pseudo-aléatoire stable (même décor à chaque passage)
-function hash01(n) {
-  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
 
 // Soleil souriant avec des rayons qui tournent doucement
 function drawSun(ctx, x, y, r, t, color = '#ffd84d') {
@@ -71,40 +65,9 @@ function drawCloud(ctx, x, y, s, alpha = 1) {
   ctx.globalAlpha = 1;
 }
 
-// Chaîne de montagnes (pics « en triangle » arrondis) avec neige au sommet
-function drawMountains(ctx, W, baseY, scroll, H, color, snow) {
-  const bw = H * 0.42;
-  const first = Math.floor(scroll / bw) - 1;
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(0, baseY);
-  const peaks = [];
-  for (let i = first; i <= first + W / bw + 3; i++) {
-    const x = i * bw - scroll;
-    const h = H * (0.16 + 0.12 * hash01(i));
-    const px = x + bw * (0.3 + 0.4 * hash01(i + 7));
-    ctx.lineTo(x, baseY - H * 0.04);
-    ctx.lineTo(px, baseY - h);
-    peaks.push([px, baseY - h, h]);
-  }
-  ctx.lineTo(W, baseY); ctx.closePath(); ctx.fill();
-  if (!snow) return;
-  ctx.fillStyle = snow;
-  for (const [px, py, h] of peaks) {
-    const d = h * 0.22;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(px + d * 0.9, py + d);
-    ctx.lineTo(px + d * 0.3, py + d * 0.8);
-    ctx.lineTo(px, py + d * 1.05);
-    ctx.lineTo(px - d * 0.35, py + d * 0.8);
-    ctx.lineTo(px - d * 0.9, py + d);
-    ctx.closePath(); ctx.fill();
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Vie ambiante
-// kinds : 'birds', 'butterflies', 'fireflies', 'petals', 'gulls'
+// kinds : 'birds', 'butterflies', 'fireflies', 'petals', 'gulls', 'snow' (flocons), 'rising' (bulles qui montent)
 // ---------------------------------------------------------------------------
 const BUTTERFLY_COLORS = ['#ff6b9a', '#ffd166', '#7bdff2', '#b388eb', '#ff9f1c'];
 const PETAL_COLORS = ['#ffc8dd', '#ffafcc', '#ffffff', '#fde68a'];
@@ -130,6 +93,11 @@ class Ambient {
           c: BUTTERFLY_COLORS[Math.floor(r() * BUTTERFLY_COLORS.length)] };
       case 'fireflies':
         return { kind, x: r() * W, y: groundY - r() * H * 0.45, vx: (r() - 0.5) * 20, s: 2 + r() * 2, p: r() * 6 };
+      case 'snow':
+        return { kind, x: anywhere ? r() * W : r() * W * 1.2, y: anywhere ? r() * groundY : -10, vx: -(5 + r() * 15),
+          vy: 30 + r() * 30, s: 2 + r() * 3, p: r() * 6 };
+      case 'rising':
+        return { kind, x: r() * W, y: anywhere ? r() * H : H + 10, vx: (r() - 0.5) * 10, vy: -(25 + r() * 35), s: 3 + r() * 6, p: r() * 6 };
       case 'petals':
         return { kind, x: anywhere ? r() * W : r() * W * 1.3, y: anywhere ? r() * groundY : -10, vx: -(20 + r() * 30),
           vy: 25 + r() * 25, s: 4 + r() * 3, p: r() * 6, c: PETAL_COLORS[Math.floor(r() * PETAL_COLORS.length)] };
@@ -139,7 +107,7 @@ class Ambient {
 
   // drift : vitesse de défilement du décor (les objets reculent quand on court)
   update(dt, W, H, groundY, drift = 0) {
-    const want = { birds: 3, gulls: 3, butterflies: 4, fireflies: 22, petals: 10 };
+    const want = { birds: 3, gulls: 3, butterflies: 4, fireflies: 22, petals: 10, snow: 40, rising: 18 };
     for (const kind of this.kinds) {
       const n = this.items.filter((it) => it.kind === kind).length;
       if (n < want[kind]) {
@@ -153,7 +121,7 @@ class Ambient {
       if (it.vy) it.y += it.vy * dt;
       if (it.kind === 'fireflies') { it.y += Math.sin(it.p * 1.3) * 8 * dt; if (it.x < -10) it.x = W + 10; if (it.x > W + 10) it.x = -10; }
     }
-    this.items = this.items.filter((it) => it.x > -60 && it.y < groundY + 20);
+    this.items = this.items.filter((it) => it.x > -60 && (it.kind === 'rising' ? it.y > -20 : it.y < groundY + 20));
   }
 
   draw(ctx) {
@@ -190,6 +158,16 @@ class Ambient {
           ctx.globalAlpha = a;
           ctx.beginPath(); ctx.arc(it.x, it.y, it.s, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
+          break;
+        }
+        case 'snow': {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.beginPath(); ctx.arc(it.x + Math.sin(it.p * 1.5) * 8, it.y, it.s, 0, Math.PI * 2); ctx.fill();
+          break;
+        }
+        case 'rising': {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(it.x + Math.sin(it.p * 2) * 6, it.y, it.s, 0, Math.PI * 2); ctx.stroke();
           break;
         }
         case 'petals': {

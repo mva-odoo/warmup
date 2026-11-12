@@ -17,9 +17,12 @@
     <p class="subtitle">Bouge devant la caméra pour gagner des points !</p>
     <div id="menuExtra"></div>
     <div id="worlds" class="worlds"></div>
-    <div class="options">
+    <button class="btn small ghost" id="carnetBtn">📖 Mes gommettes et créatures</button>
+    <!-- Réglages pour les grands, repliés par défaut -->
+    <details class="parents">
+      <summary>⚙️ Réglages (parents)</summary>
+      <div class="options">
       <div class="speed" id="speeds"></div>
-      <button class="btn small ghost" id="carnetBtn">📖 Carnet des créatures</button>
       <div class="voiceRow">
         <label for="voiceSelect">🗣️ Voix</label>
         <select id="voiceSelect"></select>
@@ -28,7 +31,8 @@
       <p id="voiceTip" class="voiceTip hidden">💡 Pour une voix bien plus naturelle, ouvre le jeu avec <b>Microsoft Edge</b> (voix « Natural »).</p>
       <div class="duoRow" id="duoRow"></div>
       <label class="sim"><input type="checkbox" id="simToggle"> Mode clavier (test sans caméra)</label>
-    </div>
+      </div>
+    </details>
   </section>
 
   <!-- Carnet -->
@@ -70,7 +74,7 @@
       <button class="btn small ghost" id="pauseBtn">⏸ Pause</button>
     </div>
     <div id="card" class="card">
-      <div id="cardIcon" class="icon"></div>
+      <canvas id="cardPicto" class="icon picto" width="150" height="150"></canvas>
       <div class="cardBody">
         <div id="cardLabel" class="label"></div>
         <div id="cardDetail" class="detail"></div>
@@ -120,7 +124,7 @@
   </div>
 
   <div id="simHelp" class="simHelp hidden">
-    <b>Mode clavier</b> · Espace/↑ saut · ↓ accroupi · ← → côtés · S smash · R pas de course ·
+    <b>Mode clavier</b> · Espace/↑ saut · ↓ accroupi · ← → côtés · S taper ·
     1 girafe · 2 aigle · 3 étoile · 4 flamant · B bulle · Entrée = commencer
   </div>
 
@@ -129,9 +133,9 @@
   <script src="js/worlds.js"></script>
   <script src="js/pose.js"></script>
   <script src="js/decor.js"></script>
-  <script src="js/scene.js"></script>
   <script src="js/creatures.js"></script>
   <script src="js/depth.js"></script>
+  <script src="js/picto.js"></script>
   <!-- WUQ_BACKEND -->
   <script src="js/game.js"></script>
 </body>

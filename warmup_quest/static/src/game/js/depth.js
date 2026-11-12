@@ -87,6 +87,11 @@ function drawOrb(ctx, x, y, r, t) {
   ctx.textBaseline = 'alphabetic';
 }
 
+function newHero(pal, base) {
+  return { pal, base, lane: base, targetLane: base, y: 0, vy: 0, pose: null, poseUntil: 0, holdPose: null,
+    demoPose: null, bumpUntil: 0, squat: false, flash: null };
+}
+
 class DepthScene {
   constructor(canvas) {
     this.c = canvas;
@@ -98,8 +103,11 @@ class DepthScene {
     this.targetSpeed = 1;
     this.scroll = 0;
     this.progress = 0;
-    this.hero = { lane: 0, y: 0, vy: 0, pose: null, poseUntil: 0, holdPose: null, bumpUntil: 0 };
-    this.live = { side: 'center', squat: false };
+    this.heroes = [newHero(null, 0)];
+    this.hazards = [];   // obstacles à éviter (étape « Évite les obstacles »)
+    this.bubbles = [];   // bulles autour des héros { hero, u, v, r, born, p } (unités : torse du héros)
+    this.pops = [];
+    this.hands = [];     // mains des joueurs, par héros : [{ u, v }, { u, v }]
     this.obs = null;
     this.enc = null;
     this.decor = [];
@@ -129,9 +137,15 @@ class DepthScene {
   sy(z) { return this.hy + (this.gy0 - this.hy) * this.k(z); }
   sx(lx, z) { return this.W / 2 + lx * this.laneW * this.k(z); }
   heroZ() { return 1.2; }
-  heroPx() {
-    const z = this.heroZ();
-    return { x: this.sx(this.hero.lane, z), y: this.sy(z) + this.hero.y };
+  get hero() { return this.heroes[0]; }
+  heroPx(i = 0) {
+    const z = this.heroZ(), h = this.heroes[i] || this.heroes[0];
+    return { x: this.sx(h.lane, z), y: this.sy(z) + h.y };
+  }
+  // Repère des bulles et des mains : épaules du héros, unité = longueur du torse à l'écran
+  anchor(i) {
+    const p = this.heroPx(i), s = this.size * this.k(this.heroZ());
+    return { x: p.x, y: p.y - s * 0.78, u: s * 0.42 };
   }
 
   biome() {
@@ -144,17 +158,30 @@ class DepthScene {
     return { col, cur: b[i], night: b[i].night };
   }
 
-  setWorld(theme) {
+  // palettes : une par joueur (couleurs du héros) ; par défaut le héros du monde
+  setWorld(theme, palettes = null) {
     this.theme = theme;
     this.obs = null; this.enc = null; this.parts = []; this.floaters = [];
+    this.hazards = []; this.bubbles = []; this.pops = []; this.hands = []; this.rope = null;
     this.progress = 0;
-    Object.assign(this.hero, { lane: 0, y: 0, vy: 0, pose: null, holdPose: null });
+    const pals = palettes || [theme ? theme.hero : null];
+    this.heroes = pals.map((pal, i) => newHero(pal, pals.length > 1 ? (i ? 0.55 : -0.55) : 0));
     this.decor = [];
     if (theme) for (let i = 0; i < 26; i++) this.spawnDecor(Math.random() * this.Zfar);
   }
 
   setProgress(p) { this.progress = p; }
-  setLive(st) { this.live.side = st.side; this.live.squat = st.squat; }
+  // États des joueurs (un par héros) : couloir suivi en direct, accroupi
+  setLive(states) {
+    const list = Array.isArray(states) ? states : [states];
+    const n = this.heroes.length;
+    this.heroes.forEach((h, i) => {
+      const st = list[i] || list[0] || {};
+      const off = st.side === 'left' ? -1 : st.side === 'right' ? 1 : 0;
+      h.targetLane = h.base + off * (n > 1 ? 0.45 : 1);
+      h.squat = !!st.squat;
+    });
+  }
 
   spawnDecor(z) {
     const b = this.theme.biomes[Math.min(this.theme.biomes.length - 1, Math.floor(this.progress * this.theme.biomes.length))];
@@ -162,30 +189,60 @@ class DepthScene {
     this.decor.push({ lx: sg * (2.1 + Math.random() * 3.5), z, e: b.deco[Math.floor(Math.random() * b.deco.length)], s: 0.8 + Math.random() * 0.7 });
   }
 
-  // --- API commune avec Scene
-  action(type) {
-    const h = this.hero, now = performance.now();
-    if (type === 'jump') { if (h.y >= -1) h.vy = -this.H * 1.6; }
-    else if (type === 'squat') { h.pose = 'duck'; h.poseUntil = now + 700; }
-    else if (type === 'smash') {
-      h.pose = 'smash'; h.poseUntil = now + 450;
-      if (this.obs && this.obs.kind === 'crate') this.obs.shake = now;
-    }
-    else if (type === 'step') {
-      const p = this.heroPx();
-      this.floaters.push({ x: p.x + (Math.random() - 0.5) * this.size * 0.5, y: p.y - this.size * 1.1, text: this.theme.collectible, size: this.size * 0.3, life: 0.8, max: 0.8, vy: -this.H * 0.3 });
-    }
+  // --- Actions (idx : un seul héros, sinon tous)
+  action(type, idx = null) {
+    const now = performance.now();
+    this.heroes.forEach((h, i) => {
+      if (idx != null && i !== idx) return;
+      if (type === 'jump') { if (h.y >= -1) h.vy = -this.H * 1.6; }
+      else if (type === 'squat') { h.pose = 'duck'; h.poseUntil = now + 700; }
+      else if (type === 'smash') {
+        h.pose = 'smash'; h.poseUntil = now + 450;
+        if (this.obs && this.obs.kind === 'crate') this.obs.shake = now;
+      }
+    });
   }
 
-  setHoldPose(p) { this.hero.holdPose = p; }
+  setHoldPose(p, idx = null) { this.heroes.forEach((h, i) => { if (idx == null || i === idx) h.holdPose = p; }); }
   // Le héros montre la pose à faire (sans l'anneau de réussite)
-  setDemoPose(p) { this.hero.demoPose = p; }
+  setDemoPose(p) { this.heroes.forEach((h) => (h.demoPose = p)); }
+  // Réussi (vert ✔) ou raté (orange) bien visible sur le héros
+  flash(idx, ok) {
+    const now = performance.now();
+    this.heroes.forEach((h, i) => {
+      if (idx != null && i !== idx) return;
+      h.flash = { ok, t: now };
+      if (!ok) h.bumpUntil = now + 600;
+    });
+  }
+
+  // --- Obstacles à éviter : { kind: 'rock' | 'log' | 'arch', lane, born, dur }
+  addHazard(hz) { hz.state = 'coming'; this.hazards.push(hz); }
+  hazardZ(hz, now) {
+    const p = (now - hz.born) / hz.dur;
+    return this.Zfar - (this.Zfar - this.heroZ()) * p;
+  }
+  resolveHazard(hz, ok, idx = 0) {
+    hz.state = ok ? 'cleared' : 'hit';
+    hz.t0 = performance.now();
+    if (ok && hz.kind === 'star') {
+      const p = this.heroPx(idx);
+      this.emojiPop(p.x, p.y - this.size * 1.1, 2);
+      this.burst(p.x, p.y - this.size * 0.8, 14, ['#fff', '#ffe066', '#ffd166']);
+      hz.t0 = hz.t0 - 500; // disparaît tout de suite
+    } else if (ok) {
+      const z = this.heroZ() + 0.3, x = this.sx(hz.kind === 'rock' ? hz.lane : 0, z);
+      this.burst(x, this.sy(z) - this.size * 0.4, 14, ['#ffffff', '#ffe066', '#4ade80']);
+    }
+  }
 
   shift(d) {
     const o = this.obs, e = this.enc;
     if (o) { o.born += d; o.t0 += d; if (o.shake) o.shake += d; }
     if (e) { e.born += d; e.t0 += d; }
-    this.hero.poseUntil += d; this.hero.bumpUntil += d;
+    for (const hz of this.hazards) { hz.born += d; if (hz.t0) hz.t0 += d; }
+    if (this.rope) this.rope.t0 += d;
+    for (const h of this.heroes) { h.poseUntil += d; h.bumpUntil += d; }
     this.last = performance.now();
   }
   setHoldProgress(p) { if (this.enc) this.enc.hold = p; }
@@ -194,11 +251,14 @@ class DepthScene {
     const now = performance.now();
     this.obs = null;
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
-    this.hero.holdPose = null;
-    this.hero.demoPose = null;
-    this.targetSpeed = s.m === 'run' ? 2.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' ? 0.35 : 1;
+    this.setHoldPose(null);
+    this.setDemoPose(null);
+    this.bubbles = []; this.hands = [];
+    this.targetSpeed = s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
+    if (s.m === 'pose' && !s.creature) this.obs = { kind: 'wall', pose: s.pose, born: now, dur, state: 'coming', t0: now };
+    this.rope = null;
     if (s.m === 'pose' && s.creature) {
       this.enc = { cr: s.creature, pose: s.pose, born: now, state: 'waiting', t0: now, hold: 0, evolved: Carnet.evolved(s.creature.id) };
     }
@@ -206,6 +266,10 @@ class DepthScene {
 
   obsZ(now) {
     const o = this.obs;
+    if (o.kind === 'wall') { // le mur s'approche puis attend devant le héros
+      const p = Math.min(1, (now - o.born) / Math.min(1800, o.dur * 0.4));
+      return this.Zfar - (this.Zfar - 3.6) * p;
+    }
     const p = Math.min(1, (now - o.born) / o.dur);
     return this.Zfar - (this.Zfar - this.heroZ() - 0.6) * p;
   }
@@ -221,17 +285,18 @@ class DepthScene {
     o.zc = this.obsZ(now);
     o.state = success ? 'cleared' : 'missed';
     o.t0 = now;
-    if (success && (o.kind === 'crate' || o.kind === 'gemL' || o.kind === 'gemR')) {
+    if (success && (o.kind === 'crate' || o.kind === 'gemL' || o.kind === 'gemR' || o.kind === 'wall')) {
       const lx = o.kind === 'gemL' ? -1 : o.kind === 'gemR' ? 1 : 0;
       const x = this.sx(lx, o.zc), y = this.sy(o.zc) - this.size * this.k(o.zc) * 0.5;
-      this.burst(x, y, 18, o.kind === 'crate' ? ['#8d8173', '#bfb3a5', '#5c5248'] : ['#fff', '#ffd166', '#72efdd']);
+      const cols = o.kind === 'crate' ? ['#8d8173', '#bfb3a5', '#5c5248'] : o.kind === 'wall' ? ['#e07a5f', '#f2cc8f', '#ffffff'] : ['#fff', '#ffd166', '#72efdd'];
+      this.burst(x, y, o.kind === 'wall' ? 40 : 18, cols);
       this.emojiPop(x, y, 3);
       this.obs = null;
     } else if (success) {
       const p = this.heroPx();
       this.emojiPop(p.x, p.y - this.size * 1.2, 2);
     } else if (o.kind !== 'gemL' && o.kind !== 'gemR') {
-      this.hero.bumpUntil = now + 600;
+      for (const h of this.heroes) h.bumpUntil = now + 600;
     }
   }
 
@@ -248,8 +313,8 @@ class DepthScene {
     }
   }
 
-  floatText(text, color = '#fff') {
-    const p = this.heroPx();
+  floatText(text, color = '#fff', idx = 0) {
+    const p = this.heroPx(idx);
     this.floaters.push({ x: p.x, y: p.y - this.size * 1.5, text, size: this.size * 0.24, life: 1.1, max: 1.1, vy: -this.H * 0.15, color, bold: true });
   }
 
@@ -266,11 +331,12 @@ class DepthScene {
     this.scroll += dz;
 
     // Héros : couloir suivi en direct, saut, accroupi
+    for (const hh of this.heroes) {
+      hh.lane += (hh.targetLane - hh.lane) * Math.min(1, dt * 8);
+      hh.vy += H * 5 * dt; hh.y += hh.vy * dt;
+      if (hh.y > 0) { hh.y = 0; hh.vy = 0; }
+    }
     const h = this.hero;
-    const targetLane = this.live.side === 'left' ? -1 : this.live.side === 'right' ? 1 : 0;
-    h.lane += (targetLane - h.lane) * Math.min(1, dt * 8);
-    h.vy += H * 5 * dt; h.y += h.vy * dt;
-    if (h.y > 0) { h.y = 0; h.vy = 0; }
 
     const hy = this.hy;
     // Ciel
@@ -358,6 +424,8 @@ class DepthScene {
     const items = this.decor.map((d) => ({ z: d.z, draw: () => this.drawDecor(d) }));
     if (this.obs) items.push({ z: this.obs.state === 'coming' ? this.obsZ(now) : (this.obs.zc ?? 0), draw: () => this.drawObstacle(now, dt) });
     if (this.enc) items.push({ z: this.encZ(now), draw: () => this.drawEncounter(now) });
+    this.hazards = this.hazards.filter((hz) => this.hazardZ(hz, now) > -0.9 && !(hz.t0 && now - hz.t0 > 600));
+    for (const hz of this.hazards) items.push({ z: Math.max(-0.8, this.hazardZ(hz, now)), draw: () => this.drawHazard(hz, now) });
     items.push({ z: this.heroZ() - 0.01, draw: () => this.drawHero(now) });
     items.sort((a, b) => b.z - a.z);
     for (const it of items) it.draw();
@@ -366,6 +434,9 @@ class DepthScene {
     this.ambient.setKinds(bio.cur.ambient);
     this.ambient.update(dt, W, H, bio.cur.ambient && bio.cur.ambient.includes('fireflies') ? H : hy + H * 0.2, 0);
     this.ambient.draw(ctx);
+
+    this.drawBubbles(now);
+    this.drawRope(now);
 
     // Brume à l'horizon
     const fog = ctx.createLinearGradient(0, hy - H * 0.04, 0, hy + H * 0.07);
@@ -388,7 +459,12 @@ class DepthScene {
       }
     }
 
-    // Particules et textes flottants
+    this.drawFx(dt);
+  }
+
+  // Particules et textes flottants (coordonnées écran), partagés avec la scène 3D
+  drawFx(dt) {
+    const ctx = this.ctx, H = this.H;
     for (const p of this.parts) {
       p.vy += H * 1.5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
       ctx.globalAlpha = Math.max(0, p.life / p.max);
@@ -422,26 +498,160 @@ class DepthScene {
   }
 
   drawHero(now) {
-    const ctx = this.ctx, h = this.hero;
-    let pose;
-    if (now < h.bumpUntil) pose = 'bump';
-    else if (h.y < -2) pose = 'jump';
-    else if (this.live.squat) pose = 'duck';
-    else if (h.pose && now < h.poseUntil) pose = h.pose;
-    else if (h.holdPose) pose = h.holdPose;
-    else if (h.demoPose) pose = h.demoPose;
-    else if (this.enc && this.enc.state === 'befriend') pose = 'happy';
-    else pose = this.speed < 0.5 ? 'idle' : 'run';
-    const z = this.heroZ(), k = this.k(z);
-    const x = this.sx(h.lane, z), gy = this.sy(z);
-    const s = this.size * k * 1.0;
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath(); ctx.ellipse(x, gy + 2, s * 0.38 * (1 + h.y / this.H), s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-    drawHeroBack(ctx, x, gy + h.y, s, this.theme.hero, pose, now);
-    if (h.holdPose) {
-      ctx.strokeStyle = `rgba(255,255,180,${0.5 + 0.4 * Math.sin(now * 0.01)})`; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.arc(x, gy + h.y - s * 0.55, s * 0.8, 0, Math.PI * 2); ctx.stroke();
+    const ctx = this.ctx;
+    this.heroes.forEach((h, i) => {
+      let pose;
+      if (now < h.bumpUntil) pose = 'bump';
+      else if (h.y < -2) pose = 'jump';
+      else if (h.squat) pose = 'duck';
+      else if (h.pose && now < h.poseUntil) pose = h.pose;
+      else if (h.holdPose) pose = h.holdPose;
+      else if (h.demoPose) pose = h.demoPose;
+      else if (this.enc && this.enc.state === 'befriend') pose = 'happy';
+      else pose = this.speed < 0.5 ? 'idle' : 'run';
+      const z = this.heroZ(), k = this.k(z);
+      const x = this.sx(h.lane, z), gy = this.sy(z);
+      const s = this.size * k * (this.heroes.length > 1 ? 0.85 : 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.ellipse(x, gy + 2, s * 0.38 * (1 + h.y / this.H), s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+      drawHeroBack(ctx, x, gy + h.y, s, h.pal || this.theme.hero, pose, now);
+      const cy = gy + h.y - s * 0.55;
+      if (h.holdPose) {
+        ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.arc(x, cy, s * 0.8, 0, Math.PI * 2); ctx.stroke();
+      }
+      // Réussi / raté : grand rond vert avec ✔, ou orange
+      const f = h.flash, age = f ? now - f.t : 1e9;
+      if (age < 900) {
+        const a = 1 - age / 900, pop = 1 + 0.25 * Math.sin(Math.min(1, age / 250) * Math.PI);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = f.ok ? '#22c55e' : '#f59e0b';
+        const by = gy + h.y - s * 1.45, r = s * 0.28 * pop;
+        ctx.beginPath(); ctx.arc(x, by, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(3, r * 0.22); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        if (f.ok) { ctx.moveTo(x - r * 0.45, by); ctx.lineTo(x - r * 0.1, by + r * 0.35); ctx.lineTo(x + r * 0.5, by - r * 0.35); }
+        else { ctx.moveTo(x - r * 0.35, by - r * 0.35); ctx.lineTo(x + r * 0.35, by + r * 0.35); ctx.moveTo(x + r * 0.35, by - r * 0.35); ctx.lineTo(x - r * 0.35, by + r * 0.35); }
+        ctx.stroke();
+        if (f.ok) { ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(x, cy, s * (0.8 + age / 900 * 0.5), 0, Math.PI * 2); ctx.stroke(); }
+        ctx.globalAlpha = 1;
+      }
+      // En duo : pastille de couleur sous le héros pour que chacun se reconnaisse
+      if (this.heroes.length > 1 && h.pal) {
+        ctx.fillStyle = h.pal.body; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(x, gy + 4, s * 0.42, s * 0.1, 0, 0, Math.PI * 2); ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+      }
+    });
+  }
+
+  // Corde à sauter qui tourne autour des héros : elle passe sous les pieds à t0 + k × période
+  drawRope(now) {
+    const r = this.rope;
+    if (!r) return;
+    const ctx = this.ctx, z = this.heroZ(), k = this.k(z), s = this.size * k;
+    const gy = this.sy(z), xl = this.sx(-1.7, z), xr = this.sx(1.7, z);
+    const phi = ((now - r.t0) / r.period) * Math.PI * 2;
+    const feet = gy + s * 0.05, head = gy - s * 1.35, hand = gy - s * 0.6;
+    const cy = (feet + head) / 2 + Math.cos(phi) * (feet - head) * 0.5;
+    // Poignées
+    ctx.fillStyle = '#8d5a3b';
+    for (const x of [xl, xr]) { ctx.beginPath(); ctx.roundRect(x - s * 0.06, hand - s * 0.15, s * 0.12, s * 0.3, s * 0.05); ctx.fill(); }
+    // Corde (courbe dont le creux suit la rotation)
+    ctx.strokeStyle = '#e63946'; ctx.lineWidth = Math.max(4, s * 0.06); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(xl, hand); ctx.quadraticCurveTo(this.W / 2, 2 * cy - hand, xr, hand); ctx.stroke();
+  }
+
+  // Bulles autour des héros et mains des joueurs (gants lumineux)
+  drawBubbles(now) {
+    const ctx = this.ctx;
+    for (const bb of this.bubbles) {
+      const A = this.anchor(bb.hero), grow = Math.min(1, (now - bb.born) / 300);
+      const x = A.x + bb.u * A.u, y = A.y + bb.v * A.u + Math.sin(now * 0.003 + bb.p) * A.u * 0.05, r = bb.r * A.u * grow;
+      const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.7)'); g.addColorStop(0.7, 'rgba(173,232,255,0.35)'); g.addColorStop(1, 'rgba(255,170,230,0.75)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.18, r * 0.1, -0.6, 0, Math.PI * 2); ctx.fill();
     }
+    this.pops = this.pops.filter((p) => now - p.t < 400);
+    for (const p of this.pops) {
+      const A = this.anchor(p.hero), k = (now - p.t) / 400;
+      const x = A.x + p.u * A.u, y = A.y + p.v * A.u, r = p.r * A.u;
+      ctx.strokeStyle = `rgba(255,255,255,${1 - k})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y, r * (1 + k), 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = `rgba(173,232,255,${1 - k})`;
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + k * 1.5), y + Math.sin(a) * r * (1 + k * 1.5), 5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    this.hands.forEach((list, i) => {
+      if (!list) return;
+      const A = this.anchor(i), h = this.heroes[i];
+      for (const hd of list) {
+        const x = A.x + hd.u * A.u, y = A.y + hd.v * A.u, r = A.u * 0.2;
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.35)';
+        ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = (h && h.pal && h.pal.accent) || '#ffd166'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    });
+  }
+
+  // Obstacle à éviter : rocher dans un couloir, tronc (sauter) ou branche (se baisser)
+  drawHazard(hz, now) {
+    const ctx = this.ctx, z = Math.max(-0.8, this.hazardZ(hz, now));
+    let alpha = this.fade(z);
+    if (hz.t0) alpha *= Math.max(0, 1 - (now - hz.t0) / 600);
+    if (alpha <= 0) return;
+    const k = this.k(z), s = this.size * k, gy = this.sy(z);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (hz.kind === 'log') this.drawLog(z, s, gy);
+    else if (hz.kind === 'arch') this.drawArch(z, s, gy);
+    else if (hz.kind === 'star') {
+      // Étoile qui arrive dans un couloir : se mettre dessous pour l'attraper
+      const x = this.sx(hz.lane, z), y = gy - s * 0.7 + Math.sin(now * 0.008) * s * 0.05;
+      ctx.fillStyle = 'rgba(255, 245, 180, 0.45)';
+      ctx.beginPath(); ctx.arc(x, y, s * 0.42, 0, Math.PI * 2); ctx.fill();
+      ctx.font = `${s * 0.55}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(this.theme.collectible, x, y);
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.beginPath(); ctx.ellipse(x, gy, s * 0.3, s * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    else this.drawRock(this.sx(hz.lane, z), s * 0.75, gy);
+    ctx.restore();
+  }
+
+  drawLog(z, s, gy) {
+    const ctx = this.ctx, xl = this.sx(-1.55, z), xr = this.sx(1.55, z), hgt = s * 0.32;
+    ctx.fillStyle = '#7a4f2a'; ctx.fillRect(xl, gy - hgt, xr - xl, hgt);
+    ctx.fillStyle = '#9c6b3d'; ctx.fillRect(xl, gy - hgt, xr - xl, hgt * 0.35);
+    ctx.fillStyle = '#d9a86c';
+    for (const x of [xl, xr]) { ctx.beginPath(); ctx.ellipse(x, gy - hgt / 2, hgt * 0.3, hgt / 2, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+
+  drawArch(z, s, gy) {
+    const ctx = this.ctx, xl = this.sx(-1.55, z), xr = this.sx(1.55, z), barY = gy - s * 0.95;
+    ctx.fillStyle = '#6b4a2b';
+    ctx.fillRect(xl - s * 0.06, barY, s * 0.12, gy - barY);
+    ctx.fillRect(xr - s * 0.06, barY, s * 0.12, gy - barY);
+    ctx.fillStyle = '#7a5432'; ctx.fillRect(xl, barY - s * 0.1, xr - xl, s * 0.18);
+    ctx.font = `${s * 0.3}px serif`; ctx.textAlign = 'center';
+    for (let i = 0; i <= 6; i++) ctx.fillText(i % 2 ? '🍃' : '🌿', xl + (xr - xl) * (i / 6), barY + s * 0.05);
+  }
+
+  drawRock(x, s, gy) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#8d8173';
+    ctx.beginPath(); ctx.ellipse(x, gy - s * 0.45, s * 0.75, s * 0.48, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#a89c8e';
+    ctx.beginPath(); ctx.ellipse(x - s * 0.2, gy - s * 0.65, s * 0.3, s * 0.15, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5c5248'; ctx.lineWidth = Math.max(1, s * 0.03);
+    ctx.beginPath(); ctx.moveTo(x + s * 0.1, gy - s * 0.85); ctx.lineTo(x - s * 0.05, gy - s * 0.5); ctx.lineTo(x + s * 0.15, gy - s * 0.25); ctx.stroke();
   }
 
   drawObstacle(now) {
@@ -456,36 +666,23 @@ class DepthScene {
     const k = this.k(z), s = this.size * k, gy = this.sy(z);
     ctx.save();
     ctx.globalAlpha = alpha;
-    const xl = this.sx(-1.55, z), xr = this.sx(1.55, z);
-    if (o.kind === 'low') {
-      // Tronc d'arbre en travers du chemin
-      const hgt = s * 0.32;
-      ctx.fillStyle = '#7a4f2a';
-      ctx.fillRect(xl, gy - hgt, xr - xl, hgt);
-      ctx.fillStyle = '#9c6b3d';
-      ctx.fillRect(xl, gy - hgt, xr - xl, hgt * 0.35);
-      ctx.fillStyle = '#d9a86c';
-      for (const x of [xl, xr]) { ctx.beginPath(); ctx.ellipse(x, gy - hgt / 2, hgt * 0.3, hgt / 2, 0, 0, Math.PI * 2); ctx.fill(); }
-    } else if (o.kind === 'high') {
-      // Arche de branches : il faut passer dessous
-      const barY = gy - s * 0.95;
-      ctx.fillStyle = '#6b4a2b';
-      ctx.fillRect(xl - s * 0.06, barY, s * 0.12, gy - barY);
-      ctx.fillRect(xr - s * 0.06, barY, s * 0.12, gy - barY);
-      ctx.fillStyle = '#7a5432';
-      ctx.fillRect(xl, barY - s * 0.1, xr - xl, s * 0.18);
-      ctx.font = `${s * 0.3}px serif`; ctx.textAlign = 'center';
-      for (let i = 0; i <= 6; i++) ctx.fillText(i % 2 ? '🍃' : '🌿', xl + (xr - xl) * (i / 6), barY + s * 0.05);
-    } else if (o.kind === 'crate') {
-      // Gros rocher à casser
+    if (o.kind === 'low') this.drawLog(z, s, gy);          // tronc : sauter par-dessus
+    else if (o.kind === 'high') this.drawArch(z, s, gy);   // branche : passer dessous
+    else if (o.kind === 'crate') {                         // gros rocher à casser
       const sh = o.shake && now - o.shake < 200 ? Math.sin(now * 0.2) * s * 0.05 : 0;
-      const x = this.sx(0, z) + sh;
-      ctx.fillStyle = '#8d8173';
-      ctx.beginPath(); ctx.ellipse(x, gy - s * 0.45, s * 0.75, s * 0.48, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#a89c8e';
-      ctx.beginPath(); ctx.ellipse(x - s * 0.2, gy - s * 0.65, s * 0.3, s * 0.15, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#5c5248'; ctx.lineWidth = Math.max(1, s * 0.03);
-      ctx.beginPath(); ctx.moveTo(x + s * 0.1, gy - s * 0.85); ctx.lineTo(x - s * 0.05, gy - s * 0.5); ctx.lineTo(x + s * 0.15, gy - s * 0.25); ctx.stroke();
+      this.drawRock(this.sx(0, z) + sh, s, gy);
+    } else if (o.kind === 'wall') {
+      // Mur avec un trou en forme de bonhomme : on passe en prenant la pose
+      const xl = this.sx(-1.6, z), xr = this.sx(1.6, z), top = gy - s * 1.9;
+      ctx.fillStyle = '#e07a5f'; ctx.fillRect(xl, top, xr - xl, gy - top);
+      ctx.strokeStyle = 'rgba(120, 50, 30, 0.35)'; ctx.lineWidth = Math.max(1, s * 0.02);
+      const bh = s * 0.22;
+      for (let y = top, row = 0; y < gy; y += bh, row++) {
+        ctx.beginPath(); ctx.moveTo(xl, y); ctx.lineTo(xr, y); ctx.stroke();
+        for (let x = xl + (row % 2) * bh; x < xr; x += bh * 2) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
+      }
+      const f = POSE_FIGURES[o.pose] || POSE_FIGURES.armsUp;
+      stickFigure(ctx, { x: this.sx(0, z), y: gy - s * 0.05, s: s * 1.55, ...f }, 'rgba(255, 255, 230, 0.9)', 2.6);
     } else {
       // Baie brillante dans un couloir, buissons dans les autres
       const lane = o.kind === 'gemL' ? -1 : 1;

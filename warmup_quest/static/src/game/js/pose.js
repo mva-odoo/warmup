@@ -1,5 +1,5 @@
 // Détection des mouvements via MediaPipe Pose Landmarker (webcam), pour 1 ou 2 joueurs.
-// Chaque joueur (Body) émet des événements : jump, squat, left, right, smash, step
+// Chaque joueur (Body) émet des événements : jump, squat, left, right, smash
 // et maintient un état : present, fullBody, side, squat, armsUp, airplane, star, flamingo.
 // Le Tracker fusionne les états : en coopératif, un défi est réussi quand les DEUX le font.
 
@@ -69,11 +69,7 @@ class Body {
     this.base = null;      // hauteur des épaules « debout » (adaptative)
     this.T = null;         // longueur du torse (échelle du corps dans l'image)
     this.offSince = 0;
-    this.foot = { L: false, R: false };
-    // Référence « jambe posée » mesurée sur CE joueur (les enfants n'ont pas les proportions d'un adulte)
-    this.legRef = { L: null, R: null };
     this.wristUp = { L: 0, R: 0 };
-    this.bob = null;
     this.motion = 0;       // quantité de mouvement lissée (statues musicales)
     this.prevLm = null;
     this.center = null;    // milieu des épaules (sert à reconnaître qui est qui)
@@ -88,8 +84,6 @@ class Body {
     this.base = sh.y;
     this.T = dist(sh, mid(lm[23], lm[24]));
     this.mode = this.state.anklesOK ? 'full' : this.state.kneesOK ? 'knees' : 'upper';
-    this.bob = { dir: 'down', ext: sh.y };
-    this.legRef = { L: null, R: null };
   }
 
   process(lm, now, emit) {
@@ -151,39 +145,6 @@ class Body {
       if (now - this.offSince > 4000) { // le joueur s'est déplacé : on recale
         this.base = sh.y; if (hipOK) this.T = Tnow; this.offSince = 0;
         s.squat = false; s.jumpUp = false;
-      }
-    }
-
-    // --- Course sur place
-    if (!s.squat) {
-      if (useKnees) {
-        // Chaque genou (ou pied) qui se lève = un pas.
-        // On compare à la position « jambe posée » de ce joueur, apprise en continu :
-        // elle remonte vite quand la jambe se repose et ne baisse que très lentement.
-        const legs = [['L', kneeL, 27], ['R', kneeR, 28]];
-        for (const [k, kr, ank] of legs) {
-          const footY = s.anklesOK ? lm[ank].y / T : null;
-          const ref = this.legRef[k] || (this.legRef[k] = { knee: kr, foot: footY });
-          ref.knee += (kr - ref.knee) * (kr > ref.knee ? 0.3 : 0.004);
-          if (footY != null) {
-            if (ref.foot == null) ref.foot = footY;
-            ref.foot += (footY - ref.foot) * (footY > ref.foot ? 0.3 : 0.004);
-          }
-          const up = Math.max(ref.knee - kr, footY != null ? ref.foot - footY : 0);
-          if (!this.foot[k] && up > 0.12) { this.foot[k] = true; emit('step'); }
-          else if (this.foot[k] && up < 0.05) this.foot[k] = false;
-        }
-      } else {
-        // haut du corps seulement : chaque rebond des épaules = un pas
-        const b = this.bob || (this.bob = { dir: 'down', ext: sh.y });
-        const th = 0.06 * T;
-        if (b.dir === 'down') {
-          if (sh.y > b.ext) b.ext = sh.y;
-          else if (sh.y < b.ext - th) { b.dir = 'up'; b.ext = sh.y; emit('step'); }
-        } else {
-          if (sh.y < b.ext) b.ext = sh.y;
-          else if (sh.y > b.ext + th) { b.dir = 'down'; b.ext = sh.y; }
-        }
       }
     }
 
@@ -320,21 +281,19 @@ class Tracker {
     const send = (b, lm) => b.process(lm, now, (type) => this.emit(type, b.idx));
     if (bodies.length === 1) return send(bodies[0], list[0]);
     const cen = (lm) => mid(lm[11], lm[12]);
+    // Deux détections presque au même endroit = la même personne vue deux fois : on n'en garde qu'une
+    if (list.length >= 2 && Math.abs(cen(list[0]).x - cen(list[1]).x) < 0.06) list = [list[0]];
+    // Joueur 1 = à gauche de l'écran (image en miroir => x le plus grand), joueur 2 = à droite.
+    // Chacun garde son côté : c'est plus fiable que de suivre les positions quand les enfants se rapprochent.
     let order;
-    if (!this.calibrated || bodies.some((b) => !b.center)) {
-      // Avant le départ : joueur 1 = celui de gauche à l'écran (image en miroir => x le plus grand)
-      const sorted = [...list].sort((a, b) => cen(b).x - cen(a).x);
-      order = [sorted[0] || null, sorted[1] || null];
-    } else if (list.length >= 2) {
-      // Pendant la partie : on garde l'association la plus proche des positions précédentes
-      const d = (b, lm) => dist(b.center, cen(lm));
-      const keep = d(bodies[0], list[0]) + d(bodies[1], list[1]);
-      const swap = d(bodies[0], list[1]) + d(bodies[1], list[0]);
-      order = keep <= swap ? [list[0], list[1]] : [list[1], list[0]];
-    } else if (list.length === 1) {
-      const c = cen(list[0]);
-      order = dist(bodies[0].center, c) <= dist(bodies[1].center, c) ? [list[0], null] : [null, list[0]];
-    } else order = [null, null];
+    if (list.length >= 2) order = [...list].sort((a, b) => cen(b).x - cen(a).x);
+    else if (list.length === 1) order = cen(list[0]).x >= 0.5 ? [list[0], null] : [null, list[0]];
+    else order = [null, null];
+    if (order[0] && order[1]) {
+      // Un bras ou une jambe qui dépasse nettement chez le voisin est sans doute à lui : on l'ignore
+      const midX = (cen(order[0]).x + cen(order[1]).x) / 2;
+      order = [cleanSide(order[0], midX, +1), cleanSide(order[1], midX, -1)];
+    }
     send(bodies[0], order[0]);
     send(bodies[1], order[1]);
   }
@@ -350,6 +309,16 @@ class Tracker {
   draw(ctx, w, h, { colors = [], target = null } = {}) {
     ctx.clearRect(0, 0, w, h);
     if (this.sim) return;
+    if (this.bodies.length === 2) {
+      // Chacun sa moitié (joueur 1 à gauche de l'écran = x > 0.5 dans l'image non inversée)
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = colors[0] || '#ff6b35'; ctx.fillRect(w / 2, 0, w / 2, h);
+      ctx.fillStyle = colors[1] || '#4ea8ff'; ctx.fillRect(0, 0, w / 2, h);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 4; ctx.setLineDash([14, 12]);
+      ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     for (const b of this.bodies) {
       const lm = b.lm;
       if (!lm) continue;
@@ -361,11 +330,6 @@ class Tracker {
       for (const [i, j] of SKELETON) {
         if ((lm[i].visibility ?? 1) < 0.4 || (lm[j].visibility ?? 1) < 0.4) continue;
         ctx.beginPath(); ctx.moveTo(lm[i].x * w, lm[i].y * h); ctx.lineTo(lm[j].x * w, lm[j].y * h); ctx.stroke();
-      }
-      for (const [k, i] of [['L', 25], ['R', 26]]) {
-        if (!b.foot[k] || (lm[i].visibility ?? 1) < 0.4) continue;
-        ctx.fillStyle = '#ffe066';
-        ctx.beginPath(); ctx.arc(lm[i].x * w, lm[i].y * h, 16, 0, Math.PI * 2); ctx.fill();
       }
       ctx.fillStyle = '#fff';
       for (const i of [0, 15, 16, 27, 28]) {
@@ -404,7 +368,6 @@ class Tracker {
       else if (k === 'ArrowLeft') { all((b) => (b.state.side = 'left')); emitAll('left'); }
       else if (k === 'ArrowRight') { all((b) => (b.state.side = 'right')); emitAll('right'); }
       else if (k === 's' || k === 'S') emitAll('smash');
-      else if (k === 'r' || k === 'R') emitAll('step');
       else if (poseKeys[k]) all((b) => (b.state[poseKeys[k]] = true));
     });
     addEventListener('keyup', (e) => {
@@ -414,6 +377,12 @@ class Tracker {
       else if (poseKeys[k]) all((b) => (b.state[poseKeys[k]] = false));
     });
   }
+}
+
+// Garde les points d'un joueur de son côté de la ligne médiane (side +1 : x > midX)
+function cleanSide(lm, midX, side) {
+  const margin = 0.03;
+  return lm.map((p, i) => (i >= 13 && (p.x - midX) * side < -margin ? { ...p, visibility: 0 } : p));
 }
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }

@@ -154,6 +154,8 @@ h1 span { color: var(--brand2); }
 .card.enter { animation: cardIn 0.35s cubic-bezier(.2, 1.6, .5, 1) both; }
 @keyframes cardIn { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .card .icon { font-size: clamp(56px, 8vw, 88px); line-height: 1; }
+/* Pictogramme animé : le bonhomme montre le mouvement */
+.card .picto { width: clamp(96px, 12vw, 150px); height: auto; aspect-ratio: 1; border-radius: 20px; background: #f1f5ff; grid-row: span 2; }
 .card .label { font-size: clamp(30px, 4.6vw, 52px); font-weight: 800; line-height: 1.05; }
 .card.isRest .label { font-size: clamp(24px, 3.4vw, 38px); }
 .card .detail { min-height: 10px; }
@@ -165,6 +167,7 @@ h1 span { color: var(--brand2); }
 .dots { display: flex; gap: 10px; margin-top: 6px; }
 .dots span { width: 26px; height: 26px; border-radius: 50%; background: rgba(30, 27, 75, 0.15); }
 .dots span.on { background: var(--ok); box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25); }
+.dots span.miss { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.25); }
 .runCount { font-size: 22px; font-weight: 700; }
 .runCount b { font-size: 34px; color: var(--brand); }
 .hint { font-size: 16px; opacity: 0.7; }
@@ -183,8 +186,9 @@ h1 span { color: var(--brand2); }
 .feedback.show { animation: fb 1s ease-out both; }
 .feedback.perfect { color: #ffe066; text-shadow: 0 6px 0 #e85d04; }
 .feedback.good { color: #fff; text-shadow: 0 6px 0 #16a34a; }
-.feedback.ok { color: #fff; text-shadow: 0 6px 0 #2563eb; }
-.feedback.miss { color: #fff; text-shadow: 0 6px 0 #6b7280; font-size: clamp(32px, 5vw, 60px); }
+.feedback.perfect, .feedback.good { font-size: clamp(56px, 9vw, 110px); }
+.feedback.ok { color: #fff; text-shadow: 0 6px 0 #f59e0b; }
+.feedback.miss { color: #fff; text-shadow: 0 6px 0 #f59e0b; }
 @keyframes fb { 0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } 75% { opacity: 1; } 100% { transform: translate(-50%, -70%) scale(1); opacity: 0; } }
 
 .next {
@@ -251,6 +255,19 @@ body.sim .next { bottom: 78px; }
   width: 30px; height: 30px; border-radius: 50%; font-weight: 800; font-size: 16px;
   color: #fff; background: var(--pc, #1e1b4b); box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--pc, #1e1b4b);
 }
+
+/* ---------- Menu : cartes des mondes, surprise, réglages parents ---------- */
+.worlds { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; width: min(1100px, 100%); }
+.worldCard { width: auto; }
+.worldCard canvas { width: 100%; height: auto; aspect-ratio: 4 / 3; border-radius: 14px; }
+.worldCard.surprise { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #ffd166, #ff70a6, #70d6ff); }
+.surpriseIcon { font-size: 72px; line-height: 1.4; animation: wobble 2s ease-in-out infinite; }
+@keyframes wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.parents { margin-top: 14px; width: min(760px, 100%); background: rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 6px 14px; }
+.parents summary { cursor: pointer; font-weight: 700; font-size: 16px; opacity: 0.85; padding: 4px 0; }
+.parents .options { margin: 8px 0 6px; }
+.speed { flex-wrap: wrap; justify-content: center; }
 
 /* ---------- Jeux pour les petits : statues, gommettes ---------- */
 .bigIcon { font-size: clamp(30px, 4.5vw, 48px); font-weight: 800; margin-top: 4px; }

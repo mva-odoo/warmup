@@ -10,16 +10,31 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 À l'installation, 3 séquences par défaut (une par monde) et les 8 créatures sont créées.
 
 ## Utilisation
-- **Warm-Up Quest › Joueurs** : créer un profil par enfant (prénom, photo, couleur).
+- **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
+  On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
 - **Warm-Up Quest › ▶ Jouer** : ouvre le jeu (`/warmup`) dans un nouvel onglet ; choisir « Qui joue ? » puis un monde.
   - **À deux (coopératif)** : cliquer sur deux prénoms. Chaque défi doit être réussi par les deux enfants ;
     la partie est enregistrée pour chacun. Il faut assez de recul pour que les deux soient entiers à l'image.
-  - Pendant une pose, une silhouette jaune sur la vidéo montre la position à prendre ; le squelette devient vert quand c'est réussi.
-  - Pensé pour les 4–6 ans : consignes « animaux » à la voix, jamais d'échec (au moins 1 étoile et une fête à la fin),
-    mode **Facile** et **partie courte** par défaut, une **gommette** gagnée à chaque partie (album dans le carnet,
-    gardé dans le navigateur).
-  - Deux jeux en plus : **éclater des bulles** avec les mains et **statues musicales** (danser, puis se figer quand la musique s'arrête).
-  - Course : un pas compte quand un genou (ou un pied) se lève ; le genou s'allume en jaune sur la vidéo.
+  - Tout se joue **sur le chemin**, personnage vu de dos (gauche = gauche). Chaque consigne correspond à un obstacle :
+    tronc = **saute**, branche = **baisse-toi**, rocher = **tape** (bras en haut puis en bas), étoile dans un couloir = **va à gauche / à droite**.
+    Un petit bonhomme animé dans la carte montre le mouvement, et la voix l'explique.
+  - **Réussi / pas réussi** : grand rond vert ✔ ou orange au-dessus du personnage, et « ✔ Bravo ! » au centre.
+  - **Éviter les obstacles** (remplace la course sur place, trop peu fiable) : rochers à éviter en changeant de couloir,
+    troncs à sauter, branches sous lesquelles se baisser. Un rond par obstacle : vert = évité, orange = touché.
+  - **Bulles** : elles apparaissent autour du personnage ; les mains du joueur y sont des gants lumineux.
+  - **À deux** : chacun a son personnage à sa couleur et sa moitié de caméra (trait au milieu). Restez chacun de votre côté
+    et bien écartés : le jeu ignore un bras qui passe chez le voisin.
+  - Pendant une pose, une silhouette jaune sur la vidéo montre la position à prendre ; le personnage s'entoure de vert quand c'est bon.
+  - **10 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
+    Pays des Bonbons, Ferme, Vallée des Dinos, Château) + une carte **🎲 Surprise** qui en choisit un au hasard.
+  - Jeux : éviter les obstacles, sauter, se baisser, taper, aller à gauche / à droite, **attraper les étoiles**
+    (se mettre dessous), **sauter à la corde**, poses (en passant par le **trou du mur**, ou en apprivoisant une créature
+    dans le Monde des Créatures), bulles, statues musicales.
+  - Le menu ne montre que les prénoms et les mondes ; vitesse, voix, partie courte, **plein écran** (activé par défaut)
+    et mode clavier sont rangés dans « ⚙️ Réglages (parents) ».
+  - Pensé pour les 4–6 ans : jamais d'échec (au moins 1 étoile et une fête à la fin), mode **Facile** et **partie courte**
+    par défaut, une **gommette** gagnée à chaque partie (album dans le carnet, gardé dans le navigateur).
+  - Deux jeux en plus : **éclater des bulles** et **statues musicales** (danser, puis se figer quand la musique s'arrête).
   - Le badge « img/s » indique la vitesse de détection : en dessous de 15 (🐢), le PC est trop lent (essayer Chrome/Edge avec l'accélération matérielle).
 - **Parties** : historique, graphique de progression et tableau croisé.
 - **Carnets** : créatures devenues amies de chaque joueur (évolution à 3).
