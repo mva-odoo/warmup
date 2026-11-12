@@ -1,6 +1,8 @@
 import json
+import re
 
 from odoo import http
+from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools import file_open
 
@@ -33,6 +35,18 @@ class WarmupQuestController(http.Controller):
             ('Content-Type', 'text/html; charset=utf-8'),
             ('Cache-Control', 'no-store'),
         ])
+
+    @http.route('/warmup/api/player', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_create_player(self, name=None, color=None, **kwargs):
+        """Ajoute un enfant directement depuis l'écran du jeu (prénom + couleur)."""
+        name = (name or '').strip()[:40]
+        if not name:
+            raise UserError("Indique le prénom de l'enfant.")
+        vals = {'name': name}
+        if isinstance(color, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', color):
+            vals['color'] = color
+        player = request.env['warmup.player'].create(vals)
+        return player._game_data()
 
     @http.route('/warmup/api/session', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_save_session(self, **params):
