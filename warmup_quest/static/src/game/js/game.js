@@ -295,6 +295,7 @@ function holdCalib(now) {
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
+  if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'bubbles' && !game.cur.done) {
     game.cur.bubbles.push({ hero: 0, u: 1, v: -0.5, r: 0.32, born: 0, p: 0 });
     game.popBubble(game.cur, game.cur.bubbles.length - 1, performance.now());
@@ -890,8 +891,23 @@ function celebrate() {
   }
 }
 
+let resultsAt = 0, againHold = 0, againSaid = false;
+function updateResults(now) {
+  if (now - resultsAt < 4000) return; // on laisse le temps de fêter (les bras en l'air !)
+  if (!againSaid) { againSaid = true; Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
+  const s = tracker.state;
+  if (s.present && s.armsUp) {
+    if (!againHold) againHold = now;
+    const p = Math.min(1, (now - againHold) / 2000);
+    $('againBar').style.width = p * 100 + '%';
+    if (p >= 1) $('againBtn').click();
+  } else { againHold = 0; $('againBar').style.width = '0%'; }
+}
+
 function showResults(g, stars, isBest, prevBest) {
   phase = 'results';
+  resultsAt = performance.now(); againHold = 0; againSaid = false;
+  $('againBar').style.width = '0%';
   Audio8.music(false);
   show('hud', false); show('camBox', false);
   show('results');
@@ -1000,6 +1016,7 @@ function loop(now) {
   if (phase === 'calib') updateCalib(now);
   if (phase === 'play' && game) game.update(now);
   if (phase === 'paused') updatePause(now);
+  if (phase === 'results') updateResults(now);
   scene.setLive(phase === 'play' || phase === 'countdown' ? tracker.bodies.map((b) => b.state) : [{ side: 'center', squat: false }]);
   if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {

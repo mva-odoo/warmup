@@ -182,11 +182,11 @@
     .odooBar a.btn { text-decoration:none; }
     .odooLabel { font-weight:800; font-size:20px; }
     .odooHint { font-size:16px; background:rgba(239,68,68,.25); padding:6px 12px; border-radius:12px; }
-    .playerChip { display:flex; align-items:center; gap:8px; font-family:inherit; font-weight:800; font-size:18px;
+    .playerChip { display:flex; align-items:center; gap:10px; font-family:inherit; font-weight:800; font-size:24px;
       border:3px solid transparent; border-radius:999px; padding:4px 14px 4px 4px; cursor:pointer;
       background:rgba(255,255,255,.18); color:#fff; }
     .playerChip.on { background:#fff; color:#1e1b4b; border-color:var(--pc); box-shadow:0 0 0 4px rgba(255,255,255,.25); }
-    .playerChip img, .playerChip .ini { width:34px; height:34px; border-radius:50%; object-fit:cover; }
+    .playerChip img, .playerChip .ini { width:52px; height:52px; border-radius:50%; object-fit:cover; font-size:26px; }
     .playerChip .ini { display:flex; align-items:center; justify-content:center; background:var(--pc); color:#fff; }
     .playerChip .num { font-size:13px; background:var(--pc); color:#fff; border-radius:99px; padding:0 8px; }
     .odooHint2 { font-size:15px; opacity:.85; width:100%; text-align:center; }

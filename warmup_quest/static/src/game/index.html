@@ -70,8 +70,8 @@
         <div class="progress"><div id="hudProgress"></div></div>
       </div>
       <div class="pill score"><span id="hudScore">0</span> pts</div>
-      <div class="pill"><span id="hudCollect"></span> <span id="hudStreak" class="streak"></span></div>
-      <button class="btn small ghost" id="pauseBtn">⏸ Pause</button>
+      <div class="pill collect"><span id="hudCollect"></span> <span id="hudStreak" class="streak"></span></div>
+      <button class="btn roundBtn" id="pauseBtn" title="Pause">⏸</button>
     </div>
     <div id="card" class="card">
       <canvas id="cardPicto" class="icon picto" width="150" height="150"></canvas>
@@ -103,15 +103,15 @@
   <section id="results" class="screen hidden">
     <h2 id="resTitle"></h2>
     <div id="resStars" class="stars"></div>
-    <div class="resScore"><span id="resScore">0</span> points</div>
-    <p id="resDetail"></p>
     <div id="resSticker" class="stickerWin"></div>
     <div id="resTeam" class="team"></div>
-    <p id="resBest" class="best"></p>
     <div class="row">
-      <button class="btn" id="againBtn">🔁 Rejouer</button>
-      <button class="btn ghost" id="menuBtn">🗺️ Choisir un monde</button>
+      <button class="btn huge" id="againBtn">🔁 Encore !</button>
+      <button class="btn huge ghost" id="menuBtn" title="Choisir un monde">🏠</button>
     </div>
+    <p class="subtitle">🙌 Lève les bras pour rejouer</p>
+    <div class="holdbar"><div id="againBar"></div></div>
+    <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span></p>
   </section>
 
   <!-- Caméra -->

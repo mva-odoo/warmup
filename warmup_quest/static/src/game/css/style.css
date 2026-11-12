@@ -287,3 +287,12 @@ body.sim .next { bottom: 78px; }
   border: 3px dashed rgba(255, 255, 255, 0.25);
 }
 .albumGrid span.got { background: #fff; border: 3px solid #ffd166; color: inherit; }
+
+/* ---------- Simple pour les petits ---------- */
+.pill.score, .next { display: none !important; }        /* points et « Ensuite » : rien à lire pour eux */
+.pill.collect { font-size: 30px; }
+.roundBtn { width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 30px; line-height: 1; }
+.btn.huge { font-size: clamp(26px, 4vw, 38px); padding: 14px 34px; border-radius: 999px; }
+#results .holdbar { width: min(320px, 70vw); }
+.parentInfo { margin-top: 18px; font-size: 14px; opacity: 0.6; }
+.parentInfo span { font-size: inherit !important; color: inherit !important; }
