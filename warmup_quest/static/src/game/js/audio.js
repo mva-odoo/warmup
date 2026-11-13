@@ -162,6 +162,7 @@ const Audio8 = (() => {
     return { style, mel };
   }
 
+  let boostUntil = 0, boostLvl = 0; // musique « emballée » après un combo
   let song = null, songStyle = null, nextT = 0, stepI = 0, sched = 0, themeMuted = false, fg = null, enabled = true;
   try { enabled = localStorage.getItem('wuq_music') !== 'false'; } catch {}
   function startSong(styleName, seed) {
@@ -183,6 +184,10 @@ const Audio8 = (() => {
       if (st.kick && st.kick[i] === 'x') at('kick', 0, 0, 0.55);
       if (st.snare && st.snare[i] === 'x') at('snare', 0, 0, 0.22);
       if (st.hat && st.hat[i] === 'x') at('hat', 0, 0, 0.08);
+      const boost = nextT < boostUntil;
+      if (boost && i % 2 === 1) at('hat', 0, 0, 0.06);                                  // charleston en doubles-croches
+      if (boost && boostLvl >= 2 && i % 4 === 0) at('kick', 0, 0, 0.35);              // grosse caisse à chaque temps
+      if (boost && i % 2 === 0) at(st.arp, hz(st.key + ch[(i >> 1) % ch.length] + 24), s16 * 1.2, 0.035); // arpège aigu
       if (st.taiko && st.taiko[i] === 'x') at('taiko', 0, 0, i % 8 === 0 ? 0.6 : 0.35);
       // Basse : la fondamentale de l'accord (sur les contretemps en style danse)
       if (st.offBass ? i % 4 === 2 : i % 8 === 0) at('bass', hz(root - 24), s16 * (st.offBass ? 1.5 : 3.5), 0.32);
@@ -325,6 +330,14 @@ const Audio8 = (() => {
     },
     musicEnabled: () => enabled,
     setMusicEnabled(on) { enabled = on; try { localStorage.setItem('wuq_music', on ? 'true' : 'false'); } catch {} refresh(); },
+    // Photo : déclic d'appareil
+    photo() { play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
+    // Combo : petite montée de notes, et la musique s'emballe (charleston rapide, arpèges doublés) quelques mesures
+    combo(lvl = 1) {
+      for (let i = 0; i < 3 + lvl * 2; i++) play('bell', deg(i + 2, 2), i * 0.06, 0.3, 0.1);
+      play('noise', 5000, 0.3, 0.6, 0.05);
+      boostUntil = (ctx ? ac().currentTime : 0) + 6 + lvl * 2; boostLvl = lvl;
+    },
     win() { // fanfare de fin, dans le ton du monde
       [0, 1, 2, 3, 2, 3, 4, 5].forEach((d, i) => { play('bell', deg(d + 2, 2), i * 0.11, 0.5, 0.12); play('pluck', deg(d + 2, 1), i * 0.11, 0.3, 0.06); });
       [0, 2, 4].forEach((d) => play('pad', deg(d, 0), 0.9, 1.2, 0.05));

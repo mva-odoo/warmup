@@ -18,6 +18,10 @@ const WUQStore = {
   // Total des étoiles du joueur n° i (meilleure note de chaque monde) : sert à débloquer les récompenses
   totalStars(i = 0) { return (typeof WORLDS === 'undefined' ? [] : WORLDS).reduce((n, w) => n + (this.getBest(w.id, i).stars || 0), 0); },
 
+  // Créature compagnon du joueur n° i : { id, xp } (ou null)
+  getCompanion(i = 0) { return this._get('companion_' + i); },
+  setCompanion(i, c) { this._set('companion_' + i, c); },
+
   // Étapes à jouer pour un monde
   steps(world) { return world.sequence; },
 

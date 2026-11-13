@@ -204,6 +204,8 @@ class Scene3D extends DepthScene {
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     this.shot = null; this.stepKind = null; this.roll = 0;
+    if (this.bossM && this.s3) this.s3.remove(this.bossM.group);
+    this.boss = null; this.bossM = null;
     if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
     this.poseModel = null;
     if (!this.ready) return;
@@ -1013,9 +1015,9 @@ class Scene3D extends DepthScene {
   }
 
   // Modèles du monde (Kenney) chargés avant de jouer
-  preloadWorld(world, looks = []) {
+  preloadWorld(world, looks = [], extra = []) {
     const kits = world.biomes.map((b) => b.kit || 'meadow');
-    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k)))]));
+    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k))), ...extra]));
   }
 
   // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles
@@ -1385,12 +1387,228 @@ class Scene3D extends DepthScene {
     return this.shadow(g);
   }
 
+  // Photo souvenir : renvoie (promesse) l'image de la prochaine image dessinée
+  snapshot() {
+    return new Promise((resolve) => {
+      this.snapReq = resolve;
+      if (typeof DEV !== 'undefined' && DEV.get('world')) return; // (capture sans fenêtre : le temps virtuel court plus vite que les images)
+      setTimeout(() => { if (this.snapReq === resolve) { this.snapReq = null; resolve(null); } }, 6000);
+    });
+  }
+
+  // ---------- Chambre du dresseur : une petite pièce en 3D avec sa collection
+  // data : { look, companion: {cr, level}, friends: [{cr, evolved}], trophies: [stars par monde], photos: [url], stickers: [émojis] }
+  openRoom(canvas, data) {
+    const T = this.T;
+    this.closeRoom();
+    const r = new T.WebGLRenderer({ canvas, antialias: true });
+    r.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+    r.toneMapping = T.ACESFilmicToneMapping; r.outputColorSpace = T.SRGBColorSpace;
+    r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
+    const scene = new T.Scene(); scene.background = new T.Color('#2b2160');
+    scene.add(new T.HemisphereLight('#fff4e0', '#6b5b95', 1.3));
+    const sun = new T.DirectionalLight('#fff1d6', 1.7); sun.position.set(4, 8, 6); sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
+    scene.add(sun);
+    const lamp = new T.PointLight('#ffcf8a', 6, 12, 1.5); lamp.position.set(-3, 4, 1); scene.add(lamp);
+    const lam = (c, o) => this.P.toon(c, o), box = new T.BoxGeometry(1, 1, 1);
+    const add = (geo, c, x, y, z, sx, sy, sz, parent = scene) => { const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
+    // Pièce : plancher, deux murs, tapis rond, fenêtre
+    add(box, '#c98b5a', 0, -0.05, 0, 12, 0.1, 9);
+    for (let i = -5; i <= 5; i++) add(box, '#b57a4c', i, 0.001, 0, 0.04, 0.01, 9);
+    add(box, '#ffd6e0', 0, 3.5, -4.5, 12, 7, 0.2);
+    add(box, '#ffe9b8', -6, 3.5, 0, 0.2, 7, 9);
+    add(new T.CylinderGeometry(1, 1, 0.04, 40), '#7c8cff', 0, 0.03, 0.8, 2.4, 1, 2.4);
+    add(box, '#a7e3ff', -5.85, 4.2, 0.5, 0.05, 2, 2.6); add(box, '#ffffff', -5.82, 4.2, 0.5, 0.05, 0.08, 2.6);
+    // Étagères : créatures amies et trophées (or : 3 étoiles, argent : 2, bronze : 1)
+    for (const y of [2.2, 4.0]) add(box, '#8d5a3b', 1.8, y, -4.1, 6.5, 0.15, 0.7);
+    data.friends.slice(0, 7).forEach((f, i) => {
+      try {
+        const c = buildCreature3D(this, f.cr, f.evolved);
+        c.group.scale.multiplyScalar(0.55); c.group.position.set(-0.9 + i * 0.9, 2.28, -4.05); c.group.rotation.y = (Math.random() - 0.5) * 0.6;
+        c.animate(0, 'idle'); scene.add(c.group);
+      } catch (e) { /* (créature indisponible) */ }
+    });
+    data.trophies.filter((s) => s > 0).slice(0, 8).forEach((s, i) => {
+      const col = s >= 3 ? '#ffd23f' : s === 2 ? '#d9e2ec' : '#d4884a', g = new T.Group();
+      add(new T.CylinderGeometry(0.22, 0.08, 0.35, 16), col, 0, 0.42, 0, 1, 1, 1, g);
+      add(new T.CylinderGeometry(0.05, 0.05, 0.18, 8), col, 0, 0.17, 0, 1, 1, 1, g);
+      add(box, '#5b3a29', 0, 0.05, 0, 0.3, 0.1, 0.3, g);
+      g.position.set(-1.1 + i * 0.78, 4.08, -4.05); scene.add(g);
+    });
+    // Cadres photos au mur (souvenirs de fin de partie) et affiche de gommettes
+    const loader = new T.TextureLoader();
+    data.photos.slice(0, 3).forEach((url, i) => {
+      add(box, '#ffffff', -4.2 + i * 0.05, 4.6 - i * 1.25, -4.35, 1.5, 0.95, 0.06);
+      const tex = loader.load(url); tex.colorSpace = T.SRGBColorSpace;
+      const p = new T.Mesh(new T.PlaneGeometry(1.36, 0.8), new T.MeshBasicMaterial({ map: tex }));
+      p.position.set(-4.2 + i * 0.05, 4.6 - i * 1.25, -4.31); scene.add(p);
+    });
+    if (data.stickers.length) {
+      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384;
+      const g = cv.getContext('2d'); g.fillStyle = '#fff8e7'; g.fillRect(0, 0, 512, 384);
+      g.font = '60px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      data.stickers.slice(0, 20).forEach((st, i) => g.fillText(st, 52 + (i % 5) * 102, 48 + Math.floor(i / 5) * 96));
+      const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+      const p = new T.Mesh(new T.PlaneGeometry(1.8, 1.35), new T.MeshBasicMaterial({ map: tex }));
+      p.position.set(-5.85, 2.2, -2.3); p.rotation.y = Math.PI / 2; scene.add(p);
+    }
+    // Le dresseur au milieu (il salue), et son compagnon à côté
+    const hero = this.makeHumanHero({ body: data.look.color }, false, data.look);
+    hero.group.rotation.y = Math.PI + 0.25; hero.group.position.set(0.2, 0, 0.8);
+    scene.add(hero.group);
+    let comp = null;
+    if (data.companion) {
+      try { comp = buildCreature3D(this, data.companion.cr, data.companion.level >= COMPANION_MAX); comp.group.scale.multiplyScalar(0.5 + data.companion.level * 0.07); comp.group.position.set(1.7, 0, 1.2); comp.group.rotation.y = -0.4; scene.add(comp.group); } catch (e) { comp = null; }
+    }
+    const cam = new T.PerspectiveCamera(45, 1, 0.1, 60);
+    const t0 = performance.now(), fake = { lane: 0, y: 0, holdPose: null };
+    const loop = () => {
+      if (!canvas.isConnected) return this.closeRoom();
+      const now = performance.now(), t = (now - t0) / 1000;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (canvas.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+      cam.position.set(Math.sin(t * 0.25) * 1.6 + 1, 3.0, 8.2); cam.lookAt(0, 2.0, -1);
+      const save = this.heroY3; this.heroY3 = () => 0;
+      try { this.applyHumanPose(fake, hero, Math.floor(t / 4) % 2 ? 'happy' : 'idle', now); } finally { this.heroY3 = save; }
+      hero.group.position.set(0.2, 0, 0.8); hero.ring.visible = false;
+      if (comp) comp.animate(now, Math.floor(t / 3) % 2 ? 'happy' : 'idle');
+      r.render(scene, cam);
+      this.roomRAF = requestAnimationFrame(loop);
+    };
+    this.room = { r, scene };
+    loop();
+  }
+
+  closeRoom() {
+    if (this.roomRAF) cancelAnimationFrame(this.roomRAF);
+    if (this.room) { this.room.r.dispose(); this.room = null; }
+  }
+
+  // ---------- Ballon de la passe à deux : il vole en cloche d'un dresseur à l'autre
+  updateBall3D(now) {
+    const b = this.ball, T = this.T;
+    if (!b) { if (this.ballMesh) this.ballMesh.visible = false; return; }
+    if (!this.ballMesh) {
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+      const g = cv.getContext('2d'); const cols = ['#ff6b35', '#ffffff', '#4ea8ff', '#ffffff'];
+      cols.forEach((c, i) => { g.fillStyle = c; g.fillRect(i * 32, 0, 32, 64); });
+      const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+      this.ballMesh = new T.Mesh(new T.SphereGeometry(0.32, 24, 16), this.P.toon('#ffffff', { map: tex }));
+      this.ballMesh.castShadow = true; this.s3.add(this.ballMesh);
+    }
+    const fly = 1700, k = b.drop ? 1 : Math.max(0, Math.min(1.2, (now - b.t0) / fly));
+    const pos = (i) => { const h = this.heroes[i] || this.heroes[0]; return { x: h.lane * LANE + (i ? -0.5 : 0.5), y: 2.1 + this.heroY3(h) }; };
+    const a = pos(b.from), z = pos(b.to);
+    let x = a.x + (z.x - a.x) * k, y = a.y + (z.y - a.y) * k + Math.sin(Math.min(1, k) * Math.PI) * 2.2;
+    if (b.drop) { const d = (now - b.drop) / 1000; x = z.x + d * 0.8; y = Math.max(0.32, z.y - d * 5 + Math.abs(Math.sin(d * 9)) * Math.max(0, 1 - d) * 0.8); }
+    this.ballMesh.visible = true;
+    this.ballMesh.position.set(x, y, 0.2);
+    this.ballMesh.rotation.z -= 0.15;
+  }
+
+  // ---------- Gardien de fin de monde : grande créature évoluée qui bloque le chemin et montre les poses
+  setBoss(b) {
+    if (this.bossM) { this.s3.remove(this.bossM.group); this.bossM = null; }
+    this.boss = b;
+    if (!b || !this.ready || !this.theme) return;
+    const keys = creatureModels([b.cr]);
+    const build = () => {
+      if (this.boss !== b) return;
+      const m = buildCreature3D(this, b.cr, true);
+      m.group.scale.multiplyScalar(2.3);
+      this.s3.add(m.group);
+      this.bossM = m; m.t0 = performance.now();
+    };
+    if (b.cr.model && !keys.every((k) => this.P.models && this.P.models.has(k))) this.P.preload(keys).then(build); else build();
+  }
+
+  // Pose réussie : le gardien sursaute (étoiles) ; à la dernière, il saute de joie
+  bossHit(last, nextPose) {
+    if (!this.boss) return;
+    this.boss.hitT = performance.now(); this.boss.won = last;
+    if (nextPose) this.boss.pose = nextPose;
+    const p = this.bossM && this.project(this.bossM.group.position.x, 3, this.bossM.group.position.z);
+    if (p) this.burst(p.x, p.y, last ? 60 : 30, ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2']);
+  }
+
+  updateBoss(now) {
+    const b = this.boss, m = this.bossM;
+    if (!b || !m) return;
+    const arrive = Math.min(1, (now - m.t0) / 1500), e = 1 - Math.pow(1 - arrive, 3);
+    const hit = b.hitT ? Math.max(0, 1 - (now - b.hitT) / 500) : 0;
+    m.group.position.set(Math.sin(now * 0.001) * 0.3, b.won ? Math.abs(Math.sin(now * 0.012)) * 0.6 : hit * 0.5, -22 + 15 * e);
+    m.group.rotation.y = Math.sin(now * 0.0015) * 0.15;
+    m.group.rotation.z = hit * Math.sin(now * 0.05) * 0.2;
+    m.animate(now, b.won ? 'happy' : 'idle', b.won ? null : b.pose);
+  }
+
+  // Combo : anneau doré qui s'élargit autour du dresseur et pluie d'étincelles ; tout le monde saute de joie
+  combo(lvl = 1) {
+    const T = this.T, now = performance.now();
+    for (const h of this.heroes) h.happyUntil = now + 1400;
+    for (const h of this.heroes) {
+      if (!h.m3) continue;
+      const ring = new T.Mesh(new T.TorusGeometry(1, 0.08, 8, 48), new T.MeshBasicMaterial({ color: lvl >= 3 ? '#ff70a6' : '#ffd166', transparent: true }));
+      ring.rotation.x = Math.PI / 2; ring.position.copy(h.m3.group.position); ring.position.y += 0.1;
+      this.s3.add(ring);
+      this.fxRings = this.fxRings || [];
+      this.fxRings.push({ ring, t0: now, lvl });
+    }
+    const A = this.anchor(0);
+    for (let k = 0; k < 2 + lvl; k++) setTimeout(() => this.burst(A.x + (Math.random() - 0.5) * A.u * 6, A.y - A.u * (1 + Math.random() * 2), 30, ['#ffd166', '#ffffff', '#ff70a6', '#7bdff2', '#4ade80']), k * 160);
+  }
+
+  updateFx(now) {
+    this.fxRings = (this.fxRings || []).filter((f) => {
+      const k = (now - f.t0) / 900;
+      if (k >= 1) { this.s3.remove(f.ring); f.ring.geometry.dispose(); return false; }
+      f.ring.scale.setScalar(1 + k * (3 + f.lvl)); f.ring.material.opacity = 1 - k;
+      return true;
+    });
+  }
+
+  // ---------- Créature compagnon : elle court à côté de son dresseur, saute de joie quand il réussit
+  // list : par joueur, { cr, level } ou null (niveau 1..5 : elle grandit ; au niveau 5 elle a évolué)
+  setCompanions(list) { this.companionSpec = list || []; this.rebuildCompanions = true; }
+
+  updateCompanions(now) {
+    if (this.rebuildCompanions || !this.companions) {
+      for (const c of this.companions || []) if (c) this.s3.remove(c.mesh.group);
+      let pending = false;
+      this.companions = (this.companionSpec || []).map((sp) => {
+        if (!sp || !sp.cr) return null;
+        const keys = creatureModels([sp.cr]);
+        if (sp.cr.model && !keys.every((k) => this.P.models && this.P.models.has(k))) { pending = true; return null; } // (pas encore chargé : on réessaie)
+        const mesh = buildCreature3D(this, sp.cr, sp.level >= COMPANION_MAX);
+        mesh.group.scale.multiplyScalar(0.5 + sp.level * 0.07);
+        this.s3.add(mesh.group);
+        return { mesh, sp, x: 0 };
+      });
+      this.rebuildCompanions = pending;
+    }
+    this.companions.forEach((c, i) => {
+      if (!c) return;
+      const h = this.heroes[i] || this.heroes[0], happy = now < (h.happyUntil || 0) || this.outro;
+      const side = this.heroes.length > 1 && i === 0 ? -1 : 1; // (à deux : chacun du côté extérieur)
+      const tx = h.lane * LANE + side * 1.35;
+      c.x += (tx - c.x) * 0.12;
+      const hop = this.speed > 0.4 ? Math.abs(Math.sin(now * 0.012 + i)) * 0.25 : 0;
+      c.mesh.group.position.set(c.x, this.heroY3(h) * 0.6 + hop + (happy ? Math.abs(Math.sin(now * 0.02)) * 0.4 : 0), 0.7);
+      c.mesh.group.rotation.y = this.outro ? 0.4 : Math.PI + (happy ? Math.sin(now * 0.02) * 0.6 : 0); // de dos, comme son dresseur
+      // (joie, marche quand on avance, et pendant une pose il la fait aussi)
+      const pose = this.ghostPose || h.holdPose || null;
+      c.mesh.animate(now, happy ? 'happy' : !pose && this.speed > 0.4 ? 'wave' : 'idle', pose);
+    });
+  }
+
   // Plan de caméra voulu selon l'épreuve en cours (x, y, z : décalage ; lx, ly, lz : décalage du point visé ; fov)
   directShot(now) {
     const shot = { x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0, fov: 55 }, k = this.stepKind, t = now / 1000;
     const meet = this.enc && (this.enc.state === 'waiting' || this.enc.state === 'befriend');
     if (this.outro || !this.theme) return shot;
     if (meet) Object.assign(shot, { x: 1.3, lx: 0.5, y: -0.2, z: -0.4, fov: 50 });            // rencontre : héros et créature dans le même plan
+    else if (k === 'boss') Object.assign(shot, { y: -0.7, z: 0.8, ly: 1.8, lz: 1, fov: 60 });               // gardien : contre-plongée, il paraît immense
     else if (k === 'dance' || k === 'karate') Object.assign(shot, { x: 2.6 + Math.sin(t * 0.8) * 0.5, y: 0.5, lx: -0.6, lz: 3, fov: 52 }); // de côté : on voit le coach
     else if (k === 'rope') Object.assign(shot, { x: 2.6, y: -0.9, z: -0.8, lx: -0.3, lz: 6.5, fov: 50 }); // de trois quarts, bas : on voit la corde passer sous les pieds
     else if (k === 'cubes') Object.assign(shot, { y: 0.5, z: 1.3, ly: 0.2, fov: 60 });           // plus large : on voit les cubes arriver
@@ -1505,7 +1723,7 @@ class Scene3D extends DepthScene {
     if (o.kind === 'tunnel') return this.makeTunnel();
     if (o.kind === 'low') return this.makeLog();
     if (o.kind === 'high') return this.makeArch();
-    if (o.kind === 'crate') return this.makeRock(0.95);
+    if (o.kind === 'crate') return this.makeRock(this.heroes.length > 1 ? 1.6 : 0.95); // (à deux : un gros rocher à taper ensemble)
     if (o.kind === 'wall') return this.makeWall(o.pose);
     // Étoile dans un couloir, buissons dans les autres
     const T = this.T, g = new T.Group(), lane = o.kind === 'gemL' ? -1 : 1;
@@ -1632,6 +1850,10 @@ class Scene3D extends DepthScene {
       if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1, this.theme.hero.extra, true, h.look); this.s3.add(h.m3.group); }
       this.applyPose(h, now);
     }
+    this.updateCompanions(now);
+    this.updateFx(now);
+    this.updateBoss(now);
+    this.updateBall3D(now);
     // Paysage suivant quand on avance dans la partie
     const fb = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage forcé
     const bi = Math.min(this.theme.biomes.length - 1, fb ? Number(fb) : Math.floor(this.progress * this.theme.biomes.length));
@@ -1749,6 +1971,15 @@ class Scene3D extends DepthScene {
     this.outlineMat.visible = !fx; // (sans effets : anciens contours « coque » ; avec : trait d'encre sur toute l'image)
     if (fx) { this.renderPass.scene = this.s3; this.composer.render(); }
     else this.renderer.render(this.s3, this.camera);
+    // Photo souvenir demandée : on la prend juste après le dessin (même image), en petit, en JPEG
+    if (this.snapReq) {
+      const done = this.snapReq; this.snapReq = null;
+      try {
+        const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.cv3.height / this.cv3.width);
+        c.getContext('2d').drawImage(this.cv3, 0, 0, c.width, c.height);
+        done(c.toDataURL('image/jpeg', 0.8));
+      } catch (e) { console.warn('Photo impossible', e); done(null); }
+    }
 
     // Calque 2D : bulles, mains, corde, ✔ / ✗, particules
     const ctx = this.ctx;

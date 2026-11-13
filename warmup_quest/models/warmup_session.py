@@ -95,6 +95,9 @@ class WarmupSession(models.Model):
         # Album de gommettes (liste complète tenue par le jeu)
         if isinstance(data.get('stickers'), list):
             player._set_stickers(data['stickers'])
+        # Créature compagnon (et son expérience)
+        if 'companion' in data:
+            player._set_companion(data.get('companion'))
 
         data = player._game_data()
-        return {'carnet': data['carnet'], 'best': data['best'], 'stickers': data['stickers']}
+        return {'carnet': data['carnet'], 'best': data['best'], 'stickers': data['stickers'], 'companion': data['companion']}

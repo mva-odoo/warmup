@@ -12,6 +12,21 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
+- **Carte des îles** : les mondes forment un chemin ; les 3 premiers sont ouverts, chaque île suivante s'ouvre quand on gagne
+  une étoile dans la précédente (réglage parent « 🗺️ Toutes les îles ouvertes »). Le dresseur est posé sur l'île où il en est.
+- **Surprise du jour** 🎁 : chaque jour, une créature spéciale attend dans un des mondes ouverts (rien n'est perdu si on ne vient pas).
+- **Compagnon** 🐾 : avant la première partie, l'enfant choisit Flammèche, Gouttin ou Feuillou. Le compagnon court à côté de lui,
+  fait les poses avec lui, saute de joie quand il réussit, grandit toutes les 2 parties et évolue au niveau 5.
+  On peut en changer dans le carnet (bouton 🐾 sur une créature amie). Enregistré dans la fiche Odoo.
+- **Combos** : 3 réussites d'affilée déclenchent une fête (bannière, anneau doré, étincelles, musique qui s'emballe).
+- **Gardien du monde** 👑 : à la fin de chaque monde, une grande créature évoluée bloque le chemin ; on copie ses 3 poses
+  et elle devient amie.
+- **Photo souvenir** 📸 à la fin de chaque partie, et **🏠 Ma chambre** : une pièce en 3D avec le dresseur, son compagnon,
+  les créatures amies sur l'étagère, un trophée par monde réussi, les photos au mur et l'affiche de gommettes.
+- **À deux** : le rocher devient un gros rocher qu'on tape ensemble, et une **passe de ballon** (lever la main quand le ballon
+  arrive pour le renvoyer) est ajoutée au milieu de la partie.
+- **Parents** : objectif du jour (une partie), réglage « 🌙 parties par jour » (1, 2, 3 ou sans limite) : une fois atteint, le jeu
+  félicite et dit « à demain ». Dans Odoo, la fiche de l'enfant montre ses parties du jour et des 7 derniers jours.
 - **Récompenses** : les étoiles gagnées (meilleure note de chaque monde) débloquent des objets pour le dresseur :
   couronne (3 ⭐), couronne de fleurs, cape, chapeau de magicien, oreilles de chat, ailes, chapeau de pirate,
   casque de viking, casque d'astronaute (30 ⭐). L'écran de fin annonce « Nouveau ! » ou montre la prochaine récompense.
@@ -94,7 +109,7 @@ Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis 
 **Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
 un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
 `&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
-`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
+`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&duo=1` (à deux), `&comp=feuillou:5` (compagnon), `&combo=2`, `?room=1` (chambre), `?starter=1` (choix du compagnon), `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 

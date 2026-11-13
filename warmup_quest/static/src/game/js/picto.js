@@ -145,6 +145,12 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, lift: Math.sin(t * 0.004) * S * 0.01, ...f }, '#16a34a');
       break;
     }
+    case 'ball': { // le ballon arrive en cloche, le bonhomme lève la main pour le renvoyer
+      const k = cyc(1600), bx = gx + S * (0.45 - k * 0.5), by = gy - S * (0.75 + Math.sin(k * Math.PI) * 0.25);
+      ctx.font = `${S * 0.16}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', bx, by);
+      stickFigure(ctx, { ...base, x: gx - S * 0.12, armL: 0.4, armR: k > 0.6 ? 2.9 : 0.6 });
+      break;
+    }
     case 'bubbles': {
       const k = cyc(1200), left = k < 0.5;
       for (const [bx, by, r] of [[-0.36, -0.75, 0.09], [0.36, -0.7, 0.08], [-0.3, -0.35, 0.07], [0.33, -0.3, 0.07]]) {

@@ -393,3 +393,74 @@ body.sim .next { bottom: 78px; }
 .trSwatch { width: 38px; height: 38px; }
 .trainerPanel .row .btn { font-size: 26px; padding: 6px 22px; }
 .trPartIcon { width: 28px; font-size: 22px; } .trParts { gap: 4px 8px; }
+
+/* ---------- Carte des îles ---------- */
+.worlds { position: relative; }
+.mapPath { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; overflow: visible; }
+.mapPath path { fill: none; stroke: rgba(255, 233, 160, 0.75); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 2 18; }
+.worldCard { z-index: 1; }
+.worldCard.locked canvas { filter: grayscale(0.85) brightness(0.65); }
+.lockVeil { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+.lockVeil span { font-size: 52px; }
+.lockVeil small { font-size: 14px; font-weight: 800; background: rgba(15,12,50,.55); padding: 2px 10px; border-radius: 99px; text-align: center; }
+.worldCard.here { box-shadow: 0 0 0 5px #ffd166, 0 0 30px rgba(255, 209, 102, 0.7); }
+.herePin { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); width: 64px; height: 80px;
+  animation: pinBob 1.2s ease-in-out infinite; filter: drop-shadow(0 6px 4px rgba(0,0,0,.4)); z-index: 2; }
+.herePin canvas { width: 64px; height: 80px; }
+@keyframes pinBob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -8px); } }
+.dailyBadge { position: absolute; left: 8px; top: 8px; font-size: 30px; animation: wobble 1.6s ease-in-out infinite; z-index: 2; }
+.worldCard.shake { animation: shake 0.4s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.lockVeil { justify-content: flex-start; padding-top: 30%; } .lockVeil small { font-size: 12px; max-width: 90%; }
+
+/* ---------- Compagnon ---------- */
+.starterPanel { background: linear-gradient(#fff, #eef4ff); color: #1e1b4b; border-radius: 28px; padding: 22px 28px; text-align: center;
+  box-shadow: 0 24px 70px rgba(0,0,0,.45); width: min(780px, 94vw); }
+.starterPanel h2 { margin: 0 0 4px; font-size: 34px; }
+.starterPanel p { margin: 0 0 14px; font-size: 18px; opacity: .75; }
+.starterRow { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.starterCard { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 220px; padding: 8px 6px 12px; border-radius: 22px;
+  border: 4px solid #e2e8f0; background: #fff; cursor: pointer; font-family: inherit; color: #1e1b4b; transition: transform .15s; }
+.starterCard:hover { transform: translateY(-6px) scale(1.04); border-color: #ffd166; box-shadow: 0 10px 24px rgba(0,0,0,.15); }
+.starterCard canvas { width: 210px; height: 195px; }
+.starterCard b { font-size: 26px; }
+.starterCard small { font-size: 16px; opacity: .7; }
+.crCard { position: relative; }
+.crCard.isComp { box-shadow: 0 0 0 4px #ffd166, 0 8px 20px rgba(0,0,0,.2); }
+.compBtn { position: absolute; top: 6px; right: 6px; border: 0; border-radius: 99px; padding: 4px 10px; font-size: 18px; cursor: pointer;
+  background: #ede9fe; font-family: inherit; font-weight: 800; color: #5b21b6; }
+.compBtn.on { background: #ffd166; color: #1e1b4b; cursor: default; }
+.compGrow { font-size: clamp(22px, 3vw, 30px); color: #fff; background: rgba(124, 58, 237, .55); padding: 6px 20px; border-radius: 99px;
+  animation: stickerIn 0.7s 2.8s cubic-bezier(.2, 1.8, .5, 1) both; }
+/* ---------- Combo ---------- */
+.combo { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%) rotate(-6deg); opacity: 0; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; line-height: 0.9; font-weight: 800; color: #fff; }
+.combo span { font-size: clamp(30px, 4vw, 48px); letter-spacing: 6px; text-shadow: 0 4px 0 #e85d04; }
+.combo b { font-size: clamp(70px, 10vw, 130px); color: #ffe066; text-shadow: 0 6px 0 #e85d04, 0 0 30px rgba(255, 210, 63, 0.8); }
+.combo.lvl3 b { color: #ff9ecf; text-shadow: 0 6px 0 #c2417a, 0 0 40px rgba(255, 112, 166, 0.9); }
+.combo.show { animation: comboIn 1.6s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes comboIn { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg) scale(0.2); } 18% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg) scale(1.15); }
+  30% { transform: translate(-50%, -50%) rotate(-6deg) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -80%) rotate(-6deg) scale(1); } }
+.combo { top: 52%; z-index: 6; }
+.bossName { font-weight: 800; font-size: 18px; margin-right: 6px; color: #7c3aed; }
+/* ---------- Photo souvenir et chambre ---------- */
+.polaroid { position: fixed; right: 4vw; bottom: 14vh; background: #fff; padding: 10px 10px 34px; border-radius: 6px; transform: rotate(4deg);
+  box-shadow: 0 14px 30px rgba(0,0,0,.45); animation: photoIn 0.8s cubic-bezier(.2, 1.4, .5, 1) both; z-index: 3; }
+.polaroid img { width: min(26vw, 300px); display: block; border-radius: 2px; }
+.polaroid span { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 22px; }
+@keyframes photoIn { 0% { opacity: 0; transform: rotate(-20deg) scale(1.6); filter: brightness(3); } 100% { opacity: 1; transform: rotate(4deg) scale(1); filter: none; } }
+#room { background: radial-gradient(circle at 50% 30%, #4c3fb4, #1e1b4b 75%); color: #fff; gap: 10px; }
+#room h2 { margin: 0; font-size: clamp(30px, 4vw, 46px); }
+#roomCanvas { width: min(1100px, 94vw); height: min(62vh, 620px); border-radius: 24px; border: 5px solid #fff; box-shadow: var(--shadow); }
+#results { gap: 6px; justify-content: flex-start; padding-top: 3vh; overflow-y: auto; }
+#results .stars { font-size: clamp(54px, 8vw, 92px); }
+#results .loot { font-size: clamp(30px, 4vw, 46px); }
+#results .row { margin-top: 4px; }
+/* ---------- Objectif du jour ---------- */
+.dayBar { margin: 6px auto 0; background: rgba(255, 255, 255, 0.14); border-radius: 99px; padding: 6px 18px; font-size: 18px; font-weight: 700; width: fit-content; }
+.worlds.resting .worldCard { filter: grayscale(0.6) brightness(0.75); }
+.dayGoal, .dayDone { font-size: clamp(20px, 2.6vw, 28px); font-weight: 800; padding: 4px 18px; border-radius: 99px; }
+.dayGoal { background: rgba(34, 197, 94, .55); }
+.dayDone { background: rgba(99, 102, 241, .6); }
+.lockVeil { padding-top: 14%; } .lockVeil small { order: -1; margin-bottom: 4px; }

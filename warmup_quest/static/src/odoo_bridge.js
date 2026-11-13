@@ -66,6 +66,14 @@
       openAddPlayer();
       return false; // la fenêtre « Ajouter un enfant » s'ouvre
     },
+    // Compagnon : gardé dans la fiche de l'enfant (envoyé avec la partie)
+    getCompanion(i = 0) { const p = selected()[i]; return p ? p.companion || null : null; },
+    setCompanion(i, c) {
+      const p = selected()[i];
+      if (!p) return;
+      p.companion = c;
+      if (phase !== 'results') rpc('/warmup/api/player/companion', { player_id: p.id, companion: c }).catch((e) => console.warn(e));
+    },
     players() {
       return selected().map((p) => ({ name: p.name, color: p.color, look: p.look }));
     },
@@ -89,8 +97,8 @@
       if (!list.length) return;
       const seq = currentSeq(result.world);
       // En coopératif, la partie est enregistrée pour chaque joueur
-      Promise.all(list.map((p) => rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false, stickers: p.stickers || [] })
-        .then((res) => { if (res) { p.carnet = res.carnet; p.best = res.best; p.stickers = res.stickers; } })))
+      Promise.all(list.map((p) => rpc('/warmup/api/session', { ...result, player_id: p.id, sequence_id: seq ? seq.id : false, stickers: p.stickers || [], companion: p.companion || null })
+        .then((res) => { if (res) { p.carnet = res.carnet; p.best = res.best; p.stickers = res.stickers; p.companion = res.companion; } })))
         .then(() => {
           const best = document.getElementById('resBest');
           if (best) best.textContent += ' · ✅ Enregistré dans Odoo';

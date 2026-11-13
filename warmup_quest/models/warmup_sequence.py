@@ -14,6 +14,10 @@ def _step_seconds(step):
         return 3 + (step.duration or 0)
     if m == 'posemix':
         return 2 + 3 * len(step._combo_parts())
+    if m == 'boss':
+        return 4 + 4 * len(step._combo_parts())
+    if m == 'ball':
+        return 3 + 2.2 * max(1, step.count)
     if m in ('dance', 'karate'):
         return 2.6 + (step.hold or 1.8) * len(step._combo_parts())
     if m == 'rope':
@@ -123,6 +127,11 @@ class WarmupStep(models.Model):
                 s.summary = f"Couper {max(1, s.count)} fruits en {s.duration:g} s"
             elif s.move == 'cubes':
                 s.summary = f"Taper {max(1, s.count)} cubes en rythme (un toutes les {s.hold:g} s)"
+            elif s.move == 'boss':
+                labels = dict(POSES)
+                s.summary = 'Gardien : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
+            elif s.move == 'ball':
+                s.summary = f"Passe de ballon ×{max(1, s.count)} (à deux)"
             elif s.move == 'posemix':
                 labels = dict(POSES)
                 s.summary = 'Poses : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
@@ -140,7 +149,7 @@ class WarmupStep(models.Model):
 
     @api.constrains('move', 'combo')
     def _check_posemix(self):
-        for s in self.filtered(lambda r: r.move == 'posemix'):
+        for s in self.filtered(lambda r: r.move in ('posemix', 'boss')):
             parts = s._combo_parts()
             if len(parts) < 2:
                 raise ValidationError("Une suite de poses doit contenir au moins 2 poses (ex. : armsUp,star,airplane).")
@@ -188,7 +197,9 @@ class WarmupStep(models.Model):
                 raise ValidationError('Le nombre de cubes doit être entre 2 et 40.')
             if s.move == 'cubes' and not 0.8 <= s.hold <= 3:
                 raise ValidationError('Le temps entre deux cubes doit être entre 0,8 et 3 secondes.')
-            if s.move in ('pose', 'posemix', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
+            if s.move == 'ball' and not 1 <= s.count <= 30:
+                raise ValidationError('Le nombre de passes doit être entre 1 et 30.')
+            if s.move in ('pose', 'posemix', 'boss', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
     def _to_game(self):
@@ -226,7 +237,9 @@ class WarmupStep(models.Model):
         if m in ('dance', 'karate'):
             parts = [p for p in self._combo_parts() if p in MIMIC_MOVES]
             return {'m': m, 'moves': parts, 'beat': self.hold or 1.8} if len(parts) >= 2 else None
-        if m == 'posemix':
+        if m in ('posemix', 'boss'):
             parts = [p for p in self._combo_parts() if p in dict(POSES)]
-            return {'m': 'posemix', 'poses': parts, 'hold': self.hold or 0.8} if len(parts) >= 2 else None
+            return {'m': m, 'poses': parts, 'hold': self.hold or 0.8} if len(parts) >= 2 else None
+        if m == 'ball':
+            return {'m': 'ball', 'n': max(1, self.count)}
         return None

@@ -9,7 +9,7 @@ const POSES = {
   flamingo: { icon: '🦩', label: 'Tiens sur un pied !',       say: 'Lève un genou et tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', dance: '💃', karate: '🥋', slice: '🍉', cubes: '🟦' };
+const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', boss: '👑', ball: '⚽', dance: '💃', karate: '🥋', slice: '🍉', cubes: '🟦' };
 const MOVE_SHORT = { jump: 'Saute', squat: 'Baisse-toi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
@@ -29,6 +29,7 @@ const Q = (n) => ({ m: 'rope', n });            // sauter à la corde n fois
 const U = (t) => ({ m: 'tunnel', t });          // rester baissé t secondes dans le tunnel
 const M = (t, n) => ({ m: 'moles', t, n });     // taper n taupes qui sortent autour du personnage
 const PM = (...poses) => ({ m: 'posemix', poses, hold: 0.8 }); // copier une suite de poses
+const BS = (...poses) => ({ m: 'boss', poses, hold: 0.9 });    // gardien du monde : copier ses poses pour qu'il devienne ami
 const DN = (...moves) => ({ m: 'dance', moves, beat: 1.8 });   // danser : imiter Tempo pas à pas
 const KA = (...moves) => ({ m: 'karate', moves, beat: 2.0 });  // karaté : imiter le maître geste par geste
 const SL = (t, n) => ({ m: 'slice', t, n });    // couper n fruits lancés en l'air (d'un geste de la main)
@@ -37,8 +38,10 @@ const CU = (n, beat = 1.4) => ({ m: 'cubes', n, beat }); // taper n cubes qui ar
 // Fruits à couper : émoji, couleur du jus
 const FRUITS = [['🍉', '#ff4d6d'], ['🍊', '#ffa62b'], ['🍎', '#ff3b3b'], ['🍍', '#ffd60a'], ['🥝', '#8ac926'], ['🍋', '#ffe94a'], ['🍑', '#ffb4a2'], ['🍇', '#9b5de5']];
 // Position d'un fruit en vol (repère des bulles : unité ≈ demi-mètre, v vers le bas) : il monte, s'arrête, retombe
+// (fall : le fruit tombe du ciel, passe par son point et continue sa chute)
 function fruitPos(f, now) {
   const t = Math.min(1.2, (now - f.born) / f.dur);
+  if (f.fall) return { u: f.u0 + (f.u1 - f.u0) * t, v: f.v0 + (f.v1 - f.v0) * t * t, t };
   return { u: f.u0 + (f.u1 - f.u0) * t, v: f.av + (f.v0 - f.av) * (2 * t - 1) * (2 * t - 1), t };
 }
 // Cubes : nombre, et instant d'arrivée de chacun
@@ -86,6 +89,8 @@ function stepLabel(s) {
     case 'tunnel': return 'Reste baissé dans le tunnel !';
     case 'moles': return 'Tape les taupes !';
     case 'posemix': return 'Copie les poses !';
+    case 'boss': return 'Le gardien du monde !';
+    case 'ball': return 'Passe-toi le ballon !';
     case 'dance': return 'Danse comme Tempo !';
     case 'karate': return 'Imite le maître karatéka !';
     case 'slice': return 'Coupe les fruits !';
@@ -111,6 +116,8 @@ function stepSpeech(s) {
     case 'tunnel': return 'Un tunnel ! Baisse-toi et reste en bas jusqu\'à la sortie !';
     case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
+    case 'ball': return 'Passe de ballon ! Quand le ballon arrive vers toi, lève la main pour le renvoyer à ton copain !';
+    case 'boss': return 'Oh ! Le gardien du monde bloque le chemin ! Copie ses poses pour devenir son ami ! ' + POSES[s.poses[0]].say;
     case 'dance': return 'Danse avec Tempo ! Fais comme lui, comme dans un miroir !';
     case 'karate': return 'Le maître karatéka te montre les gestes. Imite-le ! Kiaï !';
     case 'slice': return 'Des fruits sautent en l\'air ! Coupe-les en deux avec ta main, comme un ninja !';
@@ -140,6 +147,8 @@ function stepDuration(s) {
     case 'tunnel': return 1.5 + s.t + 1.5;
     case 'moles': return s.t;
     case 'posemix': return 2 + s.poses.length * 3;
+    case 'boss': return 4 + s.poses.length * 4;
+    case 'ball': return 3 + s.n * 2.2;
     case 'dance': case 'karate': return 2.6 + s.moves.length * s.beat;
     case 'slice': return s.t;
     case 'cubes': return 1.5 + s.n * s.beat + 3;
@@ -159,7 +168,8 @@ function maxPoints(s) {
     case 'rope': return s.n * 100 + 50;
     case 'tunnel': return 150 + 50;
     case 'moles': return s.n * 50 + 50;
-    case 'posemix': return s.poses.length * 100 + 50;
+    case 'posemix': case 'boss': return s.poses.length * 100 + 50;
+    case 'ball': return s.n * 60;
     case 'dance': case 'karate': return s.moves.length * 100 + 50;
     case 'slice': case 'cubes': return s.n * 50 + 50;
     default: return 0;
@@ -622,3 +632,6 @@ WORLDS.forEach((w, i) => {
   seq.splice(Math.round(n * 0.5), 0, M(12, 6));
   seq.splice(Math.round(n * 0.25), 0, U(4));
 });
+// Gardien de fin de monde (avant la respiration finale), dans tous les mondes
+const BOSS_POSES = [['star', 'airplane', 'armsUp'], ['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star']];
+WORLDS.forEach((w, i) => { const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });

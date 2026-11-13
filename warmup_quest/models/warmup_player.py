@@ -43,6 +43,11 @@ class WarmupPlayer(models.Model):
     catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
 
     stickers = fields.Json(string='Gommettes', default=list, help='Gommettes gagnées (émojis), dans l\'ordre.')
+    companion = fields.Json(string='Compagnon', help='Créature qui accompagne l\'enfant dans le jeu : {"id": code, "xp": parties}.')
+    companion_display = fields.Char(string='Créature compagnon', compute='_compute_companion')
+    week_sessions = fields.Integer(string='Parties (7 derniers jours)', compute='_compute_week')
+    week_minutes = fields.Float(string="Minutes d'échauffement (7 derniers jours)", compute='_compute_week', digits=(6, 1))
+    today_sessions = fields.Integer(string="Parties aujourd'hui", compute='_compute_week')
     sticker_count = fields.Integer(string='Nombre de gommettes', compute='_compute_stickers')
     sticker_display = fields.Char(string='Album', compute='_compute_stickers')
     session_count = fields.Integer(string='Parties jouées', compute='_compute_stats')
@@ -50,6 +55,42 @@ class WarmupPlayer(models.Model):
     total_minutes = fields.Float(string="Minutes d'échauffement", compute='_compute_stats', digits=(6, 1))
     creature_count = fields.Integer(string='Créatures amies', compute='_compute_stats')
     evolved_count = fields.Integer(string='Créatures évoluées', compute='_compute_stats')
+
+    @api.depends('companion')
+    def _compute_companion(self):
+        names = {c.code: c.name for c in self.env['warmup.creature'].search([])}
+        for p in self:
+            c = p.companion if isinstance(p.companion, dict) else None
+            if c and c.get('id') in names:
+                lvl = min(5, 1 + int(c.get('xp') or 0) // 2)
+                p.companion_display = f"{names[c['id']]} (niveau {lvl}{', évolué' if lvl >= 5 else ''})"
+            else:
+                p.companion_display = False
+
+    @api.depends('session_ids.date', 'session_ids.duration')
+    def _compute_week(self):
+        now = fields.Datetime.now()
+        week_ago = fields.Datetime.subtract(now, days=7)
+        today = fields.Date.context_today(self)
+        for p in self:
+            week = p.session_ids.filtered(lambda s: s.date and s.date >= week_ago)
+            p.week_sessions = len(week)
+            p.week_minutes = sum(week.mapped('duration')) / 60.0
+            p.today_sessions = len(week.filtered(lambda s: fields.Date.context_today(p, s.date) == today))
+
+    def _set_companion(self, comp):
+        """Compagnon envoyé par le jeu (créature connue, expérience bornée)."""
+        self.ensure_one()
+        if comp is None:
+            self.companion = False
+            return
+        if not isinstance(comp, dict) or not self.env['warmup.creature'].search_count([('code', '=', comp.get('id'))]):
+            return
+        try:
+            xp = max(0, min(1000, int(comp.get('xp') or 0)))
+        except (TypeError, ValueError):
+            xp = 0
+        self.companion = {'id': comp['id'], 'xp': xp}
 
     def _default_color(self):
         return PLAYER_COLORS[self.search_count([]) % len(PLAYER_COLORS)]
@@ -113,6 +154,7 @@ class WarmupPlayer(models.Model):
             'best': best,
             'stickers': self.stickers if isinstance(self.stickers, list) else [],
             'look': self._game_look(),
+            'companion': self.companion if isinstance(self.companion, dict) else None,
         }
 
     def _game_look(self):

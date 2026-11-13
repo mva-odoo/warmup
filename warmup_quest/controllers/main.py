@@ -60,6 +60,15 @@ class WarmupQuestController(http.Controller):
             player.color = color
         return player._game_data()
 
+    @http.route('/warmup/api/player/companion', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_player_companion(self, player_id=None, companion=None, **kwargs):
+        """Choix de la créature compagnon depuis le jeu."""
+        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
+        if not player:
+            raise UserError("Cet enfant n'existe plus.")
+        player._set_companion(companion)
+        return player._game_data()['companion']
+
     @http.route('/warmup/api/session', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_save_session(self, **params):
         """Reçoit le résumé d'une partie terminée."""

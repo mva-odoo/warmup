@@ -10,6 +10,7 @@
                 <field name="session_count"/>
                 <field name="best_score"/>
                 <field name="total_minutes"/>
+                <field name="week_sessions" optional="show"/>
                 <field name="creature_count"/>
                 <field name="evolved_count" optional="hide"/>
                 <field name="color" widget="color" optional="show"/>
@@ -46,11 +47,15 @@
                             <field name="avatar_hat"/>
                             <field name="avatar_glasses"/>
                             <field name="avatar_back"/>
+                            <field name="companion_display"/>
                             <field name="birth_year"/>
                             <field name="user_id"/>
                             <field name="active" invisible="1"/>
                         </group>
                         <group>
+                            <field name="today_sessions"/>
+                            <field name="week_sessions"/>
+                            <field name="week_minutes"/>
                             <field name="best_score"/>
                             <field name="total_minutes"/>
                             <field name="creature_count"/>

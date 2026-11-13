@@ -37,6 +37,8 @@ MOVES = [
     ('karate', 'Imiter le maître karatéka'),
     ('slice', 'Couper les fruits'),
     ('cubes', 'Taper les cubes en rythme'),
+    ('boss', 'Gardien du monde (copier ses poses)'),
+    ('ball', 'Passe de ballon (à deux)'),
 ]
 
 # Gestes que le coach (danse / karaté) peut demander

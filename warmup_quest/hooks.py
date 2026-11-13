@@ -73,6 +73,31 @@ def _KA(*moves):
     return {'move': 'karate', 'combo': ','.join(moves), 'hold': 2.0}
 
 
+def _BS(*poses):
+    return {'move': 'boss', 'combo': ','.join(poses), 'hold': 0.9}
+
+
+BOSS_POSES = [('star', 'airplane', 'armsUp'), ('armsUp', 'star', 'airplane'), ('airplane', 'armsUp', 'star')]
+
+
+# Ordre des mondes dans worlds.js (le gardien de chaque monde y est choisi par sa position)
+JS_WORLD_ORDER = ['jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'turbo', 'island', 'forest', 'banquise', 'ocean',
+                  'espace', 'bonbons', 'ferme', 'dinos', 'chateau']
+
+
+def _boss_step(world):
+    """Gardien de fin de monde (même règle que worlds.js)."""
+    i = JS_WORLD_ORDER.index(world) if world in JS_WORLD_ORDER else 0
+    return _BS(*BOSS_POSES[i % 3])
+
+
+def _with_boss(steps, world):
+    """Ajoute le gardien juste avant la respiration finale."""
+    steps = list(steps)
+    steps.insert(len(steps) - 1, _boss_step(world))
+    return steps
+
+
 def _SL(t, n):
     return {'move': 'slice', 'duration': t, 'count': n}
 
@@ -196,7 +221,7 @@ def post_init_hook(env):
     for world, name, steps in DEFAULT_SEQUENCES:
         if Sequence.search_count([('world', '=', world)]):
             continue
-        steps = steps if world in NO_FUN else _with_fun(steps, world)
+        steps = _with_boss(steps if world in NO_FUN else _with_fun(steps, world), world)
         Sequence.create({
             'name': name,
             'world': world,

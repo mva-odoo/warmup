@@ -26,7 +26,7 @@ const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 // Fruits et cubes : emplacements autour du dresseur, au bout de ses bras (unités des bulles : ~ demi-mètre, v vers le bas)
 const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1.1 }, { u: 0, v: -1.7 }, { u: 1.6, v: -1.1 }, { u: 2.2, v: -0.1 }, { u: 2.0, v: 0.9 }];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['bubbles', 'moles', 'pose', 'posemix', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -65,6 +65,58 @@ function trainerLooks() {
   });
 }
 
+// Choix du premier compagnon : trois créatures en 3D, on touche celle qu'on préfère
+function chooseStarter(i, name) {
+  return new Promise((resolve) => {
+    const bg = document.createElement('div');
+    bg.className = 'trainerBg';
+    bg.innerHTML = `<div class="starterPanel"><h2>🐾 ${name ? name + ', choisis' : 'Choisis'} ton compagnon !</h2>
+      <p>Il courra avec toi et grandira à chaque échauffement.</p><div class="starterRow"></div></div>`;
+    document.body.appendChild(bg);
+    const row = bg.querySelector('.starterRow');
+    const draw = () => {
+      row.innerHTML = '';
+      for (const id of STARTERS) {
+        const cr = CREATURES.find((c) => c.id === id);
+        if (!cr) continue;
+        const b = document.createElement('button');
+        b.className = 'starterCard';
+        b.innerHTML = `<canvas width="210" height="195"></canvas><b>${cr.name}</b><small>${cr.element}</small>`;
+        const g = b.querySelector('canvas').getContext('2d');
+        if (scene3d.ready && store('3d') !== false) { try { g.drawImage(scene3d.creatureThumb(cr, false), 0, 0, 210, 195); } catch (e) { console.warn(e); } }
+        else drawCreature(g, 105, 180, 120, cr, 'idle', 0, false, false);
+        b.onmouseenter = () => Audio8.cry(cr.id);
+        b.onclick = () => {
+          WUQStore.setCompanion(i, { id, xp: 0 });
+          Audio8.cry(id, true); Audio8.say(`Super ! ${cr.name} va courir avec toi !`);
+          bg.remove(); resolve();
+        };
+        row.appendChild(b);
+      }
+    };
+    draw();
+    Audio8.say(`Choisis ton compagnon : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`);
+    if (store('3d') !== false) scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES.filter((c) => STARTERS.includes(c.id))))).then(() => { if (bg.isConnected) draw(); }).catch(() => {});
+  });
+}
+
+// Chemin de la carte : courbe pointillée qui passe par le centre de chaque île, dans l'ordre
+function drawMapPath(wrap, nodes) {
+  const old = wrap.querySelector('svg.mapPath'); if (old) old.remove();
+  if (!wrap.isConnected || nodes.length < 2) return;
+  const box = wrap.getBoundingClientRect();
+  const pts = nodes.sort((a, b) => a.k - b.k).map(({ card }) => {
+    const r = card.getBoundingClientRect();
+    return [r.left - box.left + r.width / 2, r.top - box.top + r.height / 2];
+  });
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    d += y0 === y1 ? ` L ${x1} ${y1}` : ` C ${x0 + (x0 > box.width / 2 ? 120 : -120)} ${y0}, ${x1 + (x1 > box.width / 2 ? 120 : -120)} ${y1}, ${x1} ${y1}`;
+  }
+  wrap.insertAdjacentHTML('afterbegin', `<svg class="mapPath" width="${box.width}" height="${box.height}"><path d="${d}"/></svg>`);
+}
+
 function store(key, val) {
   try {
     if (val === undefined) return JSON.parse(localStorage.getItem('wuq_' + key));
@@ -83,12 +135,31 @@ function buildMenu() {
   extra.innerHTML = '';
   const ex = WUQStore.menuExtras(buildMenu);
   if (ex) extra.appendChild(ex);
-  for (const w of WORLDS) {
+  // Bandeau du jour : objectif (une partie), surprise du jour, et repos si la limite des parents est atteinte
+  const plays0 = Progress.playsToday(), limit0 = Number(store('dailyLimit')) || 0, d0 = Progress.daily();
+  const rest = limit0 && plays0 >= limit0;
+  const day = document.createElement('div');
+  day.className = 'dayBar';
+  day.innerHTML = rest ? `🌙 Bravo, échauffement fini pour aujourd'hui ! Reviens demain 👋`
+    : `${plays0 ? '✅' : '🎯'} Échauffement du jour ${plays0 ? 'réussi' : 'à faire'} · 🎁 Surprise : ${d0.creature ? d0.creature.name + ' dans ' : ''}${d0.world.name}`;
+  extra.appendChild(day);
+  wrap.classList.toggle('resting', !!rest);
+  // Carte des îles : chemin en serpentin, îles fermées tant que la précédente n'est pas réussie,
+  // le dresseur posé sur l'île où il en est, la surprise du jour marquée d'un cadeau
+  const daily = Progress.daily(), here = Progress.current();
+  const perRow = Math.max(2, Math.min(6, Math.floor(((wrap.clientWidth || Math.min(innerWidth, 1100)) + 18) / (160 + 18))));
+  wrap.style.gridTemplateColumns = `repeat(${perRow}, 1fr)`;
+  const nodes = [];
+  Progress.ordered().forEach((w, k) => {
     const best = WUQStore.getBest(w.id);
+    const open = Progress.unlocked(w);
     const card = document.createElement('div');
     card.setAttribute('role', 'button');
     card.tabIndex = 0;
-    card.className = 'worldCard';
+    card.className = 'worldCard' + (open ? '' : ' locked') + (w === here ? ' here' : '');
+    const row = Math.floor(k / perRow), col = k % perRow;
+    card.style.order = row * perRow + (row % 2 ? perRow - 1 - col : col); // (une ligne sur deux à l'envers : serpentin)
+    nodes.push({ card, k });
     card.style.setProperty('--c1', w.sky[0]);
     card.style.setProperty('--c2', w.hero.body);
     card.innerHTML = `
@@ -96,6 +167,12 @@ function buildMenu() {
       <div class="wName">${w.name}</div>
       <div class="wBest">${'★'.repeat(best.stars)}${'☆'.repeat(3 - best.stars)}</div>`;
     card.title = w.tagline;
+    if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
+    if (w === here) card.insertAdjacentHTML('beforeend', '<div class="herePin"><canvas width="80" height="100"></canvas></div>');
+    if (!open) {
+      const prev = Progress.ordered()[k - 1];
+      card.insertAdjacentHTML('beforeend', `<div class="lockVeil"><span>🔒</span><small>⭐ ${prev.name}</small></div>`);
+    }
     const cctx = card.querySelector('canvas').getContext('2d');
     let drawn = false;
     const anim = (t) => {
@@ -112,16 +189,25 @@ function buildMenu() {
       ce.addEventListener('keydown', (e) => e.stopPropagation());
       card.appendChild(ce);
     }
-    card.onclick = () => startWorld(w);
-    card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startWorld(w); } };
+    const go1 = () => {
+      if (wrap.classList.contains('resting')) { Audio8.say("C'est fini pour aujourd'hui, à demain !"); return; }
+      if (open) return startWorld(w);
+      Audio8.soft(); Audio8.say(`Gagne une étoile dans ${Progress.ordered()[k - 1].name} pour ouvrir cette île !`);
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    };
+    card.onclick = go1;
+    card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go1(); } };
     wrap.appendChild(card);
-  }
+  });
+  // Chemin pointillé qui relie les îles dans l'ordre (dessiné une fois la mise en page faite)
+  requestAnimationFrame(() => drawMapPath(wrap, nodes));
   // Monde surprise : pour ceux qui n'arrivent pas à choisir
   const sur = document.createElement('div');
   sur.setAttribute('role', 'button'); sur.tabIndex = 0;
   sur.className = 'worldCard surprise';
   sur.innerHTML = '<div class="surpriseIcon">🎲</div><div class="wName">Surprise !</div><div class="wBest">Un monde au hasard</div>';
-  const go = () => startWorld(WORLDS[Math.floor(Math.random() * WORLDS.length)]);
+  sur.style.order = 999;
+  const go = () => { const open = WORLDS.filter((x) => Progress.unlocked(x)); startWorld(open[Math.floor(Math.random() * open.length)]); };
   sur.onclick = go;
   sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   wrap.appendChild(sur);
@@ -135,7 +221,11 @@ function buildMenu() {
       .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
       if (!card.isConnected) return;
       try { cctx.clearRect(0, 0, 300, 400); cctx.drawImage(scene3d.thumb(w, menuLooks[0]), 0, 0, 300, 400); card.has3d = true; } catch (e) { console.warn(e); }
-    }, i * 60))).catch(() => {});
+    }, i * 60)))
+      .then(() => { // le dresseur de l'enfant sur l'île où il en est
+        const pin = wrap.querySelector('.herePin canvas');
+        if (pin) pin.getContext('2d').drawImage(scene3d.trainerThumb(menuLooks[0], 80), 0, 0, 80, 100);
+      }).catch(() => {});
   }
   const sp = $('speeds');
   sp.innerHTML = '';
@@ -160,6 +250,17 @@ function buildMenu() {
   fb.textContent = full ? '⛶ Plein écran ✓' : '⛶ Plein écran';
   fb.onclick = () => { store('fullscreen', !full); buildMenu(); };
   sp.appendChild(fb);
+  const lim = Number(store('dailyLimit')) || 0; // limite de parties par jour (0 = sans limite)
+  const lb = document.createElement('button');
+  lb.className = 'btn small' + (lim ? '' : ' ghost');
+  lb.textContent = lim ? `🌙 ${lim} partie${lim > 1 ? 's' : ''} par jour` : '🌙 Parties par jour : sans limite';
+  lb.onclick = () => { const next = { 0: 1, 1: 2, 2: 3, 3: 0 }[lim] ?? 0; store('dailyLimit', next); buildMenu(); };
+  sp.appendChild(lb);
+  const ob = document.createElement('button'); // toutes les îles ouvertes (sinon on les ouvre une à une)
+  ob.className = 'btn small' + (store('allOpen') ? '' : ' ghost');
+  ob.textContent = store('allOpen') ? '🗺️ Toutes les îles ouvertes ✓' : '🗺️ Îles à ouvrir une à une';
+  ob.onclick = () => { store('allOpen', !store('allOpen')); buildMenu(); };
+  sp.appendChild(ob);
   const mb = document.createElement('button'); // musique de fond
   mb.className = 'btn small' + (Audio8.musicEnabled() ? '' : ' ghost');
   mb.textContent = Audio8.musicEnabled() ? '🎵 Musique ✓' : '🎵 Musique coupée';
@@ -247,6 +348,10 @@ async function startWorld(w) {
   }
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
+  // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
+  if (!DEV.get('world')) {
+    for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
+  }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
   tracker.setPlayers(team.length);
   $('camBox').classList.toggle('duo', duo());
@@ -255,6 +360,9 @@ async function startWorld(w) {
   // En duo, chaque joueur a son personnage, à sa couleur
   const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166', extra: w.hero.extra })) : null;
   const looks = trainerLooks();
+  // Créatures compagnons (une par joueur) : elles courent à côté de leur dresseur
+  const comps = team.map((p, i) => { const c = WUQStore.getCompanion(i); const cr = Progress.companionCreature(c); return cr ? { cr, level: Progress.companionLevel(c) } : null; });
+  scene3d.setCompanions(comps);
   const next = store('3d') !== false ? scene3d : sceneFlat;
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
@@ -264,7 +372,7 @@ async function startWorld(w) {
     try {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
-      await scene.preloadWorld(w, looks);
+      await scene.preloadWorld(w, looks, creatureModels(comps.filter(Boolean).map((c) => c.cr)));
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
@@ -478,7 +586,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'dance', 'karate'];
+  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -486,6 +594,8 @@ class Game {
   constructor(w, mul) {
     this.world = w;
     this.steps = store('short') !== false ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+    // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
+    if (team.length > 1 && !this.steps.some((st) => st.m === 'ball')) this.steps.splice(Math.round(this.steps.length / 2), 0, { m: 'ball', n: 8 });
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
     this.mul = mul;
@@ -527,12 +637,17 @@ class Game {
 
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
+    if (s.m === 'ball' && this.np < 2) s = { m: 'bubbles', t: 10, n: 6 };
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
-    if (s.m === 'posemix' && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
+    if ((s.m === 'posemix' || s.m === 'boss') && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
     if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
       const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 1) / this.steps.length) * bs.length))].kit;
       const forced = DEV.get('creature') && CREATURES.find((c) => c.id === DEV.get('creature')); // (mode test)
-      s = { ...s, creature: forced || Carnet.pick(this.team.map((c) => c.id), kit) };
+      // Surprise du jour : la première rencontre de ce monde est la créature du jour
+      const daily = Progress.daily();
+      const surprise = !forced && !this.dailyGiven && daily.world.id === this.world.id && daily.creature ? daily.creature : null;
+      if (surprise) this.dailyGiven = true;
+      s = { ...s, creature: forced || surprise || Carnet.pick(this.team.map((c) => c.id), kit), daily: !!surprise };
     }
     return s;
   }
@@ -558,11 +673,19 @@ class Game {
       fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
-    Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
+    Audio8.say(s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
     if (s.creature) Audio8.cry(s.creature.id);
     scene.onStep(s, dur);
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
+    if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
+      const kit = this.world.biomes[this.world.biomes.length - 1].kit || 'meadow';
+      const pool = creaturesOf(kit).filter((c) => c.model).concat(creaturesOf(kit));
+      const cr = pool[(this.world.id.length + this.world.name.length) % Math.max(1, pool.length)] || CREATURES[0];
+      this.cur.boss = cr;
+      scene.setBoss && scene.setBoss({ cr, pose: s.poses[0] });
+      Audio8.cry(cr.id);
+    }
     if (s.m === 'moles') scene.moles = this.cur.moles;
     if (s.m === 'dance' || s.m === 'karate') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
@@ -570,6 +693,22 @@ class Game {
     if (s.m === 'cubes') { scene.cubes = this.cur.cubes; Audio8.music(true, 'dance'); }
     if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
     scene.setProgress(this.i / this.steps.length);
+  }
+
+  // Combo : toutes les 3 réussites d'affilée, grande fête (bannière, étincelles autour du dresseur,
+  // la musique s'emballe un moment, le compagnon saute de joie) ; plus la série est longue, plus c'est fort
+  comboCheck() {
+    if (this.streak < 3 || this.streak % 3) return;
+    const lvl = Math.min(3, this.streak / 3);
+    this.add(50 * lvl, `🔥 x${this.streak}`);
+    setTimeout(() => {
+      const el = $('combo');
+      el.innerHTML = `<span>COMBO</span><b>×${this.streak}</b>`;
+      el.className = 'combo'; void el.offsetWidth; el.className = 'combo show lvl' + lvl;
+      Audio8.combo(lvl);
+      Audio8.say(['', 'Combo !', 'Super combo !', 'Méga combo !'][lvl]);
+      scene.combo && scene.combo(lvl);
+    }, 500);
   }
 
   add(points, text, idx = 0) {
@@ -590,14 +729,16 @@ class Game {
     const s = c.s;
     if (s.m === 'smash' && type === 'smash') {
       if (now - c.start < 1600) return; // le rocher n'est pas encore arrivé
-      if (c.counts[idx] >= s.n) return; // ce joueur a fini, on attend l'autre
+      // À deux : un GROS rocher qu'on tape ensemble (tous les coups comptent, peu importe qui tape)
+      const team2 = this.np > 1, goal = team2 ? s.n * this.np + 1 : s.n;
+      if (!team2 && c.counts[idx] >= s.n) return; // (seul : on a fini)
       c.counts[idx]++;
       c.count++;
       this.add(this.pts(100), '+' + this.pts(100), idx);
       scene.flash(idx, true);
       Audio8.good();
       ui.setDetail(this.detail(c));
-      if (c.counts.every((n) => n >= s.n)) this.complete(now);
+      if (team2 ? c.count >= goal : c.counts.every((n) => n >= s.n)) this.complete(now);
     } else if (s.m === 'combo') {
       if (c.parts[idx] < s.parts.length && type === s.parts[c.parts[idx]]) {
         c.parts[idx]++;
@@ -619,8 +760,12 @@ class Game {
     const rows = (fn) => np === 1 ? fn(0) : c.counts.map((_, i) => `<div class="playerRow">${whoTag(i)}${fn(i)}</div>`).join('');
     switch (s.m) {
       case 'run': return dodgeDots(c, dodgeCount(s));
-      case 'jump': case 'squat': case 'smash':
+      case 'smash':
+        if (np > 1) return `<div class="runCount">🤜🤛 Ensemble : <b>${c.count}</b> / ${s.n * np + 1}</div>`;
+        return s.n === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
+      case 'jump': case 'squat':
         return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
+      case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
       case 'pose': return holdBar(c.hold / (s.hold * 1000), s.creature);
       case 'bubbles': return `<div class="runCount"><b>${c.popped}</b> / ${s.n} 🫧</div>`;
@@ -632,6 +777,9 @@ class Game {
       case 'cubes': return `<div class="runCount"><b>${c.cubeHits}</b> / ${s.n} 🟦</div>`;
       case 'dance': case 'karate': return '<div class="chips">' + s.moves.map((m, i) =>
         `<span class="chip ${i < c.mimicRes.length ? (c.mimicRes[i] ? 'ok' : 'miss') : i === c.mi ? 'now' : ''}">${MIMIC_ICONS[m]}</span>`).join('') + '</div>';
+      case 'boss': return `<div class="chips"><span class="bossName">👑 ${c.boss ? c.boss.name : ''}</span>` + s.poses.map((p, i) =>
+        `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${i < c.pi ? '💖' : POSES[p].icon}</span>`).join('') + '</div>' +
+        (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
       case 'posemix': return '<div class="chips">' + s.poses.map((p, i) =>
         `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${POSES[p].icon}</span>`).join('<i>›</i>') + '</div>' +
         (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
@@ -649,9 +797,9 @@ class Game {
     scene.faceCam = live && s.m === 'slice'; // fruits : le dresseur se tourne vers l'enfant (comme un miroir)
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
     const mimicMove = s && (s.m === 'dance' || s.m === 'karate') && c.showI >= 0 ? s.moves[Math.min(c.showI, s.moves.length - 1)] : null;
-    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' ? s.poses[Math.min(c.pi, s.poses.length - 1)]
+    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' || s.m === 'boss' ? s.poses[Math.min(c.pi, s.poses.length - 1)]
       : POSES[mimicMove] ? mimicMove : null; // (danse : la silhouette dorée montre la pose du coach sur ton dresseur)
-    scene.ghostOnly = !!mimicMove; // (pas d'estrade : le coach est déjà là)
+    scene.ghostOnly = !!mimicMove || (!!s && s.m === 'boss'); // (pas d'estrade : le coach / le gardien montre déjà la pose)
   }
 
   // Direction de chaque bras / jambe du joueur (repère écran en miroir, y vers le haut, unité = hauteur)
@@ -930,7 +1078,10 @@ class Game {
         c.fruitSpot = si;
         const top = spots[si], from = top.u + (Math.random() - 0.5) * 3.2;
         const [emoji, juice] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
-        c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: from, u1: 2 * top.u - from, v0: top.v + 4.2, av: top.v,
+        // Un fruit sur deux tombe du ciel (il passe par son point vers 75 % de sa chute), les autres sont lancés d'en bas
+        const fall = (c.fruitFall = !c.fruitFall);
+        const fallPart = fall ? { fall: true, u0: top.u + (Math.random() - 0.5) * 1.2, u1: top.u + (Math.random() - 0.5) * 1.2, v0: top.v - 4.5, v1: top.v + 3.5 } : {};
+        c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: from, u1: 2 * top.u - from, v0: top.v + 4.2, av: top.v, ...fallPart,
           spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
         c.lastFruit = now;
       }
@@ -1007,6 +1158,26 @@ class Game {
     }
   }
 
+  // ---------- Passe de ballon (à deux) : le ballon vole vers un joueur, qui lève la main au bon moment pour le renvoyer
+  updateBall(c, now) {
+    const s = c.s, fly = 1700 * Math.min(1.3, this.mul);
+    if (!c.ball) { c.ball = { from: 0, to: 1, t0: now + 1200, drop: 0 }; c.passes = 0; scene.ball = c.ball; }
+    const b = c.ball, k = (now - b.t0) / fly;
+    if (b.drop) { // ballon tombé : il rebondit, puis on relance
+      if (now - b.drop > 1200) { b.drop = 0; b.t0 = now; } // (même lancer, on réessaie)
+      return;
+    }
+    if (k < 0.72) return;
+    const body = tracker.bodies[b.to], hs = body && this.handsOf(body, b.to);
+    const up = !!(body && (body.state.armsUp || body.state.starArms || (hs && hs.some((h) => h.v < -0.6)) || (tracker.sim && !DEV.get('fakelimbs'))));
+    if (up) { // renvoyé !
+      c.passes++; this.add(this.pts(60), '+60', b.to); scene.flash(b.to, true); Audio8.hit();
+      b.from = b.to; b.to = b.to === 0 ? 1 : 0; b.t0 = now;
+      ui.setDetail(this.detail(c));
+      if (c.passes >= s.n) { scene.ball = null; this.complete(now); }
+    } else if (k > 1.15) { b.drop = now; scene.flash(b.to, false); Audio8.soft(); Audio8.say('Lève la main quand le ballon arrive !'); }
+  }
+
   // ---------- Copie les poses : une suite de poses à tenir un court instant chacune
   updatePosemix(c, now, dt) {
     const s = c.s, pose = s.poses[c.pi];
@@ -1016,7 +1187,14 @@ class Game {
       c.pi++; c.hold = 0;
       this.add(this.pts(100) * this.np, '+100');
       scene.flash(null, true);
-      if (c.pi >= s.poses.length) { this.complete(now); return; }
+      if (s.m === 'boss') { scene.bossHit && scene.bossHit(c.pi >= s.poses.length, s.poses[c.pi]); if (c.boss) Audio8.cry(c.boss.id, c.pi >= s.poses.length); }
+      if (c.pi >= s.poses.length) {
+        if (s.m === 'boss' && c.boss) { // le gardien devient ami
+          Carnet.add(c.boss.id); this.team.push(c.boss);
+          setTimeout(() => Audio8.say(`Bravo ! ${c.boss.name}, le gardien du monde, devient ton ami !`), 600);
+        }
+        this.complete(now); return;
+      }
       Audio8.good();
       scene.setDemoPose(s.poses[c.pi]);
       Audio8.say(POSES[s.poses[c.pi]].label);
@@ -1135,7 +1313,7 @@ class Game {
       const bonus = Math.round(50 * frac);
       if (bonus > 0) this.add(bonus);
     }
-    this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak);
+    this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); this.comboCheck();
     this.success++;
     this.collect(c.s.m === 'combo' ? 3 : 2);
     const rating = c.s.m === 'combo' || frac > 0.45 ? 'perfect' : 'good';
@@ -1189,10 +1367,10 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
-        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
+        posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
         slice: () => c.sliced / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
@@ -1211,7 +1389,7 @@ class Game {
       scene.resolve(false);
     }
     if (rating === 'miss' || rating === 'ok') { this.streak = 0; ui.setStreak(0); }
-    else { this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); ui.setStreak(this.streak); }
+    else { this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); ui.setStreak(this.streak); this.comboCheck(); }
     rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
   }
@@ -1246,7 +1424,8 @@ class Game {
     if (s.m === 'moles') this.updateMoles(c, now);
     if (s.m === 'slice') { this.updateSlice(c, now); if (c.done) return; }
     if (s.m === 'cubes') { this.updateCubes(c, now); if (c.done) return; }
-    if (s.m === 'posemix') { this.updatePosemix(c, now, dt); if (c.done) return; }
+    if (s.m === 'ball') { this.updateBall(c, now); if (c.done) return; }
+    if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (DEV.get('hold')) c.end = Math.max(c.end, now + 1000);
@@ -1260,12 +1439,22 @@ class Game {
     const id = this.world.id;
     // Record de chaque joueur (la partie compte pour tous en coopératif)
     const starsBefore = team.map((p, i) => WUQStore.totalStars(i));
+    this.playsToday = team.map((p, i) => Progress.addPlay(i)); // parties terminées aujourd'hui
     this.records = team.map((p, i) => {
       const best = WUQStore.getBest(id, i);
       const isBest = this.score > best.score;
       if (isBest) WUQStore.setBest(id, { stars: Math.max(stars, best.stars), score: this.score }, i);
       else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
       return { name: p.name, isBest, prev: best.score };
+    });
+    // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
+    this.compGrow = team.map((p, i) => {
+      const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
+      if (!cr) return null;
+      const before = Progress.companionLevel(c), next = { id: c.id, xp: (c.xp || 0) + 1 };
+      WUQStore.setCompanion(i, next);
+      const after = Progress.companionLevel(next);
+      return { cr, level: after, up: after > before, evolved: after === COMPANION_MAX && before < COMPANION_MAX };
     });
     // Récompenses débloquées pendant cette partie (chapeaux, cape, ailes…)
     this.unlocks = team.map((p, i) => Trainer.gained(starsBefore[i], WUQStore.totalStars(i)));
@@ -1425,6 +1614,28 @@ function showResults(g, stars) {
     friends.appendChild(title);
     for (const cr of g.team) friends.appendChild(creatureCard(cr, true, Carnet.evolved(cr.id)));
   }
+  // Objectif du jour (une partie) et limite fixée par les parents
+  const plays = (g.playsToday || [1])[0], limit = Number(store('dailyLimit')) || 0;
+  $('resDay').innerHTML = limit && plays >= limit
+    ? `<div class="dayDone">🌙 Échauffement fini pour aujourd'hui ! À demain 👋</div>`
+    : plays === 1 ? `<div class="dayGoal">✅ Échauffement du jour réussi !</div>` : '';
+  $('againBtn').classList.toggle('hidden', !!(limit && plays >= limit));
+  if (limit && plays >= limit) setTimeout(() => Audio8.say("Bravo ! Ton échauffement est fini pour aujourd'hui. À demain !"), 5200);
+  // Photo souvenir : la caméra a fait le tour du dresseur, on prend la photo (gardée pour la chambre)
+  $('resPhoto').innerHTML = '';
+  if (scene.snapshot) setTimeout(() => {
+    if (phase !== 'results') return;
+    scene.snapshot().then((url) => {
+      if (!url || phase !== 'results') return;
+      team.forEach((p, i) => Photos.add(i, url));
+      $('resPhoto').innerHTML = `<div class="polaroid"><img src="${url}" alt=""><span>📸</span></div>`;
+      Audio8.photo();
+    });
+  }, 2600);
+  // Le compagnon a grandi / évolué
+  const grow = (g.compGrow || []).find((x) => x && x.up);
+  $('resComp').innerHTML = grow ? `<div class="compGrow">🐾 <b>${grow.cr.name}</b> ${grow.evolved ? 'a évolué ! ✨' : `a grandi : niveau ${grow.level} !`}</div>` : '';
+  if (grow) setTimeout(() => { Audio8.cry(grow.cr.id, true); Audio8.say(grow.evolved ? `Incroyable ! ${grow.cr.name} a évolué !` : `${grow.cr.name} a grandi !`); }, 3000);
   // Nouvelles récompenses, sinon combien d'étoiles il manque pour la prochaine
   const got = (g.unlocks || []).flat();
   const nx = (g.nextRewards || [])[0];
@@ -1477,9 +1688,26 @@ function openCarnet() {
   const data = Carnet.get();
   const grid = $('carnetGrid');
   grid.innerHTML = '';
+  const comp = WUQStore.getCompanion(0);
   for (const cr of CREATURES) {
     const n = data[cr.id] || 0;
-    grid.appendChild(creatureCard(cr, n > 0, n >= EVOLVE_AT, n));
+    const card = creatureCard(cr, n > 0, n >= EVOLVE_AT, n);
+    // Créature amie : on peut la prendre comme compagnon (elle garde son expérience si c'est déjà elle)
+    if (n > 0 || STARTERS.includes(cr.id)) {
+      const isComp = comp && comp.id === cr.id;
+      const b = document.createElement('button');
+      b.className = 'compBtn' + (isComp ? ' on' : '');
+      b.innerHTML = isComp ? `🐾 Niveau ${Progress.companionLevel(comp)}` : '🐾';
+      b.title = 'Compagnon';
+      b.onclick = () => {
+        if (isComp) return;
+        WUQStore.setCompanion(0, { id: cr.id, xp: 0 }); Audio8.cry(cr.id, true);
+        Audio8.say(`${cr.name} est ton nouveau compagnon !`); openCarnet();
+      };
+      card.appendChild(b);
+      if (isComp) card.classList.add('isComp');
+    }
+    grid.appendChild(card);
   }
   const met = CREATURES.filter((c) => data[c.id]).length;
   $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures rencontrées · deviens ${EVOLVE_AT} fois ami avec une créature pour la faire évoluer !`;
@@ -1493,6 +1721,29 @@ function openCarnet() {
   show('carnet');
 }
 $('carnetBtn').onclick = openCarnet;
+$('roomBtn').onclick = () => scene3d.load().then(openRoom);
+
+// ---------------- Chambre du dresseur ----------------
+function openRoom() {
+  if (!scene3d.ready || store('3d') === false) { openCarnet(); return; }
+  let el = $('room');
+  if (!el) {
+    el = document.createElement('section');
+    el.id = 'room'; el.className = 'screen hidden';
+    el.innerHTML = '<h2>🏠 Ma chambre</h2><canvas id="roomCanvas"></canvas><div class="row"><button class="btn" id="roomBack">← Retour</button></div>';
+    document.body.appendChild(el);
+    $('roomBack').onclick = () => { scene3d.closeRoom(); show('room', false); show('menu'); };
+  }
+  show('menu', false); show('room');
+  const carnet = Carnet.get(), look = trainerLooks()[0];
+  const c = WUQStore.getCompanion(0), cr = Progress.companionCreature(c);
+  const friends = CREATURES.filter((x) => carnet[x.id]).sort((a, b) => carnet[b.id] - carnet[a.id]).map((x) => ({ cr: x, evolved: carnet[x.id] >= EVOLVE_AT }));
+  const data = { look, companion: cr ? { cr, level: Progress.companionLevel(c) } : null, friends,
+    trophies: Progress.ordered().map((w) => Progress.stars(w)), photos: Photos.list(0), stickers: WUQStore.getStickers(0) };
+  const keys = [...lookKeys(look), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...(cr ? [cr] : [])])];
+  scene3d.load().then(() => scene3d.P.preload(keys)).then(() => scene3d.openRoom($('roomCanvas'), data)).catch((e) => console.warn(e));
+  Audio8.theme('jardin3d');
+}
 $('carnetBack').onclick = () => { show('carnet', false); show('menu'); };
 
 $('againBtn').onclick = () => { show('results', false); startWorld(world); };
@@ -1547,7 +1798,7 @@ function draw(now) {
   if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
-    if (c.s.m === 'posemix') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
+    if (c.s.m === 'posemix' || c.s.m === 'boss') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
     else if (c.s.m === 'dance' || c.s.m === 'karate') {
       const mv = c.s.moves[Math.max(0, Math.min(c.s.moves.length - 1, c.showI))];
       drawPicto(pictoCtx, 150, 150, POSES[mv] ? { m: 'pose', pose: mv } : { m: mv === 'squat' ? 'squat' : mv }, now);
@@ -1568,6 +1819,9 @@ function draw(now) {
 if (DEV.get('world') || DEV.get('carnet')) {
   const w = WORLDS.find((x) => x.id === DEV.get('world'));
   if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
+  if (DEV.get('duo')) WUQStore._set('duo', true); // (mode test) partie à deux
+  if (DEV.get('comp')) { const [id, xp] = DEV.get('comp').split(':'); WUQStore.setCompanion(0, { id, xp: Number(xp) || 0 }); } // (mode test) compagnon
+  if (w && DEV.get('combo')) setTimeout(() => { if (game) { game.streak = 3 * Number(DEV.get('combo')); game.comboCheck(); } }, 9000); // (mode test)
   if (w && DEV.get('results')) setTimeout(() => { if (game) { game.score = 2600; game.collected = 14; game.finish(); } }, 7000); // (mode test) écran de fin
   if (DEV.get('carnet')) { // (mode test) carnet avec toutes les créatures connues, rendues en 3D
     const all = {}; CREATURES.forEach((c, i) => { all[c.id] = i % 4 === 3 ? EVOLVE_AT : 1; });
@@ -1579,6 +1833,16 @@ if (DEV.get('world') || DEV.get('carnet')) {
 }
 
 buildMenu();
+let menuResizeT = 0;
+addEventListener('resize', () => { clearTimeout(menuResizeT); menuResizeT = setTimeout(() => { if (phase === 'menu') buildMenu(); }, 300); });
+if (DEV.get('starter')) chooseStarter(0, 'Léo'); // (mode test)
+if (DEV.get('room')) { // (mode test) chambre remplie
+  const all = {}; CREATURES.slice(0, 8).forEach((c, i) => { all[c.id] = i % 3 === 0 ? EVOLVE_AT : 1; });
+  Carnet.get = () => all; WUQStore.setCompanion(0, { id: 'feuillou', xp: 5 });
+  WUQStore.getBest = (id) => ({ stars: ['jardin3d', 'turbo', 'island', 'ferme'].includes(id) ? 3 : id === 'forest' ? 2 : 0, score: 0 });
+  WUQStore.getStickers = () => ['🦄', '🐳', '🦖', '🌈', '🚀', '🍦', '🐙'];
+  scene3d.load().then(openRoom);
+}
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: 'female-c', body: 'male-d', legs: 'female-a', hat: 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.

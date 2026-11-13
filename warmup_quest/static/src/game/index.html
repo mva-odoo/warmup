@@ -18,6 +18,7 @@
     <div id="menuExtra"></div>
     <div id="worlds" class="worlds"></div>
     <button class="btn small ghost" id="carnetBtn">📖 Mes gommettes et créatures</button>
+    <button class="btn small ghost" id="roomBtn">🏠 Ma chambre</button>
     <!-- Réglages pour les grands, repliés par défaut -->
     <details class="parents">
       <summary>⚙️ Réglages (parents)</summary>
@@ -83,6 +84,7 @@
       <div class="timer"><div id="cardTimer"></div></div>
     </div>
     <div id="feedback" class="feedback"></div>
+    <div id="combo" class="combo"></div>
     <div id="next" class="next"></div>
     <div id="lost" class="lost hidden">👀 Je ne te vois plus ! Reviens devant la caméra</div>
   </section>
@@ -107,6 +109,9 @@
     <div id="resStars" class="stars"></div>
     <div id="resLoot" class="loot"></div>
     <div id="resUnlock"></div>
+    <div id="resComp"></div>
+    <div id="resPhoto"></div>
+    <div id="resDay"></div>
     <div id="resSticker" class="stickerWin"></div>
     <div id="resTeam" class="team"></div>
     <div class="row">
@@ -144,6 +149,7 @@
   <script src="js/creatures3d.js"></script>
   <script src="js/scene3d.js"></script>
   <script src="js/trainer.js"></script>
+  <script src="js/progress.js"></script>
   <!-- WUQ_BACKEND -->
   <script src="js/game.js"></script>
 </body>
