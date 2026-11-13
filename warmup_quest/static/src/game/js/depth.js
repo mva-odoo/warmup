@@ -111,6 +111,16 @@ class DepthScene {
     this.moles = [];     // taupes qui sortent autour des héros { hero, u, v, born, state, t }
     this.coach = null;   // coach à imiter (danse / karaté) : { move, style, pal, t0 }
     this.cue = null;     // grand signe d'action au-dessus du héros : { icon, k (0..1), ok }
+    // Épreuves « à portée de main » : le héros imite en direct les bras / jambes de son joueur
+    this.mirror = false; // le héros suit les membres du joueur
+    this.limbs = null;   // par héros : { 'arm-left': [dx, dy], … } (directions, y vers le haut)
+    this.ghostPose = null; // silhouette dorée de la pose à prendre
+    this.closeUp = false;  // caméra rapprochée (bulles, taupes, poses, fruits)
+    this.fruits = [];      // fruits à couper (voir fruitPos) ; coupés : deux moitiés qui tombent
+    this.cubes = [];       // cubes en rythme { side, born, arrive, u, v, hit, missed }
+    this.cubeTargets = null; // cibles des cubes (où mettre les mains)
+    this.trails = [];      // traînées des mains (coups de sabre)
+    this.sliceOn = false;
     this.obs = null;
     this.enc = null;
     this.decor = [];
@@ -302,6 +312,8 @@ class DepthScene {
     this.setHoldPose(null);
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
+    this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = [];
+    this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
     this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
@@ -630,6 +642,11 @@ class DepthScene {
       let k = Math.min(1, (now - m.born) / 200);                     // sortie du trou
       if (m.state === 'hide') k = Math.max(0, 1 - (now - m.t) / 250);
       const bonk = m.state === 'bonk' ? Math.max(0, 1 - (now - m.t) / 450) : 0;
+      // Petite île d'herbe qui flotte (le trou de la taupe est dedans)
+      ctx.fillStyle = '#7a4a2a';
+      ctx.beginPath(); ctx.moveTo(x - r * 1.75, y + r * 0.95); ctx.quadraticCurveTo(x, y + r * 3.1, x + r * 1.75, y + r * 0.95); ctx.fill();
+      ctx.fillStyle = '#5cc96b'; ctx.strokeStyle = '#2f8f46'; ctx.lineWidth = Math.max(2, r * 0.08);
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.9, r * 1.8, r * 0.55, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       // Trou
       ctx.fillStyle = 'rgba(60, 35, 20, 0.85)';
       ctx.beginPath(); ctx.ellipse(x, y + r * 0.9, r * 1.2, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -690,14 +707,19 @@ class DepthScene {
         ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + k * 1.5), y + Math.sin(a) * r * (1 + k * 1.5), 5, 0, Math.PI * 2); ctx.fill();
       }
     }
-    this.hands.forEach((list, i) => {
+    this.hands.forEach((list0, i) => {
+      // (héros qui imite le joueur : les gants sont dessinés pile sur ses mains, à cette image)
+      const list = (this.mirror && this.avatarHands && this.avatarHands[i]) || list0;
       if (!list) return;
       const A = this.anchor(i), h = this.heroes[i];
       for (const hd of list) {
         const x = A.x + hd.u * A.u, y = A.y + hd.v * A.u, r = A.u * 0.2;
         // Le bras, de l'épaule au gant : on voit jusqu'où on touche
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.lineWidth = Math.max(4, A.u * 0.12); ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(A.x + Math.sign(hd.u || 1) * A.u * 0.35, A.y); ctx.lineTo(x, y); ctx.stroke();
+        if (!(h && h.m3 && h.m3.human && this.mirror)) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.lineWidth = Math.max(4, A.u * 0.12); ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(A.x + Math.sign(hd.u || 1) * A.u * 0.35, A.y); ctx.lineTo(x, y); ctx.stroke();
+        }
+        if (this.sliceOn) this.drawTrail(i, list.indexOf(hd), x, y, r, now);
         ctx.fillStyle = 'rgba(255, 255, 200, 0.35)';
         ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = (h && h.pal && h.pal.accent) || '#ffd166'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;

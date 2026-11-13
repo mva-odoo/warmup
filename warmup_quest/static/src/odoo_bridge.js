@@ -236,6 +236,7 @@
     .addPlayerBox .swatches { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
     .addPlayerBox .sw { width:42px; height:42px; border-radius:50%; border:4px solid #fff; background:var(--c); box-shadow:0 0 0 2px #e2e8f0; cursor:pointer; }
     .addPlayerBox .sw.on { box-shadow:0 0 0 4px var(--c); transform:scale(1.1); }
+    .addPlayerBox .btn.ghost { color:#1e1b4b; background:#e2e8f0; }
     .addPlayerBox .addErr { color:#dc2626; margin:0; min-height:1em; }
     .seqSelect { margin-top:8px; width:100%; font-family:inherit; font-size:15px; border:0; border-radius:10px; padding:4px 8px; }
   `;

@@ -14,6 +14,13 @@ const pictoCtx = $('cardPicto').getContext('2d');
 
 // Joueurs de la partie : 1, ou 2 en coopératif (chacun a sa couleur sur la vidéo)
 const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
+// Épreuves où le héros imite en direct les bras et les jambes de son joueur
+const LIVE_STEPS = new Set(['bubbles', 'moles', 'pose', 'posemix', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+// (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
+function fakeLimbs(i = 0) {
+  const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
+  return { 'arm-left': [-Math.cos(a), Math.sin(a)], 'arm-right': [Math.cos(b), Math.sin(b)], 'leg-left': [-0.25, -1], 'leg-right': [0.25, -1] };
+}
 let team = [{ name: '', color: null }];
 let colors = [];
 const duo = () => team.length > 1;
@@ -600,9 +607,35 @@ class Game {
     }
   }
 
+  // ---------- Épreuves « à portée de main » : le héros imite son joueur, caméra rapprochée
+  updateLive(c) {
+    const s = c && !c.done ? c.s : null;
+    const live = !!s && LIVE_STEPS.has(s.m);
+    scene.mirror = live;
+    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate'].includes(s.m);
+    scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
+    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' ? s.poses[Math.min(c.pi, s.poses.length - 1)] : null;
+  }
+
+  // Direction de chaque bras / jambe du joueur (repère écran en miroir, y vers le haut, unité = hauteur)
+  limbsOf(b, i = 0) {
+    if (DEV.get('fakelimbs')) return fakeLimbs(i);
+    if (!b.lm || !b.state.present) return null;
+    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.4;
+    const dir = (a, z) => (vis(a) && vis(z) ? [-(lm[z].x - lm[a].x) / 0.75, -(lm[z].y - lm[a].y)] : null);
+    const legs = tracker.mode !== 'upper';
+    return { 'arm-left': dir(11, 15), 'arm-right': dir(12, 16), 'leg-left': legs ? dir(23, 27) : null, 'leg-right': legs ? dir(24, 28) : null };
+  }
+
   // ---------- Bulles autour du personnage sur le chemin ; les mains du joueur y sont des gants lumineux.
   // Repère : épaules du joueur / du héros, unité = longueur du torse (x vers la droite de l'écran).
-  handsOf(b) {
+  handsOf(b, i = 0) {
+    // Héros 3D qui imite le joueur : on touche avec SES mains (ce que l'enfant voit à l'écran)
+    if (scene.mirror && scene.avatarHands && scene.avatarHands[i] && (b.state.present || DEV.get('fakelimbs'))) return scene.avatarHands[i];
+    if (DEV.get('fakelimbs')) { // (mode test) mains au bout des bras simulés
+      const L = fakeLimbs(i);
+      return [['arm-left', -0.35], ['arm-right', 0.35]].map(([k, su]) => { const [x, y] = L[k], n = Math.hypot(x, y) || 1; return { u: su + x / n * 1.05, v: -y / n * 1.05 }; });
+    }
     if (!b.lm || !b.T || !b.state.present) return null;
     const sh = mid(b.lm[11], b.lm[12]);
     // Poignets et bouts des doigts (le plus visible des deux pour chaque main)
@@ -614,11 +647,29 @@ class Game {
     return out;
   }
 
+  // Le héros 3D imite-t-il ce joueur ? (bulles et taupes au bout de SES bras, plus loin du corps)
+  avatarReach(i) { const h = scene.heroes && scene.heroes[i]; return !!(scene.mirror && h && h.m3 && h.m3.human); }
+
+  // Une main (ou tout le bras, du coude à la main) touche-t-elle le point (u, v) ?
+  touches(hs, u, v, rad) {
+    return !!hs && hs.some((hd) => {
+      if (hd.su == null) return Math.hypot(hd.u - u, hd.v - v) < rad;
+      const ex = hd.su + (hd.u - hd.su) * 0.45, ey = hd.sv + (hd.v - hd.sv) * 0.45; // depuis le coude
+      const dx = hd.u - ex, dy = hd.v - ey, t = Math.max(0, Math.min(1, ((u - ex) * dx + (v - ey) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(ex + dx * t - u, ey + dy * t - v) < rad;
+    });
+  }
+
+  // Point sur l'arc que les bras du héros peuvent atteindre (a : 0 = à l'horizontale, négatif = vers le haut)
+  reachPoint(side, a, dist = 1.85) { return { u: side * (0.6 + Math.cos(a) * dist), v: 0.25 + Math.sin(a) * dist }; }
+
   spawnBubble(c, hero, now) {
     for (let tries = 0; tries < 6; tries++) {
       const side = Math.random() < 0.5 ? -1 : 1;
-      // À portée de bras d'enfant (bras ≈ 1 torse) : ni trop loin sur le côté, ni trop haut
-      const bb = { hero, u: side * (0.5 + Math.random() * 0.5), v: -1.0 + Math.random() * 1.0, r: 0.38, born: now, p: Math.random() * 6 };
+      // À portée de bras : au bout des bras du héros 3D, sinon à portée de bras d'enfant (bras ≈ 1 torse)
+      const pos = this.avatarReach(hero) ? this.reachPoint(side, -1.25 + Math.random() * 1.35)
+        : { u: side * (0.5 + Math.random() * 0.5), v: -1.0 + Math.random() * 1.0 };
+      const bb = { hero, u: pos.u, v: pos.v, r: this.avatarReach(hero) ? 0.5 : 0.38, born: now, p: Math.random() * 6 };
       if (c.bubbles.every((o) => o.hero !== hero || Math.hypot(o.u - bb.u, o.v - bb.v) > 0.8)) { c.bubbles.push(bb); return; }
     }
   }
@@ -635,17 +686,17 @@ class Game {
   }
 
   updateBubbles(c, now) {
-    const hands = tracker.bodies.map((b) => this.handsOf(b));
+    const hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
     scene.hands = hands;
     tracker.bodies.forEach((b, i) => {
-      if (tracker.sim || !hands[i]) return;
+      if ((tracker.sim && !DEV.get('fakelimbs')) || !hands[i]) return;
       while (c.bubbles.filter((bb) => bb.hero === i).length < 2) this.spawnBubble(c, i, now);
     });
     for (let i = c.bubbles.length - 1; i >= 0 && !c.done; i--) {
       const bb = c.bubbles[i];
       if (now - bb.born < 300) continue; // le temps de la voir apparaître
       const hs = hands[bb.hero];
-      if (hs && hs.some((hd) => Math.hypot(hd.u - bb.u, hd.v - bb.v) < bb.r + 0.35)) this.popBubble(c, i, now);
+      if (this.touches(hs, bb.u, bb.v, bb.r + 0.3)) this.popBubble(c, i, now);
     }
   }
 
@@ -782,12 +833,14 @@ class Game {
 
   // ---------- Taupes : elles sortent à gauche / à droite, en haut / en bas ; on les tape avec la main
   updateMoles(c, now) {
-    const SPOTS = [[-1.0, -0.75], [1.0, -0.75], [-1.1, 0.45], [1.1, 0.45]]; // à portée de bras d'enfant
+    // Trous bien écartés du personnage, au bout de ses bras (en haut / à l'horizontale, de chaque côté)
+    const far = this.avatarReach(0);
+    const SPOTS = far ? [[-2.6, -1.35], [2.6, -1.35], [-2.95, 0.3], [2.95, 0.3]] : [[-1.0, -0.75], [1.0, -0.75], [-1.1, 0.45], [1.1, 0.45]];
     const up = 1700 * Math.min(1.3, this.mul), gap = 900 * Math.min(1.3, this.mul);
-    const hands = tracker.bodies.map((b) => this.handsOf(b));
+    const hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
     scene.hands = hands;
     // Une nouvelle taupe de temps en temps (2 maximum par joueur)
-    if (!tracker.sim && now - (c.lastMole || 0) > gap) {
+    if ((!tracker.sim || DEV.get('fakelimbs')) && now - (c.lastMole || 0) > gap) {
       const i = (c.moleTurn = ((c.moleTurn || 0) + 1) % this.np);
       const busy = c.moles.filter((m) => m.hero === i && m.state === 'up');
       if (hands[i] && busy.length < 2) {
@@ -800,7 +853,7 @@ class Game {
     for (const m of c.moles) {
       if (m.state !== 'up') continue;
       const hs = hands[m.hero];
-      if (now - m.born > 200 && hs && hs.some((hd) => Math.hypot(hd.u - m.u, hd.v - (m.v - 0.3)) < 0.8)) {
+      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.3, 0.8)) {
         m.state = 'bonk'; m.t = now; c.bonked++;
         this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
         ui.setDetail(this.detail(c));
@@ -928,6 +981,7 @@ class Game {
 
   complete(now) {
     const c = this.cur;
+    if (DEV.get('hold')) { c.end = now + 60000; return; } // (mode test) l'épreuve reste affichée
     c.done = true;
     const frac = Math.max(0, (c.end - now) / c.dur);
     if (c.s.m !== 'combo') {
@@ -1008,6 +1062,7 @@ class Game {
   update(now) {
     if (this.over) return;
     const c = this.cur;
+    this.updateLive(c);
     if (!c) return this.nextStep(now);
     if (c.done) { if (now >= this.gapUntil) this.nextStep(now); return; }
     const s = c.s, st = tracker.state;
@@ -1035,6 +1090,7 @@ class Game {
     if (s.m === 'posemix') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
+    if (DEV.get('hold')) c.end = Math.max(c.end, now + 1000);
     if (now >= c.end) this.timeout(now);
   }
 

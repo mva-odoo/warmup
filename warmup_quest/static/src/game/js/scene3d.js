@@ -32,7 +32,10 @@ const HERO_POSES = {
 };
 const HERO_CHILD = { UpperArmL: 'LowerArmL', UpperArmR: 'LowerArmR', UpperLegL: 'LowerLegL', UpperLegR: 'LowerLegR', LowerLegR: 'FootR' };
 // Réglage des accessoires du dresseur par rapport aux os (tête, torse), en unités du jeu
-const HUMAN_FIT = { head: 0.8, arm: 1.6, hatY: 0.6, glassesY: 0.34, glassesZ: 0.36, bagY: 0.3, bagZ: 0.3 };
+// Axe de chaque os dans le modèle (au repos : bras à l'horizontale, jambes vers le bas)
+const HUMAN_AXIS = { 'arm-left': [1, 0, 0], 'arm-right': [-1, 0, 0], 'leg-left': [0, -1, 0], 'leg-right': [0, -1, 0] };
+const HUMAN_HAND = 0.27; // bout de la main, le long de l'axe du bras (unités du modèle)
+const HUMAN_FIT = { head: 0.8, arm: 1.25, hatY: 0.6, glassesY: 0.34, glassesZ: 0.36, bagY: 0.3, bagZ: 0.3 };
 
 // Dresseur (petits humains du pack Mini Characters de Kenney, CC0) : 13 apparences au choix
 const HUMAN_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
@@ -499,7 +502,7 @@ class Scene3D extends DepthScene {
     this.shadow(hat); this.shadow(bag); this.outline(hat); this.outline(bag);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
-    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, cur: null, last: 0 } };
+    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, cur: null, last: 0 } };
   }
 
   // Dresseur immobile (aperçus) : première image de l'animation de repos + pose
@@ -535,6 +538,32 @@ class Scene3D extends DepthScene {
     return this.load().then(() => this.P.preload(models.map((model) => humanKey({ model }))));
   }
 
+  // Membres du joueur que ce héros doit imiter (ou null)
+  liveLimbs(h) {
+    if (!this.mirror || !this.limbs || !h.m3 || !h.m3.human) return null;
+    return this.limbs[this.heroes.indexOf(h)] || null;
+  }
+
+  // Silhouette dorée de la pose à prendre, posée sur le héros (verte quand c'est bon)
+  updateGhost(h, m) {
+    const r = m.human, want = HUMAN_POSES[this.ghostPose] ? this.ghostPose : null;
+    if (!want) { if (r.ghost) r.ghost.group.visible = false; return; }
+    if (!r.ghost) {
+      const g = this.makeHumanHero({ body: '#ffd166' }, false, r.look);
+      g.isGhost = true;
+      r.ghostMat = new this.T.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.42, depthWrite: false });
+      g.group.traverse((o) => { if (o.isMesh) { o.material = r.ghostMat; o.castShadow = false; o.renderOrder = 3; } });
+      g.group.scale.setScalar(1.07);
+      m.group.add(g.group);
+      r.ghost = g;
+    }
+    if (r.ghostPose !== want) { this.poseHumanStill(r.ghost, want); r.ghostPose = want; }
+    r.ghost.group.position.set(0, 0, 0.05);
+    r.ghost.group.visible = true;
+    r.ghostMat.color.set(h.holdPose ? '#4ade80' : '#ffd166');
+    r.ghostMat.opacity = 0.32 + 0.12 * Math.sin(performance.now() * 0.006);
+  }
+
   // Dresseur : animation, poses (bras / jambes visés), accessoires posés sur la tête et le dos
   applyHumanPose(h, m, pose, now) {
     const r = m.human, T = this.T;
@@ -547,9 +576,12 @@ class Scene3D extends DepthScene {
     // Proportions « dessin animé » lisibles de dos : tête un peu plus petite, bras plus longs (la pose se voit)
     if (r.bones.head) r.bones.head.scale.setScalar(HUMAN_FIT.head);
     const P = HUMAN_POSES[pose];
-    const long = P ? HUMAN_FIT.arm : 1; // bras allongés seulement pendant une pose
-    for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(1 + (long - 1) / 4, long, 1 + (long - 1) / 4);
-    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[bone], null, dir, m.inner, [0, -1, 0]);
+    const L = !m.isGhost && this.liveLimbs(h); // imitation en direct du joueur
+    const long = P || L ? HUMAN_FIT.arm : 1; // bras un peu plus longs pendant une pose (on la voit mieux)
+    for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(long, 1, 1);
+    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[bone], null, dir, m.inner, HUMAN_AXIS[bone]);
+    if (L) for (const [bone, d] of Object.entries(L)) if (d && r.bones[bone]) this.aimBone(r.bones[bone], null, [d[0], d[1], 0.08], m.inner, HUMAN_AXIS[bone]);
+    if (!m.isGhost) this.updateGhost(h, m);
     m.ring.visible = !!h.holdPose;
     m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
     m.group.rotation.z = 0;
@@ -562,6 +594,17 @@ class Scene3D extends DepthScene {
     at(r.bones.head, 0, HUMAN_FIT.hatY, 0, r.hat);
     at(r.bones.head, 0, HUMAN_FIT.glassesY, -HUMAN_FIT.glassesZ, r.glasses);
     at(r.bones.torso, 0, HUMAN_FIT.bagY, HUMAN_FIT.bagZ, r.bag);
+    // Position des mains du héros, dans le repère des bulles / taupes (unité = demi-mètre autour des épaules)
+    if (L) {
+      const idx = this.heroes.indexOf(h), sc = m.scale, ax = m.group.position.x, ay = m.group.position.y + 1.15 * sc;
+      this.avatarHands = this.avatarHands || [];
+      this.avatarHands[idx] = ['arm-left', 'arm-right'].map((n) => {
+        const b = r.bones[n]; if (!b) return null;
+        const v = b.localToWorld(new T.Vector3(HUMAN_AXIS[n][0] * HUMAN_HAND, 0, 0)), o = b.getWorldPosition(new T.Vector3());
+        // main (u, v) et épaule (su, sv) : on touche avec tout le bras
+        return { u: (v.x - ax) / (0.5 * sc), v: -(v.y - ay) / (0.5 * sc), su: (o.x - ax) / (0.5 * sc), sv: -(o.y - ay) / (0.5 * sc) };
+      }).filter(Boolean);
+    }
   }
 
   // Héros animé (lapin du pack Quaternius, CC0) : vraies animations de course, saut, accroupi, frappe, salut ;
@@ -1080,6 +1123,7 @@ class Scene3D extends DepthScene {
   // ---------- Pose du personnage 3D
   posePick(h, now) {
     if (typeof DEV !== 'undefined' && DEV.get('forcepose') && h.m3 && (h.m3.rig || h.m3.human)) return DEV.get('forcepose'); // (mode test)
+    if (this.liveLimbs(h)) return 'live'; // il imite son joueur
     if (now < h.bumpUntil) return 'bump';
     if (h.y < -2) return 'jump';
     if (h.squat) return 'duck';
@@ -1211,10 +1255,17 @@ class Scene3D extends DepthScene {
     // Caméra : suit le héros (couloir, saut) avec un léger balancement quand on court
     const avg = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length;
     const hy = this.heroY3(this.heroes[0]);
-    this.camera.position.x += (avg * LANE * 0.35 - this.camera.position.x) * Math.min(1, dt * 3);
-    this.camera.position.y += (3.2 + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
-    this.camera.lookAt(this.camera.position.x * 0.6, 1.1 + hy * 0.3, -8);
+    // (épreuves à portée de main : la caméra se rapproche pour bien voir les bras du héros)
+    const cdt = Math.min(0.25, Math.max(0, (now - (this.cuT || now)) / 1000)); this.cuT = now; // (horloge propre : PC lents)
+    this.cuK = (this.cuK || 0) + ((this.closeUp ? 1 : 0) - (this.cuK || 0)) * Math.min(1, cdt * 2.5);
+    const cu = this.cuK;
+    this.camera.position.x += (avg * LANE * (0.35 + 0.5 * cu) - this.camera.position.x) * Math.min(1, dt * 3);
+    this.camera.position.y += (3.2 - 1.25 * cu + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
+    this.camera.position.z = 6.8 - 3.0 * cu;
+    this.camera.lookAt(this.camera.position.x * (0.6 + 0.4 * cu), 1.1 + 0.25 * cu + hy * 0.3, -8 + 2 * cu);
     this.sky.position.copy(this.camera.position);
+
+    this.updateCubes3D(now, dt);
 
     // Obstacles à éviter / étoiles
     this.hazards = this.hazards.filter((hz) => this.hazardZ(hz, now) > -0.9 && !(hz.t0 && now - hz.t0 > 600));

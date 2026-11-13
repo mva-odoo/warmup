@@ -3,6 +3,7 @@
 const TRAINER_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
 const TRAINER_HATS = ['cap', 'beanie', 'headband', 'none'];
+const TRAINER_OWN_HAT = ['male-c']; // a déjà sa casquette : pas de choix de chapeau
 const TRAINER_COLORS = ['#ff6b35', '#4ea8ff', '#5cc96b', '#b388eb', '#ffb703', '#ef476f', '#2ec4b6', '#7c8cff'];
 
 const Trainer = {
@@ -69,7 +70,7 @@ const Trainer = {
       rows.model.innerHTML = '';
       for (const m of TRAINER_MODELS) tile(rows.model, { model: m, hat: 'none', glasses: false }, look.model === m, () => (look.model = m));
       rows.hat.innerHTML = '';
-      for (const h of TRAINER_HATS) tile(rows.hat, { hat: h, glasses: false }, look.hat === h, () => (look.hat = h));
+      if (!TRAINER_OWN_HAT.includes(look.model)) for (const h of TRAINER_HATS) tile(rows.hat, { hat: h, glasses: false }, look.hat === h, () => (look.hat = h));
       tile(rows.hat, { glasses: !look.glasses }, false, () => (look.glasses = !look.glasses), look.glasses ? '🚫👓' : '👓');
       rows.color.innerHTML = '';
       for (const c of TRAINER_COLORS) {
