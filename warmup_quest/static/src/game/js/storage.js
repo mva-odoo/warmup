@@ -28,12 +28,15 @@ const WUQStore = {
   getStickers(i = 0) { return this._get('stickers_' + i) || []; },
   addSticker(i, sticker) { this._set('stickers_' + i, [...this.getStickers(i), sticker]); },
 
-  // Joueurs de la partie : 1 ou 2 (coopératif) — { name, color }
+  // Joueurs de la partie : 1 ou 2 (coopératif) — { name, color, look }
+  // look : apparence du dresseur { model, hat, glasses, color } (fenêtre « Mon dresseur »)
   players() {
+    const look = (i) => this._get('look_' + i) || undefined;
     return this._get('duo')
-      ? [{ name: 'Joueur 1', color: '#ff6b35' }, { name: 'Joueur 2', color: '#4ea8ff' }]
-      : [{ name: '', color: null }];
+      ? [{ name: 'Joueur 1', color: '#ff6b35', look: look(0) }, { name: 'Joueur 2', color: '#4ea8ff', look: look(1) }]
+      : [{ name: '', color: null, look: look(0) }];
   },
+  setLook(i, look) { this._set('look_' + i, look); },
   // Bouton du menu pour passer en 2 joueurs (le module Odoo le remplace par le choix des profils)
   duoToggle(rebuild) {
     const b = document.createElement('button');
@@ -45,6 +48,18 @@ const WUQStore = {
   },
 
   // Éléments optionnels ajoutés au menu (sélecteur de joueur, etc.)
-  menuExtras(rebuild) { return null; },
+  menuExtras(rebuild) {
+    if (typeof Trainer === 'undefined') return null;
+    const box = document.createElement('div');
+    box.className = 'dressBar';
+    this.players().forEach((p, i) => {
+      const b = document.createElement('button');
+      b.className = 'btn small';
+      b.textContent = '👕' + (p.name ? ' ' + p.name : '');
+      b.onclick = () => Trainer.open({ name: p.name, look: p.look, color: p.color, onSave: (l) => { this.setLook(i, l); rebuild(); } });
+      box.appendChild(b);
+    });
+    return box;
+  },
   cardExtra(world, rebuild) { return null; },
 };

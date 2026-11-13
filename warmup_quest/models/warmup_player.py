@@ -3,6 +3,14 @@ from odoo import api, fields, models
 from .warmup_constants import WORLDS
 
 PLAYER_COLORS = ['#ff6b35', '#4ea8ff', '#5cc96b', '#b388eb', '#ffb703', '#ef476f', '#2ec4b6', '#7c8cff']
+# Apparence du dresseur dans le jeu (petits personnages « Mini Characters » de Kenney, CC0)
+AVATAR_MODELS = [
+    ('male-a', 'Garçon 1'), ('male-b', 'Garçon 2'), ('male-c', 'Garçon 3'), ('male-d', 'Garçon 4'),
+    ('male-e', 'Garçon 5'), ('male-f', 'Garçon 6'), ('male-g', 'Garçon 7'),
+    ('female-a', 'Fille 1'), ('female-b', 'Fille 2'), ('female-c', 'Fille 3'),
+    ('female-d', 'Fille 4'), ('female-e', 'Fille 5'), ('female-f', 'Fille 6'),
+]
+AVATAR_HATS = [('cap', 'Casquette'), ('beanie', 'Bonnet'), ('headband', 'Bandeau'), ('none', 'Rien')]
 
 
 class WarmupPlayer(models.Model):
@@ -17,6 +25,10 @@ class WarmupPlayer(models.Model):
     user_id = fields.Many2one('res.users', string='Utilisateur Odoo',
                               help='Optionnel : utilisateur Odoo associé à ce joueur.')
     birth_year = fields.Integer(string='Année de naissance')
+    avatar_model = fields.Selection(AVATAR_MODELS, string='Personnage', default='male-a', required=True,
+                                    help='Petit dresseur qui représente l\'enfant dans le jeu.')
+    avatar_hat = fields.Selection(AVATAR_HATS, string='Chapeau', default='cap', required=True)
+    avatar_glasses = fields.Boolean(string='Lunettes')
     active = fields.Boolean(default=True)
     session_ids = fields.One2many('warmup.session', 'player_id', string='Parties')
     catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
@@ -91,7 +103,27 @@ class WarmupPlayer(models.Model):
             'carnet': carnet,
             'best': best,
             'stickers': self.stickers if isinstance(self.stickers, list) else [],
+            'look': self._game_look(),
         }
+
+    def _game_look(self):
+        self.ensure_one()
+        return {'model': self.avatar_model or 'male-a', 'hat': self.avatar_hat or 'cap',
+                'glasses': bool(self.avatar_glasses)}
+
+    def _set_look(self, look):
+        """Apparence choisie dans le jeu (valeurs inconnues ignorées)."""
+        self.ensure_one()
+        look = look if isinstance(look, dict) else {}
+        vals = {}
+        if look.get('model') in dict(AVATAR_MODELS):
+            vals['avatar_model'] = look['model']
+        if look.get('hat') in dict(AVATAR_HATS):
+            vals['avatar_hat'] = look['hat']
+        if 'glasses' in look:
+            vals['avatar_glasses'] = bool(look['glasses'])
+        if vals:
+            self.write(vals)
 
     @api.model
     def _game_config(self):

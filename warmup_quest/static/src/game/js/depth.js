@@ -162,13 +162,16 @@ class DepthScene {
   }
 
   // palettes : une par joueur (couleurs du héros) ; par défaut le héros du monde
-  setWorld(theme, palettes = null) {
+  // looks : apparence du dresseur de chaque joueur { model, hat, glasses, color }
+  setWorld(theme, palettes = null, looks = null) {
     this.theme = theme;
     this.obs = null; this.enc = null; this.parts = []; this.floaters = [];
     this.hazards = []; this.bubbles = []; this.pops = []; this.hands = []; this.moles = []; this.rope = null;
     this.progress = 0;
     const pals = palettes || [theme ? theme.hero : null];
-    this.heroes = pals.map((pal, i) => newHero(pal, pals.length > 1 ? (i ? 0.55 : -0.55) : 0));
+    const n = Math.max(pals.length, looks ? looks.length : 0);
+    this.heroes = Array.from({ length: n }, (_, i) => newHero(pals[i] || pals[0], n > 1 ? (i ? 0.55 : -0.55) : 0));
+    if (looks) this.heroes.forEach((h, i) => { h.look = looks[i] || looks[0]; });
     this.decor = [];
     if (theme) for (let i = 0; i < 26; i++) this.spawnDecor(Math.random() * this.Zfar);
   }

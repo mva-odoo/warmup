@@ -36,6 +36,17 @@ let game = null;
 let calibState = { stage: '', holdStart: 0 };
 let lostSince = 0;
 
+// Apparence du dresseur de chaque joueur (couleur préférée = couleur du joueur)
+function trainerLooks() {
+  const players = WUQStore.players();
+  const dev = DEV.get('look'); // mode test : look=female-b,beanie,1
+  return (players.length ? players : [{}]).map((p, i) => {
+    const l = Trainer.defaults(p.look, (p.look && p.look.color) || p.color || (duo() ? DUO_COLORS[i] : null));
+    if (dev) { const [model, hat, glasses] = dev.split(','); Object.assign(l, Trainer.defaults({ model, hat, glasses: glasses === '1' }, l.color)); }
+    return l;
+  });
+}
+
 function store(key, val) {
   try {
     if (val === undefined) return JSON.parse(localStorage.getItem('wuq_' + key));
@@ -97,12 +108,14 @@ function buildMenu() {
   sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   wrap.appendChild(sur);
   // Aperçus 3D (même rendu que le jeu) dès que la 3D est prête ; sinon on garde le dessin 2D
+  const menuLooks = trainerLooks();
   if (store('3d') !== false) {
     scene3d.load()
-      .then(() => scene3d.P.preload(scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))])))
+      .then(() => Promise.all([scene3d.preloadTrainers(menuLooks.map((l) => l.model)),
+        scene3d.P.preload(scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]))]))
       .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
       if (!card.isConnected) return;
-      try { cctx.drawImage(scene3d.thumb(w), 0, 0, 200, 150); card.has3d = true; } catch (e) { console.warn(e); }
+      try { cctx.drawImage(scene3d.thumb(w, menuLooks[0]), 0, 0, 200, 150); card.has3d = true; } catch (e) { console.warn(e); }
     }, i * 60))).catch(() => {});
   }
   const sp = $('speeds');
@@ -217,6 +230,7 @@ async function startWorld(w) {
   Audio8.say(' ');
   // En duo, chaque joueur a son personnage, à sa couleur
   const pals = duo() ? colors.map((c) => ({ body: c, belly: shade(c, 0.7), limb: shade(c, -0.3), accent: '#ffd166', extra: w.hero.extra })) : null;
+  const looks = trainerLooks();
   const next = store('3d') !== false ? scene3d : sceneFlat;
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
@@ -226,14 +240,14 @@ async function startWorld(w) {
     try {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
-      await scene.preloadWorld(w);
+      await scene.preloadWorld(w, looks);
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
     }
     show('loading', false);
   }
-  scene.setWorld(w, pals);
+  scene.setWorld(w, pals, looks);
   if ($('simToggle').checked) {
     tracker.enableSim();
     show('simHelp');

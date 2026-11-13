@@ -299,3 +299,26 @@ body.sim .next { bottom: 78px; }
 #results .holdbar { width: min(320px, 70vw); }
 .parentInfo { margin-top: 18px; font-size: 14px; opacity: 0.6; }
 .parentInfo span { font-size: inherit !important; color: inherit !important; }
+
+/* ---------- Fenêtre « Mon dresseur » (tout en images) ---------- */
+.trainerBg { position: fixed; inset: 0; z-index: 120; background: rgba(15, 12, 50, .65); display: flex; align-items: center; justify-content: center; }
+.trainerPanel { background: linear-gradient(#ffffff, #eef4ff); color: #1e1b4b; border-radius: 28px; padding: 18px 22px; width: min(1040px, 96vw);
+  max-height: 96vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; align-items: center; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.trainerTop { display: flex; gap: 18px; align-items: center; width: 100%; }
+.trainerHero { flex: none; text-align: center; background: radial-gradient(circle at 50% 70%, #dbeafe, transparent 70%); border-radius: 24px; }
+.trainerHero canvas { width: 240px; height: 300px; display: block; }
+.trainerName { font-size: 28px; font-weight: 900; margin-top: -10px; }
+.trainerChoices { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+.trRow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.trTile { width: 72px; height: 90px; padding: 0; border-radius: 16px; border: 3px solid #e2e8f0; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.trTile canvas { width: 72px; height: 90px; }
+.trTile.on { border-color: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.35); transform: scale(1.06); }
+.trTile:hover { transform: scale(1.06); }
+.trEmoji { font-size: 34px; }
+.trSwatch { width: 46px; height: 46px; border-radius: 50%; border: 4px solid #fff; background: var(--c); box-shadow: 0 0 0 2px #cbd5e1; cursor: pointer; }
+.trSwatch.on { box-shadow: 0 0 0 5px var(--c); transform: scale(1.12); }
+.trainerErr { color: #dc2626; margin: 0; min-height: 1em; }
+.trainerPanel .row { display: flex; gap: 12px; }
+.trainerPanel .row .btn { font-size: 30px; min-width: 110px; }
+.dressBar { display: flex; gap: 8px; justify-content: center; }
+@media (max-width: 700px) { .trainerTop { flex-direction: column; } }

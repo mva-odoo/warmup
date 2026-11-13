@@ -12,6 +12,10 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
+- **Mon dresseur 👕** : chaque enfant est un petit dresseur qu'il habille lui-même, uniquement avec des images :
+  13 personnages, casquette / bonnet / bandeau, lunettes et sa couleur préférée (sac à dos et chapeau).
+  La fenêtre s'ouvre juste après l'ajout d'un enfant, puis avec le bouton 👕 à côté de son prénom ;
+  le choix est enregistré dans sa fiche (onglet principal : Personnage, Chapeau, Lunettes).
 - **Warm-Up Quest › ▶ Jouer** : ouvre le jeu (`/warmup`) dans un nouvel onglet ; choisir « Qui joue ? » puis un monde.
   - **À deux (coopératif)** : cliquer sur deux prénoms. Chaque défi doit être réussi par les deux enfants ;
     la partie est enregistrée pour chacun. Il faut assez de recul pour que les deux soient entiers à l'image.
@@ -33,7 +37,7 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Piste de Danse** : imite Tempo, le danseur, pas à pas en musique (comme dans un miroir).
     **Dojo des Petits Tigres** : imite Maître Bambou (parade, coup de genou, position du cavalier, tranche, saut du tigre).
     Chaque geste est noté ✔ / raté ; les parents peuvent créer leurs chorégraphies (gestes séparés par des virgules).
-  - **16 créatures originales en 3D** (éléments feu, eau, plante, électrique, glace, roche, air, nuit, sable, fée,
+  - **30 créatures en 3D** : 16 créatures originales du jeu et 14 monstres animés (pack Quaternius, CC0) (éléments feu, eau, plante, électrique, glace, roche, air, nuit, sable, fée,
     étoile, sucre, lumière…), chacune avec ses lieux de vie, son petit cri et sa forme évoluée. On les voit se promener
     dans les hautes herbes ; elles viennent montrer une pose à copier pour devenir amies, puis rejoignent le carnet.
   - **13 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
@@ -60,6 +64,12 @@ La détection des mouvements tourne dans le navigateur : aucune image n'est envo
 Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis jsDelivr / Google).
 
 ## Faire évoluer le jeu
+**Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
+un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
+`&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
+`&forcepose=star` fige une pose, `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
+ou faire des captures d'écran automatiques.
+
 Le jeu se développe **directement dans ce module** : il n'y a plus de projet séparé à recopier
 (l'ancien script `sync-odoo.ps1` ne doit plus être utilisé, il écraserait le jeu).
 Après une modification, augmenter la version dans `__manifest__.py` puis mettre à jour le module
@@ -73,6 +83,7 @@ Après une modification, augmenter la version dans `__manifest__.py` puis mettre
 | `scene3d.js`, `props3d.js` | monde en 3D (Three.js) et catalogue de décors |
 | `depth.js`, `decor.js` | chemin 2D (repli) et éléments partagés (bulles, taupes, créatures) |
 | `picto.js` | petit bonhomme animé qui montre chaque mouvement |
+| `trainer.js` | fenêtre « Mon dresseur » (apparence du personnage de l'enfant) |
 | `../odoo_bridge.js` | lien avec Odoo : joueurs, séquences, gommettes, enregistrement des parties |
 
 Les programmes par défaut des séquences Odoo (`hooks.py`) reprennent ceux de `worlds.js` :
@@ -81,5 +92,11 @@ si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à
 ## Crédits
 - Modèles 3D de nature (arbres, plantes, rochers, champignons, cultures…) : **Nature Kit de Kenney**
   ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) — voir `static/src/game/models/kenney/License.txt`.
+- Arbres, buissons, fleurs et herbes « cartoon » : **Ultimate Stylized Nature** de Quaternius ([quaternius.com](https://quaternius.com)),
+  licence **CC0**, allégés avec Blender (textures réduites) — `static/src/game/models/quaternius/`.
+- Monstres animés (Lamalou, Bzouille, Glouglou, Champilou…) : modèles et animations du pack **Ultimate Monsters** de Quaternius,
+  licence **CC0** (`static/src/game/models/monsters/License.txt`) ; les noms français sont propres à ce jeu.
+- Petits dresseurs (personnages et animations) : **Mini Characters** de Kenney, licence **CC0**
+  (`static/src/game/models/characters/License.txt`) ; chapeaux, sac à dos et lunettes ajoutés par le jeu.
 - Moteur 3D : Three.js ; détection des mouvements : MediaPipe (chargés depuis jsDelivr).
 - Personnages, créatures, mondes et musiques : créations originales de ce module.

@@ -223,7 +223,7 @@ class Scene3D extends DepthScene {
     }
 
     // Héros (un par joueur)
-    for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1, theme.hero.extra); scene.add(h.m3.group); }
+    for (const h of this.heroes) { h.m3 = this.makeHero(h.pal || theme.hero, this.heroes.length > 1, theme.hero.extra, true, h.look); scene.add(h.m3.group); }
     this.hzMeshes = new Map();
     this.obsMesh = null; this.obsRef = null;
     this.decor = []; this.tufts = []; this.backdrops = null; this.particles = null; this.stars = null;
@@ -450,7 +450,159 @@ class Scene3D extends DepthScene {
   isEmojiTex(tex) { for (const t of this.emojiTex.values()) if (t === tex) return true; return false; }
 
   // Personnage jouet : corps rond, oreilles, antenne-feuille, bras et jambes articulés (vu de dos)
-  makeHero(pal, small, extra = null) {
+  // Dresseur : petit humain animé (sprint, saut, accroupi, coup, joie, refus) + chapeau, sac à dos, lunettes
+  makeHumanHero(pal, small, look) {
+    const T = this.T, key = humanKey(look), obj = this.P.model(key);
+    const group = new T.Group(), inner = new T.Group();
+    group.add(inner); inner.add(obj);
+    obj.rotation.y = Math.PI; // vu de dos
+    obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    const bones = {};
+    obj.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+    const mixer = new T.AnimationMixer(obj), actions = {};
+    for (const c of this.P.anims.get(key) || []) actions[c.name] = mixer.clipAction(c);
+    for (const n of ['jump', 'crouch', 'attack-melee-right', 'emote-no']) if (actions[n]) { actions[n].setLoop(T.LoopOnce); actions[n].clampWhenFinished = true; }
+    const ring = new T.Mesh(new T.TorusGeometry(0.95, 0.06, 8, 40), new T.MeshBasicMaterial({ color: '#4ade80' }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.06; ring.visible = false; group.add(ring);
+    if (small) {
+      const disk = new T.Mesh(new T.CircleGeometry(0.75, 32), new T.MeshBasicMaterial({ color: pal.body, transparent: true, opacity: 0.55 }));
+      disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; group.add(disk);
+    }
+    // Accessoires à la couleur préférée de l'enfant
+    const col = look.color || DEFAULT_LOOK.color, dark = shade(col, -0.3), lam = this.lam, G = this.geo;
+    const hat = new T.Group(), bag = new T.Group(), glasses = new T.Group();
+    inner.add(hat, bag, glasses);
+    const add = (grp, geo, c, x, y, z, sx, sy = sx, sz = sx, rot) => {
+      const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); if (rot) m.rotation.set(...rot); grp.add(m); return m;
+    };
+    const dome = new T.SphereGeometry(1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    const hatKind = HUMAN_OWN_HAT.includes(look.model) ? 'none' : look.hat; // ce personnage a déjà sa casquette
+    if (hatKind === 'cap') { // casquette portée à l'envers : on voit la visière de dos
+      add(hat, dome, col, 0, 0, 0, 0.5, 0.36, 0.5);
+      add(hat, new T.CylinderGeometry(1, 1, 1, 20, 1, false, -Math.PI / 2, Math.PI), dark, 0, 0.01, 0.32, 0.36, 0.03, 0.34);
+      add(hat, G.sphere, '#ffffff', 0, 0.36, 0, 0.06);
+    } else if (hatKind === 'beanie') {
+      add(hat, dome, col, 0, -0.02, 0, 0.5, 0.44, 0.5);
+      add(hat, new T.TorusGeometry(0.48, 0.07, 8, 24), dark, 0, 0.0, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      add(hat, G.sphere, '#ffffff', 0, 0.47, 0, 0.11);
+    } else if (hatKind === 'headband') {
+      add(hat, new T.TorusGeometry(0.47, 0.06, 8, 24), col, 0, -0.08, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+    }
+    // Sac à dos de dresseur, avec un rabat et deux bretelles
+    add(bag, new T.BoxGeometry(1, 1, 1), col, 0, 0, 0, 0.52, 0.58, 0.26);
+    add(bag, new T.BoxGeometry(1, 1, 1), dark, 0, 0.18, 0.02, 0.54, 0.2, 0.28);
+    add(bag, G.sphere, '#ffd166', 0, 0.12, 0.15, 0.05);
+    if (look.glasses) {
+      for (const sg of [-1, 1]) add(glasses, new T.TorusGeometry(0.1, 0.022, 6, 16), '#1e1b4b', sg * 0.15, 0, 0, 1);
+      add(glasses, new T.BoxGeometry(1, 1, 1), '#1e1b4b', 0, 0, 0, 0.12, 0.025, 0.025);
+    }
+    this.shadow(hat); this.shadow(bag); this.outline(hat); this.outline(bag);
+    const scale = small ? 0.85 : 1;
+    group.scale.setScalar(scale);
+    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, cur: null, last: 0 } };
+  }
+
+  // Dresseur immobile (aperçus) : première image de l'animation de repos + pose
+  poseHumanStill(m, pose = 'idle') {
+    const h = { lane: 0, y: 0, holdPose: null };
+    const save = this.heroY3; this.heroY3 = () => 0;
+    try { for (let t = 1; t <= 801; t += 100) this.applyHumanPose(h, m, pose, t); } finally { this.heroY3 = save; } // (fondu terminé)
+    m.ring.visible = false;
+  }
+
+  // Aperçu du dresseur (fenêtre « Mon dresseur ») : vu de face, sur fond transparent
+  trainerThumb(look, size = 240) {
+    const T = this.T;
+    this.trR = this.trR || new T.WebGLRenderer({ canvas: Object.assign(document.createElement('canvas'), { width: 240, height: 300 }), antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const scene = new T.Scene();
+    scene.add(new T.HemisphereLight('#ffffff', '#b9c4d6', 1.5));
+    const sun = new T.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, 5); scene.add(sun);
+    const m = this.makeHumanHero({ body: look.color || '#ff6b35' }, false, look);
+    this.poseHumanStill(m, 'idle');
+    m.group.rotation.y = Math.PI + 0.45; // de face, légèrement de trois quarts
+    scene.add(m.group);
+    const cam = new T.PerspectiveCamera(30, 240 / 300, 0.1, 50);
+    cam.position.set(0, 1.45, 6.2); cam.lookAt(0, 1.05, 0);
+    this.trR.setClearColor(0x000000, 0);
+    this.trR.render(scene, cam);
+    const out = document.createElement('canvas'); out.width = size; out.height = Math.round(size * 1.25);
+    out.getContext('2d').drawImage(this.trR.domElement, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  // Charge les petits dresseurs (tous, pour la fenêtre de choix)
+  preloadTrainers(models = HUMAN_MODELS) {
+    return this.load().then(() => this.P.preload(models.map((model) => humanKey({ model }))));
+  }
+
+  // Dresseur : animation, poses (bras / jambes visés), accessoires posés sur la tête et le dos
+  applyHumanPose(h, m, pose, now) {
+    const r = m.human, T = this.T;
+    const clip = { run: 'sprint', jump: 'jump', duck: 'crouch', smash: 'attack-melee-right', bump: 'emote-no', happy: 'emote-yes' }[pose] || 'idle';
+    const next = r.actions[clip] || r.actions.idle;
+    if (next && next !== r.cur) { next.reset().fadeIn(0.15).play(); if (r.cur) r.cur.fadeOut(0.15); r.cur = next; }
+    const dt = r.last ? Math.min(0.1, Math.max(0, (now - r.last) / 1000)) : 0;
+    r.last = now;
+    r.mixer.update(dt);
+    // Proportions « dessin animé » lisibles de dos : tête un peu plus petite, bras plus longs (la pose se voit)
+    if (r.bones.head) r.bones.head.scale.setScalar(HUMAN_FIT.head);
+    const P = HUMAN_POSES[pose];
+    const long = P ? HUMAN_FIT.arm : 1; // bras allongés seulement pendant une pose
+    for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(1 + (long - 1) / 4, long, 1 + (long - 1) / 4);
+    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[bone], null, dir, m.inner, [0, -1, 0]);
+    m.ring.visible = !!h.holdPose;
+    m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
+    m.group.rotation.z = 0;
+    m.group.updateMatrixWorld(true);
+    const at = (bone, dx, dy, dz, target) => {
+      if (!bone) return;
+      const v = bone.getWorldPosition(new T.Vector3()); m.inner.worldToLocal(v);
+      target.position.set(v.x + dx, v.y + dy, v.z + dz);
+    };
+    at(r.bones.head, 0, HUMAN_FIT.hatY, 0, r.hat);
+    at(r.bones.head, 0, HUMAN_FIT.glassesY, -HUMAN_FIT.glassesZ, r.glasses);
+    at(r.bones.torso, 0, HUMAN_FIT.bagY, HUMAN_FIT.bagZ, r.bag);
+  }
+
+  // Héros animé (lapin du pack Quaternius, CC0) : vraies animations de course, saut, accroupi, frappe, salut ;
+  // les poses (bras levés, avion, étoile, flamant) sont ajoutées en bougeant bras et jambes par-dessus.
+  makeAnimatedHero(pal, small, extra) {
+    const T = this.T, obj = this.P.model('monsters/Bunny');
+    const group = new T.Group(), inner = new T.Group();
+    group.add(inner); inner.add(obj);
+    obj.rotation.y = Math.PI; // vu de dos
+    const tint = new T.Color(pal.body).lerp(new T.Color('#ffffff'), 0.55); // couleur du héros du monde
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      if (/carrot/i.test(o.name)) { o.visible = false; return; } // (le lapin tient une carotte : on la range)
+      o.material = o.material.clone(); o.material.color.copy(tint);
+      o.castShadow = true; o.frustumCulled = false;
+    });
+    const bones = {};
+    obj.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+    const clips = this.P.anims.get('monsters/Bunny') || [];
+    const mixer = new T.AnimationMixer(obj);
+    const actions = {};
+    for (const c of clips) actions[c.name] = mixer.clipAction(c);
+    for (const n of ['Duck', 'Punch', 'HitReact', 'Jump']) if (actions[n]) { actions[n].setLoop(T.LoopOnce); actions[n].clampWhenFinished = true; }
+    const ring = new T.Mesh(new T.TorusGeometry(0.95, 0.06, 8, 40), new T.MeshBasicMaterial({ color: '#4ade80' }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.06; ring.visible = false; group.add(ring);
+    if (small) {
+      const disk = new T.Mesh(new T.CircleGeometry(0.75, 32), new T.MeshBasicMaterial({ color: pal.body, transparent: true, opacity: 0.55 }));
+      disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; group.add(disk);
+    }
+    // Accessoire du monde, qui suit la tête à chaque image
+    const acc = new T.Group(); inner.add(acc);
+    const anims = this.addAccessory(acc, extra || pal.extra, pal);
+    this.shadow(acc); this.outline(acc);
+    const scale = small ? 0.85 : 1;
+    group.scale.setScalar(scale);
+    return { group, inner, ring, scale, anims, rig: { mixer, actions, bones, acc, cur: null, last: 0 } };
+  }
+
+  makeHero(pal, small, extra = null, allowRig = true, look = null) {
+    if (allowRig && this.P.models && this.P.models.has(humanKey(look))) return this.makeHumanHero(pal, small, look || DEFAULT_LOOK);
+    if (allowRig && this.P.models && this.P.models.has('monsters/Bunny')) return this.makeAnimatedHero(pal, small, extra);
     const T = this.T, lam = this.lam, G = this.geo;
     const group = new T.Group(), inner = new T.Group();
     group.add(inner);
@@ -496,7 +648,7 @@ class Scene3D extends DepthScene {
     if (!c) { if (this.coachMesh) this.coachMesh.group.visible = false; return; }
     if (!this.coachMesh || this.coachStyle !== c.style) {
       if (this.coachMesh) this.s3.remove(this.coachMesh.group);
-      const m = this.makeHero(c.pal || this.theme.hero, false);
+      const m = this.makeHero(c.pal || this.theme.hero, false, null, false);
       if (c.style === 'karate') { // ceinture noire et bandeau rouge
         const belt = new this.T.Mesh(new this.T.TorusGeometry(0.56, 0.05, 8, 32), this.lam('#1e1b4b'));
         belt.rotation.x = Math.PI / 2; belt.position.y = 0.82; m.inner.add(belt);
@@ -533,8 +685,9 @@ class Scene3D extends DepthScene {
   }
 
   // Modèles du monde (Kenney) chargés avant de jouer
-  preloadWorld(world) {
-    return this.load().then(() => this.P.preload(this.P.modelsOf(world.biomes.map((b) => b.kit || 'meadow'))));
+  preloadWorld(world, looks = []) {
+    const kits = world.biomes.map((b) => b.kit || 'meadow');
+    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].map(humanKey)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k)))]));
   }
 
   // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles
@@ -611,8 +764,9 @@ class Scene3D extends DepthScene {
   }
 
   // ---------- Aperçu d'un monde pour le menu (rendu 3D une seule fois, puis réutilisé)
-  thumb(world) {
-    if (this.thumbs.has(world.id)) return this.thumbs.get(world.id);
+  thumb(world, look = null) {
+    const tkey = world.id + JSON.stringify(look || {});
+    if (this.thumbs.has(tkey)) return this.thumbs.get(tkey);
     const T = this.T;
     if (!this.thumbR) {
       const cv = document.createElement('canvas'); cv.width = 400; cv.height = 300;
@@ -639,8 +793,10 @@ class Scene3D extends DepthScene {
       d.position.set((i % 2 ? 1 : -1) * (LANE * 1.5 + 1 + Math.random() * 5), 0, -1 - i * 2.2);
       d.rotation.y = Math.random() * 6; scene.add(d);
     }
-    const hero = this.makeHero(world.hero, false, world.hero.extra);
-    hero.armL.rotation.z = -0.6; hero.armR.rotation.z = 0.6; hero.group.rotation.y = 0.5;
+    const hero = this.makeHero(world.hero, false, world.hero.extra, true, look);
+    if (hero.human) this.poseHumanStill(hero, 'armsUp');
+    else if (hero.armL) { hero.armL.rotation.z = -0.6; hero.armR.rotation.z = 0.6; }
+    hero.group.rotation.y = 0.5;
     scene.add(hero.group);
     const cam = new T.PerspectiveCamera(50, 4 / 3, 0.1, 120);
     cam.position.set(1.2, 2.4, 4.6); cam.lookAt(0, 1.1, -4);
@@ -648,7 +804,7 @@ class Scene3D extends DepthScene {
     const out = document.createElement('canvas'); out.width = 400; out.height = 300;
     out.getContext('2d').drawImage(this.thumbR.domElement, 0, 0);
     disposables.forEach((x) => x.dispose());
-    this.thumbs.set(world.id, out);
+    this.thumbs.set(tkey, out);
     return out;
   }
 
@@ -923,6 +1079,7 @@ class Scene3D extends DepthScene {
 
   // ---------- Pose du personnage 3D
   posePick(h, now) {
+    if (typeof DEV !== 'undefined' && DEV.get('forcepose') && h.m3 && (h.m3.rig || h.m3.human)) return DEV.get('forcepose'); // (mode test)
     if (now < h.bumpUntil) return 'bump';
     if (h.y < -2) return 'jump';
     if (h.squat) return 'duck';
@@ -932,8 +1089,60 @@ class Scene3D extends DepthScene {
     return this.speed < 0.5 ? 'idle' : 'run';
   }
 
+  // Oriente un os pour que le segment os -> enfant pointe dans la direction voulue (repère du monde)
+  aimBone(bone, child, dir, root, axis = [0, 1, 0]) {
+    if (!bone) return;
+    const T = this.T;
+    root.updateMatrixWorld(true);
+    const p = bone.getWorldPosition(new T.Vector3());
+    let cur;
+    if (child) cur = child.getWorldPosition(new T.Vector3()).sub(p);
+    else cur = new T.Vector3(...axis).applyQuaternion(bone.getWorldQuaternion(new T.Quaternion())); // (sans enfant : axe de l'os)
+    if (cur.lengthSq() < 1e-8) return;
+    const delta = new T.Quaternion().setFromUnitVectors(cur.normalize(), new T.Vector3(...dir).normalize());
+    const world = bone.getWorldQuaternion(new T.Quaternion());
+    const parent = bone.parent ? bone.parent.getWorldQuaternion(new T.Quaternion()) : new T.Quaternion();
+    bone.quaternion.copy(parent.invert().multiply(delta.multiply(world)));
+  }
+
+  // Héros animé : choix de l'animation, poses par-dessus, accessoire qui suit la tête
+  applyRigPose(h, m, pose, now) {
+    const r = m.rig, T = this.T;
+    const clip = { run: 'Run', jump: 'Jump_Idle', duck: 'Duck', smash: 'Punch', bump: 'HitReact', happy: 'Wave' }[pose] || 'Idle';
+    const next = r.actions[clip] || r.actions.Idle;
+    if (next && next !== r.cur) {
+      next.reset().fadeIn(0.15).play();
+      if (r.cur) r.cur.fadeOut(0.15);
+      r.cur = next;
+    }
+    const dt = r.last ? Math.min(0.1, Math.max(0, (now - r.last) / 1000)) : 0;
+    r.last = now;
+    r.mixer.update(dt);
+    // Poses : on tourne bras / jambes par-dessus l'animation de repos
+    // Poses : chaque os est orienté vers sa direction, par-dessus l'animation de repos
+    const P = HERO_POSES[pose];
+    if (P) {
+      const o = r.bones.Root || m.inner;
+      for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[bone], r.bones[HERO_CHILD[bone]], dir, o);
+    }
+    m.ring.visible = !!h.holdPose;
+    m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
+    m.group.rotation.z = pose === 'bump' ? Math.sin(now * 0.03) * 0.15 : 0;
+    // L'accessoire se place sur la tête
+    const head = r.bones.Head;
+    if (head) {
+      m.group.updateMatrixWorld(true);
+      const v = head.getWorldPosition(new T.Vector3());
+      m.inner.worldToLocal(v);
+      r.acc.position.set(v.x, v.y - HERO_HEAD_Y, v.z);
+    }
+    if (m.anims) for (const a of m.anims) a(now);
+  }
+
   applyPose(h, now) {
     const m = h.m3, pose = this.posePick(h, now), ph = now * 0.014;
+    if (m.human) return this.applyHumanPose(h, m, pose, now);
+    if (m.rig) return this.applyRigPose(h, m, pose, now);
     let armZ = 0.25, armX = [0, 0], legX = [0, 0], legZ = 0, sy = 1, rotZ = 0, bob = 0;
     switch (pose) {
       case 'run': legX = [0.7 * Math.sin(ph), -0.7 * Math.sin(ph)]; armX = [-0.6 * Math.sin(ph), 0.6 * Math.sin(ph)]; bob = Math.abs(Math.sin(ph)) * 0.08; break;
@@ -974,7 +1183,7 @@ class Scene3D extends DepthScene {
       h.lane += (h.targetLane - h.lane) * Math.min(1, dt * 8);
       h.vy += this.H * 5 * dt; h.y += h.vy * dt;
       if (h.y > 0) { h.y = 0; h.vy = 0; }
-      if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1, this.theme.hero.extra); this.s3.add(h.m3.group); }
+      if (!h.m3) { h.m3 = this.makeHero(h.pal || this.theme.hero, this.heroes.length > 1, this.theme.hero.extra, true, h.look); this.s3.add(h.m3.group); }
       this.applyPose(h, now);
     }
     // Paysage suivant quand on avance dans la partie

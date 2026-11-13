@@ -37,8 +37,8 @@ class WarmupQuestController(http.Controller):
         ])
 
     @http.route('/warmup/api/player', type='jsonrpc', auth='user', methods=['POST'])
-    def warmup_create_player(self, name=None, color=None, **kwargs):
-        """Ajoute un enfant directement depuis l'écran du jeu (prénom + couleur)."""
+    def warmup_create_player(self, name=None, color=None, look=None, **kwargs):
+        """Ajoute un enfant directement depuis l'écran du jeu (prénom, couleur, dresseur)."""
         name = (name or '').strip()[:40]
         if not name:
             raise UserError("Indique le prénom de l'enfant.")
@@ -46,6 +46,18 @@ class WarmupQuestController(http.Controller):
         if isinstance(color, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', color):
             vals['color'] = color
         player = request.env['warmup.player'].create(vals)
+        player._set_look(look)
+        return player._game_data()
+
+    @http.route('/warmup/api/player/look', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_player_look(self, player_id=None, look=None, color=None, **kwargs):
+        """Change l'apparence du dresseur d'un enfant depuis le jeu."""
+        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
+        if not player:
+            raise UserError("Cet enfant n'existe plus.")
+        player._set_look(look)
+        if isinstance(color, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', color):
+            player.color = color
         return player._game_data()
 
     @http.route('/warmup/api/session', type='jsonrpc', auth='user', methods=['POST'])

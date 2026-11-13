@@ -67,7 +67,7 @@
       return false; // la fenêtre « Ajouter un enfant » s'ouvre
     },
     players() {
-      return selected().map((p) => ({ name: p.name, color: p.color }));
+      return selected().map((p) => ({ name: p.name, color: p.color, look: p.look }));
     },
     // Gommettes : enregistrées dans la fiche du joueur (Odoo). Les anciennes, gardées dans ce
     // navigateur, sont reprises automatiquement à la prochaine partie.
@@ -124,6 +124,14 @@
           rebuild();
         };
         box.appendChild(chip);
+        // 👕 : changer son dresseur (personnage, chapeau, lunettes, couleur)
+        if (pos >= 0 && typeof Trainer !== 'undefined') {
+          const dress = el('button', 'dressBtn', '👕');
+          dress.title = 'Mon dresseur';
+          dress.style.setProperty('--pc', p.color);
+          dress.onclick = () => openTrainer(p, rebuild);
+          box.appendChild(dress);
+        }
       }
       const add = el('button', 'playerChip addChip', '<span class="ini">+</span><span>Ajouter un enfant</span>');
       add.onclick = () => openAddPlayer(rebuild);
@@ -144,6 +152,18 @@
       return sel;
     },
   });
+
+  // Fenêtre « Mon dresseur » : enregistrée dans la fiche de l'enfant
+  function openTrainer(p, rebuild) {
+    Trainer.open({
+      name: p.name, look: p.look, color: p.color,
+      async onSave(look) {
+        const res = await rpc('/warmup/api/player/look', { player_id: p.id, look, color: look.color });
+        Object.assign(p, res);
+        (rebuild || menuRebuild || (() => {}))();
+      },
+    });
+  }
 
   // Fenêtre « Ajouter un enfant » : prénom + couleur, sans passer par Odoo
   const SWATCHES = ['#ff6b35', '#4ea8ff', '#5cc96b', '#b388eb', '#ffb703', '#ef476f', '#2ec4b6', '#7c8cff'];
@@ -177,6 +197,7 @@
         ls.set('players', playerIds);
         wrap.remove();
         if (menuRebuild) menuRebuild();
+        if (typeof Trainer !== 'undefined') openTrainer(p, menuRebuild); // puis on choisit son dresseur
       } catch (err) {
         box.querySelector('.addErr').textContent = err.message;
         box.querySelector('[type=submit]').disabled = false;
@@ -203,6 +224,9 @@
     .playerChip .num { font-size:13px; background:var(--pc); color:#fff; border-radius:99px; padding:0 8px; }
     .odooHint2 { font-size:15px; opacity:.85; width:100%; text-align:center; }
     .addChip { border:3px dashed rgba(255,255,255,.6); }
+    .dressBtn { font-size:30px; width:58px; height:58px; border-radius:50%; border:3px solid var(--pc); background:#fff;
+      cursor:pointer; margin-left:-6px; box-shadow:0 4px 12px rgba(0,0,0,.2); }
+    .dressBtn:hover { transform:scale(1.08); }
     .addChip .ini { background:rgba(255,255,255,.3); }
     .addPlayerBg { position:fixed; inset:0; z-index:100; background:rgba(15,12,50,.6); display:flex; align-items:center; justify-content:center; }
     .addPlayerBox { background:#fff; color:#1e1b4b; border-radius:24px; padding:22px 26px; width:min(420px,92vw);
