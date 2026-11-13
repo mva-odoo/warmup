@@ -345,3 +345,34 @@ body.sim .next { bottom: 78px; }
 .dressBar { display: flex; gap: 8px; justify-content: center; }
 @media (max-width: 700px) { .trainerTop { flex-direction: column; } }
 .trainerPanel .btn.ghost { color: #1e1b4b; background: #e2e8f0; box-shadow: 0 5px 0 #cbd5e1; }
+/* Morceaux du dresseur : flèches ◀ ▶ (tête, corps, jambes) */
+.trParts { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+.trPart { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 18px; padding: 4px 8px; box-shadow: 0 2px 0 #e2e8f0; }
+.trPart canvas { width: 150px; height: 90px; }
+.trPartIcon { font-size: 30px; width: 40px; text-align: center; }
+.trArrow { font-size: 30px; width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer; color: #fff;
+  background: #7c3aed; box-shadow: 0 4px 0 #5b21b6; font-family: inherit; }
+.trArrow:active { transform: translateY(3px); box-shadow: 0 1px 0 #5b21b6; }
+.trDice { grid-column: 2; grid-row: 1 / span 3; font-size: 52px; width: 92px; height: 92px; border-radius: 24px; border: 0; cursor: pointer;
+  background: linear-gradient(135deg, #ffd166, #ff70a6); box-shadow: 0 5px 0 #c2417a; }
+.trParts .trPart { grid-column: 1; }
+/* Récompenses : objets verrouillés (étoiles à gagner) */
+.trTile.locked { flex-direction: column; background: #eef2f7; border-style: dashed; cursor: default; gap: 2px; }
+.trLock { font-size: 28px; }
+.trCost { font-size: 15px; font-weight: 800; color: #b45309; }
+.trStars { align-self: center; font-size: 22px; font-weight: 800; color: #b45309; padding: 0 8px; }
+
+/* Écran de fin : récompense débloquée / progression vers la prochaine */
+.unlockBox { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #ffd166, #ff70a6); color: #1e1b4b;
+  padding: 8px 22px; border-radius: 99px; box-shadow: 0 6px 0 rgba(0,0,0,.25); animation: stickerIn 0.7s 2.4s cubic-bezier(.2, 1.8, .5, 1) both; }
+.unlockNew { font-size: 26px; font-weight: 800; }
+.unlockItem { font-size: 52px; line-height: 1; }
+.unlockHint { font-size: 30px; }
+.nextReward { display: flex; align-items: center; gap: 10px; font-size: 30px; color: #fff; }
+.nextReward b { font-size: 22px; color: #fff3a0; }
+.nrBar { width: 160px; height: 14px; border-radius: 99px; background: rgba(255,255,255,.25); overflow: hidden; }
+.nrBar span { display: block; height: 100%; background: #ffd23f; border-radius: 99px; }
+.trPart canvas { height: 72px; }
+.trArrow { width: 50px; height: 50px; font-size: 26px; }
+.trTile, .trTile canvas { width: 62px; height: 78px; }
+.stars { font-size: clamp(60px, 9vw, 104px); }

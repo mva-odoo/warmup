@@ -157,6 +157,7 @@
   function openTrainer(p, rebuild) {
     Trainer.open({
       name: p.name, look: p.look, color: p.color,
+      stars: Object.values(p.best || {}).reduce((n, b) => n + (b.stars || 0), 0),
       async onSave(look) {
         const res = await rpc('/warmup/api/player/look', { player_id: p.id, look, color: look.color });
         Object.assign(p, res);

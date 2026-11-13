@@ -126,7 +126,7 @@ function buildMenu() {
   const menuLooks = trainerLooks();
   if (store('3d') !== false) {
     scene3d.load()
-      .then(() => Promise.all([scene3d.preloadTrainers(menuLooks.map((l) => l.model)),
+      .then(() => Promise.all([scene3d.preloadTrainers([...new Set(menuLooks.flatMap((l) => [l.model, l.body, l.legs]))]),
         scene3d.P.preload([...scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]),
           ...creatureModels(WORLDS.map((w) => creaturesOf(w.biomes[0].kit || 'meadow')[w.id.length % 3]).filter(Boolean))])]))
       .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
@@ -1243,6 +1243,7 @@ class Game {
     const stars = ratio >= 0.6 ? 3 : ratio >= 0.3 ? 2 : 1; // au moins 1 étoile : on a bougé, c'est gagné
     const id = this.world.id;
     // Record de chaque joueur (la partie compte pour tous en coopératif)
+    const starsBefore = team.map((p, i) => WUQStore.totalStars(i));
     this.records = team.map((p, i) => {
       const best = WUQStore.getBest(id, i);
       const isBest = this.score > best.score;
@@ -1250,6 +1251,9 @@ class Game {
       else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
       return { name: p.name, isBest, prev: best.score };
     });
+    // Récompenses débloquées pendant cette partie (chapeaux, cape, ailes…)
+    this.unlocks = team.map((p, i) => Trainer.gained(starsBefore[i], WUQStore.totalStars(i)));
+    this.nextRewards = team.map((p, i) => ({ have: WUQStore.totalStars(i), next: Trainer.nextReward(WUQStore.totalStars(i)) }));
     // Gommette de chaque joueur, choisie avant l'enregistrement pour qu'elle parte dans Odoo
     this.won = team.map((p, i) => {
       const own = WUQStore.getStickers(i);
@@ -1405,6 +1409,13 @@ function showResults(g, stars) {
     friends.appendChild(title);
     for (const cr of g.team) friends.appendChild(creatureCard(cr, true, Carnet.evolved(cr.id)));
   }
+  // Nouvelles récompenses, sinon combien d'étoiles il manque pour la prochaine
+  const got = (g.unlocks || []).flat();
+  const nx = (g.nextRewards || [])[0];
+  $('resUnlock').innerHTML = got.length
+    ? `<div class="unlockBox"><span class="unlockNew">Nouveau !</span>${got.map((r) => `<span class="unlockItem">${r.icon}</span>`).join('')}<span class="unlockHint">👕</span></div>`
+    : nx && nx.next ? `<div class="nextReward">${nx.next.icon} <b>⭐ ${nx.have} / ${nx.next.stars}</b><span class="nrBar"><span style="width:${Math.round(nx.have / nx.next.stars * 100)}%"></span></span></div>` : '';
+  if (got.length) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as débloqué un nouvel objet pour ton dresseur !`); }, 4200);
   // Gommette de chaque joueur (choisie dans finish)
   $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
@@ -1552,7 +1563,7 @@ if (DEV.get('world') || DEV.get('carnet')) {
 }
 
 buildMenu();
-if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: 'female-c', hat: 'beanie', glasses: true }, color: '#5cc96b', onSave() {} }); // (mode test)
+if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: 'female-c', body: 'male-d', legs: 'female-a', hat: 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
 if (DEV.get('world') || DEV.get('carnet')) {

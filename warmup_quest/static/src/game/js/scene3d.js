@@ -44,6 +44,9 @@ const HUMAN_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f'
 const HUMAN_OWN_HAT = ['male-c'];
 const DEFAULT_LOOK = { model: 'male-a', hat: 'cap', glasses: false, color: '#ff6b35' };
 const humanKey = (look) => 'characters/character-' + (HUMAN_MODELS.includes(look && look.model) ? look.model : DEFAULT_LOOK.model);
+// Morceaux du dresseur : tête (look.model), corps (look.body), jambes (look.legs) — chacun pris d'un des 13 personnages
+const partKey = (look, part) => humanKey({ model: (look && (part === 'legs' ? look.legs || look.body : part === 'body' ? look.body : null)) || (look && look.model) });
+const lookKeys = (look) => [...new Set(['head', 'body', 'legs'].map((p) => partKey(look, p)))];
 // Poses du dresseur : direction visée par bras / jambes (même repère que pour le héros animé)
 const HUMAN_POSES = {
   armsUp: { 'arm-left': [-0.55, 1, 0], 'arm-right': [0.55, 1, 0] },
@@ -512,7 +515,7 @@ class Scene3D extends DepthScene {
   // Personnage jouet : corps rond, oreilles, antenne-feuille, bras et jambes articulés (vu de dos)
   // Dresseur : petit humain animé (sprint, saut, accroupi, coup, joie, refus) + chapeau, sac à dos, lunettes
   makeHumanHero(pal, small, look) {
-    const T = this.T, key = humanKey(look), obj = this.P.model(key);
+    const T = this.T, key = partKey(look, 'body'), obj = this.composeHuman(look);
     const group = new T.Group(), inner = new T.Group();
     group.add(inner); inner.add(obj);
     obj.rotation.y = Math.PI; // vu de dos
@@ -537,7 +540,7 @@ class Scene3D extends DepthScene {
       const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); if (rot) m.rotation.set(...rot); grp.add(m); return m;
     };
     const dome = new T.SphereGeometry(1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-    const hatKind = HUMAN_OWN_HAT.includes(look.model) ? 'none' : look.hat; // ce personnage a déjà sa casquette
+    const hatKind = HUMAN_OWN_HAT.includes(look.model || DEFAULT_LOOK.model) ? 'none' : look.hat; // ce personnage a déjà sa casquette
     if (hatKind === 'cap') { // casquette portée à l'envers : on voit la visière de dos
       add(hat, dome, col, 0, 0, 0, 0.5, 0.36, 0.5);
       add(hat, new T.CylinderGeometry(1, 1, 1, 20, 1, false, -Math.PI / 2, Math.PI), dark, 0, 0.01, 0.32, 0.36, 0.03, 0.34);
@@ -548,11 +551,62 @@ class Scene3D extends DepthScene {
       add(hat, G.sphere, '#ffffff', 0, 0.47, 0, 0.11);
     } else if (hatKind === 'headband') {
       add(hat, new T.TorusGeometry(0.47, 0.06, 8, 24), col, 0, -0.08, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+    // --- Chapeaux à débloquer avec les étoiles
+    } else if (hatKind === 'crown') { // couronne dorée à pointes, avec des pierres
+      add(hat, new T.CylinderGeometry(0.42, 0.44, 0.22, 20, 1, true), '#ffd23f', 0, 0.02, 0, 1);
+      for (let k = 0; k < 6; k++) {
+        const a = k / 6 * Math.PI * 2;
+        add(hat, G.cone || new T.ConeGeometry(1, 1, 8), '#ffd23f', Math.cos(a) * 0.42, 0.2, Math.sin(a) * 0.42, 0.07, 0.16, 0.07);
+        add(hat, G.sphere, ['#ef476f', '#4ea8ff', '#5cc96b'][k % 3], Math.cos(a) * 0.44, 0.03, Math.sin(a) * 0.44, 0.05);
+      }
+    } else if (hatKind === 'flowers') { // couronne de fleurs
+      add(hat, new T.TorusGeometry(0.45, 0.05, 8, 24), '#5cc96b', 0, -0.04, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      for (let k = 0; k < 8; k++) {
+        const a = k / 8 * Math.PI * 2;
+        add(hat, G.sphere, ['#ff70a6', '#ffd166', '#ffffff', '#b388eb'][k % 4], Math.cos(a) * 0.45, 0.0, Math.sin(a) * 0.45, 0.09);
+      }
+    } else if (hatKind === 'wizard') { // chapeau de magicien étoilé
+      add(hat, new T.CylinderGeometry(0.62, 0.62, 0.04, 24), dark, 0, -0.04, 0, 1);
+      const cone = add(hat, new T.ConeGeometry(0.4, 0.9, 20), col, 0.03, 0.42, 0, 1); cone.rotation.z = -0.15;
+      add(hat, G.sphere, '#ffd23f', 0.1, 0.55, 0.3, 0.06); add(hat, G.sphere, '#ffd23f', -0.15, 0.3, 0.33, 0.05);
+    } else if (hatKind === 'pirate') { // bicorne de pirate
+      add(hat, dome, '#1e1b4b', 0, -0.02, 0, 0.48, 0.3, 0.48);
+      add(hat, new T.CylinderGeometry(1, 1, 1, 24), '#1e1b4b', 0, 0.02, 0, 0.75, 0.05, 0.42);
+      add(hat, new T.BoxGeometry(1, 1, 1), '#ffd23f', 0, 0.05, 0.42, 0.5, 0.04, 0.02);
+      add(hat, G.sphere, '#ffffff', 0, 0.2, 0.44, 0.07);
+    } else if (hatKind === 'cat') { // oreilles de chat
+      add(hat, new T.TorusGeometry(0.46, 0.04, 8, 24), col, 0, -0.06, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      for (const sg of [-1, 1]) {
+        add(hat, new T.ConeGeometry(0.16, 0.32, 4), col, sg * 0.3, 0.2, 0, 1);
+        add(hat, new T.ConeGeometry(0.09, 0.2, 4), '#ffb4c8', sg * 0.3, 0.18, 0.06, 1);
+      }
+    } else if (hatKind === 'viking') { // casque à cornes
+      add(hat, dome, '#adb5bd', 0, -0.03, 0, 0.5, 0.42, 0.5);
+      add(hat, new T.TorusGeometry(0.49, 0.05, 8, 24), '#8d5a3b', 0, -0.02, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      for (const sg of [-1, 1]) { const h = add(hat, new T.ConeGeometry(0.09, 0.42, 10), '#fff8e7', sg * 0.52, 0.22, 0, 1); h.rotation.z = -sg * 0.7; }
+    } else if (hatKind === 'astro') { // casque d'astronaute (bulle transparente)
+      const bub = new T.Mesh(new T.SphereGeometry(0.62, 24, 16), new T.MeshPhysicalMaterial({ color: '#dff6ff', transparent: true, opacity: 0.28, roughness: 0.05 }));
+      bub.position.set(0, -0.25, 0); hat.add(bub);
+      add(hat, new T.TorusGeometry(0.5, 0.07, 8, 24), '#ffffff', 0, -0.68, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
     }
-    // Sac à dos de dresseur, avec un rabat et deux bretelles
-    add(bag, new T.BoxGeometry(1, 1, 1), col, 0, 0, 0, 0.52, 0.58, 0.26);
-    add(bag, new T.BoxGeometry(1, 1, 1), dark, 0, 0.18, 0.02, 0.54, 0.2, 0.28);
-    add(bag, G.sphere, '#ffd166', 0, 0.12, 0.15, 0.05);
+    // Dos : sac à dos de dresseur, cape ou ailes (à débloquer)
+    const backKind = look.back || 'bag';
+    if (backKind === 'cape') {
+      const cape = new T.Mesh(new T.PlaneGeometry(0.75, 0.95, 4, 8), new T.MeshToonMaterial({ color: col, side: T.DoubleSide, gradientMap: this.P.gradient || null }));
+      cape.position.set(0, -0.48, 0.16); cape.name = 'cape'; bag.add(cape);
+      add(bag, new T.BoxGeometry(1, 1, 1), '#ffd23f', 0, 0, 0, 0.7, 0.06, 0.06);
+    } else if (backKind === 'wings') {
+      for (const sg of [-1, 1]) {
+        const w = add(bag, G.sphere, '#ffffff', sg * 0.42, 0.05, 0.05, 0.42, 0.22, 0.05);
+        w.rotation.z = sg * 0.5; w.name = sg < 0 ? 'wingL' : 'wingR';
+        add(w, G.sphere, '#bde0fe', 0.2, 0, 0.3, 0.6, 0.6, 0.6);
+      }
+    } else {
+      // Sac à dos de dresseur, avec un rabat et deux bretelles
+      add(bag, new T.BoxGeometry(1, 1, 1), col, 0, 0, 0, 0.52, 0.58, 0.26);
+      add(bag, new T.BoxGeometry(1, 1, 1), dark, 0, 0.18, 0.02, 0.54, 0.2, 0.28);
+      add(bag, G.sphere, '#ffd166', 0, 0.12, 0.15, 0.05);
+    }
     if (look.glasses) {
       for (const sg of [-1, 1]) add(glasses, new T.TorusGeometry(0.1, 0.022, 6, 16), '#1e1b4b', sg * 0.15, 0, 0, 1);
       add(glasses, new T.BoxGeometry(1, 1, 1), '#1e1b4b', 0, 0, 0, 0.12, 0.025, 0.025);
@@ -560,7 +614,7 @@ class Scene3D extends DepthScene {
     this.shadow(hat); this.shadow(bag); this.outline(hat); this.outline(bag);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
-    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, cur: null, last: 0 } };
+    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, obj, cur: null, last: 0 } };
   }
 
   // Dresseur immobile (aperçus) : première image de l'animation de repos + pose
@@ -580,7 +634,7 @@ class Scene3D extends DepthScene {
     const sun = new T.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, 5); scene.add(sun);
     const m = this.makeHumanHero({ body: look.color || '#ff6b35' }, false, look);
     this.poseHumanStill(m, 'idle');
-    m.group.rotation.y = Math.PI + 0.45; // de face, légèrement de trois quarts
+    m.group.rotation.y = look.view === "back" ? 0.5 : Math.PI + 0.45; // de face, légèrement de trois quarts (de dos pour montrer cape, ailes…)
     scene.add(m.group);
     const cam = new T.PerspectiveCamera(30, 240 / 300, 0.1, 50);
     cam.position.set(0, 1.45, 6.2); cam.lookAt(0, 1.05, 0);
@@ -594,6 +648,61 @@ class Scene3D extends DepthScene {
   // Charge les petits dresseurs (tous, pour la fenêtre de choix)
   preloadTrainers(models = HUMAN_MODELS) {
     return this.load().then(() => this.P.preload(models.map((model) => humanKey({ model }))));
+  }
+
+  // Dresseur « à la carte » : squelette et corps d'un personnage, tête d'un autre, jambes d'un troisième
+  // (les 13 personnages ont le même squelette et la même palette de couleurs : on échange les géométries)
+  composeHuman(look) {
+    const kb = partKey(look, 'body'), kh = partKey(look, 'head'), kl = partKey(look, 'legs');
+    const obj = this.P.model(kb);
+    if (kh === kb && kl === kb) return obj;
+    const meshOf = (root, name) => { let f = null; root.traverse((o) => { if (!f && o.isSkinnedMesh && o.name.startsWith(name)) f = o; }); return f; };
+    const tpl = (k) => this.P.models.get(k);
+    if (kh !== kb) {
+      const src = tpl(kh) && meshOf(tpl(kh), 'head'), dst = meshOf(obj, 'head');
+      if (src && dst) dst.geometry = src.geometry;
+    }
+    if (kl !== kb) {
+      this.humanGeo = this.humanGeo || new Map();
+      const gk = kb + '|' + kl;
+      if (!this.humanGeo.has(gk)) {
+        const a = tpl(kb) && meshOf(tpl(kb), 'body'), b = tpl(kl) && meshOf(tpl(kl), 'body');
+        this.humanGeo.set(gk, a && b ? this.mergeBodyLegs(a.geometry, b.geometry) : null);
+      }
+      const g = this.humanGeo.get(gk), dst = meshOf(obj, 'body');
+      if (g && dst) dst.geometry = g;
+    }
+    return obj;
+  }
+
+  // Haut du corps (torse, bras) d'une géométrie + jambes d'une autre (triangles des os « jambe »)
+  mergeBodyLegs(gUp, gLegs) {
+    const T = this.T;
+    const tris = (g, legs) => {
+      const idx = g.index.array, si = g.attributes.skinIndex, out = [];
+      for (let t = 0; t < idx.length; t += 3) {
+        let n = 0;
+        for (let k = 0; k < 3; k++) { const j = si.getX(idx[t + k]); if (j === 1 || j === 2) n++; }
+        if ((n >= 2) === legs) out.push(idx[t], idx[t + 1], idx[t + 2]);
+      }
+      return out;
+    };
+    const flat = (attr) => { // (attributs entrelacés ou non)
+      const out = new attr.array.constructor(attr.count * attr.itemSize);
+      for (let i = 0; i < attr.count; i++) for (let c = 0; c < attr.itemSize; c++) out[i * attr.itemSize + c] = attr.getComponent(i, c);
+      return out;
+    };
+    const geo = new T.BufferGeometry(), nUp = gUp.attributes.position.count;
+    for (const name of Object.keys(gUp.attributes)) {
+      const A = gUp.attributes[name], B = gLegs.attributes[name];
+      if (!B || B.itemSize !== A.itemSize) continue;
+      const a = flat(A), b = flat(B), arr = new a.constructor(a.length + b.length);
+      arr.set(a); arr.set(b, a.length);
+      geo.setAttribute(name, new T.BufferAttribute(arr, A.itemSize, A.normalized));
+    }
+    geo.setIndex([...tris(gUp, false), ...tris(gLegs, true).map((i) => i + nUp)]);
+    geo.computeBoundingSphere();
+    return geo;
   }
 
   // Membres du joueur que ce héros doit imiter (ou null)
@@ -701,6 +810,10 @@ class Scene3D extends DepthScene {
     at(r.bones.head, 0, HUMAN_FIT.hatY, 0, r.hat);
     at(r.bones.head, 0, HUMAN_FIT.glassesY, -HUMAN_FIT.glassesZ, r.glasses);
     at(r.bones.torso, 0, HUMAN_FIT.bagY, HUMAN_FIT.bagZ, r.bag);
+    // Cape qui flotte, ailes qui battent
+    const t9 = now / 1000, cape = r.bag.getObjectByName('cape');
+    if (cape) cape.rotation.x = 0.25 + 0.15 * Math.sin(t9 * 6) + (pose === 'run' ? 0.35 : 0);
+    for (const [n, sg] of [['wingL', -1], ['wingR', 1]]) { const w = r.bag.getObjectByName(n); if (w) w.rotation.y = sg * (0.3 + 0.35 * Math.sin(t9 * 9)); }
     // Position des mains du héros, dans le repère des bulles / taupes (unité = demi-mètre autour des épaules)
     if (L) {
       const idx = this.heroes.indexOf(h), sc = m.scale, ax = m.group.position.x, ay = m.group.position.y + 1.15 * sc;
@@ -751,7 +864,7 @@ class Scene3D extends DepthScene {
   }
 
   makeHero(pal, small, extra = null, allowRig = true, look = null) {
-    if (allowRig && this.P.models && this.P.models.has(humanKey(look))) return this.makeHumanHero(pal, small, look || DEFAULT_LOOK);
+    if (allowRig && this.P.models && lookKeys(look).every((k) => this.P.models.has(k))) return this.makeHumanHero(pal, small, look || DEFAULT_LOOK);
     if (allowRig && this.P.models && this.P.models.has('monsters/Bunny')) return this.makeAnimatedHero(pal, small, extra);
     const T = this.T, lam = this.lam, G = this.geo;
     const group = new T.Group(), inner = new T.Group();
@@ -837,7 +950,7 @@ class Scene3D extends DepthScene {
   // Modèles du monde (Kenney) chargés avant de jouer
   preloadWorld(world, looks = []) {
     const kits = world.biomes.map((b) => b.kit || 'meadow');
-    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].map(humanKey)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k)))]));
+    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k)))]));
   }
 
   // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles

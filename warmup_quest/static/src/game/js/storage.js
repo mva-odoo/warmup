@@ -15,6 +15,9 @@ const WUQStore = {
   getBest(worldId, i = 0) { return this._get('best_' + worldId + (i ? '_' + i : '')) || { stars: 0, score: 0 }; },
   setBest(worldId, b, i = 0) { this._set('best_' + worldId + (i ? '_' + i : ''), b); },
 
+  // Total des étoiles du joueur n° i (meilleure note de chaque monde) : sert à débloquer les récompenses
+  totalStars(i = 0) { return (typeof WORLDS === 'undefined' ? [] : WORLDS).reduce((n, w) => n + (this.getBest(w.id, i).stars || 0), 0); },
+
   // Étapes à jouer pour un monde
   steps(world) { return world.sequence; },
 
@@ -56,7 +59,7 @@ const WUQStore = {
       const b = document.createElement('button');
       b.className = 'btn small';
       b.textContent = '👕' + (p.name ? ' ' + p.name : '');
-      b.onclick = () => Trainer.open({ name: p.name, look: p.look, color: p.color, onSave: (l) => { this.setLook(i, l); rebuild(); } });
+      b.onclick = () => Trainer.open({ name: p.name, look: p.look, color: p.color, stars: this.totalStars(i), onSave: (l) => { this.setLook(i, l); rebuild(); } });
       box.appendChild(b);
     });
     return box;

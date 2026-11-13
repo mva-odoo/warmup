@@ -41,8 +41,11 @@
                         <group>
                             <field name="color" widget="color"/>
                             <field name="avatar_model"/>
+                            <field name="avatar_body"/>
+                            <field name="avatar_legs"/>
                             <field name="avatar_hat"/>
                             <field name="avatar_glasses"/>
+                            <field name="avatar_back"/>
                             <field name="birth_year"/>
                             <field name="user_id"/>
                             <field name="active" invisible="1"/>

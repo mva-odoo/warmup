@@ -10,7 +10,12 @@ AVATAR_MODELS = [
     ('female-a', 'Fille 1'), ('female-b', 'Fille 2'), ('female-c', 'Fille 3'),
     ('female-d', 'Fille 4'), ('female-e', 'Fille 5'), ('female-f', 'Fille 6'),
 ]
-AVATAR_HATS = [('cap', 'Casquette'), ('beanie', 'Bonnet'), ('headband', 'Bandeau'), ('none', 'Rien')]
+AVATAR_HATS = [('cap', 'Casquette'), ('beanie', 'Bonnet'), ('headband', 'Bandeau'), ('none', 'Rien'),
+               # à débloquer avec les étoiles gagnées dans le jeu
+               ('crown', 'Couronne'), ('flowers', 'Couronne de fleurs'), ('wizard', 'Chapeau de magicien'),
+               ('cat', 'Oreilles de chat'), ('pirate', 'Chapeau de pirate'), ('viking', 'Casque de viking'),
+               ('astro', "Casque d'astronaute")]
+AVATAR_BACKS = [('bag', 'Sac à dos'), ('cape', 'Cape'), ('wings', 'Ailes')]
 
 
 class WarmupPlayer(models.Model):
@@ -25,10 +30,14 @@ class WarmupPlayer(models.Model):
     user_id = fields.Many2one('res.users', string='Utilisateur Odoo',
                               help='Optionnel : utilisateur Odoo associé à ce joueur.')
     birth_year = fields.Integer(string='Année de naissance')
-    avatar_model = fields.Selection(AVATAR_MODELS, string='Personnage', default='male-a', required=True,
-                                    help='Petit dresseur qui représente l\'enfant dans le jeu.')
+    avatar_model = fields.Selection(AVATAR_MODELS, string='Tête', default='male-a', required=True,
+                                    help='Petit dresseur qui représente l\'enfant dans le jeu : tête, corps et jambes '
+                                         'peuvent venir de personnages différents.')
+    avatar_body = fields.Selection(AVATAR_MODELS, string='Corps', help='Vide : celui de la tête.')
+    avatar_legs = fields.Selection(AVATAR_MODELS, string='Jambes', help='Vide : celles du corps.')
     avatar_hat = fields.Selection(AVATAR_HATS, string='Chapeau', default='cap', required=True)
     avatar_glasses = fields.Boolean(string='Lunettes')
+    avatar_back = fields.Selection(AVATAR_BACKS, string='Dans le dos', default='bag')
     active = fields.Boolean(default=True)
     session_ids = fields.One2many('warmup.session', 'player_id', string='Parties')
     catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
@@ -108,18 +117,23 @@ class WarmupPlayer(models.Model):
 
     def _game_look(self):
         self.ensure_one()
-        return {'model': self.avatar_model or 'male-a', 'hat': self.avatar_hat or 'cap',
-                'glasses': bool(self.avatar_glasses)}
+        head = self.avatar_model or 'male-a'
+        body = self.avatar_body or head
+        return {'model': head, 'body': body, 'legs': self.avatar_legs or body,
+                'hat': self.avatar_hat or 'cap', 'glasses': bool(self.avatar_glasses), 'back': self.avatar_back or 'bag'}
 
     def _set_look(self, look):
         """Apparence choisie dans le jeu (valeurs inconnues ignorées)."""
         self.ensure_one()
         look = look if isinstance(look, dict) else {}
         vals = {}
-        if look.get('model') in dict(AVATAR_MODELS):
-            vals['avatar_model'] = look['model']
+        for key, field in (('model', 'avatar_model'), ('body', 'avatar_body'), ('legs', 'avatar_legs')):
+            if look.get(key) in dict(AVATAR_MODELS):
+                vals[field] = look[key]
         if look.get('hat') in dict(AVATAR_HATS):
             vals['avatar_hat'] = look['hat']
+        if look.get('back') in dict(AVATAR_BACKS):
+            vals['avatar_back'] = look['back']
         if 'glasses' in look:
             vals['avatar_glasses'] = bool(look['glasses'])
         if vals:

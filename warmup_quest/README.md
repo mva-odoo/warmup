@@ -12,8 +12,15 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
-- **Mon dresseur 👕** : chaque enfant est un petit dresseur qu'il habille lui-même, uniquement avec des images :
-  13 personnages, casquette / bonnet / bandeau, lunettes et sa couleur préférée (sac à dos et chapeau).
+- **Récompenses** : les étoiles gagnées (meilleure note de chaque monde) débloquent des objets pour le dresseur :
+  couronne (3 ⭐), couronne de fleurs, cape, chapeau de magicien, oreilles de chat, ailes, chapeau de pirate,
+  casque de viking, casque d'astronaute (30 ⭐). L'écran de fin annonce « Nouveau ! » ou montre la prochaine récompense.
+- **Musique** : chaque monde a sa petite musique originale (aventure, danse, karaté, espace, sous l'eau, bonbons…),
+  jouée par un synthétiseur intégré (instruments, batterie, réverbération) ; elle baisse quand la voix parle.
+  Réglage parent « 🎵 Musique » pour la couper.
+- **Mon dresseur 👕** : chaque enfant compose son petit dresseur, uniquement avec des images : la **tête**, le **corps**
+  et les **jambes** (flèches ◀ ▶, parmi 13 personnages, ou 🎲 au hasard), casquette / bonnet / bandeau, lunettes
+  et sa couleur préférée (sac à dos et chapeau).
   La fenêtre s'ouvre juste après l'ajout d'un enfant, puis avec le bouton 👕 à côté de son prénom ;
   le choix est enregistré dans sa fiche (onglet principal : Personnage, Chapeau, Lunettes).
 - **Warm-Up Quest › ▶ Jouer** : ouvre le jeu (`/warmup`) dans un nouvel onglet ; choisir « Qui joue ? » puis un monde.
@@ -31,8 +38,13 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Le dresseur imite l'enfant** : pendant les bulles, taupes, poses, fruits, cubes, danses et statues, ses bras et ses jambes
     copient ceux de l'enfant en direct, et la caméra se rapproche. On touche bulles et taupes avec les mains du personnage
     (gants lumineux), donc exactement ce qu'on voit à l'écran.
-  - Pendant une pose, une **silhouette dorée** du dresseur montre la position à prendre ; elle devient verte quand c'est bon.
+  - Pendant une pose, le **modèle à imiter** se tient de face sur une estrade dorée à côté du chemin, et une silhouette
+    dorée se pose sur le dresseur ; elles deviennent vertes quand c'est bon.
+  - **Corde à sauter** : décompte 3, 2, 1 avant chaque saut (lent pour le premier, en rythme ensuite).
+  - **Fruits** : le dresseur se tourne vers l'enfant, un peu transparent, comme un miroir.
   - La petite vidéo de la caméra est en haut à droite (dans le ciel) pour ne plus cacher les épreuves.
+  - Présentation « jeu vidéo » : monde arrondi à l'horizon, consigne annoncée en grand puis rangée en petit en haut,
+    étincelles quand c'est réussi, butin qui se compte à la fin, menu animé.
   - **Tout est en 3D** (Three.js, style jouet) : décors propres à chaque paysage (sapins enneigés, palmiers et mer,
     coraux et poissons, planètes, bonbons géants, grange et moulin, volcan qui fume, dino, château…), neige, bulles,
     lucioles, nuit étoilée, et le paysage change pendant la partie. Réglage parent « Graphismes 2D (léger) » pour les PC
@@ -74,7 +86,7 @@ Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis 
 **Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
 un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
 `&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
-`&forcepose=star` fige une pose, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
+`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
@@ -106,5 +118,7 @@ si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à
   licence **CC0** (`static/src/game/models/monsters/License.txt`) ; les noms français sont propres à ce jeu.
 - Petits dresseurs (personnages et animations) : **Mini Characters** de Kenney, licence **CC0**
   (`static/src/game/models/characters/License.txt`) ; chapeaux, sac à dos et lunettes ajoutés par le jeu.
+- Vaisseaux, rovers, astronautes, cratères (Space Kit), friandises et fruits géants (Food Kit), bateaux, palmiers,
+  coffres et tonneaux pirates (Pirate Kit) : **Kenney**, licence **CC0** (`static/src/game/models/space|food|pirate/License.txt`).
 - Moteur 3D : Three.js ; détection des mouvements : MediaPipe (chargés depuis jsDelivr).
 - Personnages, créatures, mondes et musiques : créations originales de ce module.
