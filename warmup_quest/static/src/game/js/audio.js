@@ -106,6 +106,15 @@ const Audio8 = (() => {
   const play = (name, f, when, d, v, bus) => { graph(); INST[name](f, ac().currentTime + when, d, v, bus || sfxBus); };
   const hz = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
 
+  // Tous les bruitages sont joués DANS LE TON de la musique en cours (même gamme, notes de l'accord du moment) :
+  // rien ne sonne faux, les réussites tombent comme des notes du morceau.
+  const tonal = () => {
+    const st = song ? song.style : STYLES.adventure;
+    return { key: st.key, scale: st.scale, chord: st.chords[Math.floor(stepI / 16) % 4] };
+  };
+  const deg = (n, oct = 1) => { const t = tonal(); return hz(t.key + t.scale[((n % 5) + 5) % 5] + 12 * Math.floor(n / 5) + 12 * oct); }; // n-ième note de la gamme
+  const chordNote = (i, oct = 1) => { const t = tonal(); return hz(t.key + t.chord[i % t.chord.length] + 12 * Math.floor(i / t.chord.length) + 12 * oct); };
+
   // Ancienne petite note (gardée pour quelques sons très courts)
   function tone(freq, dur, type = 'square', vol = 0.1, when = 0, slideTo = null) {
     const c = graph(), t = c.currentTime + when, o = c.createOscillator(), g = c.createGain();
@@ -158,7 +167,7 @@ const Audio8 = (() => {
   function startSong(styleName, seed) {
     graph();
     const st = STYLES[styleName] || STYLES.adventure;
-    song = compose(st, seed + styleName); songStyle = styleName;
+    song = compose(st, seed + styleName); song.seed = seed + styleName; songStyle = styleName;
     nextT = ac().currentTime + 0.08; stepI = 0;
     if (!sched) sched = setInterval(() => tick(), 25);
   }
@@ -195,8 +204,16 @@ const Audio8 = (() => {
   let theme = null;
   function refresh() {
     const want = fg ? { style: fg, seed: 'fg' } : theme && !themeMuted ? theme : null;
-    if (!want || !enabled) { stopSong(); return; }
-    if (songStyle !== want.style || !song) startSong(want.style, want.seed);
+    const fade = (v, tc) => { if (musicBus) musicBus.gain.setTargetAtTime(v, ac().currentTime, tc); };
+    if (!want || !enabled) {
+      // (fondu de sortie : on baisse puis on arrête, au lieu de couper net)
+      if (song) { fade(0.0001, 0.08); const dying = song; setTimeout(() => { if (song === dying) stopSong(); }, 350); }
+      return;
+    }
+    if (songStyle !== want.style || !song || song.seed !== want.seed + want.style) {
+      startSong(want.style, want.seed);
+      musicBus.gain.setValueAtTime(0.0001, ac().currentTime); fade(musicVol, 0.25); // fondu d'entrée
+    } else fade(musicVol, 0.15);
   }
 
   // --- Voix : on cherche la plus naturelle disponible.
@@ -256,23 +273,22 @@ const Audio8 = (() => {
       try { localStorage.setItem('wuq_voice', name); } catch {}
     },
     onVoices(f) { listeners.push(f); },
-    // Bruitages (instruments + réverbération)
-    good() { play('bell', hz(84), 0, 0.3, 0.16); play('bell', hz(91), 0.08, 0.4, 0.14); },
-    perfect() { [72, 76, 79, 84, 88].forEach((n, i) => play('bell', hz(n + 12), i * 0.06, 0.45, 0.13)); play('noise', 6000, 0.25, 0.4, 0.05); },
-    coin() { play('bell', hz(96), 0, 0.15, 0.1); play('bell', hz(103), 0.05, 0.3, 0.1); },
-    miss() { play('pluck', hz(60), 0, 0.25, 0.12); play('pluck', hz(55), 0.12, 0.35, 0.1); },
-    tick() { play('marimba', hz(84), 0, 0.12, 0.3); },
-    go() { play('bell', hz(91), 0, 0.5, 0.2); play('kick', 0, 0, 0, 0.3); },
-    soft() { play('marimba', hz(72), 0, 0.2, 0.22); play('marimba', hz(76), 0.1, 0.25, 0.2); },
-    // Petit cri propre à chaque créature (hauteur tirée de son nom) ; plus joyeux quand elle devient amie
+    // Bruitages : mêmes instruments que la musique, dans son ton (voir tonal)
+    good() { play('bell', chordNote(1, 2), 0, 0.3, 0.15); play('bell', chordNote(2, 2), 0.08, 0.4, 0.13); },
+    perfect() { [0, 1, 2, 3, 4].forEach((i) => play('bell', chordNote(i, 2), i * 0.06, 0.45, 0.12)); play('noise', 6000, 0.25, 0.4, 0.04); },
+    coin() { play('bell', deg(4, 3), 0, 0.15, 0.09); play('bell', deg(5, 3), 0.05, 0.3, 0.09); },
+    miss() { play('marimba', deg(2, 1), 0, 0.25, 0.16); play('marimba', deg(0, 1), 0.12, 0.35, 0.14); },
+    tick() { play('marimba', deg(5, 2), 0, 0.12, 0.28); },
+    go() { play('bell', deg(7, 2), 0, 0.5, 0.18); play('kick', 0, 0, 0, 0.3); },
+    soft() { play('marimba', deg(1, 2), 0, 0.2, 0.2); play('marimba', deg(0, 2), 0.1, 0.25, 0.18); },
+    // Petit cri propre à chaque créature (deux ou trois notes de la gamme, tirées de son nom) ; plus joyeux quand elle devient amie
     cry(id, happy = false) {
       let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 997;
-      const base = 380 + (h % 9) * 70;
-      tone(base, 0.12, 'triangle', 0.1, 0, base * 1.5);
-      tone(base * 1.25, 0.14, 'sine', 0.08, 0.13, base * (happy ? 2.2 : 0.9));
-      if (happy) tone(base * 1.6, 0.18, 'triangle', 0.07, 0.3, base * 2.4);
+      const a = h % 5, b = (h >> 3) % 5, inst = ['pluck', 'bell', 'marimba'][h % 3];
+      play(inst, deg(a, 2), 0, 0.14, 0.14); play(inst, deg(happy ? a + 2 : b, 2), 0.13, 0.18, 0.12);
+      if (happy) play(inst, deg(a + 4, 2), 0.28, 0.3, 0.12);
     },
-    boing() { tone(300, 0.18, 'sine', 0.14, 0, 700); tone(500, 0.12, 'triangle', 0.06, 0.08, 250); play('marimba', hz(67), 0, 0.2, 0.15); },
+    boing() { play('marimba', deg(0, 1), 0, 0.2, 0.2); play('marimba', deg(4, 1), 0.07, 0.25, 0.16); },
     // Arrivée d'une nouvelle consigne : souffle qui monte
     whoosh() {
       graph(); const c = ac(), t = c.currentTime, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
@@ -284,10 +300,10 @@ const Audio8 = (() => {
       graph(); const c = ac(), t = c.currentTime, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
       src.buffer = noiseBuf; f.type = 'bandpass'; f.Q.value = 4; f.frequency.setValueAtTime(5000, t); f.frequency.exponentialRampToValueAtTime(700, t + 0.15);
       env(g, t, 0.005, 0.3, 0.15); src.connect(f).connect(g).connect(sfxBus); src.start(t); src.stop(t + 0.25);
-      play('marimba', hz(79), 0.03, 0.15, 0.18);
+      play('marimba', deg(3, 2), 0.03, 0.15, 0.18);
     },
-    hit() { play('kick', 0, 0, 0, 0.45); play('bell', hz(88), 0.01, 0.25, 0.12); },
-    pop() { tone(900, 0.06, 'sine', 0.12, 0, 1800); play('bell', hz(96), 0.02, 0.12, 0.05); },
+    hit() { play('kick', 0, 0, 0, 0.45); play('bell', chordNote(Math.floor(Math.random() * 3), 2), 0.01, 0.25, 0.12); },
+    pop() { play('marimba', deg(5 + Math.floor(Math.random() * 4), 2), 0, 0.1, 0.16); },
     // Musique de fond du monde (world = id du monde ; null = silence)
     theme(world) { theme = world ? { style: WORLD_STYLE[world] || 'adventure', seed: world } : null; refresh(); },
     // La musique de fond se tait (statues musicales) ou reprend
@@ -309,9 +325,9 @@ const Audio8 = (() => {
     },
     musicEnabled: () => enabled,
     setMusicEnabled(on) { enabled = on; try { localStorage.setItem('wuq_music', on ? 'true' : 'false'); } catch {} refresh(); },
-    win() {
-      [60, 64, 67, 72, 67, 72, 76, 84].forEach((n, i) => { play('bell', hz(n + 12), i * 0.11, 0.5, 0.12); play('pluck', hz(n), i * 0.11, 0.3, 0.06); });
-      [0, 4, 7].forEach((n) => play('pad', hz(60 + n), 0.9, 1.2, 0.05));
+    win() { // fanfare de fin, dans le ton du monde
+      [0, 1, 2, 3, 2, 3, 4, 5].forEach((d, i) => { play('bell', deg(d + 2, 2), i * 0.11, 0.5, 0.12); play('pluck', deg(d + 2, 1), i * 0.11, 0.3, 0.06); });
+      [0, 2, 4].forEach((d) => play('pad', deg(d, 0), 0.9, 1.2, 0.05));
       play('kick', 0, 0.88, 0, 0.4);
     },
   };

@@ -130,6 +130,8 @@ class Props3D {
             if (old.alphaTest) extra.alphaTest = old.alphaTest;
             if (old.transparent) { extra.transparent = true; extra.alphaTest = extra.alphaTest || 0.4; }
             if (old.side) extra.side = old.side;
+            // (feuillage découpé : repéré par une opacité de 0,97 pour que le trait d'encre l'épargne)
+            if (extra.alphaTest) { extra.transparent = true; extra.opacity = 0.97; }
             o.material = this.toon('#' + col.getHexString(), extra);
             old.dispose();
             o.castShadow = true; o.receiveShadow = true;

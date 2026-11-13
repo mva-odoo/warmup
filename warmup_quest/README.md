@@ -43,6 +43,13 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Corde à sauter** : décompte 3, 2, 1 avant chaque saut (lent pour le premier, en rythme ensuite).
   - **Fruits** : le dresseur se tourne vers l'enfant, un peu transparent, comme un miroir.
   - La petite vidéo de la caméra est en haut à droite (dans le ciel) pour ne plus cacher les épreuves.
+  - **Rendu dessin animé** : trait d'encre calculé sur toute l'image (contours nets sur tous les objets et personnages,
+    qui s'effacent au loin), bords lissés, contre-jour qui détache les personnages.
+  - **Caméra qui met en scène** : un plan par situation (de côté pour voir le coach de danse, de trois quarts pour la corde,
+    au ras du sol dans le tunnel, plan à deux lors d'une rencontre, lent travelling pendant les pauses…), enchaînés en douceur ;
+    elle penche dans les changements de couloir et la focale s'ouvre avec la vitesse.
+  - **Son cohérent** : les bruitages utilisent les mêmes instruments que la musique et sont joués dans son ton ;
+    la musique entre et sort en fondu.
   - Présentation « jeu vidéo » : monde arrondi à l'horizon, consigne annoncée en grand puis rangée en petit en haut,
     étincelles quand c'est réussi, butin qui se compte à la fin, menu animé.
   - **Tout est en 3D** (Three.js, style jouet) : décors propres à chaque paysage (sapins enneigés, palmiers et mer,

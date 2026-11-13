@@ -312,6 +312,7 @@ class DepthScene {
 
   onStep(s, dur) {
     const now = performance.now();
+    this.stepKind = s.m; // (la caméra 3D choisit son plan selon l'épreuve)
     this.obs = null;
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
     this.setHoldPose(null);

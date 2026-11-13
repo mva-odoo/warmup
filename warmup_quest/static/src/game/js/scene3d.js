@@ -123,11 +123,61 @@ class Scene3D extends DepthScene {
   // Effets d'image : léger halo lumineux (bloom) et vignettage ; désactivés si le PC rame
   async initEffects() {
     const T = this.T;
-    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { ShaderPass }, { OutputPass }] = await Promise.all(
-      ['EffectComposer', 'RenderPass', 'UnrealBloomPass', 'ShaderPass', 'OutputPass'].map((n) => import(FX_BASE + n + '.js/+esm')));
-    const c = new EffectComposer(this.renderer);
+    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { ShaderPass }, { OutputPass }, { Pass, FullScreenQuad }] = await Promise.all(
+      ['EffectComposer', 'RenderPass', 'UnrealBloomPass', 'ShaderPass', 'OutputPass', 'Pass'].map((n) => import(FX_BASE + n + '.js/+esm')));
+    // Image de travail avec sa profondeur : elle sert à tracer les contours « à l'encre »
+    const px = this.renderer.getPixelRatio(), size = new T.Vector2(innerWidth * px, innerHeight * px);
+    const rt = new T.WebGLRenderTarget(size.x, size.y, { type: T.HalfFloatType, depthTexture: new T.DepthTexture(size.x, size.y) });
+    const c = new EffectComposer(this.renderer, rt);
+    // (chaque image de travail a SA texture de profondeur, sinon lecture et écriture se mordent la queue)
+    c.renderTarget1.depthTexture = new T.DepthTexture(size.x, size.y);
+    c.renderTarget2.depthTexture = new T.DepthTexture(size.x, size.y);
+    const setSize0 = c.setSize.bind(c);
+    c.setSize = (w, h) => {
+      setSize0(w, h);
+      for (const t of [c.renderTarget1, c.renderTarget2]) {
+        t.depthTexture.image.width = t.width; t.depthTexture.image.height = t.height; t.depthTexture.needsUpdate = true;
+      }
+    };
     this.renderPass = new RenderPass(new T.Scene(), this.camera);
     c.addPass(this.renderPass);
+    // Trait d'encre de dessin animé : contour sombre là où la profondeur « casse » (silhouettes, arêtes),
+    // sur TOUT ce qui est dessiné (modèles animés compris), fin et régulier ; il s'efface au loin.
+    // (dans le tampon de profondeur, une surface plane varie de façon linéaire : son laplacien est nul,
+    //  seul un vrai bord ressort — pas de faux traits sur le sol)
+    const camera = this.camera;
+    const inkMat = new T.ShaderMaterial({
+      uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, texel: { value: new T.Vector2(1 / size.x, 1 / size.y) },
+        near: { value: camera.near }, far: { value: camera.far }, ink: { value: new T.Color('#241a4d') }, strength: { value: 1 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse, tDepth; uniform vec2 texel; uniform float near, far, strength; uniform vec3 ink; varying vec2 vUv;
+        float zOf(float d) { return near * far / (far - d * (far - near)); } // distance réelle (m)
+        void main() {
+          vec4 col = texture2D(tDiffuse, vUv);
+          float d = texture2D(tDepth, vUv).x, z = zOf(d);
+          vec2 o = texel * 1.25;
+          float dl = texture2D(tDepth, vUv - vec2(o.x, 0.)).x, dr = texture2D(tDepth, vUv + vec2(o.x, 0.)).x;
+          float du = texture2D(tDepth, vUv + vec2(0., o.y)).x, dd = texture2D(tDepth, vUv - vec2(0., o.y)).x;
+          float zmin = zOf(min(min(dl, dr), min(du, dd)));   // l'objet le plus proche autour : c'est lui qu'on détoure
+          float lap = abs(dl + dr - 2. * d) + abs(du + dd - 2. * d);
+          // normalisé par la distance (sinon les objets proches auraient un trait énorme, les lointains aucun)
+          float e = lap * zmin * zmin / (near * 0.9);
+          float edge = smoothstep(0.06, 0.16, e);
+          edge *= col.a > 0.985 ? 1. : 0.22;                  // feuillages découpés : trait très léger (sinon l'arbre devient noir)
+          edge *= 1. - smoothstep(26., 44., zmin);            // le trait s'efface au loin (pas de fouillis à l'horizon)
+          gl_FragColor = vec4(mix(col.rgb, ink * col.rgb * 0.35 + ink * 0.25, edge * 0.85 * strength), col.a);
+        }`,
+    });
+    const inkPass = new Pass();
+    inkPass.fsQuad = new FullScreenQuad(inkMat);
+    inkPass.render = function (renderer, writeBuffer, readBuffer) {
+      inkMat.uniforms.tDiffuse.value = readBuffer.texture; inkMat.uniforms.tDepth.value = readBuffer.depthTexture;
+      renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+      this.fsQuad.render(renderer);
+    };
+    inkPass.setSize = (w, h) => inkMat.uniforms.texel.value.set(1 / w, 1 / h);
+    c.addPass(inkPass);
+    this.inkMat = inkMat;
     c.addPass(new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.16, 0.4, 0.95)); // halo discret (sinon l'image devient laiteuse)
     c.addPass(new ShaderPass({
       uniforms: { tDiffuse: { value: null } },
@@ -138,6 +188,13 @@ class Scene3D extends DepthScene {
         + ' float d = distance(vUv, vec2(0.5)); c.rgb *= mix(1.0, 0.72, smoothstep(0.35, 0.85, d)); gl_FragColor = c; }',
     }));
     c.addPass(new OutputPass());
+    // Lissage des bords (anticrénelage FXAA) : plus d'« escaliers » sur les contours
+    try {
+      const { FXAAShader } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/shaders/FXAAShader.js/+esm');
+      const fxaa = new ShaderPass(FXAAShader);
+      fxaa.setSize = (w, h) => fxaa.material.uniforms.resolution.value.set(1 / w, 1 / h);
+      c.addPass(fxaa);
+    } catch (e) { console.warn('Lissage indisponible', e); }
     c.setSize(innerWidth, innerHeight);
     this.composer = c;
   }
@@ -146,6 +203,7 @@ class Scene3D extends DepthScene {
     super.setWorld(theme, palettes, looks);
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
+    this.shot = null; this.stepKind = null; this.roll = 0;
     if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
     this.poseModel = null;
     if (!this.ready) return;
@@ -208,6 +266,10 @@ class Scene3D extends DepthScene {
     Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 40 });
     scene.add(sun, sun.target);
     this.sun = sun;
+    // Contre-jour bleuté venant de l'arrière : détache les personnages et les objets du décor (liseré de lumière)
+    this.rim = new T.DirectionalLight('#bcd4ff', 0.55);
+    this.rim.position.set(-5, 6, -9);
+    scene.add(this.rim);
     this.disc = new T.Mesh(new T.SphereGeometry(4, 24, 16), new T.MeshBasicMaterial({ color: '#fff6c2', fog: false }));
     this.disc.position.set(-18, 22, -80);
     scene.add(this.disc);
@@ -363,7 +425,7 @@ class Scene3D extends DepthScene {
     const blade = new T.PlaneGeometry(0.1, 0.6, 1, 3); blade.translate(0, 0.3, 0);
     const bp = blade.attributes.position;
     for (let i = 0; i < bp.count; i++) bp.setX(i, bp.getX(i) * (1 - bp.getY(i) / 0.62));
-    const grassMat = this.P.toon('#ffffff', { side: T.DoubleSide });
+    const grassMat = this.P.toon('#ffffff', { side: T.DoubleSide, depthWrite: false }); // (pas dans la profondeur : pas de trait d'encre sur chaque brin)
     grassMat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.windU;
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -1323,6 +1385,23 @@ class Scene3D extends DepthScene {
     return this.shadow(g);
   }
 
+  // Plan de caméra voulu selon l'épreuve en cours (x, y, z : décalage ; lx, ly, lz : décalage du point visé ; fov)
+  directShot(now) {
+    const shot = { x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0, fov: 55 }, k = this.stepKind, t = now / 1000;
+    const meet = this.enc && (this.enc.state === 'waiting' || this.enc.state === 'befriend');
+    if (this.outro || !this.theme) return shot;
+    if (meet) Object.assign(shot, { x: 1.3, lx: 0.5, y: -0.2, z: -0.4, fov: 50 });            // rencontre : héros et créature dans le même plan
+    else if (k === 'dance' || k === 'karate') Object.assign(shot, { x: 2.6 + Math.sin(t * 0.8) * 0.5, y: 0.5, lx: -0.6, lz: 3, fov: 52 }); // de côté : on voit le coach
+    else if (k === 'rope') Object.assign(shot, { x: 2.6, y: -0.9, z: -0.8, lx: -0.3, lz: 6.5, fov: 50 }); // de trois quarts, bas : on voit la corde passer sous les pieds
+    else if (k === 'cubes') Object.assign(shot, { y: 0.5, z: 1.3, ly: 0.2, fov: 60 });           // plus large : on voit les cubes arriver
+    else if (k === 'tunnel') Object.assign(shot, { y: -1.1, z: -1.4, ly: -0.2, fov: 62 });       // au ras du sol, dans le tunnel
+    else if (k === 'catch') Object.assign(shot, { y: 0.9, z: 1.0, ly: 0.9, fov: 58 });           // lève les yeux vers les étoiles qui tombent
+    else if (k === 'smash') Object.assign(shot, { y: -0.4, z: -0.9, fov: 52 });                  // serré sur le rocher
+    else if (k === 'rest') Object.assign(shot, { x: Math.sin(t * 0.45) * 2.4, y: 0.4, z: 0.6, fov: 52 }); // respiration : lent travelling
+    else if (k === 'freeze') Object.assign(shot, { x: Math.sin(t * 0.6) * 1.2, z: 0.4 });
+    return shot;
+  }
+
   // ---------- Cubes en rythme (3D) : ils glissent vers le héros ; bleu = main gauche, orange = main droite
   cubeTex(side) {
     this.cubeTexs = this.cubeTexs || {};
@@ -1583,10 +1662,19 @@ class Scene3D extends DepthScene {
     const cdt = Math.min(0.25, Math.max(0, (now - (this.cuT || now)) / 1000)); this.cuT = now; // (horloge propre : PC lents)
     this.cuK = (this.cuK || 0) + ((this.closeUp ? 1 : 0) - (this.cuK || 0)) * Math.min(1, cdt * 2.5);
     const cu = this.cuK;
-    this.camera.position.x += (avg * LANE * (0.35 + 0.5 * cu) - this.camera.position.x) * Math.min(1, dt * 3);
-    this.camera.position.y += (3.2 - 1.25 * cu + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
-    this.camera.position.z = 6.8 - 3.0 * cu;
-    this.camera.lookAt(this.camera.position.x * (0.6 + 0.4 * cu), 1.1 + 0.25 * cu + hy * 0.3, -8 + 2 * cu);
+    // Réalisateur : un plan par situation (décalage de la caméra, point visé, focale), enchaînés en douceur
+    const S = this.directShot(now), sh = (this.shot = this.shot || { ...S }), kS = Math.min(1, cdt * 1.8);
+    for (const key of Object.keys(S)) sh[key] += (S[key] - sh[key]) * kS;
+    this.camera.position.x += (avg * LANE * (0.35 + 0.5 * cu) + sh.x - this.camera.position.x) * Math.min(1, dt * 3);
+    this.camera.position.y += (3.2 - 1.25 * cu + sh.y + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
+    this.camera.position.z = 6.8 - 3.0 * cu + sh.z;
+    this.camera.lookAt((this.camera.position.x - sh.x) * (0.6 + 0.4 * cu) + sh.lx, 1.1 + 0.25 * cu + hy * 0.3 + sh.ly, -8 + 2 * cu + sh.lz);
+    // La caméra penche un peu dans les changements de couloir ; la focale s'ouvre avec la vitesse
+    const h0 = this.heroes[0], lean = h0 ? Math.max(-1, Math.min(1, h0.targetLane - h0.lane)) : 0;
+    this.roll = (this.roll || 0) + (lean * -0.05 - (this.roll || 0)) * Math.min(1, cdt * 6);
+    this.camera.rotateZ(this.roll);
+    const fov = sh.fov + Math.max(0, this.speed - 1) * 7;
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     // Arrivée dans le monde : la caméra descend du ciel en tournant autour du héros (pendant le 3, 2, 1)
     const ik = this.introT ? Math.min(1, (now - this.introT) / 3600) : 1;
     if (ik < 1) {
@@ -1658,6 +1746,7 @@ class Scene3D extends DepthScene {
     this.frameMs = (this.frameMs || 16) * 0.95 + dt * 1000 * 0.05;
     if (this.frameMs > 40 && this.composer && !this.lowQuality) { this.lowQuality = true; console.info('PC lent : effets d\'image coupés'); }
     const fx = this.composer && !this.lowQuality && (typeof store !== 'function' || store('effects') !== false);
+    this.outlineMat.visible = !fx; // (sans effets : anciens contours « coque » ; avec : trait d'encre sur toute l'image)
     if (fx) { this.renderPass.scene = this.s3; this.composer.render(); }
     else this.renderer.render(this.s3, this.camera);
 
