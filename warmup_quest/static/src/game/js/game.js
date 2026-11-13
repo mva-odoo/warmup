@@ -23,6 +23,9 @@ const pictoCtx = $('cardPicto').getContext('2d');
 // Joueurs de la partie : 1, ou 2 en coopératif (chacun a sa couleur sur la vidéo)
 const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 // Épreuves où le héros imite en direct les bras et les jambes de son joueur
+// Fruits et cubes : emplacements autour du dresseur, au bout de ses bras (unités des bulles : ~ demi-mètre, v vers le bas)
+const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1.1 }, { u: 0, v: -1.7 }, { u: 1.6, v: -1.1 }, { u: 2.2, v: -0.1 }, { u: 2.0, v: 0.9 }];
+const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
 const LIVE_STEPS = new Set(['bubbles', 'moles', 'pose', 'posemix', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
@@ -645,7 +648,10 @@ class Game {
     scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate'].includes(s.m);
     scene.faceCam = live && s.m === 'slice'; // fruits : le dresseur se tourne vers l'enfant (comme un miroir)
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
-    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' ? s.poses[Math.min(c.pi, s.poses.length - 1)] : null;
+    const mimicMove = s && (s.m === 'dance' || s.m === 'karate') && c.showI >= 0 ? s.moves[Math.min(c.showI, s.moves.length - 1)] : null;
+    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' ? s.poses[Math.min(c.pi, s.poses.length - 1)]
+      : POSES[mimicMove] ? mimicMove : null; // (danse : la silhouette dorée montre la pose du coach sur ton dresseur)
+    scene.ghostOnly = !!mimicMove; // (pas d'estrade : le coach est déjà là)
   }
 
   // Direction de chaque bras / jambe du joueur (repère écran en miroir, y vers le haut, unité = hauteur)
@@ -916,11 +922,15 @@ class Game {
     if (now - (c.lastFruit || 0) > gap && now - c.start > 900) {
       const i = (c.fruitTurn = ((c.fruitTurn || 0) + 1) % this.np);
       if (c.fruits.filter((f) => f.hero === i && !f.cut && fruitPos(f, now).t < 1).length < 2 && (hands[i] || tracker.sim)) {
-        const side = (c.fruitSide = -(c.fruitSide || 1));
+        // Sommet du vol : un des 7 endroits autour du dresseur (bas, milieu, haut de chaque côté, au-dessus de la tête),
+        // jamais deux fois de suite le même ; départ d'en bas, d'un côté ou de l'autre
         const far = this.avatarReach(i);
-        const top = far ? this.reachPoint(side, -1.15 + Math.random() * 1.0, 1.55) : { u: side * (0.6 + Math.random() * 0.5), v: -0.9 + Math.random() * 0.8 };
+        const spots = far ? FRUIT_SPOTS : FRUIT_SPOTS.map((p) => ({ u: p.u * 0.55, v: p.v * 0.55 }));
+        let si; do { si = Math.floor(Math.random() * spots.length); } while (si === c.fruitSpot && spots.length > 1);
+        c.fruitSpot = si;
+        const top = spots[si], from = top.u + (Math.random() - 0.5) * 3.2;
         const [emoji, juice] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
-        c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: top.u * 0.55, u1: top.u * 1.2, v0: top.v + 4.2, av: top.v,
+        c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: from, u1: 2 * top.u - from, v0: top.v + 4.2, av: top.v,
           spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
         c.lastFruit = now;
       }
@@ -958,22 +968,24 @@ class Game {
     const s = c.s, hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
     scene.hands = hands;
     const beat = (s.beat || 1.4) * 1000 * Math.min(1.3, this.mul), travel = cubeTravel(this.mul);
-    const PATTERN = [-1, 1, -1, 1, -1, -1, 1, 1, 0, -1, 1, 0];
+    // Emplacements (voir CUBE_SPOTS) : bas gauche, milieu gauche, haut gauche, en haut, haut droite, milieu droite, bas droite
+    const PATTERN = [1, 5, 2, 4, 0, 6, 3, 1, 4, 2, 5, 3, 0, 6, 2, 5, 3, 1, 6, 4];
     // Chaque cube part un temps à l'avance pour arriver pile sur le temps
     while (c.cubesSent < s.n || c.cubesSent == null) {
       c.cubesSent = c.cubesSent || 0;
       const k = c.cubesSent, arrive = c.start + 1500 + travel + k * beat;
       if (arrive - travel > now) break;
-      const side = PATTERN[k % PATTERN.length];
-      for (const sd of side === 0 ? [-1, 1] : [side]) c.cubes.push({ k, side: sd, born: arrive - travel, arrive, hit: null, missed: false });
+      const sp = CUBE_SPOTS[PATTERN[k % PATTERN.length]];
+      c.cubes.push({ k, side: sp.side, spot: sp, born: arrive - travel, arrive, hit: null, missed: false });
       c.cubesSent++;
     }
     for (const cb of c.cubes) {
       if (cb.hit || cb.missed) continue;
-      const far = this.avatarReach(0);
-      cb.u = cb.side * (far ? 1.85 : 1.05); cb.v = far ? -0.55 : -0.55;
+      const far = this.avatarReach(0), sc = far ? 1 : 0.55;
+      cb.u = cb.spot.u * sc; cb.v = cb.spot.v * sc;
       if (now >= cb.arrive - 700 && now <= cb.arrive + 500) {
-        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 1.0));
+        // (cube bleu : main gauche du dresseur, à gauche de l'écran ; orange : main droite ; violet, en haut : n'importe laquelle)
+        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 0.85));
         if (hit || (tracker.sim && !DEV.get('fakelimbs') && now >= cb.arrive)) { // (clavier : tous tapés)
           cb.hit = now;
           this.add(this.pts(50), '+' + this.pts(50)); Audio8.hit(); scene.flash(null, true);
@@ -986,8 +998,9 @@ class Game {
     c.cubeHits = [...beats.values()].filter((b) => b.hit).length;
     c.cubeDone = [...beats.values()].filter((b) => b.over).length;
     scene.cubes = c.cubes;
-    scene.cubeTargets = [-1, 1].map((sd) => ({ side: sd, u: sd * (this.avatarReach(0) ? 1.85 : 1.05), v: -0.55,
-      near: c.cubes.some((cb) => cb.side === sd && !cb.hit && !cb.missed && Math.abs(cb.arrive - now) < 600) }));
+    // Cibles : un anneau là où le prochain cube va arriver (il apparaît 1,6 s avant)
+    scene.cubeTargets = c.cubes.filter((cb) => !cb.hit && !cb.missed && cb.u != null && cb.arrive - now < 1600)
+      .map((cb) => ({ side: cb.side, u: cb.u, v: cb.v, near: Math.abs(cb.arrive - now) < 600 }));
     ui.setDetail(this.detail(c));
     if (c.cubeDone >= s.n && c.cubes.every((cb) => cb.hit || cb.missed || cb.arrive + 380 < now)) {
       if (c.cubeHits >= s.n * 0.8) this.complete(now); else c.end = Math.min(c.end, now);
@@ -1017,6 +1030,8 @@ class Game {
     if (move === 'smash') return (this.lastEv.smash[k] || 0) >= c.winStart - 250;
     if (move === 'squat') return b.state.squat;
     if (move === 'left' || move === 'right') return b.state.side === move;
+    // En dansant, l'étoile compte dès que les bras sont en l'air bien écartés (les jambes suivent souvent trop tard)
+    if (move === 'star') return b.state.star || b.state.starArms;
     return !!b.state[move];
   }
 
@@ -1056,7 +1071,8 @@ class Game {
 
   scoreMimic(c) {
     const move = c.s.moves[c.mi], event = move === 'jump' || move === 'smash';
-    const oks = c.okF.map((f) => (event ? f > 0 : c.frames && f / c.frames >= 0.35));
+    // (une pose compte si elle est tenue un petit quart du temps : on a le temps de passer d'un geste à l'autre)
+    const oks = c.okF.map((f) => (event ? f > 0 : c.frames && f / c.frames >= 0.2));
     oks.forEach((ok, k) => { scene.flash(k, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), k); });
     const all = oks.every(Boolean);
     c.mimicRes.push(all);

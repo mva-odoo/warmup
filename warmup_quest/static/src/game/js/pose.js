@@ -172,7 +172,8 @@ class Body {
     s.crossed = lw.x < rw.x - 0.03 && chest(lw) && chest(rw);
     s.armsUp = lw.y < nose.y && rw.y < nose.y;
     s.airplane = level(lw) && level(rw) && spread > 1.8;
-    s.star = lw.y < sh.y && rw.y < sh.y && spread > 1.05 && legsApart;
+    s.starArms = lw.y < sh.y && rw.y < sh.y && spread > 1.05; // (bras de l'étoile, sans regarder les jambes)
+    s.star = s.starArms && legsApart;
     s.flamingo = !s.squat && useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
       (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8));
 

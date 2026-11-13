@@ -9,6 +9,7 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loader
 const SKELETON_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js/+esm';
 const LANE = 1.6;          // largeur d'un couloir (unités 3D)
 const FX_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';
+const cubeCol = (side) => (side < 0 ? '#4ea8ff' : side > 0 ? '#ff6b35' : '#b388eb'); // cubes : bleu gauche, orange droite, violet en haut
 const TER_PERIOD = 100;
 const BEND_START = 12, BEND_K = 0.0017; // courbure du monde (à partir de 12 m devant la caméra)    // le relief se répète tous les 100 m (invisible grâce à la brume)
 
@@ -143,7 +144,7 @@ class Scene3D extends DepthScene {
 
   setWorld(theme, palettes = null, looks = null) {
     super.setWorld(theme, palettes, looks);
-    this.introT = performance.now(); this.outro = false; // vol d'arrivée de la caméra
+    this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
     this.poseModel = null;
@@ -645,6 +646,8 @@ class Scene3D extends DepthScene {
     return out;
   }
 
+  hasTrainer(model) { return !!(this.P.models && this.P.models.has(humanKey({ model }))); }
+
   // Charge les petits dresseurs (tous, pour la fenêtre de choix)
   preloadTrainers(models = HUMAN_MODELS) {
     return this.load().then(() => this.P.preload(models.map((model) => humanKey({ model }))));
@@ -725,7 +728,7 @@ class Scene3D extends DepthScene {
   updatePoseModel(now) {
     const want = this.ghostPose && HUMAN_POSES[this.ghostPose] ? this.ghostPose : null;
     const h = this.heroes[0];
-    if (!want || !h || !h.m3 || !h.m3.human) { if (this.poseModel) this.poseModel.root.visible = false; return; }
+    if (!want || this.ghostOnly || !h || !h.m3 || !h.m3.human) { if (this.poseModel) this.poseModel.root.visible = false; return; }
     const T = this.T;
     if (!this.poseModel || this.poseModel.look !== h.m3.human.look) {
       if (this.poseModel) this.s3.remove(this.poseModel.root);
@@ -1326,9 +1329,9 @@ class Scene3D extends DepthScene {
     if (this.cubeTexs[side]) return this.cubeTexs[side];
     const cv = document.createElement('canvas'); cv.width = cv.height = 128;
     const g = cv.getContext('2d');
-    g.fillStyle = side < 0 ? '#4ea8ff' : '#ff6b35'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = cubeCol(side); g.fillRect(0, 0, 128, 128);
     g.strokeStyle = '#ffffff'; g.lineWidth = 10; g.strokeRect(8, 8, 112, 112);
-    g.font = '78px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(side < 0 ? '🤛' : '🤜', 64, 70);
+    g.font = '78px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(side < 0 ? '🤛' : side > 0 ? '🤜' : '🙌', 64, 70);
     const tex = new this.T.CanvasTexture(cv); tex.colorSpace = this.T.SRGBColorSpace;
     return (this.cubeTexs[side] = tex);
   }
@@ -1353,7 +1356,7 @@ class Scene3D extends DepthScene {
       if (cb.u == null) continue;
       let mesh = this.cubeMeshes.get(cb);
       if (!mesh) {
-        const col = cb.side < 0 ? '#4ea8ff' : '#ff6b35';
+        const col = cubeCol(cb.side);
         mesh = new T.Group();
         const box = new T.Mesh(new T.BoxGeometry(0.62, 0.62, 0.62), [this.lam(col), this.lam(col), this.lam(col), this.lam(col),
           new T.MeshBasicMaterial({ map: this.cubeTex(cb.side) }), this.lam(col)]);
@@ -1381,18 +1384,18 @@ class Scene3D extends DepthScene {
     tg.forEach((t, i) => {
       let r = this.cubeRings[i];
       if (!r) {
-        r = new T.Mesh(new T.TorusGeometry(0.42, 0.06, 10, 40), new T.MeshBasicMaterial({ color: t.side < 0 ? '#4ea8ff' : '#ff6b35' }));
+        r = new T.Mesh(new T.TorusGeometry(0.42, 0.06, 10, 40), new T.MeshBasicMaterial({ color: '#ffffff' }));
         this.s3.add(r); this.cubeRings[i] = r;
       }
       const w = this.cubeWorld(t.u, t.v);
-      r.position.set(w.x, w.y, 0.05); r.visible = true;
+      r.position.set(w.x, w.y, 0.05); r.visible = true; r.material.color.set(cubeCol(t.side));
       r.scale.setScalar(t.near ? 1.25 + 0.1 * Math.sin(now * 0.03) : 1);
     });
     for (let i = tg.length; i < this.cubeRings.length; i++) this.cubeRings[i].visible = false;
   }
 
   burstCube(mesh, side) {
-    const T = this.T, col = side < 0 ? '#4ea8ff' : '#ff6b35';
+    const T = this.T, col = cubeCol(side);
     for (let i = 0; i < 10; i++) {
       const m = new T.Mesh(this.geo.box || new T.BoxGeometry(1, 1, 1), new T.MeshBasicMaterial({ color: i % 3 ? col : '#ffffff' }));
       m.scale.setScalar(0.18); m.position.copy(mesh.position);

@@ -19,7 +19,7 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   jouée par un synthétiseur intégré (instruments, batterie, réverbération) ; elle baisse quand la voix parle.
   Réglage parent « 🎵 Musique » pour la couper.
 - **Mon dresseur 👕** : chaque enfant compose son petit dresseur, uniquement avec des images : la **tête**, le **corps**
-  et les **jambes** (flèches ◀ ▶, parmi 13 personnages, ou 🎲 au hasard), casquette / bonnet / bandeau, lunettes
+  et les **jambes** (une rangée de vignettes pour chacun, parmi 13 personnages, ou 🎲 au hasard), casquette / bonnet / bandeau, lunettes
   et sa couleur préférée (sac à dos et chapeau).
   La fenêtre s'ouvre juste après l'ajout d'un enfant, puis avec le bouton 👕 à côté de son prénom ;
   le choix est enregistré dans sa fiche (onglet principal : Personnage, Chapeau, Lunettes).
@@ -51,8 +51,9 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     trop faibles ; repli automatique sur le chemin 2D si la 3D ne se charge pas.
   - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** qui sortent de petites îles volantes de chaque côté, **copie les poses**.
   - **Verger des Ninjas** : des fruits sautent en l'air, on les coupe en deux d'un geste vif de la main (traînée de sabre, jus).
-  - **Planète Rythmo** : des cubes arrivent en musique sur le chemin ; bleu = main gauche, orange = main droite, il faut les taper
-    quand ils atteignent les anneaux.
+  - **Planète Rythmo** : des cubes arrivent en musique à 7 endroits autour du dresseur (en bas, au milieu, en haut de chaque
+    côté, au-dessus de la tête) ; bleu = main gauche, orange = main droite, violet = n'importe laquelle ; un anneau montre
+    où taper juste avant qu'il arrive.
   - **Piste de Danse** : imite Tempo, le danseur, pas à pas en musique (comme dans un miroir).
     **Dojo des Petits Tigres** : imite Maître Bambou (parade, coup de genou, position du cavalier, tranche, saut du tigre).
     Chaque geste est noté ✔ / raté ; les parents peuvent créer leurs chorégraphies (gestes séparés par des virgules).

@@ -35,6 +35,15 @@ const Trainer = {
   gained(before, after) { return TRAINER_REWARDS.filter((r) => before < r.stars && after >= r.stars); },
   nextReward(stars) { return TRAINER_REWARDS.find((r) => stars < r.stars) || null; },
 
+  // Portrait d'un personnage entier (sans chapeau ni lunettes), gardé en mémoire : on y découpe tête, corps, jambes
+  pieceThumb(model, can3d) {
+    this.pieces = this.pieces || {};
+    if (this.pieces[model]) return this.pieces[model];
+    if (!can3d || !scene3d.ready || !scene3d.hasTrainer(model)) return null;
+    try { this.pieces[model] = scene3d.trainerThumb({ model, body: model, legs: model, hat: 'none', glasses: false, color: '#cbd5e1' }, 240); } catch (e) { console.warn(e); return null; }
+    return this.pieces[model];
+  },
+
   // opts : { name, look, color, stars, onSave(look) } — onSave peut renvoyer une promesse
   open(opts) {
     if (document.getElementById('trainerBox')) return;
@@ -49,8 +58,7 @@ const Trainer = {
           <div class="trainerChoices">
             <div class="trParts">
               ${[['model', '🙂'], ['body', '👕'], ['legs', '👖']].map(([k, ic]) => `<div class="trPart" data-part="${k}">
-                <span class="trPartIcon">${ic}</span><button type="button" class="trArrow" data-d="-1">◀</button>
-                <canvas width="150" height="90"></canvas><button type="button" class="trArrow" data-d="1">▶</button></div>`).join('')}
+                <span class="trPartIcon">${ic}</span><div class="trStrip"></div></div>`).join('')}
               <button type="button" class="trDice" title="Au hasard">🎲</button>
             </div>
             <div class="trRow" data-row="hat"></div>
@@ -91,13 +99,23 @@ const Trainer = {
       } else {
         hero.fillStyle = look.color; hero.beginPath(); hero.arc(120, 150, 80, 0, Math.PI * 2); hero.fill();
       }
-      // Aperçu de chaque morceau (tête / corps / jambes), découpé dans le grand portrait
-      const CROPS = { model: [50, 38, 140, 124], body: [40, 150, 160, 60], legs: [55, 198, 130, 64] };
+      // Toutes les têtes, tous les corps, toutes les jambes : une vignette par personnage, on touche celle qu'on veut
+      const CROPS = { model: [50, 38, 140, 124], body: [40, 150, 160, 62], legs: [55, 198, 130, 70] };
       bg.querySelectorAll('.trPart').forEach((row) => {
-        const cv = row.querySelector('canvas'), g = cv.getContext('2d'), [x, y, w, h] = CROPS[row.dataset.part];
-        const k = Math.min(cv.width / w, cv.height / h), dw = w * k, dh = h * k;
-        g.clearRect(0, 0, cv.width, cv.height);
-        g.drawImage(hero.canvas, x, y, w, h, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
+        const part = row.dataset.part, strip = row.querySelector('.trStrip'), [x, y, w, h] = CROPS[part];
+        strip.innerHTML = '';
+        for (const m of TRAINER_MODELS) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'trPiece' + (look[part] === m ? ' on' : '');
+          const cv = document.createElement('canvas'); cv.width = 64; cv.height = 52; b.appendChild(cv);
+          const src = this.pieceThumb(m, can3d);
+          if (src) {
+            const g = cv.getContext('2d'), k = Math.min(cv.width / w, cv.height / h), dw = w * k, dh = h * k;
+            g.drawImage(src, x, y, w, h, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
+          } else b.textContent = '…'; // (personnages 3D en cours de chargement)
+          b.onclick = () => { look[part] = m; Audio8.pop(); render(); };
+          strip.appendChild(b);
+        }
       });
       rows.hat.innerHTML = '';
       const stars = opts.stars || 0, cost = (id) => (TRAINER_REWARDS.find((r) => r.id === id) || { stars: 0 }).stars;
@@ -132,12 +150,6 @@ const Trainer = {
       }
     };
 
-    // Flèches : morceau précédent / suivant (on fait le tour des 13 personnages)
-    bg.querySelectorAll('.trPart').forEach((row) => row.querySelectorAll('.trArrow').forEach((b) => (b.onclick = () => {
-      const k = row.dataset.part, i = TRAINER_MODELS.indexOf(look[k]);
-      look[k] = TRAINER_MODELS[(i + Number(b.dataset.d) + TRAINER_MODELS.length) % TRAINER_MODELS.length];
-      Audio8.pop(); render();
-    })));
     const pick = (list) => list[Math.floor(Math.random() * list.length)];
     bg.querySelector('.trDice').onclick = () => {
       const st = opts.stars || 0, free = (id) => st >= ((TRAINER_REWARDS.find((r) => r.id === id) || { stars: 0 }).stars);
