@@ -2,6 +2,14 @@
 
 const $ = (id) => document.getElementById(id);
 const DEV = new URLSearchParams(location.search); // mode test : voir en bas du fichier
+if (DEV.get('errlog')) { // (mode test) erreurs JavaScript recopiées dans le titre de la page
+  const errs = [];
+  addEventListener('error', (e) => { errs.push(e.message); document.title = 'ERR ' + errs.join(' | '); });
+  addEventListener('unhandledrejection', (e) => { errs.push(String(e.reason)); document.title = 'ERR ' + errs.join(' | '); });
+  setInterval(() => { if (!errs.length) document.title = window.__audio ? 'AUDIO ' + JSON.stringify(window.__audio) : 'OK ' + JSON.stringify(Audio8.debug()); }, 500);
+  if (DEV.get('audiotest')) Promise.all(['adventure', 'fun', 'dance', 'karate', 'space', 'water', 'candy'].map((st) => Audio8.render(st)))
+    .then((r) => { window.__audio = r; }).catch((e) => { errs.push(String(e)); document.title = 'ERR ' + e; });
+}
 const tracker = new Tracker();
 // Tout le jeu se passe sur le chemin, personnage vu de dos (gauche = gauche).
 // Les mondes « 3d » utilisent Scene3D (Three.js), qui garde exactement la même logique.
@@ -149,6 +157,11 @@ function buildMenu() {
   fb.textContent = full ? '⛶ Plein écran ✓' : '⛶ Plein écran';
   fb.onclick = () => { store('fullscreen', !full); buildMenu(); };
   sp.appendChild(fb);
+  const mb = document.createElement('button'); // musique de fond
+  mb.className = 'btn small' + (Audio8.musicEnabled() ? '' : ' ghost');
+  mb.textContent = Audio8.musicEnabled() ? '🎵 Musique ✓' : '🎵 Musique coupée';
+  mb.onclick = () => { Audio8.setMusicEnabled(!Audio8.musicEnabled()); buildMenu(); };
+  sp.appendChild(mb);
   const g3 = store('3d') !== false; // mondes en 3D (plus beau et plus fluide) ; sinon chemin 2D
   const gb = document.createElement('button');
   gb.className = 'btn small' + (g3 ? '' : ' ghost');
@@ -214,7 +227,7 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   phase = 'menu'; game = null; frozen = false;
-  Audio8.music(false);
+  Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
   show('menu');
   scene.setWorld(null);
@@ -392,7 +405,7 @@ function pauseGame(reason) {
   pausedAt = performance.now();
   resumeHold = 0;
   if ('speechSynthesis' in window) speechSynthesis.cancel();
-  Audio8.music(false);
+  Audio8.music(false); Audio8.theme(null);
   $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : reason === 'gesture' ? '✖️ Bras croisés : pause' : '';
   $('pauseBar').style.width = '0%';
   show('lost', false);
@@ -407,6 +420,7 @@ function resumeGame() {
     const d = performance.now() - pausedAt;
     game.shift(d);
     scene.shift(d);
+    Audio8.theme(world.id);
     frozen = false;
     lostSince = 0;
     phase = 'play';
@@ -1059,6 +1073,7 @@ class Game {
       if (c.phase === 'freeze') this.scoreFreeze(c);
       c.phase = phase; c.round = round;
       c.still = Array(this.np).fill(0); c.frames = 0; c.phaseAt = now;
+      Audio8.themeMute(true);
       if (phase === 'dance') { Audio8.music(true); Audio8.say(duo() ? 'Dansez !' : 'Danse !'); scene.targetSpeed = 1; }
       else { Audio8.music(false); Audio8.tick(); Audio8.say('Statue !'); scene.targetSpeed = 0; }
       ui.setDetail(this.detail(c));
@@ -1133,6 +1148,7 @@ class Game {
 
   // Fin des fruits / cubes : la musique s'arrête, les morceaux finissent leur chute
   endTargets(c) {
+    if (c.s.m === 'freeze') { Audio8.music(false); Audio8.themeMute(false); }
     if (c.s.m === 'cubes') { Audio8.music(false); scene.cubes = (scene.cubes || []).filter((k) => k.hit); }
     if (c.s.m === 'slice') scene.fruits = (scene.fruits || []).filter((f) => f.cut);
   }
@@ -1148,7 +1164,7 @@ class Game {
     let rating;
     if (s.m === 'freeze') {
       if (c.phase === 'freeze') this.scoreFreeze(c);
-      Audio8.music(false);
+      Audio8.music(false); Audio8.themeMute(false);
       scene.setDemoPose(null);
       const n = freezeRounds(s);
       rating = c.okRounds >= n ? 'perfect' : c.okRounds > 0 ? 'good' : 'ok';
@@ -1263,6 +1279,7 @@ class Game {
 function startGame() {
   phase = 'play';
   game = new Game(world, speed.mul);
+  Audio8.themeMute(false); Audio8.theme(world.id); // musique propre au monde
   show('hud');
   ui.reset(world);
   lostSince = 0;
@@ -1355,7 +1372,7 @@ function showResults(g, stars) {
   phase = 'results';
   resultsAt = performance.now(); againHold = 0; againSaid = false;
   $('againBar').style.width = '0%';
-  Audio8.music(false);
+  Audio8.music(false); Audio8.theme(null);
   show('hud', false); show('camBox', false);
   show('results');
   $('resTitle').textContent = g.world.endText;
