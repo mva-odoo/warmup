@@ -81,7 +81,7 @@ function buildMenu() {
     card.style.setProperty('--c1', w.sky[0]);
     card.style.setProperty('--c2', w.hero.body);
     card.innerHTML = `
-      <canvas width="200" height="150"></canvas>
+      <canvas width="300" height="400"></canvas>
       <div class="wName">${w.name}</div>
       <div class="wBest">${'★'.repeat(best.stars)}${'☆'.repeat(3 - best.stars)}</div>`;
     card.title = w.tagline;
@@ -90,7 +90,7 @@ function buildMenu() {
     const anim = (t) => {
       if (!card.isConnected || card.has3d) return;
       const hover = card.matches(':hover, :focus-visible');
-      if (phase === 'menu' && (hover || !drawn)) { drawWorldPreview(cctx, 200, 150, w, t, hover); drawn = !hover; }
+      if (phase === 'menu' && (hover || !drawn)) { drawWorldPreview(cctx, 300, 400, w, t, hover); drawn = !hover; }
       requestAnimationFrame(anim);
     };
     previews.push({ card, cctx, w });
@@ -119,10 +119,11 @@ function buildMenu() {
   if (store('3d') !== false) {
     scene3d.load()
       .then(() => Promise.all([scene3d.preloadTrainers(menuLooks.map((l) => l.model)),
-        scene3d.P.preload(scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]))]))
+        scene3d.P.preload([...scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]),
+          ...creatureModels(WORLDS.map((w) => creaturesOf(w.biomes[0].kit || 'meadow')[w.id.length % 3]).filter(Boolean))])]))
       .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
       if (!card.isConnected) return;
-      try { cctx.drawImage(scene3d.thumb(w, menuLooks[0]), 0, 0, 200, 150); card.has3d = true; } catch (e) { console.warn(e); }
+      try { cctx.clearRect(0, 0, 300, 400); cctx.drawImage(scene3d.thumb(w, menuLooks[0]), 0, 0, 300, 400); card.has3d = true; } catch (e) { console.warn(e); }
     }, i * 60))).catch(() => {});
   }
   const sp = $('speeds');

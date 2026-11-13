@@ -119,6 +119,8 @@ class Scene3D extends DepthScene {
       uniforms: { tDiffuse: { value: null } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv);'
+        // couleurs un peu plus vives et contrastées (moins « voilé »), puis vignettage
+        + ' float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); c.rgb = max(mix(vec3(l), c.rgb, 1.22), 0.0); c.rgb = pow(c.rgb, vec3(1.07));'
         + ' float d = distance(vUv, vec2(0.5)); c.rgb *= mix(1.0, 0.72, smoothstep(0.35, 0.85, d)); gl_FragColor = c; }',
     }));
     c.addPass(new OutputPass());
@@ -195,7 +197,7 @@ class Scene3D extends DepthScene {
 
     // Sol et chemin
     this.buildTerrain();
-    this.pathCv = document.createElement('canvas'); this.pathCv.width = this.pathCv.height = 128;
+    this.pathCv = document.createElement('canvas'); this.pathCv.width = this.pathCv.height = 256;
     const tex = new T.CanvasTexture(this.pathCv);
     tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(1, 30);
     this.pathTex = tex;
@@ -245,19 +247,14 @@ class Scene3D extends DepthScene {
     this.skyU.sunCol.value.set(night ? '#cfd8ff' : '#fff2c7'); this.skyU.glow.value = night ? 0.35 : 1;
     scene.fog.color.set(b.fog || b.sky1);
     this.hemi.color.set(b.sky0); this.hemi.groundColor.set(b.grass);
-    this.hemi.intensity = night ? 0.55 : 1.1;
+    this.hemi.intensity = night ? 0.85 : 1.1; // (la nuit, le héros reste bien visible)
     this.sun.intensity = night ? 0.45 : 1.7;
     this.disc.material.color.set(b.sun || '#fff6c2');
     this.disc.scale.setScalar(night ? 0.6 : 1);
     for (const c of this.clouds) c.visible = !night;
     this.colorTerrain(b, !!kit.grass);
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
-    const p2 = this.pathCv.getContext('2d');
-    p2.fillStyle = b.path; p2.fillRect(0, 0, 128, 128);
-    p2.fillStyle = b.path2; p2.fillRect(0, 0, 128, 64);
-    p2.fillStyle = 'rgba(255,255,255,0.7)';
-    for (const x of [128 / 3, 256 / 3]) p2.fillRect(x - 2, 10, 4, 40);
-    this.pathTex.needsUpdate = true;
+    this.paintPath(b, night);
 
     // Arrière-plan du paysage
     if (this.backdrops) scene.remove(this.backdrops);
@@ -293,6 +290,38 @@ class Scene3D extends DepthScene {
         const n = this.makeDecor(); this.placeDecor(n, z); scene.add(n); return n;
       });
     }
+  }
+
+  // Texture du chemin : terre battue avec grain, petits cailloux, traces plus claires et pointillés des couloirs
+  paintPath(b, night) {
+    const g = this.pathCv.getContext('2d'), N = 256;
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const grad = g.createLinearGradient(0, 0, 0, N);
+    grad.addColorStop(0, b.path); grad.addColorStop(0.5, b.path2); grad.addColorStop(1, b.path);
+    g.fillStyle = grad; g.fillRect(0, 0, N, N);
+    // Grain de la terre
+    for (let i = 0; i < 1400; i++) {
+      g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)';
+      g.fillRect(rnd() * N, rnd() * N, 1 + rnd() * 3, 1 + rnd() * 3);
+    }
+    // Traces de pas plus claires au milieu de chaque couloir
+    for (const cx of [N / 6, N / 2, (5 * N) / 6]) {
+      const tg = g.createLinearGradient(cx - 26, 0, cx + 26, 0);
+      tg.addColorStop(0, 'rgba(255,255,255,0)'); tg.addColorStop(0.5, `rgba(255,255,255,${night ? 0.05 : 0.1})`); tg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = tg; g.fillRect(cx - 26, 0, 52, N);
+    }
+    // Petits cailloux (ombre + reflet)
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * N, y = rnd() * N, r = 2 + rnd() * 4;
+      g.fillStyle = 'rgba(0,0,0,0.18)'; g.beginPath(); g.ellipse(x + 1, y + 1.5, r, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = shade(b.path, 0.25 + rnd() * 0.2); g.beginPath(); g.ellipse(x, y, r, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(x - r * 0.3, y - r * 0.25, r * 0.35, r * 0.2, 0, 0, Math.PI * 2); g.fill();
+    }
+    // Pointillés entre les couloirs
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const x of [N / 3, (2 * N) / 3]) { g.beginPath(); g.roundRect(x - 3, 30, 6, 70, 3); g.fill(); }
+    this.pathTex.anisotropy = 4;
+    this.pathTex.needsUpdate = true;
   }
 
   // ---------- Terrain vallonné (3 morceaux qui défilent) et herbe au vent (milliers de brins)
@@ -813,15 +842,17 @@ class Scene3D extends DepthScene {
     if (this.thumbs.has(tkey)) return this.thumbs.get(tkey);
     const T = this.T;
     if (!this.thumbR) {
-      const cv = document.createElement('canvas'); cv.width = 400; cv.height = 300;
+      // Affiche de monde (portrait) : même rendu que le jeu (tons cinéma, ombres douces)
+      const cv = document.createElement('canvas'); cv.width = 300; cv.height = 400;
       this.thumbR = new T.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
-      this.thumbR.shadowMap.enabled = true;
+      this.thumbR.shadowMap.enabled = true; this.thumbR.shadowMap.type = T.PCFSoftShadowMap;
+      this.thumbR.toneMapping = T.ACESFilmicToneMapping; this.thumbR.outputColorSpace = T.SRGBColorSpace;
     }
     const b = world.biomes[0], kit = KITS[b.kit] || KITS.meadow, night = !!(kit.night || b.night);
     const scene = new T.Scene(), disposables = [];
     const sky = document.createElement('canvas'); sky.width = 2; sky.height = 128;
     const sc = sky.getContext('2d'), gr = sc.createLinearGradient(0, 0, 0, 128);
-    gr.addColorStop(0, b.sky0); gr.addColorStop(1, b.sky1); sc.fillStyle = gr; sc.fillRect(0, 0, 2, 128);
+    gr.addColorStop(0, b.sky0); gr.addColorStop(0.55, b.sky1); gr.addColorStop(1, b.fog || b.sky1); sc.fillStyle = gr; sc.fillRect(0, 0, 2, 128);
     const skyTex = new T.CanvasTexture(sky); skyTex.colorSpace = T.SRGBColorSpace; scene.background = skyTex; disposables.push(skyTex);
     scene.fog = new T.Fog(b.fog || b.sky1, 18, 60);
     scene.add(new T.HemisphereLight(b.sky0, b.grass, night ? 0.6 : 1.1));
@@ -837,15 +868,28 @@ class Scene3D extends DepthScene {
       d.position.set((i % 2 ? 1 : -1) * (LANE * 1.5 + 1 + Math.random() * 5), 0, -1 - i * 2.2);
       d.rotation.y = Math.random() * 6; scene.add(d);
     }
+    // Le dresseur, de face, qui salue ; une créature du coin à côté de lui
     const hero = this.makeHero(world.hero, false, world.hero.extra, true, look);
     if (hero.human) this.poseHumanStill(hero, 'armsUp');
     else if (hero.armL) { hero.armL.rotation.z = -0.6; hero.armR.rotation.z = 0.6; }
-    hero.group.rotation.y = 0.5;
+    hero.group.rotation.y = Math.PI + 0.35;
+    hero.group.position.set(-0.5, 0, 0);
     scene.add(hero.group);
-    const cam = new T.PerspectiveCamera(50, 4 / 3, 0.1, 120);
-    cam.position.set(1.2, 2.4, 4.6); cam.lookAt(0, 1.1, -4);
+    const loaded = (cr) => creatureModels([cr]).every((k) => this.P.models && this.P.models.has(k));
+    const mine = creaturesOf(b.kit || 'meadow')[world.id.length % 3];
+    const cr = mine && loaded(mine) ? mine : creaturesOf(b.kit || 'meadow').find(loaded);
+    if (cr) {
+      try {
+        const c = buildCreature3D(this, cr, false);
+        c.animate(0, 'idle', 'armsUp');
+        c.group.position.set(0.85, 0, -0.6); c.group.rotation.y = -0.5; c.group.scale.multiplyScalar(0.75);
+        scene.add(c.group);
+      } catch (e) { /* créature indisponible : l'affiche reste jolie sans elle */ }
+    }
+    const cam = new T.PerspectiveCamera(42, 3 / 4, 0.1, 120);
+    cam.position.set(0.25, 1.7, 6.4); cam.lookAt(0.15, 1.05, -3);
     this.thumbR.render(scene, cam);
-    const out = document.createElement('canvas'); out.width = 400; out.height = 300;
+    const out = document.createElement('canvas'); out.width = 300; out.height = 400;
     out.getContext('2d').drawImage(this.thumbR.domElement, 0, 0);
     disposables.forEach((x) => x.dispose());
     this.thumbs.set(tkey, out);
