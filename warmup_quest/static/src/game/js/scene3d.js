@@ -35,6 +35,11 @@ const HUMAN_FIT = { head: 0.8, arm: 1.25, hatY: 0.6, glassesY: 0.34, glassesZ: 0
 const HUMAN_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
 const HUMAN_OWN_HAT = ['male-c'];
+// Coachs (danse, karaté, école) : mêmes petits humains que les dresseurs
+const COACH_LOOKS = {
+  dance: { model: 'female-b', body: 'female-e', legs: 'female-e', hat: 'headband', glasses: true, back: 'bag', color: '#ff70a6' },
+  karate: { model: 'male-e', body: 'male-g', legs: 'male-g', hat: 'headband', glasses: false, back: 'bag', color: '#e63946' },
+};
 const DEFAULT_LOOK = { model: 'male-a', hat: 'cap', glasses: false, color: '#ff6b35' };
 const humanKey = (look) => 'characters/character-' + (HUMAN_MODELS.includes(look && look.model) ? look.model : DEFAULT_LOOK.model);
 // Morceaux du dresseur : tête (look.model), corps (look.body), jambes (look.legs) — chacun pris d'un des 13 personnages
@@ -933,15 +938,19 @@ class Scene3D extends DepthScene {
     if (!c) { if (this.coachMesh) this.coachMesh.group.visible = false; return; }
     if (!this.coachMesh || this.coachStyle !== c.style) {
       if (this.coachMesh) this.s3.remove(this.coachMesh.group);
-      const m = this.makeHero(c.pal || this.theme.hero, false, null, false);
-      if (c.style === 'karate') { // ceinture noire et bandeau rouge
+      // Coach : un petit humain de la même famille que le dresseur (Tempo le danseur, Maître Bambou au karaté)
+      const look = COACH_LOOKS[c.style] || COACH_LOOKS.dance;
+      const human = lookKeys(look).every((k) => this.P.models && this.P.models.has(k));
+      const m = human ? this.makeHumanHero({ body: look.color }, false, look) : this.makeHero(c.pal || this.theme.hero, false, null, false);
+      if (human) { m.facing = true; m.isGhost = true; } // (de face, en miroir ; pas de silhouette ni d'imitation)
+      if (!human && c.style === 'karate') { // ceinture noire et bandeau rouge
         const belt = new this.T.Mesh(new this.T.TorusGeometry(0.56, 0.05, 8, 32), this.lam('#1e1b4b'));
         belt.rotation.x = Math.PI / 2; belt.position.y = 0.82; m.inner.add(belt);
         const band = new this.T.Mesh(new this.T.TorusGeometry(0.5, 0.05, 8, 32), this.lam('#e63946'));
         band.rotation.x = Math.PI / 2; band.position.y = 1.35; band.scale.set(1, 0.95, 1); m.inner.add(band);
       }
       m.group.rotation.y = Math.PI;
-      m.group.scale.setScalar(1.6);
+      m.group.scale.setScalar(human ? 1.45 : 1.6);
       this.s3.add(m.group);
       this.coachMesh = m; this.coachStyle = c.style;
     }
@@ -954,7 +963,8 @@ class Scene3D extends DepthScene {
     this.applyPose(fake, now);
     m.ring.visible = false;
     m.group.position.z = -6.5;
-    if (c.style === 'dance') { m.group.rotation.z = Math.sin(now * 0.008) * 0.12; m.inner.position.y += Math.abs(Math.sin(now * 0.008)) * 0.12; }
+    if (c.learn) { m.group.position.x += LANE * 1.4; m.group.position.z = -3.6; m.group.rotation.y = Math.PI - 0.35; } // (tuto : à côté du dresseur, bien visible)
+    if (c.style === 'dance' && !m.human) { m.group.rotation.z = Math.sin(now * 0.008) * 0.12; m.inner.position.y += Math.abs(Math.sin(now * 0.008)) * 0.12; }
   }
 
   // Contour noir façon dessin animé (copie agrandie de chaque forme, vue de l'intérieur)
@@ -972,7 +982,7 @@ class Scene3D extends DepthScene {
   // Modèles du monde (Kenney) chargés avant de jouer
   preloadWorld(world, looks = [], extra = []) {
     const kits = world.biomes.map((b) => b.kit || 'meadow');
-    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k))), ...extra]));
+    return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks, ...Object.values(COACH_LOOKS)].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k))), ...extra]));
   }
 
   // Petit signe distinctif du héros de chaque monde (vu de dos) ; renvoie les animations éventuelles
@@ -1550,6 +1560,7 @@ class Scene3D extends DepthScene {
       const tx = h.lane * LANE + side * 1.35;
       c.x += (tx - c.x) * 0.12;
       const hop = this.speed > 0.4 ? Math.abs(Math.sin(now * 0.012 + i)) * 0.25 : 0;
+      c.mesh.group.visible = !this.hideHero;
       c.mesh.group.position.set(c.x, this.heroY3(h) * 0.6 + hop + (happy ? Math.abs(Math.sin(now * 0.02)) * 0.4 : 0), 0.7);
       c.mesh.group.rotation.y = this.outro ? 0.4 : Math.PI + (happy ? Math.sin(now * 0.02) * 0.6 : 0); // de dos, comme son dresseur
       // (joie, marche quand on avance, et pendant une pose il la fait aussi)
@@ -1564,6 +1575,7 @@ class Scene3D extends DepthScene {
     const meet = this.enc && (this.enc.state === 'waiting' || this.enc.state === 'befriend');
     if (this.outro || !this.theme) return shot;
     if (meet) Object.assign(shot, { x: 1.3, lx: 0.5, y: -0.2, z: -0.4, fov: 50 });            // rencontre : héros et créature dans le même plan
+    else if (k === 'learn') Object.assign(shot, { x: 2.2, y: 0.4, lx: -0.8, lz: 3.5, fov: 52 });                 // tuto : on voit Tempo qui montre le geste
     else if (k === 'boss') Object.assign(shot, { y: -0.7, z: 0.8, ly: 1.8, lz: 1, fov: 60 });               // gardien : contre-plongée, il paraît immense
     else if (k === 'dance' || k === 'karate') Object.assign(shot, { x: 2.6 + Math.sin(t * 0.8) * 0.5, y: 0.5, lx: -0.6, lz: 3, fov: 52 }); // de côté : on voit le coach
     else if (k === 'rope') Object.assign(shot, { x: 2.6, y: -0.9, z: -0.8, lx: -0.3, lz: 6.5, fov: 50 }); // de trois quarts, bas : on voit la corde passer sous les pieds
@@ -1728,6 +1740,7 @@ class Scene3D extends DepthScene {
 
   applyPose(h, now) {
     const m = h.m3, pose = this.posePick(h, now), ph = now * 0.014;
+    m.group.visible = !this.hideHero;
     if (m.human) return this.applyHumanPose(h, m, pose, now);
     let armZ = 0.25, armX = [0, 0], legX = [0, 0], legZ = 0, sy = 1, rotZ = 0, bob = 0;
     switch (pose) {

@@ -25,8 +25,9 @@ const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 // Épreuves où le héros imite en direct les bras et les jambes de son joueur
 // Fruits et cubes : emplacements autour du dresseur, au bout de ses bras (unités des bulles : ~ demi-mètre, v vers le bas)
 const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1.1 }, { u: 0, v: -1.7 }, { u: 1.6, v: -1.1 }, { u: 2.2, v: -0.1 }, { u: 2.0, v: 0.9 }];
+const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['learn', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -117,6 +118,13 @@ function drawMapPath(wrap, nodes) {
   wrap.insertAdjacentHTML('afterbegin', `<svg class="mapPath" width="${box.width}" height="${box.height}"><path d="${d}"/></svg>`);
 }
 
+// Dans le menu, avec les gestes : petite vidéo pour se voir (elle aide à placer sa main)
+function showMenuCam() {
+  if (!Gestures.on || tracker.sim) return;
+  $('camBox').classList.remove('big', 'duo');
+  show('camBox');
+}
+
 function store(key, val) {
   try {
     if (val === undefined) return JSON.parse(localStorage.getItem('wuq_' + key));
@@ -135,6 +143,23 @@ function buildMenu() {
   extra.innerHTML = '';
   const ex = WUQStore.menuExtras(buildMenu);
   if (ex) extra.appendChild(ex);
+  // Gestes : choisir avec la main (et son petit tuto), École des dresseurs
+  const gbar = document.createElement('div');
+  gbar.className = 'gBar';
+  gbar.innerHTML = `<button class="btn small${Gestures.on ? '' : ' ghost'}" id="gToggle">🖐️ ${Gestures.on ? 'Je choisis avec ma main ✓' : 'Choisir avec ma main'}</button>
+    ${Gestures.on ? '<button class="btn small ghost" id="gTutoBtn">🎓 Apprendre les gestes</button>' : ''}`;
+  extra.appendChild(gbar);
+  gbar.querySelector('#gToggle').onclick = async () => {
+    if (Gestures.on) { Gestures.disable(); show('camBox', false); buildMenu(); return; }
+    const first = !store('gesturesLearned');
+    const t = gbar.querySelector('#gToggle'); t.textContent = '🖐️ La caméra s\'allume…';
+    if (await Gestures.enable((txt) => (t.textContent = '🖐️ ' + txt))) {
+      buildMenu(); showMenuCam();
+      if (first) { await Gestures.tutorial(); store('gesturesLearned', true); }
+    } else buildMenu();
+  };
+  const gt = gbar.querySelector('#gTutoBtn');
+  if (gt) gt.onclick = () => Gestures.tutorial();
   // Bandeau du jour : objectif (une partie), surprise du jour, et repos si la limite des parents est atteinte
   const plays0 = Progress.playsToday(), limit0 = Number(store('dailyLimit')) || 0, d0 = Progress.daily();
   const rest = limit0 && plays0 >= limit0;
@@ -333,6 +358,7 @@ function goMenu() {
   phase = 'menu'; game = null; frozen = false;
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
+  showMenuCam();
   show('menu');
   scene.setWorld(null);
   buildMenu();
@@ -593,12 +619,12 @@ function shortSteps(steps) {
 class Game {
   constructor(w, mul) {
     this.world = w;
-    this.steps = store('short') !== false ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+    this.steps = store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     if (team.length > 1 && !this.steps.some((st) => st.m === 'ball')) this.steps.splice(Math.round(this.steps.length / 2), 0, { m: 'ball', n: 8 });
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
-    this.mul = mul;
+    this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
     this.startedAt = performance.now();
     this.pausedTotal = 0;
     this.i = -1;
@@ -608,7 +634,7 @@ class Game {
     this.streak = 0;
     this.bestStreak = 0;
     this.success = 0;
-    this.scored = this.steps.filter((s) => s.m !== 'rest').length;
+    this.scored = this.steps.filter((s) => s.m !== 'rest' && s.m !== 'learn').length;
     this.cur = null;
     this.over = false;
     this.team = [];
@@ -656,7 +682,7 @@ class Game {
     this.i++;
     if (this.i >= this.steps.length) return this.finish();
     const s = this.adapt(this.steps[this.i]);
-    const fixed = s.m === 'rest' || s.m === 'freeze';
+    const fixed = s.m === 'rest' || s.m === 'freeze' || s.m === 'learn';
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     const ropePeriod = 1700 * Math.min(1.3, this.mul);
     if (s.m === 'rope') dur = 3600 + s.n * ropePeriod + 700; // (3, 2, 1 avant le premier saut)
@@ -673,8 +699,13 @@ class Game {
       fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
-    Audio8.say(s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
+    if (s.m !== 'learn') Audio8.say(s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s), { slow: !!this.world.tutorial });
     if (s.creature) Audio8.cry(s.creature.id);
+    if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
+      Audio8.say(tutoText(s.of), { slow: true });
+      const mv = tutoCoachMove(s.of);
+      if (mv) setTimeout(() => { if (this.cur && this.cur.s === s) scene.setCoach({ move: mv, style: 'dance', pal: MIMIC.dance.pal, t0: performance.now(), learn: true }); }, 50);
+    }
     scene.onStep(s, dur);
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
@@ -793,8 +824,11 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate'].includes(s.m);
-    scene.faceCam = live && s.m === 'slice'; // fruits : le dresseur se tourne vers l'enfant (comme un miroir)
+    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn'].includes(s.m);
+    // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
+    scene.hideHero = !!s && s.m === 'slice';
+    if (scene.hideHero) scene.mirror = false;
+    scene.faceCam = false;
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
     const mimicMove = s && (s.m === 'dance' || s.m === 'karate') && c.showI >= 0 ? s.moves[Math.min(c.showI, s.moves.length - 1)] : null;
     scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' || s.m === 'boss' ? s.poses[Math.min(c.pi, s.poses.length - 1)]
@@ -1072,15 +1106,17 @@ class Game {
       if (c.fruits.filter((f) => f.hero === i && !f.cut && fruitPos(f, now).t < 1).length < 2 && (hands[i] || tracker.sim)) {
         // Sommet du vol : un des 7 endroits autour du dresseur (bas, milieu, haut de chaque côté, au-dessus de la tête),
         // jamais deux fois de suite le même ; départ d'en bas, d'un côté ou de l'autre
+        // (le dresseur est caché pendant les fruits : ce sont les mains de l'enfant qui coupent, à portée de ses bras)
         const far = this.avatarReach(i);
-        const spots = far ? FRUIT_SPOTS : FRUIT_SPOTS.map((p) => ({ u: p.u * 0.55, v: p.v * 0.55 }));
+        const spots = far ? FRUIT_SPOTS : FRUIT_SPOTS.map((p) => ({ u: p.u * 0.62, v: p.v * 0.62 }));
         let si; do { si = Math.floor(Math.random() * spots.length); } while (si === c.fruitSpot && spots.length > 1);
         c.fruitSpot = si;
         const top = spots[si], from = top.u + (Math.random() - 0.5) * 3.2;
         const [emoji, juice] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
-        // Un fruit sur deux tombe du ciel (il passe par son point vers 75 % de sa chute), les autres sont lancés d'en bas
-        const fall = (c.fruitFall = !c.fruitFall);
-        const fallPart = fall ? { fall: true, u0: top.u + (Math.random() - 0.5) * 1.2, u1: top.u + (Math.random() - 0.5) * 1.2, v0: top.v - 4.5, v1: top.v + 3.5 } : {};
+        // Les fruits arrivent de partout, à tour de rôle : lancés d'en bas, tombés du ciel, ou traversant depuis la gauche / la droite
+        const kind = FRUIT_PATHS[(c.fruitPath = ((c.fruitPath ?? Math.floor(Math.random() * 4)) + 1 + Math.floor(Math.random() * 2)) % 4)];
+        const fallPart = kind === 'fall' ? { fall: true, u0: top.u + (Math.random() - 0.5) * 1.2, u1: top.u + (Math.random() - 0.5) * 1.2, v0: top.v - 4.5, v1: top.v + 3.5 }
+          : kind === 'left' || kind === 'right' ? { cross: true, u0: (kind === 'left' ? -1 : 1) * 4.6, u1: (kind === 'left' ? 1 : -1) * 4.6 + top.u * 0.4, av: top.v } : {};
         c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: from, u1: 2 * top.u - from, v0: top.v + 4.2, av: top.v, ...fallPart,
           spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
         c.lastFruit = now;
@@ -1354,7 +1390,7 @@ class Game {
     scene.bubbles = []; scene.hands = []; scene.moles = [];
     this.endTargets(c);
     this.gapUntil = now + 1100;
-    if (s.m === 'rest') { this.gapUntil = now; return; }
+    if (s.m === 'rest' || s.m === 'learn') { this.gapUntil = now; return; }
     let rating;
     if (s.m === 'freeze') {
       if (c.phase === 'freeze') this.scoreFreeze(c);
@@ -1542,7 +1578,8 @@ const ui = {
     card.classList.remove('enter', 'mini'); void card.offsetWidth; card.classList.add('enter');
     // La consigne s'affiche en grand, puis se range en petit en haut pour laisser voir le jeu
     clearTimeout(this.miniT);
-    if (s.m !== 'rest') this.miniT = setTimeout(() => { card.classList.remove('enter'); card.classList.add('mini'); }, 2800);
+    card.classList.toggle('isLearn', s.m === 'learn');
+    if (s.m !== 'rest' && s.m !== 'learn') this.miniT = setTimeout(() => { card.classList.remove('enter'); card.classList.add('mini'); }, 2800);
     Audio8.whoosh();
     card.classList.toggle('isRest', s.m === 'rest');
     $('cardLabel').textContent = stepLabel(s);
@@ -1785,7 +1822,10 @@ function updateCamStatus(now) {
 
 // Logique du jeu (détection, épreuves, pause…)
 function tick(now) {
-  if (phase !== 'menu') tracker.update(video, now);
+  if (phase !== 'menu' || Gestures.on) tracker.update(video, now);
+  // Choisir avec la main : partout sauf pendant le jeu
+  if (Gestures.on && (phase === 'menu' || phase === 'results' || phase === 'paused')) Gestures.update(now);
+  else if (Gestures.el) Gestures.el.classList.remove('show');
   if (phase === 'calib') updateCalib(now);
   if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); }
   if (phase === 'paused') updatePause(now);
@@ -1803,6 +1843,7 @@ function draw(now) {
       const mv = c.s.moves[Math.max(0, Math.min(c.s.moves.length - 1, c.showI))];
       drawPicto(pictoCtx, 150, 150, POSES[mv] ? { m: 'pose', pose: mv } : { m: mv === 'squat' ? 'squat' : mv }, now);
     }
+    else if (c.s.m === 'learn') drawPicto(pictoCtx, 150, 150, c.s.of, now)
     else drawPicto(pictoCtx, 150, 150, c.s, now, c.s.m === 'combo' ? c.s.parts[Math.min(c.s.parts.length - 1, Math.min(...c.parts))] : null);
   }
   if (!$('camBox').classList.contains('hidden')) {
@@ -1833,6 +1874,10 @@ if (DEV.get('world') || DEV.get('carnet')) {
 }
 
 buildMenu();
+// Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
+if (store('gestures') && !DEV.get('world')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
+if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
+if (DEV.get('gtuto')) Gestures.tutorial(); // (mode test)
 let menuResizeT = 0;
 addEventListener('resize', () => { clearTimeout(menuResizeT); menuResizeT = setTimeout(() => { if (phase === 'menu') buildMenu(); }, 300); });
 if (DEV.get('starter')) chooseStarter(0, 'Léo'); // (mode test)

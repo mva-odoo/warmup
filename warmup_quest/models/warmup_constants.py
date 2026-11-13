@@ -1,4 +1,5 @@
 WORLDS = [
+    ('ecole', 'École des dresseurs'),
     ('jardin3d', 'Jardin Fleuri'),
     ('turbo', 'Vallée Turbo'),
     ('island', 'Île Bondissante'),

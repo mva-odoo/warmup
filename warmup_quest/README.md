@@ -12,6 +12,13 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
+- **🎓 École des dresseurs** (première île de la carte, toujours ouverte) : le mode tuto. Tout y est plus lent ; avant chaque
+  épreuve, une grande carte et une voix lente expliquent quoi faire, et Tempo (un petit dresseur) montre le geste à côté
+  du chemin. Puis on essaie, sans stress. Le programme fait le tour de tous les jeux.
+- **🖐️ Choisir avec la main** (bouton du menu, gardé pour la fois suivante) : la caméra s'allume dans le menu ; la main levée de
+  l'enfant déplace une petite main à l'écran, et on la garde 1,5 s sur un monde, un bouton, une vignette… pour le choisir
+  (menu, carte, carnet, chambre, « Mon dresseur », fin de partie, pause). La première fois, un petit tuto apprend le geste
+  (poser la main sur une étoile, une pomme, un ballon) ; on peut le revoir avec « 🎓 Apprendre les gestes ».
 - **Carte des îles** : les mondes forment un chemin ; les 3 premiers sont ouverts, chaque île suivante s'ouvre quand on gagne
   une étoile dans la précédente (réglage parent « 🗺️ Toutes les îles ouvertes »). Le dresseur est posé sur l'île où il en est.
 - **Surprise du jour** 🎁 : chaque jour, une créature spéciale attend dans un des mondes ouverts (rien n'est perdu si on ne vient pas).
@@ -56,7 +63,8 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - Pendant une pose, le **modèle à imiter** se tient de face sur une estrade dorée à côté du chemin, et une silhouette
     dorée se pose sur le dresseur ; elles deviennent vertes quand c'est bon.
   - **Corde à sauter** : décompte 3, 2, 1 avant chaque saut (lent pour le premier, en rythme ensuite).
-  - **Fruits** : le dresseur se tourne vers l'enfant, un peu transparent, comme un miroir.
+  - **Fruits** : ils arrivent de partout (d'en bas, du ciel, de gauche, de droite) ; le dresseur s'efface pour laisser
+    voir les fruits, et les gants lumineux suivent directement les mains de l'enfant.
   - La petite vidéo de la caméra est en haut à droite (dans le ciel) pour ne plus cacher les épreuves.
   - **Rendu dessin animé** : trait d'encre calculé sur toute l'image (contours nets sur tous les objets et personnages,
     qui s'effacent au loin), bords lissés, contre-jour qui détache les personnages.
@@ -109,7 +117,7 @@ Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis 
 **Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
 un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
 `&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
-`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&duo=1` (à deux), `&comp=feuillou:5` (compagnon), `&combo=2`, `?room=1` (chambre), `?starter=1` (choix du compagnon), `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
+`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&gpoint=0.5,0.4` (place la main des gestes), `?gtuto=1` (tuto des gestes), `&duo=1` (à deux), `&comp=feuillou:5` (compagnon), `&combo=2`, `?room=1` (chambre), `?starter=1` (choix du compagnon), `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 

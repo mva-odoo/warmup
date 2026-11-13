@@ -252,7 +252,8 @@ const Audio8 = (() => {
 
   return {
     unlock() { ac().resume(); },
-    say(text) {
+    // opts.slow : voix plus lente (tuto)
+    say(text, opts = {}) {
       if (!hasTTS || !text) return;
       const t = performance.now();
       if (text === lastSaid && t - lastSaidAt < 4000) return; // pas deux fois la même phrase coup sur coup
@@ -263,7 +264,7 @@ const Audio8 = (() => {
       if (voice) u.voice = voice;
       const natural = voice && quality(voice) >= 4;
       // Les voix naturelles sonnent mieux sans modification ; les autres un peu plus enjouées
-      u.rate = natural ? 1.0 : 1.05;
+      u.rate = (natural ? 1.0 : 1.05) * (opts.slow ? 0.86 : 1);
       u.pitch = natural ? 1.05 : 1.15;
       // La musique se fait plus discrète pendant que la voix parle
       const duck = (v) => { if (musicBus) musicBus.gain.setTargetAtTime(v, ac().currentTime, 0.12); };

@@ -464,3 +464,38 @@ body.sim .next { bottom: 78px; }
 .dayGoal { background: rgba(34, 197, 94, .55); }
 .dayDone { background: rgba(99, 102, 241, .6); }
 .lockVeil { padding-top: 14%; } .lockVeil small { order: -1; margin-bottom: 4px; }
+
+/* ---------- Choisir avec la main ---------- */
+#gCursor { position: fixed; left: -46px; top: -46px; width: 92px; height: 92px; z-index: 300; pointer-events: none; opacity: 0;
+  transition: opacity .2s; --p: 0; }
+#gCursor.show { opacity: 1; }
+#gCursor svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+#gCursor circle { fill: none; stroke-width: 10; }
+#gCursor .gTrack { stroke: rgba(255, 255, 255, 0.45); }
+#gCursor .gFill { stroke: #22c55e; stroke-dasharray: 276.5; stroke-dashoffset: calc(276.5 * (1 - var(--p))); stroke-linecap: round; }
+#gCursor span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 46px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.45)); }
+.gHover { outline: 6px solid #22c55e !important; outline-offset: 3px; transform: scale(1.06); transition: transform .15s; }
+.gClicked { animation: gClick .4s; }
+@keyframes gClick { 50% { transform: scale(0.92); } }
+.gBar { display: flex; gap: 10px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+body.gestures #camBox { width: max(150px, min(14vw, 22vh)); top: auto; bottom: 16px; right: 16px; }
+/* Tuto des gestes */
+.gTutoBg { position: fixed; inset: 0; z-index: 250; background: radial-gradient(circle at 50% 40%, rgba(76, 63, 180, .92), rgba(30, 27, 75, .97)); color: #fff; }
+.gTutoTop { position: absolute; top: 3vh; left: 0; right: 0; text-align: center; padding: 0 20px; }
+.gTutoTop h2 { margin: 0; font-size: clamp(30px, 4vw, 48px); }
+.gTutoSay { font-size: clamp(18px, 2.2vw, 26px); max-width: 900px; margin: 8px auto 0; }
+.gTutoDemo { position: absolute; left: 2vw; bottom: 2vh; background: rgba(255,255,255,.92); border-radius: 22px; padding: 6px; }
+.gTutoDemo canvas { width: 200px; height: 154px; display: block; }
+.gTutoTarget { position: absolute; transform: translate(-50%, -50%); width: 150px; height: 150px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: 84px; background: rgba(255,255,255,.18); border: 6px dashed #ffd166;
+  animation: gPulse 1.2s ease-in-out infinite; cursor: pointer; }
+.gTutoTarget.gHover { transform: translate(-50%, -50%) scale(1.12); }
+@keyframes gPulse { 50% { box-shadow: 0 0 0 18px rgba(255, 209, 102, .25); } }
+.gTutoSkip { position: absolute; top: 16px; right: 16px; }
+/* Tuto : la carte d'explication reste grande, avec un gros pictogramme */
+.card.isLearn { top: 70px; width: min(760px, calc(100vw - 32px)); background: rgba(255, 255, 255, 0.96); border-color: #ffd166; box-shadow: 0 0 0 6px rgba(255, 209, 102, .4), var(--shadow); }
+.card.isLearn .picto { width: clamp(150px, 18vw, 220px); }
+.card.isLearn .label { font-size: clamp(28px, 3.8vw, 44px); }
+.card.isLearn { left: 3vw; transform: none; width: min(560px, 46vw); }
+.card.isLearn.enter { animation: none; }

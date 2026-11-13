@@ -29,6 +29,7 @@ const Q = (n) => ({ m: 'rope', n });            // sauter à la corde n fois
 const U = (t) => ({ m: 'tunnel', t });          // rester baissé t secondes dans le tunnel
 const M = (t, n) => ({ m: 'moles', t, n });     // taper n taupes qui sortent autour du personnage
 const PM = (...poses) => ({ m: 'posemix', poses, hold: 0.8 }); // copier une suite de poses
+const LN = (step) => ({ m: 'learn', of: step }); // tuto : on explique (lentement) l'épreuve qui suit
 const BS = (...poses) => ({ m: 'boss', poses, hold: 0.9 });    // gardien du monde : copier ses poses pour qu'il devienne ami
 const DN = (...moves) => ({ m: 'dance', moves, beat: 1.8 });   // danser : imiter Tempo pas à pas
 const KA = (...moves) => ({ m: 'karate', moves, beat: 2.0 });  // karaté : imiter le maître geste par geste
@@ -42,6 +43,7 @@ const FRUITS = [['🍉', '#ff4d6d'], ['🍊', '#ffa62b'], ['🍎', '#ff3b3b'], [
 function fruitPos(f, now) {
   const t = Math.min(1.2, (now - f.born) / f.dur);
   if (f.fall) return { u: f.u0 + (f.u1 - f.u0) * t, v: f.v0 + (f.v1 - f.v0) * t * t, t };
+  if (f.cross) return { u: f.u0 + (f.u1 - f.u0) * t, v: f.av - Math.sin(Math.min(1, t) * Math.PI) * 0.7 + Math.max(0, t - 1) * 3, t }; // (traverse en petite cloche)
   return { u: f.u0 + (f.u1 - f.u0) * t, v: f.av + (f.v0 - f.av) * (2 * t - 1) * (2 * t - 1), t };
 }
 // Cubes : nombre, et instant d'arrivée de chacun
@@ -69,6 +71,7 @@ const catchCount = (s) => Math.max(3, Math.round(s.t / 1.6));
 const freezeRounds = (s) => Math.max(1, Math.round(s.t / 7));
 
 function stepIcon(s) {
+  if (s.m === 'learn') return stepIcon(s.of);
   if (s.m === 'pose') return POSES[s.pose].icon;
   if (s.m === 'combo') return '🔥';
   return MOVE_ICONS[s.m];
@@ -90,6 +93,7 @@ function stepLabel(s) {
     case 'moles': return 'Tape les taupes !';
     case 'posemix': return 'Copie les poses !';
     case 'boss': return 'Le gardien du monde !';
+    case 'learn': return 'On apprend : ' + stepLabel(s.of);
     case 'ball': return 'Passe-toi le ballon !';
     case 'dance': return 'Danse comme Tempo !';
     case 'karate': return 'Imite le maître karatéka !';
@@ -129,6 +133,36 @@ function stepSpeech(s) {
   }
 }
 
+// Tuto (École des dresseurs) : explication lente de chaque épreuve, avec ce qu'il faut regarder à l'écran
+function tutoText(s) {
+  if (s.m === 'pose') return {
+    armsUp: 'Lève les deux bras tout en haut, vers le ciel, et ne bouge plus. Quand ton dresseur a un rond vert, c\'est gagné !',
+    airplane: 'Écarte les bras sur les côtés, bien droits, comme les ailes d\'un avion. Et ne bouge plus !',
+    star: 'Pour faire l\'étoile : lève les bras en l\'air, bien écartés, et écarte aussi les jambes. Tiens la pose, comme une grande étoile !',
+    flamingo: 'Lève un genou et tiens-toi sur un seul pied, comme un flamant rose. Ouvre les bras pour ne pas tomber !',
+  }[s.pose];
+  return {
+    jump: 'Pour sauter, plie un peu les genoux, puis saute bien haut, les deux pieds en même temps ! Quand un tronc arrive sur le chemin, saute par-dessus.',
+    squat: 'Pour te baisser, plie les genoux comme une petite grenouille, puis relève-toi. Quand une branche arrive, passe dessous !',
+    left: 'Fais un grand pas sur le côté, vers la gauche. Ton dresseur change de couloir avec toi, pour attraper l\'étoile.',
+    right: 'Fais un grand pas sur le côté, vers la droite. Ton dresseur change de couloir avec toi.',
+    smash: 'Pour casser le rocher : lève les deux bras tout en haut, puis descends-les très fort, d\'un coup. Boum !',
+    run: 'Sur le chemin, regarde le grand signe au-dessus de ton dresseur : un rocher, fais un pas de côté ; un tronc, saute ; une branche, baisse-toi !',
+    bubbles: 'Des bulles vont apparaître autour de ton dresseur. Tes mains sont des gants lumineux : touche les bulles pour les éclater !',
+    moles: 'Des taupes vont sortir de petites îles, à gauche et à droite. Tape-les avec ta main quand elles sortent la tête !',
+    slice: 'Des fruits vont voler de partout. Fais un grand geste rapide avec ta main, comme un ninja, pour les couper en deux !',
+    cubes: 'Des cubes arrivent en musique. Les bleus, tape-les avec la main gauche ; les orange, avec la main droite. Tape quand ils touchent l\'anneau !',
+    catch: 'Des étoiles tombent du ciel. Va à gauche, au milieu ou à droite pour être juste dessous, et attrape-les !',
+    rope: 'La corde va tourner. Écoute bien le décompte : trois, deux, un… et saute quand la corde passe sous tes pieds !',
+    tunnel: 'Un tunnel arrive. Baisse-toi tout en bas, et reste baissé jusqu\'à la sortie du tunnel !',
+    freeze: 'Danse quand la musique joue ! Quand elle s\'arrête : statue ! Ne bouge plus du tout, même pas un doigt.',
+    posemix: 'Ton dresseur va faire des poses, l\'une après l\'autre. Copie-les, comme dans un miroir !',
+  }[s.m] || stepSpeech(s);
+}
+// Geste que Tempo montre pendant l'explication (quand il y en a un)
+const tutoCoachMove = (s) => (s.m === 'pose' ? s.pose : ['jump', 'squat', 'left', 'right', 'smash'].includes(s.m) ? s.m
+  : s.m === 'rope' ? 'jump' : s.m === 'tunnel' ? 'squat' : null);
+
 // Évitements : nombre d'obstacles pendant l'étape
 const dodgeCount = (s) => Math.max(2, Math.round(s.t / 2.5));
 
@@ -149,6 +183,7 @@ function stepDuration(s) {
     case 'posemix': return 2 + s.poses.length * 3;
     case 'boss': return 4 + s.poses.length * 4;
     case 'ball': return 3 + s.n * 2.2;
+    case 'learn': return Math.max(7, tutoText(s.of).length / 12 + 4); // (le temps de tout écouter, voix lente)
     case 'dance': case 'karate': return 2.6 + s.moves.length * s.beat;
     case 'slice': return s.t;
     case 'cubes': return 1.5 + s.n * s.beat + 3;
@@ -177,6 +212,31 @@ function maxPoints(s) {
 }
 
 const WORLDS = [
+  {
+    id: 'ecole',
+    name: 'École des dresseurs',
+    tagline: 'On apprend tout, doucement !',
+    heroName: 'Tempo',
+    tutorial: true, // tout plus lent, chaque épreuve expliquée avant
+    hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166', extra: 'headphones' },
+    collectible: '⭐',
+    sky: ['#8ecae6', '#e8f6ff'],
+    biomes: [
+      { name: 'Cour de l\'école', sky0: '#8ecae6', sky1: '#e8f6ff', sun: '#fff6c2', mount0: '#a7c957', mount1: '#6a994e',
+        grass: '#8fd16a', grass2: '#84c75f', path: '#e6c28f', path2: '#dbb47e', fog: '#f4fbff',
+        deco: ['🌳', '🌼', '🏫', '🌷', '🌳', '🌼'], ambient: ['butterflies'] },
+    ],
+    endText: 'Bravo ! Tu as fini l\'École des dresseurs !',
+    sequence: [
+      Z(4, 'Bienvenue à l\'École des dresseurs ! On va tout apprendre, doucement.'),
+      LN(J()), J(2), LN(S()), S(2), LN(L()), L(), LN(D()), D(), LN(X()), X(2),
+      LN(P('armsUp')), P('armsUp', 2), LN(P('star')), P('star', 2), LN(P('airplane')), P('airplane', 2),
+      LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2),
+      LN(B(14, 4)), B(14, 4), LN(M(14, 4)), M(14, 4), LN(SL(16, 4)), SL(16, 4), LN(CU(6, 2.0)), CU(6, 2.0),
+      LN(F(14)), F(14),
+      Z(4, 'Tu sais tout faire ! Respire bien… Bravo, champion !'),
+    ],
+  },
   {
     id: 'jardin3d',
     name: 'Jardin Fleuri',
@@ -617,7 +677,7 @@ const WORLD_KITS = {
   jardin3d: ['flowers'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
-  dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
+  ecole: ['flowers'], dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
   verger: ['orchard', 'dojo'], rythmo: ['disco'],
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
@@ -625,7 +685,7 @@ const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'
 let classicN = 0; // rang parmi les mondes « classiques » (même règle que hooks.py)
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
-  if (['disco', 'dojo', 'verger', 'rythmo'].includes(w.id)) return; // ces mondes ont leur propre programme
+  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole'].includes(w.id)) return; // ces mondes ont leur propre programme
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.62), 0, classicN++ % 2 ? CU(10, 1.5) : SL(12, 6)); // fruits ou cubes, un monde sur deux
@@ -634,4 +694,4 @@ WORLDS.forEach((w, i) => {
 });
 // Gardien de fin de monde (avant la respiration finale), dans tous les mondes
 const BOSS_POSES = [['star', 'airplane', 'armsUp'], ['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star']];
-WORLDS.forEach((w, i) => { const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });
+WORLDS.forEach((w, i) => { if (w.tutorial) return; const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });

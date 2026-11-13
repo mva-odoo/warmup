@@ -320,9 +320,9 @@ class DepthScene {
     this.setHoldPose(null);
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
-    this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false;
+    this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
