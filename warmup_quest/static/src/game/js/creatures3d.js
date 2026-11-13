@@ -2,7 +2,42 @@
 // et un trait distinctif lié à leur élément. Forme évoluée : plus grande, trait renforcé, étoile au-dessus.
 // Construit avec la scène 3D (sc = Scene3D) : matériaux cartoon et contour noir partagés.
 
+// Monstre animé (pack Quaternius) : il attend, saute de joie, dit non et repart… avec ses vraies animations
+function buildMonster3D(sc, cr, evolved) {
+  const key = 'monsters/' + (evolved && cr.evolvedModel ? cr.evolvedModel : cr.model);
+  const obj = sc.P.model(key);
+  if (!obj) return null;
+  const T = sc.T, group = new T.Group();
+  group.add(obj);
+  obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  if (evolved && !cr.evolvedModel) group.scale.setScalar(1.25);
+  const clips = sc.P.anims.get(key) || [];
+  const find = (...names) => clips.find((c) => names.includes(c.name)) || null;
+  const acts = {
+    idle: find('Idle', 'Flying_Idle'), happy: find('Yes', 'Dance', 'Jump'),
+    wave: find('No', 'Walk', 'Fast_Flying'), show: find('Dance', 'Idle', 'Flying_Idle'),
+  };
+  const mixer = new T.AnimationMixer(obj);
+  let cur = null, last = 0;
+  const play = (name) => {
+    const clip = acts[name] || acts.idle;
+    if (!clip || clip === cur) return;
+    const a = mixer.clipAction(clip);
+    a.reset().fadeIn(0.25).play();
+    if (cur) mixer.clipAction(cur).fadeOut(0.25);
+    cur = clip;
+  };
+  const animate = (t, mode = 'idle', pose = null) => {
+    const dt = last ? Math.min(0.1, Math.max(0, (t - last) / 1000)) : 0;
+    last = t;
+    play(mode === 'happy' ? 'happy' : mode === 'wave' ? 'wave' : pose ? 'show' : 'idle');
+    mixer.update(dt);
+  };
+  return { group, animate };
+}
+
 function buildCreature3D(sc, cr, evolved = false) {
+  if (cr.model) { const m = buildMonster3D(sc, cr, evolved); if (m) return m; }
   const T = sc.T, G = sc.geo, lam = sc.lam;
   const group = new T.Group(), body = new T.Group();
   group.add(body);

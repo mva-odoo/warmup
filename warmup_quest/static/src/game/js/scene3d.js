@@ -6,8 +6,50 @@
 // Three.js et son chargeur de modèles glTF depuis le même paquet (une seule copie de Three.js)
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+const SKELETON_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js/+esm';
 const LANE = 1.6;          // largeur d'un couloir (unités 3D)
+const FX_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';
+const TER_PERIOD = 100;    // le relief se répète tous les 100 m (invisible grâce à la brume)
+
+// Hauteur du terrain : plat près du chemin, collines douces plus loin (périodique en z)
+function terrainH(x, z) {
+  const k = Math.min(1, Math.max(0, (Math.abs(x) - 6) / 9));
+  if (k <= 0) return 0;
+  const w = (2 * Math.PI) / TER_PERIOD;
+  const h = 1.7 * Math.sin(z * w * 2 + x * 0.11) + 1.2 * Math.sin(z * w * 3 - x * 0.07 + 1.3) + 0.9 * Math.sin(x * 0.19 + 2.1) * Math.cos(z * w);
+  return k * k * Math.max(-0.2, h + 1.6);
+}
 const DEPTH_SCALE = 1.3;   // profondeur DepthScene -> unités 3D
+
+// Poses du héros animé : direction visée par chaque os (repère du monde : x = droite de l'écran, y = haut,
+// z = vers la caméra ; le héros est vu de dos, son côté gauche « L » est à gauche de l'écran).
+// (Three.js retire les points des noms d'os : « UpperArm.L » devient « UpperArmL ».)
+const HERO_POSES = {
+  armsUp: { UpperArmL: [-0.25, 1, 0], UpperArmR: [0.25, 1, 0] },
+  airplane: { UpperArmL: [-1, 0.05, 0], UpperArmR: [1, 0.05, 0] },
+  star: { UpperArmL: [-0.7, 0.75, 0], UpperArmR: [0.7, 0.75, 0], UpperLegL: [-0.45, -1, 0], UpperLegR: [0.45, -1, 0] },
+  flamingo: { UpperArmL: [-1, -0.15, 0], UpperArmR: [1, -0.15, 0], UpperLegR: [0.1, -0.15, -1], LowerLegR: [0, -1, 0.1] },
+};
+const HERO_CHILD = { UpperArmL: 'LowerArmL', UpperArmR: 'LowerArmR', UpperLegL: 'LowerLegL', UpperLegR: 'LowerLegR', LowerLegR: 'FootR' };
+// Réglage des accessoires du dresseur par rapport aux os (tête, torse), en unités du jeu
+const HUMAN_FIT = { head: 0.8, arm: 1.6, hatY: 0.6, glassesY: 0.34, glassesZ: 0.36, bagY: 0.3, bagZ: 0.3 };
+
+// Dresseur (petits humains du pack Mini Characters de Kenney, CC0) : 13 apparences au choix
+const HUMAN_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
+  'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
+const HUMAN_OWN_HAT = ['male-c'];
+const DEFAULT_LOOK = { model: 'male-a', hat: 'cap', glasses: false, color: '#ff6b35' };
+const humanKey = (look) => 'characters/character-' + (HUMAN_MODELS.includes(look && look.model) ? look.model : DEFAULT_LOOK.model);
+// Poses du dresseur : direction visée par bras / jambes (même repère que pour le héros animé)
+const HUMAN_POSES = {
+  armsUp: { 'arm-left': [-0.55, 1, 0], 'arm-right': [0.55, 1, 0] },
+  airplane: { 'arm-left': [-1, 0.05, 0], 'arm-right': [1, 0.05, 0] },
+  star: { 'arm-left': [-0.7, 0.75, 0], 'arm-right': [0.7, 0.75, 0], 'leg-left': [-0.4, -1, 0], 'leg-right': [0.4, -1, 0] },
+  flamingo: { 'arm-left': [-1, -0.1, 0], 'arm-right': [1, -0.1, 0], 'leg-right': [0, -0.25, -1] },
+};
+
+// Hauteur de la tête de l'ancien héros « jouet » (les accessoires sont dessinés pour elle)
+const HERO_HEAD_Y = 1.25;
 
 class Scene3D extends DepthScene {
   constructor(canvas) {
@@ -32,16 +74,20 @@ class Scene3D extends DepthScene {
     Object.assign(cv.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', display: 'none' });
     this.c.parentNode.insertBefore(cv, this.c); // sous le canvas 2D (transparent) qui sert de calque
     this.cv3 = cv;
-    const r = new T.WebGLRenderer({ canvas: cv, antialias: true });
+    // (mode test : on garde l'image pour les captures d'écran sans fenêtre)
+    const r = new T.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: !!(typeof DEV !== 'undefined' && (DEV.get('world') || DEV.get('carnet'))) });
     r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
     r.shadowMap.enabled = true;
     r.shadowMap.type = T.PCFSoftShadowMap;
+    r.toneMapping = T.ACESFilmicToneMapping; // couleurs plus riches, comme au cinéma
+    r.toneMappingExposure = 1.0;
     this.renderer = r;
     this.camera = new T.PerspectiveCamera(55, 1, 0.1, 200);
     this.camera.position.set(0, 3.4, 6.8);
     this.camera.lookAt(0, 1.0, -8);
     this.resize3d();
     addEventListener('resize', () => this.resize3d());
+    this.initEffects().catch((e) => console.warn('Effets d\'image indisponibles', e));
     this.emojiTex = new Map();
     this.thumbs = new Map();
     this.helpers();
@@ -54,10 +100,31 @@ class Scene3D extends DepthScene {
     this.renderer.setSize(innerWidth, innerHeight, false);
     this.camera.aspect = innerWidth / innerHeight;
     this.camera.updateProjectionMatrix();
+    if (this.composer) this.composer.setSize(innerWidth, innerHeight);
   }
 
-  setWorld(theme, palettes = null) {
-    super.setWorld(theme, palettes);
+  // Effets d'image : léger halo lumineux (bloom) et vignettage ; désactivés si le PC rame
+  async initEffects() {
+    const T = this.T;
+    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { ShaderPass }, { OutputPass }] = await Promise.all(
+      ['EffectComposer', 'RenderPass', 'UnrealBloomPass', 'ShaderPass', 'OutputPass'].map((n) => import(FX_BASE + n + '.js/+esm')));
+    const c = new EffectComposer(this.renderer);
+    this.renderPass = new RenderPass(new T.Scene(), this.camera);
+    c.addPass(this.renderPass);
+    c.addPass(new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.16, 0.4, 0.95)); // halo discret (sinon l'image devient laiteuse)
+    c.addPass(new ShaderPass({
+      uniforms: { tDiffuse: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv);'
+        + ' float d = distance(vUv, vec2(0.5)); c.rgb *= mix(1.0, 0.72, smoothstep(0.35, 0.85, d)); gl_FragColor = c; }',
+    }));
+    c.addPass(new OutputPass());
+    c.setSize(innerWidth, innerHeight);
+    this.composer = c;
+  }
+
+  setWorld(theme, palettes = null, looks = null) {
+    super.setWorld(theme, palettes, looks);
     if (!this.ready) return;
     this.cv3.style.display = theme ? 'block' : 'none';
     if (theme) this.build(theme);
@@ -88,10 +155,24 @@ class Scene3D extends DepthScene {
     this.mat = { leaf2: lam('#5cb85c', { flatShading: true }), rock: lam('#9a9184', { flatShading: true }) };
 
     // Ciel (dégradé redessiné à chaque paysage) et brume
-    this.skyCv = document.createElement('canvas'); this.skyCv.width = 2; this.skyCv.height = 256;
-    this.skyTex = new T.CanvasTexture(this.skyCv); this.skyTex.colorSpace = T.SRGBColorSpace;
-    scene.background = this.skyTex;
-    scene.fog = new T.Fog('#ffffff', 24, 72);
+    this.skyU = {
+      top: { value: new T.Color('#4cc3ff') }, mid: { value: new T.Color('#d4f4ff') }, low: { value: new T.Color('#ffffff') },
+      sunDir: { value: new T.Vector3(-18, 22, -80).normalize() }, sunCol: { value: new T.Color('#fff2c7') }, glow: { value: 1 },
+    };
+    this.sky = new T.Mesh(new T.SphereGeometry(190, 32, 16), new T.ShaderMaterial({
+      uniforms: this.skyU, side: T.BackSide, depthWrite: false, fog: false,
+      vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform vec3 top, mid, low, sunCol, sunDir; uniform float glow; varying vec3 vP;
+        void main(){ vec3 d = normalize(vP); float h = d.y;
+          vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h * 1.6, 0.0, 1.0), 0.7)) : mix(mid, low, clamp(-h * 4.0, 0.0, 1.0));
+          float s = max(dot(d, sunDir), 0.0); c += sunCol * (pow(s, 24.0) * 0.12 + pow(s, 160.0) * 0.5) * glow;
+          gl_FragColor = vec4(c, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    }));
+    this.sky.renderOrder = -1;
+    scene.add(this.sky);
+    scene.fog = new T.Fog('#ffffff', 34, 95);
 
     // Lumières
     this.hemi = new T.HemisphereLight('#ffffff', '#88aa66', 1.1);
@@ -109,9 +190,7 @@ class Scene3D extends DepthScene {
     scene.add(this.disc);
 
     // Sol et chemin
-    this.ground = new T.Mesh(new T.PlaneGeometry(220, 220), lam('#7ccf6a'));
-    this.ground.rotation.x = -Math.PI / 2; this.ground.position.z = -60; this.ground.receiveShadow = true;
-    scene.add(this.ground);
+    this.buildTerrain();
     this.pathCv = document.createElement('canvas'); this.pathCv.width = this.pathCv.height = 128;
     const tex = new T.CanvasTexture(this.pathCv);
     tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(1, 30);
@@ -149,10 +228,8 @@ class Scene3D extends DepthScene {
     const T = this.T, scene = this.s3, b = this.theme.biomes[i], kit = KITS[b.kit] || KITS.meadow;
     const night = !!(kit.night || b.night);
     this.biomeIdx = i; this.pal = b; this.kitName = b.kit || 'meadow';
-    const sc = this.skyCv.getContext('2d'), g = sc.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, b.sky0); g.addColorStop(0.6, b.sky1); g.addColorStop(1, b.sky1);
-    sc.fillStyle = g; sc.fillRect(0, 0, 2, 256);
-    this.skyTex.needsUpdate = true;
+    this.skyU.top.value.set(b.sky0); this.skyU.mid.value.set(b.sky1); this.skyU.low.value.set(b.fog || b.sky1);
+    this.skyU.sunCol.value.set(night ? '#cfd8ff' : '#fff2c7'); this.skyU.glow.value = night ? 0.35 : 1;
     scene.fog.color.set(b.fog || b.sky1);
     this.hemi.color.set(b.sky0); this.hemi.groundColor.set(b.grass);
     this.hemi.intensity = night ? 0.55 : 1.1;
@@ -160,7 +237,7 @@ class Scene3D extends DepthScene {
     this.disc.material.color.set(b.sun || '#fff6c2');
     this.disc.scale.setScalar(night ? 0.6 : 1);
     for (const c of this.clouds) c.visible = !night;
-    this.ground.material.color.set(b.grass);
+    this.colorTerrain(b, !!kit.grass);
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
     const p2 = this.pathCv.getContext('2d');
     p2.fillStyle = b.path; p2.fillRect(0, 0, 128, 128);
@@ -205,10 +282,85 @@ class Scene3D extends DepthScene {
     }
   }
 
+  // ---------- Terrain vallonné (3 morceaux qui défilent) et herbe au vent (milliers de brins)
+  buildTerrain() {
+    const T = this.T, scene = this.s3;
+    this.windU = { value: 0 };
+    const terMat = this.lam('#ffffff', { vertexColors: true });
+    // Brin d'herbe : petit triangle effilé ; il ondule (plus le haut que le bas) selon le temps et sa position
+    const blade = new T.PlaneGeometry(0.1, 0.6, 1, 3); blade.translate(0, 0.3, 0);
+    const bp = blade.attributes.position;
+    for (let i = 0; i < bp.count; i++) bp.setX(i, bp.getX(i) * (1 - bp.getY(i) / 0.62));
+    const grassMat = this.P.toon('#ffffff', { side: T.DoubleSide });
+    grassMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = this.windU;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 ip = vec3(instanceMatrix[3]);
+        transformed.x += sin(uTime * 2.2 + ip.x * 0.8 + ip.z * 0.6) * 0.16 * position.y;
+        transformed.z += cos(uTime * 1.7 + ip.x * 0.5) * 0.08 * position.y;`);
+    };
+    grassMat.customProgramCacheKey = () => 'herbe-au-vent';
+    this.chunks = [];
+    for (let k = 0; k < 3; k++) {
+      const g = new T.PlaneGeometry(240, TER_PERIOD, 120, 50);
+      g.rotateX(-Math.PI / 2);
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) p.setY(i, terrainH(p.getX(i), p.getZ(i)));
+      g.setAttribute('color', new T.BufferAttribute(new Float32Array(p.count * 3), 3));
+      g.computeVertexNormals();
+      const mesh = new T.Mesh(g, terMat);
+      mesh.receiveShadow = true;
+      const n = 1700, grass = new T.InstancedMesh(blade, grassMat, n);
+      const m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), pos = new T.Vector3(), up = new T.Vector3(0, 1, 0);
+      for (let i = 0; i < n; i++) {
+        let x;
+        do { x = (Math.random() - 0.5) * 60; } while (Math.abs(x) < LANE * 1.5 + 1.0);
+        const z = (Math.random() - 0.5) * TER_PERIOD;
+        pos.set(x, terrainH(x, z), z);
+        q.setFromAxisAngle(up, Math.random() * Math.PI);
+        const s = 0.7 + Math.random() * 0.8;
+        sc.set(s, s * (0.8 + Math.random() * 0.6), s);
+        grass.setMatrixAt(i, m4.compose(pos, q, sc));
+      }
+      grass.instanceColor = new T.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+      mesh.add(grass);
+      scene.add(mesh);
+      this.chunks.push({ mesh, grass });
+    }
+    this.terOff = 0;
+  }
+
+  // Couleurs du terrain (taches plus claires / plus foncées) et de l'herbe pour ce paysage
+  colorTerrain(b, grassy) {
+    const T = this.T, base = new T.Color(b.grass), light = new T.Color(shade(b.grass, 0.12)), dark = new T.Color(shade(b.grass, -0.14));
+    const c = new T.Color();
+    for (const { mesh, grass } of this.chunks) {
+      const p = mesh.geometry.attributes.position, col = mesh.geometry.attributes.color;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), z = p.getZ(i);
+        const v = Math.sin(x * 0.21 + z * 0.13) * 0.5 + Math.sin(x * 0.07 - z * 0.31 + 1.7) * 0.5;
+        c.copy(base).lerp(v > 0 ? light : dark, Math.abs(v) * 0.8);
+        col.setXYZ(i, c.r, c.g, c.b);
+      }
+      col.needsUpdate = true;
+      grass.visible = grassy;
+      if (grassy) {
+        for (let i = 0; i < grass.count; i++) {
+          c.copy(base).lerp(Math.random() < 0.5 ? light : dark, Math.random()).multiplyScalar(0.95 + Math.random() * 0.15);
+          grass.setColorAt(i, c);
+        }
+        grass.instanceColor.needsUpdate = true;
+      }
+    }
+  }
+
+  // Hauteur du sol à une position du monde (pour poser le décor sur les collines)
+  groundY(x, z) { return terrainH(x, z - this.terOff - TER_PERIOD / 2); }
+
   makeTuft() {
-    const t = this.P.model(['grass_large', 'grass_leafsLarge', 'grass'][Math.floor(Math.random() * 3)]);
+    const t = this.P.model(Math.random() < 0.6 ? 'quaternius/Grass_Large' : 'quaternius/Grass_Small');
     if (!t) return null;
-    t.scale.multiplyScalar(0.9 + Math.random() * 0.8);
+    t.scale.multiplyScalar(0.55 + Math.random() * 0.4);
     t.rotation.y = Math.random() * Math.PI * 2;
     return t;
   }
@@ -493,15 +645,26 @@ class Scene3D extends DepthScene {
   // Créature à apprivoiser (calque 2D placé sur le chemin 3D)
   drawEncounter3D(now) {
     if (!this.enc) return;
-    const z = this.encZ(now), wz = this.z3(z);
-    const foot = this.project(0, 0, wz), top = this.project(0, 2.4, wz);
+    const z = this.encZ(now), wz = this.z3(z), ex = this.encX(now);
+    const foot = this.project(ex, 0, wz), top = this.project(ex, 2.4, wz);
     this.drawEncounterAt(now, { z, x: foot.x, gy: foot.y, s: Math.abs(foot.y - top.y), noBody: true });
   }
+
+  // La créature se place à côté du chemin (côté droit), pour ne jamais cacher le héros
+  encX() { return LANE * 1.15; }
 
   // Créature 3D de la rencontre : arrive, montre la pose, saute de joie ou repart en saluant
   updateEncounter3D(now) {
     const e = this.enc;
     if (!e) { if (this.encMesh) { this.s3.remove(this.encMesh.group); this.encMesh = null; this.encRef = null; } return; }
+    // Créature animée pas encore chargée : on la charge et on la remplacera dès qu'elle est prête
+    if (e.cr.model && !e.loadAsked) {
+      const keys = creatureModels([e.cr]);
+      if (!keys.every((k) => this.P.models && this.P.models.has(k))) {
+        e.loadAsked = true;
+        this.P.preload(keys).then(() => { if (this.enc === e) this.encRef = null; });
+      }
+    }
     if (e !== this.encRef) {
       if (this.encMesh) this.s3.remove(this.encMesh.group);
       this.encMesh = buildCreature3D(this, e.cr, e.evolved);
@@ -512,7 +675,8 @@ class Scene3D extends DepthScene {
     let x = 0, k = 1.9, mode = 'idle';
     if (e.state === 'leaving') { mode = 'wave'; x = since * 0.004; k = 1.9 * Math.max(0.01, 1 - since / 900); }
     else if (e.state === 'befriend') { mode = 'happy'; if (since > 900) k = 1.9 * Math.max(0.01, 1 - (since - 900) / 400); }
-    m.group.position.set(x, 0, this.z3(this.encZ(now)));
+    m.group.position.set(this.encX(now) + x, 0, this.z3(this.encZ(now)));
+    m.group.rotation.y = -0.35; // un peu tournée vers le héros
     m.group.scale.setScalar(k * (e.evolved ? 1.25 : 1));
     m.animate(now, mode, e.state === 'waiting' ? e.pose : null);
   }
@@ -557,6 +721,44 @@ class Scene3D extends DepthScene {
     out.getContext('2d').drawImage(this.crR.domElement, 0, 0);
     this.crThumbs.set(key, out);
     return out;
+  }
+
+  // Obstacles : en 3D ils partent moins loin (hors de la brume) pour qu'on les voie arriver longtemps
+  hazardZ(hz, now) {
+    const p = (now - hz.born) / hz.dur, start = 26;
+    return start - (start - this.heroZ()) * p;
+  }
+
+  // Petits nuages de poussière sous les pieds quand on court
+  updateDust(now, dt, move) {
+    const T = this.T;
+    if (!this.dust) {
+      this.dust = [];
+      const g = new T.IcosahedronGeometry(0.14, 0);
+      for (let i = 0; i < 16; i++) {
+        const m = new T.Mesh(g, new T.MeshBasicMaterial({ color: '#efe3cf', transparent: true, opacity: 0, depthWrite: false }));
+        m.visible = false; this.s3.add(m); this.dust.push({ m, t0: 0 });
+      }
+      this.dustAt = 0;
+    }
+    if (this.speed > 0.8 && now - this.dustAt > 110) {
+      this.dustAt = now;
+      for (const h of this.heroes) {
+        if (h.y < -2) continue;
+        const d = this.dust.find((x) => !x.m.visible);
+        if (!d) break;
+        d.t0 = now; d.m.visible = true;
+        d.m.position.set(h.lane * LANE + (Math.random() - 0.5) * 0.5, 0.08, 0.35);
+      }
+    }
+    for (const d of this.dust) {
+      if (!d.m.visible) continue;
+      const k = (now - d.t0) / 650;
+      if (k >= 1) { d.m.visible = false; continue; }
+      d.m.position.z += move; d.m.position.y += dt * 0.4;
+      d.m.scale.setScalar(1 + k * 1.8);
+      d.m.material.opacity = 0.55 * (1 - k);
+    }
   }
 
   // ---------- Conversions et projection écran
@@ -778,11 +980,22 @@ class Scene3D extends DepthScene {
       const n = this.makeDecor(); this.placeDecor(n, d.position.z - 88); this.s3.add(n); return n;
     });
     if (this.backdrops) this.backdrops.children.forEach((g) => g.userData.anim && g.userData.anim(now));
-    for (const t of this.tufts) { t.position.z += move; if (t.position.z > 8) t.position.z -= 84; }
+    for (const t of this.tufts) { t.position.z += move; if (t.position.z > 8) t.position.z -= 84; t.position.y = this.groundY(t.position.x, t.position.z); }
+    // Terrain : 3 morceaux qui avancent et se relaient ; le décor suit le relief
+    this.terOff = (this.terOff + move) % TER_PERIOD;
+    this.chunks.forEach((c, k) => { c.mesh.position.z = TER_PERIOD / 2 - k * TER_PERIOD + this.terOff; });
+    for (const d of this.decor) d.position.y = this.groundY(d.position.x, d.position.z);
+    this.windU.value = now / 1000;
+    this.updateDust(now, dt, move);
     this.updateParticles(now, dt, move);
     for (const c of this.clouds) { c.position.x += dt * 0.6; if (c.position.x > 45) c.position.x = -45; }
+    // Caméra : suit le héros (couloir, saut) avec un léger balancement quand on court
     const avg = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length;
+    const hy = this.heroY3(this.heroes[0]);
     this.camera.position.x += (avg * LANE * 0.35 - this.camera.position.x) * Math.min(1, dt * 3);
+    this.camera.position.y += (3.2 + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
+    this.camera.lookAt(this.camera.position.x * 0.6, 1.1 + hy * 0.3, -8);
+    this.sky.position.copy(this.camera.position);
 
     // Obstacles à éviter / étoiles
     this.hazards = this.hazards.filter((hz) => this.hazardZ(hz, now) > -0.9 && !(hz.t0 && now - hz.t0 > 600));
@@ -820,7 +1033,12 @@ class Scene3D extends DepthScene {
 
     this.updateCoach(now);
     this.updateEncounter3D(now);
-    this.renderer.render(this.s3, this.camera);
+    // Rendu avec effets d'image, sauf si le PC rame (moyenne des images trop lente) ou si les parents les ont coupés
+    this.frameMs = (this.frameMs || 16) * 0.95 + dt * 1000 * 0.05;
+    if (this.frameMs > 40 && this.composer && !this.lowQuality) { this.lowQuality = true; console.info('PC lent : effets d\'image coupés'); }
+    const fx = this.composer && !this.lowQuality && (typeof store !== 'function' || store('effects') !== false);
+    if (fx) { this.renderPass.scene = this.s3; this.composer.render(); }
+    else this.renderer.render(this.s3, this.camera);
 
     // Calque 2D : bulles, mains, corde, ✔ / ✗, particules
     const ctx = this.ctx;

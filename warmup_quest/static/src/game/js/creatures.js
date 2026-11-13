@@ -17,6 +17,21 @@ const CREATURES = [
   { id: 'sucrette', name: 'Sucrette', element: 'Sucre', color: '#ffafcc', belly: '#ffffff', shape: 'drop', feature: 'candyHorns' },
   { id: 'laineton', name: 'Laineton', element: 'Air', color: '#8d99ae', belly: '#edf2f4', shape: 'round', feature: 'wool' },
   { id: 'lucibulle', name: 'Lucibulle', element: 'Lumière', color: '#ffd166', belly: '#fff9db', shape: 'egg', feature: 'lantern' },
+  // Monstres animés du pack « Ultimate Monsters » de Quaternius (CC0), avec nos propres noms
+  { id: 'lamalou', name: 'Lamalou', element: 'Air', color: '#f1e3c8', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Alpaking', evolvedModel: 'Alpaking_Evolved' },
+  { id: 'bzouille', name: 'Bzouille', element: 'Insecte', color: '#ffbe0b', belly: '#fff3b0', shape: 'round', feature: 'none', model: 'Armabee', evolvedModel: 'Armabee_Evolved' },
+  { id: 'glouglou', name: 'Glouglou', element: 'Eau', color: '#4cc9f0', belly: '#e0f7ff', shape: 'drop', feature: 'none', model: 'Glub', evolvedModel: 'Glub_Evolved' },
+  { id: 'rocheron', name: 'Rocheron', element: 'Roche', color: '#8d99ae', belly: '#e9ecef', shape: 'round', feature: 'none', model: 'Goleling', evolvedModel: 'Goleling_Evolved' },
+  { id: 'dragounet', name: 'Dragounet', element: 'Feu', color: '#ef476f', belly: '#ffd6a5', shape: 'round', feature: 'none', model: 'Dragon', evolvedModel: 'Dragon_Evolved' },
+  { id: 'champilou', name: 'Champilou', element: 'Plante', color: '#e63946', belly: '#fff1e6', shape: 'round', feature: 'none', model: 'Mushnub', evolvedModel: 'Mushnub_Evolved' },
+  { id: 'gelouille', name: 'Gélouille', element: 'Gelée', color: '#80ed99', belly: '#d8f3dc', shape: 'round', feature: 'none', model: 'GreenBlob' },
+  { id: 'bonbloub', name: 'Bonbloub', element: 'Sucre', color: '#ff8fab', belly: '#ffe5ec', shape: 'round', feature: 'none', model: 'PinkBlob' },
+  { id: 'piquito', name: 'Piquito', element: 'Plante', color: '#52b788', belly: '#d8f3dc', shape: 'round', feature: 'none', model: 'Cactoro' },
+  { id: 'calmaron', name: 'Calmaron', element: 'Eau', color: '#9b5de5', belly: '#efe3ff', shape: 'drop', feature: 'none', model: 'Squidle' },
+  { id: 'tourbillon', name: 'Tourbillon', element: 'Air', color: '#a2d2ff', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Hywirl' },
+  { id: 'fantomi', name: 'Fantômi', element: 'Nuit', color: '#e0e1dd', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Ghost' },
+  { id: 'minouille', name: 'Minouille', element: 'Normal', color: '#f4a261', belly: '#fff1e0', shape: 'round', feature: 'none', model: 'Cat' },
+  { id: 'poilu', name: 'Poilu', element: 'Glace', color: '#e9f5ff', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Yeti' },
 ];
 
 // Où vit chaque créature (paysages 3D, voir KITS) : on la rencontre surtout là
@@ -28,7 +43,14 @@ const HABITATS = {
   sablou: ['desert', 'beach'], coraline: ['lagoon', 'reef', 'abyss'], braisou: ['volcano', 'dinoland'],
   petalune: ['garden', 'meadow', 'dojo', 'magic'], cosmino: ['moon', 'mars', 'nebula'], sucrette: ['candy', 'icecream'],
   laineton: ['farm', 'orchard', 'mountain'], lucibulle: ['night', 'aurora', 'dojoNight', 'magic', 'disco'],
+  lamalou: ['mountain', 'farm', 'meadow'], bzouille: ['meadow', 'garden', 'jungle'], glouglou: ['lagoon', 'reef', 'beach'],
+  rocheron: ['mountain', 'desert', 'mars', 'moon'], dragounet: ['volcano', 'dinoland', 'ferns'], champilou: ['forest', 'night', 'magic'],
+  gelouille: ['meadow', 'jungle', 'ferns', 'disco'], bonbloub: ['candy', 'icecream'], piquito: ['desert'],
+  calmaron: ['abyss', 'reef'], tourbillon: ['mountain', 'aurora', 'nebula'], fantomi: ['night', 'magic', 'dojoNight'],
+  minouille: ['farm', 'orchard', 'garden', 'dojo'], poilu: ['glacier', 'aurora'],
 };
+// Fichiers 3D des créatures animées (forme normale et évoluée)
+const creatureModels = (list) => list.flatMap((c) => [c.model, c.evolvedModel]).filter(Boolean).map((m) => 'monsters/' + m);
 const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(kit));
 const EVOLVE_AT = 3;
 

@@ -473,7 +473,8 @@ class Game {
     if (s.m === 'posemix' && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
     if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
       const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 1) / this.steps.length) * bs.length))].kit;
-      s = { ...s, creature: Carnet.pick(this.team.map((c) => c.id), kit) };
+      const forced = DEV.get('creature') && CREATURES.find((c) => c.id === DEV.get('creature')); // (mode test)
+      s = { ...s, creature: forced || Carnet.pick(this.team.map((c) => c.id), kit) };
     }
     return s;
   }
@@ -1151,6 +1152,11 @@ function creatureCard(cr, known, evolved, count) {
 }
 
 function openCarnet() {
+  // Créatures animées : on charge leurs modèles 3D puis on réaffiche le carnet avec leurs vrais rendus
+  if (scene3d.ready && store('3d') !== false && !openCarnet.loaded) {
+    openCarnet.loaded = true;
+    scene3d.P.preload(creatureModels(CREATURES)).then(() => { if (!$('carnet').classList.contains('hidden')) openCarnet(); });
+  }
   const data = Carnet.get();
   const grid = $('carnetGrid');
   grid.innerHTML = '';
