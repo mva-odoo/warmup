@@ -28,20 +28,27 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Bulles** : elles apparaissent autour du personnage ; les mains du joueur y sont des gants lumineux.
   - **À deux** : chacun a son personnage à sa couleur et sa moitié de caméra (trait au milieu). Restez chacun de votre côté
     et bien écartés : le jeu ignore un bras qui passe chez le voisin.
-  - Pendant une pose, une silhouette jaune sur la vidéo montre la position à prendre ; le personnage s'entoure de vert quand c'est bon.
+  - **Le dresseur imite l'enfant** : pendant les bulles, taupes, poses, fruits, cubes, danses et statues, ses bras et ses jambes
+    copient ceux de l'enfant en direct, et la caméra se rapproche. On touche bulles et taupes avec les mains du personnage
+    (gants lumineux), donc exactement ce qu'on voit à l'écran.
+  - Pendant une pose, une **silhouette dorée** du dresseur montre la position à prendre ; elle devient verte quand c'est bon.
+  - La petite vidéo de la caméra est en haut à droite (dans le ciel) pour ne plus cacher les épreuves.
   - **Tout est en 3D** (Three.js, style jouet) : décors propres à chaque paysage (sapins enneigés, palmiers et mer,
     coraux et poissons, planètes, bonbons géants, grange et moulin, volcan qui fume, dino, château…), neige, bulles,
     lucioles, nuit étoilée, et le paysage change pendant la partie. Réglage parent « Graphismes 2D (léger) » pour les PC
     trop faibles ; repli automatique sur le chemin 2D si la 3D ne se charge pas.
-  - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** à taper autour de son personnage, **copie les poses**.
+  - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** qui sortent de petites îles volantes de chaque côté, **copie les poses**.
+  - **Verger des Ninjas** : des fruits sautent en l'air, on les coupe en deux d'un geste vif de la main (traînée de sabre, jus).
+  - **Planète Rythmo** : des cubes arrivent en musique sur le chemin ; bleu = main gauche, orange = main droite, il faut les taper
+    quand ils atteignent les anneaux.
   - **Piste de Danse** : imite Tempo, le danseur, pas à pas en musique (comme dans un miroir).
     **Dojo des Petits Tigres** : imite Maître Bambou (parade, coup de genou, position du cavalier, tranche, saut du tigre).
     Chaque geste est noté ✔ / raté ; les parents peuvent créer leurs chorégraphies (gestes séparés par des virgules).
   - **30 créatures en 3D** : 16 créatures originales du jeu et 14 monstres animés (pack Quaternius, CC0) (éléments feu, eau, plante, électrique, glace, roche, air, nuit, sable, fée,
     étoile, sucre, lumière…), chacune avec ses lieux de vie, son petit cri et sa forme évoluée. On les voit se promener
     dans les hautes herbes ; elles viennent montrer une pose à copier pour devenir amies, puis rejoignent le carnet.
-  - **13 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
-    Pays des Bonbons, Ferme, Vallée des Dinos, Château) + une carte **🎲 Surprise** qui en choisit un au hasard.
+  - **15 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
+    Pays des Bonbons, Ferme, Vallée des Dinos, Château, Verger des Ninjas, Planète Rythmo…) + une carte **🎲 Surprise** qui en choisit un au hasard.
   - Jeux : éviter les obstacles, sauter, se baisser, taper, aller à gauche / à droite, **attraper les étoiles**
     (se mettre dessous), **sauter à la corde**, poses (en passant par le **trou du mur**, ou en apprivoisant une créature
     dans le Monde des Créatures), bulles, statues musicales.
@@ -67,7 +74,8 @@ Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis 
 **Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
 un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
 `&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
-`&forcepose=star` fige une pose, `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
+`&forcepose=star` fige une pose, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
+`?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
 Le jeu se développe **directement dans ce module** : il n'y a plus de projet séparé à recopier

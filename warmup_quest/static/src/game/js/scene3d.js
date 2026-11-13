@@ -128,6 +128,7 @@ class Scene3D extends DepthScene {
 
   setWorld(theme, palettes = null, looks = null) {
     super.setWorld(theme, palettes, looks);
+    this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     if (!this.ready) return;
     this.cv3.style.display = theme ? 'block' : 'none';
     if (theme) this.build(theme);
@@ -1082,6 +1083,87 @@ class Scene3D extends DepthScene {
     return this.shadow(g);
   }
 
+  // ---------- Cubes en rythme (3D) : ils glissent vers le héros ; bleu = main gauche, orange = main droite
+  cubeTex(side) {
+    this.cubeTexs = this.cubeTexs || {};
+    if (this.cubeTexs[side]) return this.cubeTexs[side];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d');
+    g.fillStyle = side < 0 ? '#4ea8ff' : '#ff6b35'; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = '#ffffff'; g.lineWidth = 10; g.strokeRect(8, 8, 112, 112);
+    g.font = '78px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(side < 0 ? '🤛' : '🤜', 64, 70);
+    const tex = new this.T.CanvasTexture(cv); tex.colorSpace = this.T.SRGBColorSpace;
+    return (this.cubeTexs[side] = tex);
+  }
+
+  cubeWorld(u, v) {
+    const h = this.heroes[0], sc = h.m3 ? h.m3.scale : 1;
+    return { x: h.lane * LANE + u * 0.5 * sc, y: this.heroY3(h) + 1.15 * sc - v * 0.5 * sc };
+  }
+
+  updateCubes3D(now, dt) {
+    const T = this.T;
+    this.cubeMeshes = this.cubeMeshes || new Map();
+    this.cubeBits = this.cubeBits || [];
+    this.cubes = (this.cubes || []).filter((cb) => !(cb.hit && now - cb.hit > 50) && !(cb.missed && now - cb.arrive > 1200));
+    const alive = new Set(this.cubes);
+    for (const [cb, mesh] of this.cubeMeshes) {
+      if (alive.has(cb)) continue;
+      if (cb.hit) this.burstCube(mesh, cb.side);
+      this.dispose(mesh); this.cubeMeshes.delete(cb);
+    }
+    for (const cb of this.cubes) {
+      if (cb.u == null) continue;
+      let mesh = this.cubeMeshes.get(cb);
+      if (!mesh) {
+        const col = cb.side < 0 ? '#4ea8ff' : '#ff6b35';
+        mesh = new T.Group();
+        const box = new T.Mesh(new T.BoxGeometry(0.62, 0.62, 0.62), [this.lam(col), this.lam(col), this.lam(col), this.lam(col),
+          new T.MeshBasicMaterial({ map: this.cubeTex(cb.side) }), this.lam(col)]);
+        box.material.forEach((m) => { if (m.emissive) { m.emissive.set(col); m.emissiveIntensity = 0.35; } });
+        box.castShadow = true; mesh.add(box);
+        this.outline(mesh);
+        this.s3.add(mesh); this.cubeMeshes.set(cb, mesh);
+      }
+      const p = (now - cb.born) / (cb.arrive - cb.born), w = this.cubeWorld(cb.u, cb.v);
+      mesh.position.set(w.x * Math.min(1, 0.35 + 0.65 * p), w.y + Math.sin(p * Math.PI * 4) * 0.04, -36 * (1 - p));
+      mesh.rotation.set(0, 0, Math.sin(now * 0.004 + cb.k) * 0.1);
+      const fade = cb.missed ? Math.max(0, 1 - (now - cb.arrive - 380) / 600) : 1;
+      mesh.scale.setScalar(Math.max(0.01, fade));
+    }
+    // Morceaux de cube qui volent quand on le tape
+    this.cubeBits = this.cubeBits.filter((b) => {
+      b.v.y -= 9 * dt; b.m.position.addScaledVector(b.v, dt); b.m.rotation.x += dt * 6; b.m.rotation.y += dt * 4;
+      b.life -= dt; b.m.scale.setScalar(Math.max(0.01, 0.22 * b.life / 0.7));
+      if (b.life > 0) return true;
+      this.s3.remove(b.m); return false;
+    });
+    // Cibles : deux anneaux à l'endroit où taper (ils grossissent quand un cube arrive)
+    this.cubeRings = this.cubeRings || [];
+    const tg = this.cubeTargets || [];
+    tg.forEach((t, i) => {
+      let r = this.cubeRings[i];
+      if (!r) {
+        r = new T.Mesh(new T.TorusGeometry(0.42, 0.06, 10, 40), new T.MeshBasicMaterial({ color: t.side < 0 ? '#4ea8ff' : '#ff6b35' }));
+        this.s3.add(r); this.cubeRings[i] = r;
+      }
+      const w = this.cubeWorld(t.u, t.v);
+      r.position.set(w.x, w.y, 0.05); r.visible = true;
+      r.scale.setScalar(t.near ? 1.25 + 0.1 * Math.sin(now * 0.03) : 1);
+    });
+    for (let i = tg.length; i < this.cubeRings.length; i++) this.cubeRings[i].visible = false;
+  }
+
+  burstCube(mesh, side) {
+    const T = this.T, col = side < 0 ? '#4ea8ff' : '#ff6b35';
+    for (let i = 0; i < 10; i++) {
+      const m = new T.Mesh(this.geo.box || new T.BoxGeometry(1, 1, 1), new T.MeshBasicMaterial({ color: i % 3 ? col : '#ffffff' }));
+      m.scale.setScalar(0.18); m.position.copy(mesh.position);
+      this.s3.add(m);
+      this.cubeBits.push({ m, life: 0.7, v: new T.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.3) * 4) });
+    }
+  }
+
   makeHazard(hz) {
     if (hz.kind === 'log') return this.makeLog();
     if (hz.kind === 'arch') return this.makeArch();
@@ -1314,8 +1396,9 @@ class Scene3D extends DepthScene {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.W, this.H);
     this.drawEncounter3D(now);
-    this.drawBubbles(now);
     this.drawMoles(now);
+    this.drawFruits(now);
+    this.drawBubbles(now);
     this.drawRope(now);
     this.drawCue(now);
     this.drawFlashes(now);

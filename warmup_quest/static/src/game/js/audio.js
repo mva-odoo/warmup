@@ -90,6 +90,9 @@ const Audio8 = (() => {
       if (happy) tone(base * 1.6, 0.18, 'triangle', 0.07, 0.3, base * 2.4);
     },
     boing() { tone(300, 0.18, 'sine', 0.14, 0, 700); tone(500, 0.12, 'triangle', 0.06, 0.08, 250); },
+    // Coup de sabre (fruit coupé) et cube tapé
+    slash() { tone(1900, 0.09, 'sawtooth', 0.04, 0, 350); tone(520, 0.14, 'triangle', 0.09, 0.04, 220); },
+    hit() { tone(240, 0.08, 'square', 0.1, 0, 120); tone(990, 0.12, 'triangle', 0.08, 0.02, 1320); },
     pop() { tone(900, 0.06, 'sine', 0.12, 0, 1800); tone(1400, 0.05, 'triangle', 0.05, 0.04); },
     // Musiques en boucle (mélodies originales) : 'fun' (statues), 'dance' (disco), 'karate' (tambours)
     music(on, style = 'fun') {

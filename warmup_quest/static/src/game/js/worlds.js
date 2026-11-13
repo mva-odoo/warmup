@@ -9,7 +9,7 @@ const POSES = {
   flamingo: { icon: '🦩', label: 'Tiens sur un pied !',       say: 'Lève un genou et tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', dance: '💃', karate: '🥋' };
+const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', dance: '💃', karate: '🥋', slice: '🍉', cubes: '🟦' };
 const MOVE_SHORT = { jump: 'Saute', squat: 'Baisse-toi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
@@ -31,6 +31,18 @@ const M = (t, n) => ({ m: 'moles', t, n });     // taper n taupes qui sortent au
 const PM = (...poses) => ({ m: 'posemix', poses, hold: 0.8 }); // copier une suite de poses
 const DN = (...moves) => ({ m: 'dance', moves, beat: 1.8 });   // danser : imiter Tempo pas à pas
 const KA = (...moves) => ({ m: 'karate', moves, beat: 2.0 });  // karaté : imiter le maître geste par geste
+const SL = (t, n) => ({ m: 'slice', t, n });    // couper n fruits lancés en l'air (d'un geste de la main)
+const CU = (n, beat = 1.4) => ({ m: 'cubes', n, beat }); // taper n cubes qui arrivent en rythme (gauche / droite)
+
+// Fruits à couper : émoji, couleur du jus
+const FRUITS = [['🍉', '#ff4d6d'], ['🍊', '#ffa62b'], ['🍎', '#ff3b3b'], ['🍍', '#ffd60a'], ['🥝', '#8ac926'], ['🍋', '#ffe94a'], ['🍑', '#ffb4a2'], ['🍇', '#9b5de5']];
+// Position d'un fruit en vol (repère des bulles : unité ≈ demi-mètre, v vers le bas) : il monte, s'arrête, retombe
+function fruitPos(f, now) {
+  const t = Math.min(1.2, (now - f.born) / f.dur);
+  return { u: f.u0 + (f.u1 - f.u0) * t, v: f.av + (f.v0 - f.av) * (2 * t - 1) * (2 * t - 1), t };
+}
+// Cubes : nombre, et instant d'arrivée de chacun
+const cubeTravel = (mul = 1) => 2400 * Math.min(1.3, mul);
 
 // « Imite le coach » : gestes reconnus par la caméra, avec leurs mots et icônes selon le style
 const MIMIC_ICONS = { armsUp: '🙌', airplane: '✈️', star: '⭐', flamingo: '🦵', squat: '⬇️', left: '⬅️', right: '➡️', jump: '⬆️', smash: '👊' };
@@ -76,6 +88,8 @@ function stepLabel(s) {
     case 'posemix': return 'Copie les poses !';
     case 'dance': return 'Danse comme Tempo !';
     case 'karate': return 'Imite le maître karatéka !';
+    case 'slice': return 'Coupe les fruits !';
+    case 'cubes': return 'Tape les cubes !';
     case 'pose': return POSES[s.pose].label;
     case 'combo': return 'Enchaîne !';
     case 'rest': return s.text;
@@ -99,6 +113,8 @@ function stepSpeech(s) {
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
     case 'dance': return 'Danse avec Tempo ! Fais comme lui, comme dans un miroir !';
     case 'karate': return 'Le maître karatéka te montre les gestes. Imite-le ! Kiaï !';
+    case 'slice': return 'Des fruits sautent en l\'air ! Coupe-les en deux avec ta main, comme un ninja !';
+    case 'cubes': return 'Des cubes arrivent en musique ! Tape les bleus avec la main gauche et les orange avec la main droite !';
     case 'bubbles': return 'Des bulles autour de ton personnage ! Touche-les avec tes mains pour les éclater !';
     case 'freeze': return "Statues musicales ! Danse avec la musique. Quand elle s'arrête, ne bouge plus !";
     case 'combo': return 'Enchaîne : ' + s.parts.map((p) => MOVE_SHORT[p]).join(', puis ') + ' !';
@@ -125,6 +141,8 @@ function stepDuration(s) {
     case 'moles': return s.t;
     case 'posemix': return 2 + s.poses.length * 3;
     case 'dance': case 'karate': return 2.6 + s.moves.length * s.beat;
+    case 'slice': return s.t;
+    case 'cubes': return 1.5 + s.n * s.beat + 3;
   }
 }
 
@@ -143,6 +161,7 @@ function maxPoints(s) {
     case 'moles': return s.n * 50 + 50;
     case 'posemix': return s.poses.length * 100 + 50;
     case 'dance': case 'karate': return s.moves.length * 100 + 50;
+    case 'slice': case 'cubes': return s.n * 50 + 50;
     default: return 0;
   }
 }
@@ -220,6 +239,51 @@ const WORLDS = [
       M(12, 6),
       KA('left', 'smash', 'right', 'smash', 'squat', 'jump'),
       Z(3, 'Salue le maître… et respire.'),
+    ],
+  },
+  {
+    id: 'verger',
+    name: 'Verger des Ninjas',
+    tagline: 'Coupe les fruits en deux !',
+    heroName: 'Kiwi',
+    hero: { body: '#8ac926', belly: '#f1ffd6', limb: '#4f772d', accent: '#e63946', extra: 'headband' },
+    collectible: '🍉',
+    sky: ['#ffb4a2', '#fff1e6'],
+    biomes: [
+      { name: 'Verger', sky0: '#7cc6fe', sky1: '#f0f9ff', sun: '#fff6c2', mount0: '#90be6d', mount1: '#43aa8b',
+        grass: '#6a994e', grass2: '#618f45', path: '#d4a373', path2: '#c8955f', fog: '#f4fbff',
+        deco: ['🍎', '🌳', '🍐', '🍊', '🌳', '🍑'], ambient: ['butterflies', 'birds'] },
+      { name: 'Jardin des ninjas', sky0: '#ffb4a2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
+        grass: '#8ab17d', grass2: '#7fa672', path: '#d4a373', path2: '#c8955f', fog: '#fff1e6',
+        deco: ['🎋', '🌸', '🏯', '🌸', '🎋', '🪨'], ambient: ['petals'] },
+    ],
+    endText: 'Kiwi te salue : tu es un vrai ninja des fruits !',
+    sequence: [
+      Z(2.5, 'Prêt, petit ninja ? Les fruits arrivent !'),
+      SL(14, 8), J(2), SL(14, 10), P('star'),
+      S(2), SL(16, 12), P('airplane'), SL(14, 10),
+      Z(3, 'Bravo ninja ! Respire bien…'),
+    ],
+  },
+  {
+    id: 'rythmo',
+    name: 'Planète Rythmo',
+    tagline: 'Tape les cubes en musique !',
+    heroName: 'Bip',
+    hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ff70a6', extra: 'headphones' },
+    collectible: '🎵',
+    sky: ['#10002b', '#5a189a'],
+    biomes: [
+      { name: 'Piste lumineuse', night: true, sky0: '#10002b', sky1: '#3c096c', sun: '#fff0ff', mount0: '#3c096c', mount1: '#240046',
+        grass: '#1b1035', grass2: '#170d2e', path: '#3a0ca3', path2: '#4361ee', fog: '#3c096c',
+        deco: ['🎵', '🟦', '🟧', '🎶', '✨', '🎵'], ambient: ['fireflies'] },
+    ],
+    endText: 'Bip dit : quel rythme !',
+    sequence: [
+      Z(2.5, 'Prêt ? Musique !'),
+      CU(12, 1.6), S(2), CU(16, 1.4), P('armsUp'),
+      CU(16, 1.3), J(2), CU(20, 1.2),
+      Z(3, 'Bravo ! Quel rythme…'),
     ],
   },
   {
@@ -544,12 +608,13 @@ const WORLD_KITS = {
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
   dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
+  verger: ['orchard', 'dojo'], rythmo: ['disco'],
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
 const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'], ['star', 'airplane', 'armsUp']];
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
-  if (w.id === 'disco' || w.id === 'dojo') return; // ces mondes ont leur propre programme
+  if (['disco', 'dojo', 'verger', 'rythmo'].includes(w.id)) return; // ces mondes ont leur propre programme
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.5), 0, M(12, 6));

@@ -154,6 +154,30 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, armL: left ? 2.4 : 0.5, armR: left ? 0.5 : 2.4 });
       break;
     }
+    case 'slice': { // un fruit saute, la main passe dessus d'un coup : il est coupé en deux
+      const k = cyc(1400), side = Math.floor(t / 1400) % 2 ? 1 : -1, fx = gx + side * S * 0.34, fy = gy - S * 0.78;
+      const arm = 0.8 + Math.min(1, k * 2.2) * 1.9; // le bras balaie de bas en haut
+      ctx.font = `${S * 0.22}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (k < 0.45) ctx.fillText('🍉', fx, fy + (0.45 - k) * S * 0.6);
+      else for (const sg of [-1, 1]) {
+        ctx.save(); ctx.beginPath(); ctx.rect(fx + (sg < 0 ? -S * 0.2 : 0) + sg * (k - 0.45) * S * 0.25, fy - S * 0.2, S * 0.2, S * 0.5); ctx.clip();
+        ctx.fillText('🍉', fx + sg * (k - 0.45) * S * 0.25, fy + (k - 0.45) * S * 0.3); ctx.restore();
+      }
+      if (k > 0.3 && k < 0.6) { ctx.strokeStyle = 'rgba(255, 107, 53, 0.7)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(gx, gy - S * 0.62, S * 0.38, side < 0 ? 3.6 : -0.9, side < 0 ? 4.4 : -0.1); ctx.stroke(); }
+      stickFigure(ctx, { ...base, armL: side < 0 ? arm : 0.4, armR: side > 0 ? arm : 0.4 });
+      break;
+    }
+    case 'cubes': { // un cube bleu à gauche, un orange à droite : on tape avec la bonne main
+      const k = cyc(1000), side = Math.floor(t / 1000) % 2 ? 1 : -1, cx = gx + side * S * 0.36, cy = gy - S * 0.62;
+      const sz = S * (0.06 + 0.12 * Math.min(1, k * 1.6));
+      ctx.fillStyle = side < 0 ? '#4ea8ff' : '#ff6b35';
+      if (k < 0.75) ctx.fillRect(cx - sz / 2, cy - sz / 2, sz, sz);
+      ctx.strokeStyle = side < 0 ? '#4ea8ff' : '#ff6b35'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, S * 0.12, 0, Math.PI * 2); ctx.stroke();
+      const punch = k > 0.55 ? 2.0 : 0.5;
+      stickFigure(ctx, { ...base, armL: side < 0 ? punch : 0.4, armR: side > 0 ? punch : 0.4 });
+      break;
+    }
     case 'freeze': {
       const dancing = cyc(2400) < 0.6;
       if (dancing) {

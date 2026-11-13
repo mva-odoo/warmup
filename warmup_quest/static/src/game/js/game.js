@@ -364,6 +364,11 @@ addEventListener('keydown', (e) => {
     const c = game.cur; c.bonked++; game.add(50, '+50'); Audio8.boing(); ui.setDetail(game.detail(c));
     if (c.bonked >= c.s.n) game.complete(performance.now());
   }
+  if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'slice' && !game.cur.done) {
+    const now = performance.now(), f = game.cur.fruits.find((x) => !x.cut);
+    if (f) game.sliceFruit(game.cur, f, now, 0.4, fruitPos(f, now));
+    if (game.cur.sliced >= game.cur.s.n) game.complete(now);
+  }
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'bubbles' && !game.cur.done) {
     game.cur.bubbles.push({ hero: 0, u: 1, v: -0.5, r: 0.32, born: 0, p: 0 });
     game.popBubble(game.cur, game.cur.bubbles.length - 1, performance.now());
@@ -493,6 +498,10 @@ class Game {
       for (const bb of c.bubbles) bb.born += d;
       for (const m of c.moles) { m.born += d; m.until += d; if (m.t) m.t += d; }
       if (c.lastMole) c.lastMole += d;
+      for (const f of c.fruits) { f.born += d; if (f.cut) f.cut += d; }
+      for (const cb of c.cubes) { cb.born += d; cb.arrive += d; if (cb.hit) cb.hit += d; }
+      if (c.lastFruit) c.lastFruit += d;
+      if (c.prevT) c.prevT += d;
     }
     if (this.gapUntil) this.gapUntil += d;
     this.pausedTotal += d;
@@ -522,11 +531,13 @@ class Game {
     if (s.m === 'jump' || s.m === 'squat') dur = 600 + (s.n - 1) * gapRep + travel + 700;
     const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
     if (s.m === 'dance' || s.m === 'karate') dur = 2000 + s.moves.length * beat + 600;
+    if (s.m === 'cubes') dur = 1500 + (s.n - 1) * (s.beat || 1.4) * 1000 * Math.min(1.3, this.mul) + cubeTravel(this.mul) + 900;
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
       ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
-      beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0, travel, gapRep };
+      beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0, travel, gapRep,
+      fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
@@ -537,6 +548,8 @@ class Game {
     if (s.m === 'moles') scene.moles = this.cur.moles;
     if (s.m === 'dance' || s.m === 'karate') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
+    if (s.m === 'slice') scene.fruits = this.cur.fruits;
+    if (s.m === 'cubes') { scene.cubes = this.cur.cubes; Audio8.music(true, 'dance'); }
     if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
     scene.setProgress(this.i / this.steps.length);
   }
@@ -597,6 +610,8 @@ class Game {
       case 'rope': return dots(c.ropeOk, s.n);
       case 'tunnel': return holdBar(c.hold / (s.t * 700));
       case 'moles': return `<div class="runCount"><b>${c.bonked}</b> / ${s.n} 🐹</div>`;
+      case 'slice': return `<div class="runCount"><b>${c.sliced}</b> / ${s.n} 🍉</div>`;
+      case 'cubes': return `<div class="runCount"><b>${c.cubeHits}</b> / ${s.n} 🟦</div>`;
       case 'dance': case 'karate': return '<div class="chips">' + s.moves.map((m, i) =>
         `<span class="chip ${i < c.mimicRes.length ? (c.mimicRes[i] ? 'ok' : 'miss') : i === c.mi ? 'now' : ''}">${MIMIC_ICONS[m]}</span>`).join('') + '</div>';
       case 'posemix': return '<div class="chips">' + s.poses.map((p, i) =>
@@ -864,6 +879,93 @@ class Game {
     scene.moles = c.moles;
   }
 
+  // ---------- Fruits ninja : des fruits sautent autour du héros, on les coupe d'un geste vif de la main
+  updateSlice(c, now) {
+    const s = c.s, hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    scene.hands = hands;
+    const dur = 2700 * Math.min(1.3, this.mul), gap = 1250 * Math.min(1.3, this.mul);
+    // Nouveau fruit (2 en l'air au maximum par joueur), lancé d'en bas, il s'arrête au bout des bras
+    if (now - (c.lastFruit || 0) > gap && now - c.start > 900) {
+      const i = (c.fruitTurn = ((c.fruitTurn || 0) + 1) % this.np);
+      if (c.fruits.filter((f) => f.hero === i && !f.cut && fruitPos(f, now).t < 1).length < 2 && (hands[i] || tracker.sim)) {
+        const side = (c.fruitSide = -(c.fruitSide || 1));
+        const far = this.avatarReach(i);
+        const top = far ? this.reachPoint(side, -1.15 + Math.random() * 1.0, 1.9) : { u: side * (0.6 + Math.random() * 0.5), v: -0.9 + Math.random() * 0.8 };
+        const [emoji, juice] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+        c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: top.u * 0.55, u1: top.u * 1.2, v0: top.v + 4.2, av: top.v,
+          spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
+        c.lastFruit = now;
+      }
+    }
+    // Coupe : la main passe sur le fruit assez vite (un vrai geste de sabre, même petit)
+    const prev = c.prevHands || [];
+    hands.forEach((hs, i) => (hs || []).forEach((hd, k) => {
+      const p = prev[i] && prev[i][k];
+      if (!p) return;
+      const du = hd.u - p.u, dv = hd.v - p.v, dt = Math.max(16, now - c.prevT) / 1000, speed = Math.hypot(du, dv) / dt;
+      if (speed < 1.6) return;
+      for (const f of c.fruits) {
+        if (f.cut || f.hero !== i || now - f.born < 250) continue;
+        const q = fruitPos(f, now);
+        if (q.t >= 1.05) continue;
+        const L2 = du * du + dv * dv || 1, t = Math.max(0, Math.min(1, ((q.u - p.u) * du + (q.v - p.v) * dv) / L2));
+        if (Math.hypot(p.u + du * t - q.u, p.v + dv * t - q.v) < f.r + 0.35) this.sliceFruit(c, f, now, Math.atan2(dv, du), q);
+      }
+    }));
+    c.prevHands = hands.map((hs) => (hs ? hs.map((h) => ({ u: h.u, v: h.v })) : null)); c.prevT = now;
+    c.fruits = c.fruits.filter((f) => (f.cut ? now - f.cut < 1200 : fruitPos(f, now).t < 1.2));
+    scene.fruits = c.fruits;
+    ui.setDetail(this.detail(c));
+    if (c.sliced >= s.n) this.complete(now);
+  }
+
+  sliceFruit(c, f, now, ang, q) {
+    f.cut = now; f.ang = ang; f.cu = q.u; f.cv = q.v;
+    c.sliced++;
+    this.add(50, '+50', f.hero); this.collect(); Audio8.slash(); scene.flash(f.hero, true);
+  }
+
+  // ---------- Cubes en rythme : ils arrivent sur le chemin, bleu = main gauche, orange = main droite
+  updateCubes(c, now) {
+    const s = c.s, hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    scene.hands = hands;
+    const beat = (s.beat || 1.4) * 1000 * Math.min(1.3, this.mul), travel = cubeTravel(this.mul);
+    const PATTERN = [-1, 1, -1, 1, -1, -1, 1, 1, 0, -1, 1, 0];
+    // Chaque cube part un temps à l'avance pour arriver pile sur le temps
+    while (c.cubesSent < s.n || c.cubesSent == null) {
+      c.cubesSent = c.cubesSent || 0;
+      const k = c.cubesSent, arrive = c.start + 1500 + travel + k * beat;
+      if (arrive - travel > now) break;
+      const side = PATTERN[k % PATTERN.length];
+      for (const sd of side === 0 ? [-1, 1] : [side]) c.cubes.push({ k, side: sd, born: arrive - travel, arrive, hit: null, missed: false });
+      c.cubesSent++;
+    }
+    for (const cb of c.cubes) {
+      if (cb.hit || cb.missed) continue;
+      const far = this.avatarReach(0);
+      cb.u = cb.side * (far ? 2.3 : 1.05); cb.v = far ? -0.7 : -0.55;
+      if (now >= cb.arrive - 520 && now <= cb.arrive + 380) {
+        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 0.85));
+        if (hit || (tracker.sim && !DEV.get('fakelimbs') && now >= cb.arrive)) { // (clavier : tous tapés)
+          cb.hit = now;
+          this.add(this.pts(50), '+' + this.pts(50)); Audio8.hit(); scene.flash(null, true);
+        }
+      } else if (now > cb.arrive + 380) { cb.missed = true; }
+    }
+    // Un temps est réussi quand tous ses cubes sont tapés (les doubles : les deux mains)
+    const beats = new Map();
+    for (const cb of c.cubes) { const b = beats.get(cb.k) || { hit: true, over: true }; b.hit = b.hit && !!cb.hit; b.over = b.over && !!(cb.hit || cb.missed); beats.set(cb.k, b); }
+    c.cubeHits = [...beats.values()].filter((b) => b.hit).length;
+    c.cubeDone = [...beats.values()].filter((b) => b.over).length;
+    scene.cubes = c.cubes;
+    scene.cubeTargets = [-1, 1].map((sd) => ({ side: sd, u: sd * (this.avatarReach(0) ? 2.3 : 1.05), v: this.avatarReach(0) ? -0.7 : -0.55,
+      near: c.cubes.some((cb) => cb.side === sd && !cb.hit && !cb.missed && Math.abs(cb.arrive - now) < 600) }));
+    ui.setDetail(this.detail(c));
+    if (c.cubeDone >= s.n && c.cubes.every((cb) => cb.hit || cb.missed || cb.arrive + 380 < now)) {
+      if (c.cubeHits >= s.n * 0.8) this.complete(now); else c.end = Math.min(c.end, now);
+    }
+  }
+
   // ---------- Copie les poses : une suite de poses à tenir un court instant chacune
   updatePosemix(c, now, dt) {
     const s = c.s, pose = s.poses[c.pi];
@@ -1011,7 +1113,14 @@ class Game {
     scene.resolve(true);
     scene.setHoldPose(null);
     scene.bubbles = []; scene.hands = []; scene.moles = [];
+    this.endTargets(c);
     if (!c.s.creature) this.gapUntil = now + 1100;
+  }
+
+  // Fin des fruits / cubes : la musique s'arrête, les morceaux finissent leur chute
+  endTargets(c) {
+    if (c.s.m === 'cubes') { Audio8.music(false); scene.cubes = (scene.cubes || []).filter((k) => k.hit); }
+    if (c.s.m === 'slice') scene.fruits = (scene.fruits || []).filter((f) => f.cut);
   }
 
   timeout(now) {
@@ -1019,6 +1128,7 @@ class Game {
     c.done = true;
     scene.setHoldPose(null);
     scene.bubbles = []; scene.hands = []; scene.moles = [];
+    this.endTargets(c);
     this.gapUntil = now + 1100;
     if (s.m === 'rest') { this.gapUntil = now; return; }
     let rating;
@@ -1033,10 +1143,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'tunnel', 'dance', 'karate'].includes(s.m)) {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
-        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic }[s.m]();
+        posemix: () => c.pi / s.poses.length, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
+        slice: () => c.sliced / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -1087,6 +1198,8 @@ class Game {
     if (s.m === 'rope') { this.updateRope(c, now); if (c.done) return; }
     if (s.m === 'tunnel') { this.updateTunnel(c, now, dt); if (c.done) return; }
     if (s.m === 'moles') this.updateMoles(c, now);
+    if (s.m === 'slice') { this.updateSlice(c, now); if (c.done) return; }
+    if (s.m === 'cubes') { this.updateCubes(c, now); if (c.done) return; }
     if (s.m === 'posemix') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');

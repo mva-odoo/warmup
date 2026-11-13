@@ -506,8 +506,10 @@ class DepthScene {
     this.ambient.update(dt, W, H, bio.cur.ambient && bio.cur.ambient.includes('fireflies') ? H : hy + H * 0.2, 0);
     this.ambient.draw(ctx);
 
-    this.drawBubbles(now);
     this.drawMoles(now);
+    this.drawFruits(now);
+    this.drawCubes(now);
+    this.drawBubbles(now);
     this.drawRope(now);
     this.drawCue(now);
 
@@ -678,6 +680,83 @@ class DepthScene {
         ctx.fillStyle = `rgba(255, 224, 102, ${bonk})`;
         for (let i = 0; i < 5; i++) { const a = i * 1.2566 + now * 0.01; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 1.4, by + Math.sin(a) * r * 0.5, r * 0.14, 0, Math.PI * 2); ctx.fill(); }
       }
+    }
+  }
+
+  // Traînée lumineuse derrière la main (coup de sabre) : on voit son geste
+  drawTrail(i, k, x, y, r, now) {
+    const ctx = this.ctx, key = i * 2 + k;
+    const tr = (this.trails[key] = (this.trails[key] || []).filter((p) => now - p.t < 220));
+    tr.push({ x, y, t: now });
+    if (tr.length < 2) return;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let j = 1; j < tr.length; j++) {
+      const a = 1 - (now - tr[j].t) / 220;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.85 * a})`; ctx.lineWidth = r * 1.4 * a + 2;
+      ctx.beginPath(); ctx.moveTo(tr[j - 1].x, tr[j - 1].y); ctx.lineTo(tr[j].x, tr[j].y); ctx.stroke();
+    }
+  }
+
+  // Fruits lancés en l'air autour du héros ; coupés : deux moitiés qui s'écartent et tombent, avec du jus
+  drawFruits(now) {
+    const ctx = this.ctx;
+    this.fruits = (this.fruits || []).filter((f) => (f.cut ? now - f.cut < 1200 : (now - f.born) / f.dur < 1.2));
+    for (const f of this.fruits) {
+      const A = this.anchor(f.hero), size = f.r * A.u * 2.3;
+      ctx.font = `${size}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (!f.cut) {
+        const q = fruitPos(f, now), x = A.x + q.u * A.u, y = A.y + q.v * A.u;
+        ctx.save(); ctx.translate(x, y); ctx.rotate((now - f.born) / 1000 * f.spin);
+        ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = size * 0.25;
+        ctx.fillText(f.emoji, 0, 0); ctx.restore();
+        continue;
+      }
+      const k = (now - f.cut) / 1000, x0 = A.x + f.cu * A.u, y0 = A.y + f.cv * A.u;
+      // Jus : gouttes qui giclent
+      if (k < 0.45) {
+        ctx.fillStyle = f.juice; ctx.globalAlpha = 1 - k / 0.45;
+        for (let j = 0; j < 9; j++) { const a = j * 0.698 + f.spin; ctx.beginPath(); ctx.arc(x0 + Math.cos(a) * size * (0.3 + k * 2.2), y0 + Math.sin(a) * size * (0.3 + k * 2.2), size * 0.07, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }
+      // Deux moitiés, coupées le long du geste
+      const nx = -Math.sin(f.ang), ny = Math.cos(f.ang), sep = size * (0.15 + k * 1.1), fall = k * k * A.u * 6;
+      ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.7) / 0.5);
+      for (const sg of [-1, 1]) {
+        ctx.save();
+        ctx.translate(x0 + nx * sep * sg, y0 + ny * sep * sg + fall);
+        ctx.rotate(sg * k * 2.5);
+        ctx.save(); ctx.rotate(f.ang);
+        ctx.beginPath(); ctx.rect(-size, sg > 0 ? 0 : -size, size * 2, size); ctx.clip(); // moitié du fruit
+        ctx.rotate(-f.ang);
+        ctx.fillText(f.emoji, 0, 0);
+        ctx.restore();
+        // tranche claire, côté coupé
+        ctx.rotate(f.ang); ctx.fillStyle = 'rgba(255, 250, 230, 0.9)';
+        ctx.fillRect(-size * 0.38, -size * 0.03, size * 0.76, size * 0.06);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Cubes en rythme (version 2D : la 3D les dessine en vrais cubes) et cibles où mettre les mains
+  drawCubes(now) {
+    if (this.drawCubes3D) return; // (scène 3D)
+    const ctx = this.ctx;
+    this.cubes = (this.cubes || []).filter((cb) => !(cb.hit && now - cb.hit > 500) && !(cb.missed && now - cb.arrive > 900));
+    const A = this.anchor(0);
+    for (const t of this.cubeTargets || []) {
+      ctx.strokeStyle = t.side < 0 ? '#4ea8ff' : '#ff6b35'; ctx.lineWidth = t.near ? 8 : 4;
+      ctx.beginPath(); ctx.arc(A.x + t.u * A.u, A.y + t.v * A.u, A.u * 0.6, 0, Math.PI * 2); ctx.stroke();
+    }
+    for (const cb of this.cubes) {
+      if (cb.u == null) continue;
+      const p = Math.min(1.3, (now - cb.born) / (cb.arrive - cb.born)), tx = A.x + cb.u * A.u, ty = A.y + cb.v * A.u;
+      const x = this.W / 2 + (tx - this.W / 2) * p, y = this.H * 0.42 + (ty - this.H * 0.42) * p, sz = A.u * (0.25 + 0.75 * p);
+      ctx.globalAlpha = cb.hit ? Math.max(0, 1 - (now - cb.hit) / 500) : 1;
+      ctx.fillStyle = cb.side < 0 ? '#4ea8ff' : '#ff6b35';
+      ctx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
+      ctx.globalAlpha = 1;
     }
   }
 

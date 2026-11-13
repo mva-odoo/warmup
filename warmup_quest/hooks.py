@@ -73,6 +73,14 @@ def _KA(*moves):
     return {'move': 'karate', 'combo': ','.join(moves), 'hold': 2.0}
 
 
+def _SL(t, n):
+    return {'move': 'slice', 'duration': t, 'count': n}
+
+
+def _CU(n, beat=1.4):
+    return {'move': 'cubes', 'count': n, 'hold': beat}
+
+
 # Épreuves rigolotes ajoutées à chaque séquence par défaut (aussi utilisé par la migration 20.0.2.0.0)
 FUN_STEPS = [_U(4), _M(12, 6), _PM('armsUp', 'star', 'airplane')]
 
@@ -95,6 +103,14 @@ DEFAULT_SEQUENCES = [
         _KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'), _P('airplane'),
         _KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'), _M(12, 6),
         _KA('left', 'smash', 'right', 'smash', 'squat', 'jump'), _Z(3, 'Salue le maître… et respire.'),
+    ]),
+    ('verger', 'Entraînement des Ninjas', [
+        _Z(2.5, 'Prêt, petit ninja ? Les fruits arrivent !'), _SL(14, 8), _J(2), _SL(14, 10), _P('star'),
+        _S(2), _SL(16, 12), _P('airplane'), _SL(14, 10), _Z(3, 'Bravo ninja ! Respire bien…'),
+    ]),
+    ('rythmo', 'Rythmes de Bip', [
+        _Z(2.5, 'Prêt ? Musique !'), _CU(12, 1.6), _S(2), _CU(16, 1.4), _P('armsUp'),
+        _CU(16, 1.3), _J(2), _CU(20, 1.2), _Z(3, 'Bravo ! Quel rythme…'),
     ]),
     ('turbo', 'Échauffement Turbo', [
         _Z(2.5, "Prêt ? On s'échauffe !"), _R(6), _J(), _R(5), _L(), _D(), _L(), _D(), _S(), _J(2), _X(),
@@ -152,7 +168,7 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo'}
 
 
 def _with_fun(steps):

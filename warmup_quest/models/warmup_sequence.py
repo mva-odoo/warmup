@@ -6,8 +6,10 @@ from .warmup_constants import COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
-    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch', 'moles'):
+    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice'):
         return step.duration or 0
+    if m == 'cubes':
+        return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
     if m == 'tunnel':
         return 3 + (step.duration or 0)
     if m == 'posemix':
@@ -85,7 +87,7 @@ class WarmupStep(models.Model):
                             help='Durée pour « Éviter les obstacles », « Pause / respiration », '
                                  '« Éclater des bulles » et « Statues musicales » (une manche ≈ 7 s).')
     pose = fields.Selection(POSES, default='armsUp')
-    hold = fields.Float(string='Tenir (s)', default=1.5, help='Temps pendant lequel la pose doit être tenue.')
+    hold = fields.Float(string='Tenir (s)', default=1.5, help='Temps pendant lequel la pose doit être tenue (cubes : temps entre deux cubes ; danse / karaté : temps par geste).')
     combo = fields.Char(string='Enchaînement',
                         help="Mouvements séparés par des virgules parmi : jump, squat, smash, left, right. "
                              "Exemple : jump,squat,smash")
@@ -117,6 +119,10 @@ class WarmupStep(models.Model):
                 s.summary = f"Rester baissé {s.duration:g} s dans le tunnel"
             elif s.move == 'moles':
                 s.summary = f"Taper {max(1, s.count)} taupes en {s.duration:g} s"
+            elif s.move == 'slice':
+                s.summary = f"Couper {max(1, s.count)} fruits en {s.duration:g} s"
+            elif s.move == 'cubes':
+                s.summary = f"Taper {max(1, s.count)} cubes en rythme (un toutes les {s.hold:g} s)"
             elif s.move == 'posemix':
                 labels = dict(POSES)
                 s.summary = 'Poses : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
@@ -170,14 +176,18 @@ class WarmupStep(models.Model):
         for s in self:
             if s.move in ('jump', 'squat', 'smash', 'rope') and not 1 <= s.count <= 10:
                 raise ValidationError('Le nombre de répétitions doit être entre 1 et 10.')
-            if s.move in ('bubbles', 'moles') and not 1 <= s.count <= 30:
+            if s.move in ('bubbles', 'moles', 'slice') and not 1 <= s.count <= 30:
                 raise ValidationError('Le nombre de bulles ou de taupes doit être entre 1 et 30.')
             if s.move in ('run', 'rest') and not 1 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 1 et 60 secondes.')
-            if s.move in ('bubbles', 'freeze', 'catch', 'moles') and not 5 <= s.duration <= 60:
+            if s.move in ('bubbles', 'freeze', 'catch', 'moles', 'slice') and not 5 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
             if s.move == 'tunnel' and not 2 <= s.duration <= 20:
                 raise ValidationError('La durée du tunnel doit être entre 2 et 20 secondes.')
+            if s.move == 'cubes' and not 2 <= s.count <= 40:
+                raise ValidationError('Le nombre de cubes doit être entre 2 et 40.')
+            if s.move == 'cubes' and not 0.8 <= s.hold <= 3:
+                raise ValidationError('Le temps entre deux cubes doit être entre 0,8 et 3 secondes.')
             if s.move in ('pose', 'posemix', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
@@ -209,6 +219,10 @@ class WarmupStep(models.Model):
             return {'m': 'tunnel', 't': self.duration or 4}
         if m == 'moles':
             return {'m': 'moles', 't': self.duration or 12, 'n': max(1, self.count)}
+        if m == 'slice':
+            return {'m': 'slice', 't': self.duration or 14, 'n': max(1, self.count)}
+        if m == 'cubes':
+            return {'m': 'cubes', 'n': max(2, self.count), 'beat': self.hold or 1.4}
         if m in ('dance', 'karate'):
             parts = [p for p in self._combo_parts() if p in MIMIC_MOVES]
             return {'m': m, 'moves': parts, 'beat': self.hold or 1.8} if len(parts) >= 2 else None
