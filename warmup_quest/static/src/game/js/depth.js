@@ -236,8 +236,11 @@ class DepthScene {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(3, r * 0.12);
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.font = `${r * 1.15}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(c.icon, x, y + r * 0.06);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (/^\d$/.test(c.icon)) { // chiffre du décompte : gros, blanc, bien lisible
+        ctx.font = `800 ${r * 1.3}px 'Baloo 2', system-ui, sans-serif`; ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = r * 0.12; ctx.strokeText(c.icon, x, y + r * 0.08); ctx.fillText(c.icon, x, y + r * 0.08);
+      } else { ctx.font = `${r * 1.15}px serif`; ctx.fillText(c.icon, x, y + r * 0.06); }
       ctx.textBaseline = 'alphabetic';
     });
   }
@@ -312,7 +315,7 @@ class DepthScene {
     this.setHoldPose(null);
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
-    this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = [];
+    this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false;
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
     this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)

@@ -489,7 +489,8 @@ class Scene3D extends DepthScene {
     const group = new T.Group(), inner = new T.Group();
     group.add(inner); inner.add(obj);
     obj.rotation.y = Math.PI; // vu de dos
-    obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    // (matériaux propres à ce personnage : il peut devenir un peu transparent sans toucher les autres)
+    obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); } });
     const bones = {};
     obj.traverse((o) => { if (o.isBone) bones[o.name] = o; });
     const mixer = new T.AnimationMixer(obj), actions = {};
@@ -574,6 +575,47 @@ class Scene3D extends DepthScene {
     return this.limbs[this.heroes.indexOf(h)] || null;
   }
 
+  // Dresseur un peu transparent (vu de face pendant les fruits : on voit les fruits derrière lui)
+  setSeeThrough(m, on) {
+    if (m.seeThrough === on) return;
+    m.seeThrough = on;
+    (m.human.obj || m.inner).traverse((o) => { // (le personnage seul : ses matériaux lui sont propres)
+      if (!o.isMesh || !o.material) return;
+      for (const mt of Array.isArray(o.material) ? o.material : [o.material]) { mt.transparent = on; mt.opacity = on ? 0.72 : 1; mt.needsUpdate = true; }
+    });
+  }
+
+  // Modèle à imiter : le dresseur de l'enfant, DE FACE, sur une estrade dorée à côté du chemin, qui fait la pose
+  updatePoseModel(now) {
+    const want = this.ghostPose && HUMAN_POSES[this.ghostPose] ? this.ghostPose : null;
+    const h = this.heroes[0];
+    if (!want || !h || !h.m3 || !h.m3.human) { if (this.poseModel) this.poseModel.root.visible = false; return; }
+    const T = this.T;
+    if (!this.poseModel || this.poseModel.look !== h.m3.human.look) {
+      if (this.poseModel) this.s3.remove(this.poseModel.root);
+      const root = new T.Group(), m = this.makeHumanHero(h.pal || this.theme.hero, false, h.m3.human.look);
+      m.facing = true; m.isGhost = true;
+      m.group.rotation.y = Math.PI; // de face
+      const stage = new T.Mesh(new T.CylinderGeometry(0.9, 1.05, 0.25, 32), this.lam('#ffd166'));
+      stage.position.y = 0.12; stage.receiveShadow = true;
+      const glow = new T.Mesh(new T.TorusGeometry(1.0, 0.05, 8, 40), new T.MeshBasicMaterial({ color: '#fff3b0' }));
+      glow.rotation.x = Math.PI / 2; glow.position.y = 0.27;
+      root.add(stage, glow, m.group); m.group.position.y = 0.25;
+      this.s3.add(root);
+      this.poseModel = { root, m, look: h.m3.human.look, pose: null, glow };
+    }
+    const pm = this.poseModel;
+    if (pm.pose !== want) { this.poseHumanStill(pm.m, want); pm.m.group.position.y = 0.25; pm.pose = want; }
+    pm.root.visible = true;
+    // à gauche du chemin (la créature se met à droite), légèrement en avant pour bien se voir
+    const x = -(LANE * 1.5 + 1.1), z = -2.2 + (this.cuK || 0) * 0.9;
+    pm.root.position.set(x, this.groundY(x, z), z);
+    pm.root.rotation.y = 0.35; // tourné vers le joueur
+    pm.m.group.position.y = 0.25 + Math.abs(Math.sin(now * 0.004)) * 0.08;
+    pm.glow.material.color.set(h.holdPose ? '#4ade80' : '#fff3b0');
+    pm.glow.scale.setScalar(1 + 0.06 * Math.sin(now * 0.008));
+  }
+
   // Silhouette dorée de la pose à prendre, posée sur le héros (verte quand c'est bon)
   updateGhost(h, m) {
     const r = m.human, want = HUMAN_POSES[this.ghostPose] ? this.ghostPose : null;
@@ -584,6 +626,9 @@ class Scene3D extends DepthScene {
       r.ghostMat = new this.T.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.42, depthWrite: false });
       g.group.traverse((o) => { if (o.isMesh) { o.material = r.ghostMat; o.castShadow = false; o.renderOrder = 3; } });
       g.group.scale.setScalar(1.07);
+      // (seulement le corps et la tête : les accessoires transparents s'empileraient et cacheraient le héros)
+      for (const part of [g.human.hat, g.human.bag, g.human.glasses]) part.visible = false;
+      g.group.traverse((o) => { if (o.isMesh && !o.isSkinnedMesh) o.visible = false; });
       m.group.add(g.group);
       r.ghost = g;
     }
@@ -591,7 +636,7 @@ class Scene3D extends DepthScene {
     r.ghost.group.position.set(0, 0, 0.05);
     r.ghost.group.visible = true;
     r.ghostMat.color.set(h.holdPose ? '#4ade80' : '#ffd166');
-    r.ghostMat.opacity = 0.32 + 0.12 * Math.sin(performance.now() * 0.006);
+    r.ghostMat.opacity = 0.2 + 0.08 * Math.sin(performance.now() * 0.006);
   }
 
   // Dresseur : animation, poses (bras / jambes visés), accessoires posés sur la tête et le dos
@@ -609,8 +654,13 @@ class Scene3D extends DepthScene {
     const L = !m.isGhost && this.liveLimbs(h); // imitation en direct du joueur
     const long = P || L ? HUMAN_FIT.arm : 1; // bras un peu plus longs pendant une pose (on la voit mieux)
     for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(long, 1, 1);
-    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[bone], null, dir, m.inner, HUMAN_AXIS[bone]);
-    if (L) for (const [bone, d] of Object.entries(L)) if (d && r.bones[bone]) this.aimBone(r.bones[bone], null, [d[0], d[1], 0.08], m.inner, HUMAN_AXIS[bone]);
+    // De face (modèle à imiter, fruits) : son bras gauche est à droite de l'écran, on échange gauche / droite
+    const facing = !!m.facing || (!m.isGhost && this.faceCam && !!L);
+    const sw = (b) => (facing ? b.replace(/left|right/, (x) => (x === 'left' ? 'right' : 'left')) : b);
+    m.inner.rotation.y = facing && !m.facing ? Math.PI : 0;
+    this.setSeeThrough(m, facing && !m.facing);
+    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[sw(bone)], null, facing ? [dir[0], dir[1], -dir[2]] : dir, m.inner, HUMAN_AXIS[sw(bone)]);
+    if (L) for (const [bone, d] of Object.entries(L)) if (d && r.bones[sw(bone)]) this.aimBone(r.bones[sw(bone)], null, [d[0], d[1], facing ? -0.08 : 0.08], m.inner, HUMAN_AXIS[sw(bone)]);
     if (!m.isGhost) this.updateGhost(h, m);
     m.ring.visible = !!h.holdPose;
     m.group.position.set(h.lane * LANE, this.heroY3(h), 0);

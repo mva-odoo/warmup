@@ -527,7 +527,7 @@ class Game {
     const fixed = s.m === 'rest' || s.m === 'freeze';
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     const ropePeriod = 1700 * Math.min(1.3, this.mul);
-    if (s.m === 'rope') dur = 1200 + s.n * ropePeriod + 700;
+    if (s.m === 'rope') dur = 3600 + s.n * ropePeriod + 700; // (3, 2, 1 avant le premier saut)
     const travel = 2600 * Math.min(1.3, this.mul), gapRep = 2400 * Math.min(1.3, this.mul);
     if (s.m === 'jump' || s.m === 'squat') dur = 600 + (s.n - 1) * gapRep + travel + 700;
     const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
@@ -536,7 +536,7 @@ class Game {
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
-      ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
+      ropeT0: now + 3600 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
       beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0, travel, gapRep,
       fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
@@ -629,6 +629,7 @@ class Game {
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
     scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate'].includes(s.m);
+    scene.faceCam = live && s.m === 'slice'; // fruits : le dresseur se tourne vers l'enfant (comme un miroir)
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
     scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' ? s.poses[Math.min(c.pi, s.poses.length - 1)] : null;
   }
@@ -637,10 +638,14 @@ class Game {
   limbsOf(b, i = 0) {
     if (DEV.get('fakelimbs')) return fakeLimbs(i);
     if (!b.lm || !b.state.present) return null;
-    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.4;
-    const dir = (a, z) => (vis(a) && vis(z) ? [-(lm[z].x - lm[a].x) / 0.75, -(lm[z].y - lm[a].y)] : null);
+    // (poignet hors de l'image, bras tendu sur le côté ou en l'air : on suit le coude ; cheville cachée : le genou)
+    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.3;
+    const dir = (a, z, z2) => {
+      const e = vis(z) ? z : vis(z2) ? z2 : null;
+      return vis(a) && e != null ? [-(lm[e].x - lm[a].x) / 0.75, -(lm[e].y - lm[a].y)] : null;
+    };
     const legs = tracker.mode !== 'upper';
-    return { 'arm-left': dir(11, 15), 'arm-right': dir(12, 16), 'leg-left': legs ? dir(23, 27) : null, 'leg-right': legs ? dir(24, 28) : null };
+    return { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14), 'leg-left': legs ? dir(23, 27, 25) : null, 'leg-right': legs ? dir(24, 28, 26) : null };
   }
 
   // ---------- Bulles autour du personnage sur le chemin ; les mains du joueur y sont des gants lumineux.
@@ -670,14 +675,14 @@ class Game {
   touches(hs, u, v, rad) {
     return !!hs && hs.some((hd) => {
       if (hd.su == null) return Math.hypot(hd.u - u, hd.v - v) < rad;
-      const ex = hd.su + (hd.u - hd.su) * 0.45, ey = hd.sv + (hd.v - hd.sv) * 0.45; // depuis le coude
+      const ex = hd.su + (hd.u - hd.su) * 0.3, ey = hd.sv + (hd.v - hd.sv) * 0.3; // tout l'avant du bras compte
       const dx = hd.u - ex, dy = hd.v - ey, t = Math.max(0, Math.min(1, ((u - ex) * dx + (v - ey) * dy) / (dx * dx + dy * dy || 1)));
       return Math.hypot(ex + dx * t - u, ey + dy * t - v) < rad;
     });
   }
 
   // Point sur l'arc que les bras du héros peuvent atteindre (a : 0 = à l'horizontale, négatif = vers le haut)
-  reachPoint(side, a, dist = 1.85) { return { u: side * (0.6 + Math.cos(a) * dist), v: 0.25 + Math.sin(a) * dist }; }
+  reachPoint(side, a, dist = 1.5) { return { u: side * (0.6 + Math.cos(a) * dist), v: 0.25 + Math.sin(a) * dist }; }
 
   spawnBubble(c, hero, now) {
     for (let tries = 0; tries < 6; tries++) {
@@ -712,7 +717,7 @@ class Game {
       const bb = c.bubbles[i];
       if (now - bb.born < 300) continue; // le temps de la voir apparaître
       const hs = hands[bb.hero];
-      if (this.touches(hs, bb.u, bb.v, bb.r + 0.3)) this.popBubble(c, i, now);
+      if (this.touches(hs, bb.u, bb.v, bb.r + 0.45)) this.popBubble(c, i, now);
     }
   }
 
@@ -820,8 +825,16 @@ class Game {
   updateRope(c, now) {
     const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod;
     const toPass = pass - now;
-    scene.setCue({ icon: '⬆️', k: 1 - Math.min(1, Math.max(0, toPass) / (c.ropePeriod * 0.6)), now: Math.abs(toPass) < 300 });
-    if (!c.ticked && now >= pass - 150) { c.ticked = true; Audio8.tick(); }
+    // Décompte avant chaque passage de la corde : 3, 2, 1… SAUTE ! (lent pour le premier, en rythme ensuite)
+    const beat = c.passes === 0 ? 1000 : c.ropePeriod / 3;
+    const num = toPass > 220 ? Math.min(3, Math.ceil((toPass - 220) / beat)) : 0;
+    const hop = toPass <= 220 && toPass > -300;
+    scene.setCue({ icon: hop ? '⬆️' : num > 0 ? String(num) : '⬆️', k: hop ? 1 : num ? 1 - (num - 1) / 3 : 0.3, now: hop, big: true });
+    if (num !== c.ropeNum) {
+      c.ropeNum = num;
+      if (num > 0 && toPass < beat * 3 + 220) Audio8.tick();
+    }
+    if (!c.ticked && now >= pass - 220) { c.ticked = true; Audio8.go(); if (c.passes === 0) Audio8.say('Saute !'); }
     if (now < pass + 350) return;
     c.passes++; c.ticked = false;
     // Réussi si on a sauté entre 0,65 s avant et 0,35 s après le passage de la corde sous les pieds
@@ -851,7 +864,7 @@ class Game {
   updateMoles(c, now) {
     // Trous bien écartés du personnage, au bout de ses bras (en haut / à l'horizontale, de chaque côté)
     const far = this.avatarReach(0);
-    const SPOTS = far ? [[-2.6, -1.35], [2.6, -1.35], [-2.95, 0.3], [2.95, 0.3]] : [[-1.0, -0.75], [1.0, -0.75], [-1.1, 0.45], [1.1, 0.45]];
+    const SPOTS = far ? [[-2.0, -1.0], [2.0, -1.0], [-2.25, 0.35], [2.25, 0.35]] : [[-1.0, -0.75], [1.0, -0.75], [-1.1, 0.45], [1.1, 0.45]];
     const up = 1700 * Math.min(1.3, this.mul), gap = 900 * Math.min(1.3, this.mul);
     const hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
     scene.hands = hands;
@@ -869,7 +882,7 @@ class Game {
     for (const m of c.moles) {
       if (m.state !== 'up') continue;
       const hs = hands[m.hero];
-      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.3, 0.8)) {
+      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.2, 0.95)) {
         m.state = 'bonk'; m.t = now; c.bonked++;
         this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
         ui.setDetail(this.detail(c));
@@ -891,7 +904,7 @@ class Game {
       if (c.fruits.filter((f) => f.hero === i && !f.cut && fruitPos(f, now).t < 1).length < 2 && (hands[i] || tracker.sim)) {
         const side = (c.fruitSide = -(c.fruitSide || 1));
         const far = this.avatarReach(i);
-        const top = far ? this.reachPoint(side, -1.15 + Math.random() * 1.0, 1.9) : { u: side * (0.6 + Math.random() * 0.5), v: -0.9 + Math.random() * 0.8 };
+        const top = far ? this.reachPoint(side, -1.15 + Math.random() * 1.0, 1.55) : { u: side * (0.6 + Math.random() * 0.5), v: -0.9 + Math.random() * 0.8 };
         const [emoji, juice] = FRUITS[Math.floor(Math.random() * FRUITS.length)];
         c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: top.u * 0.55, u1: top.u * 1.2, v0: top.v + 4.2, av: top.v,
           spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
@@ -944,14 +957,14 @@ class Game {
     for (const cb of c.cubes) {
       if (cb.hit || cb.missed) continue;
       const far = this.avatarReach(0);
-      cb.u = cb.side * (far ? 2.3 : 1.05); cb.v = far ? -0.7 : -0.55;
-      if (now >= cb.arrive - 520 && now <= cb.arrive + 380) {
-        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 0.85));
+      cb.u = cb.side * (far ? 1.85 : 1.05); cb.v = far ? -0.55 : -0.55;
+      if (now >= cb.arrive - 700 && now <= cb.arrive + 500) {
+        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 1.0));
         if (hit || (tracker.sim && !DEV.get('fakelimbs') && now >= cb.arrive)) { // (clavier : tous tapés)
           cb.hit = now;
           this.add(this.pts(50), '+' + this.pts(50)); Audio8.hit(); scene.flash(null, true);
         }
-      } else if (now > cb.arrive + 380) { cb.missed = true; }
+      } else if (now > cb.arrive + 500) { cb.missed = true; }
     }
     // Un temps est réussi quand tous ses cubes sont tapés (les doubles : les deux mains)
     const beats = new Map();
@@ -959,7 +972,7 @@ class Game {
     c.cubeHits = [...beats.values()].filter((b) => b.hit).length;
     c.cubeDone = [...beats.values()].filter((b) => b.over).length;
     scene.cubes = c.cubes;
-    scene.cubeTargets = [-1, 1].map((sd) => ({ side: sd, u: sd * (this.avatarReach(0) ? 2.3 : 1.05), v: this.avatarReach(0) ? -0.7 : -0.55,
+    scene.cubeTargets = [-1, 1].map((sd) => ({ side: sd, u: sd * (this.avatarReach(0) ? 1.85 : 1.05), v: -0.55,
       near: c.cubes.some((cb) => cb.side === sd && !cb.hit && !cb.missed && Math.abs(cb.arrive - now) < 600) }));
     ui.setDetail(this.detail(c));
     if (c.cubeDone >= s.n && c.cubes.every((cb) => cb.hit || cb.missed || cb.arrive + 380 < now)) {
