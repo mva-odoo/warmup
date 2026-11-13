@@ -40,7 +40,7 @@ const FEEDBACK = {
   perfect: ['✔ Parfait !', '✔ Génial !', '✔ Trop fort !'],
   good: ['✔ Bravo !', '✔ Super !', '✔ Bien joué !'],
   ok: ['👍 Presque !', '👍 Pas mal !'],
-  miss: ['🙂 Pas cette fois !', '🙂 On continue !'],
+  miss: ['🙂 On continue !', '🙂 La prochaine !'],
 };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -1330,7 +1330,11 @@ const ui = {
   },
   showStep(s, next, i, total) {
     const card = $('card');
-    card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
+    card.classList.remove('enter', 'mini'); void card.offsetWidth; card.classList.add('enter');
+    // La consigne s'affiche en grand, puis se range en petit en haut pour laisser voir le jeu
+    clearTimeout(this.miniT);
+    if (s.m !== 'rest') this.miniT = setTimeout(() => { card.classList.remove('enter'); card.classList.add('mini'); }, 2800);
+    Audio8.whoosh();
     card.classList.toggle('isRest', s.m === 'rest');
     $('cardLabel').textContent = stepLabel(s);
     $('hudProgress').style.width = (i / total) * 100 + '%';
@@ -1341,6 +1345,8 @@ const ui = {
     el.textContent = text;
     el.className = 'feedback'; void el.offsetWidth;
     el.className = 'feedback show ' + rating;
+    // Petite gerbe d'étincelles quand c'est réussi
+    if (rating === 'perfect' || rating === 'good') scene.burst(innerWidth / 2, innerHeight * 0.42, rating === 'perfect' ? 40 : 24, ['#ffd166', '#ffffff', '#4ade80', '#ff70a6', '#7bdff2']);
   },
 };
 
@@ -1378,6 +1384,15 @@ function showResults(g, stars) {
   $('resTitle').textContent = g.world.endText;
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;
+  // Le butin de la partie, qui se compte tout seul
+  const loot = $('resLoot'); let n = 0;
+  loot.textContent = `${g.world.collectible} × 0`;
+  clearInterval(showResults.countT);
+  showResults.countT = setInterval(() => {
+    n = Math.min(g.collected, n + 1); loot.textContent = `${g.world.collectible} × ${n}`;
+    if (n % 2) Audio8.coin();
+    if (n >= g.collected) clearInterval(showResults.countT);
+  }, Math.max(40, 1200 / Math.max(1, g.collected)));
   $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
   $('resBest').textContent = g.records.map((r, i) => (duo() ? (r.name || 'Joueur ' + (i + 1)) + ' : ' : '') +
     (r.isBest ? '🏆 nouveau record !' : `record ${r.prev} pts`)).join(' · ');
@@ -1401,7 +1416,8 @@ function showResults(g, stars) {
   scene.obs = null;
   scene.hazards = [];
   scene.setCoach(null);
-  scene.setHoldPose('armsUp');
+  scene.setHoldPose(null);
+  scene.outro = performance.now(); // la caméra vient filmer le héros de face
 }
 
 // ---------------- Carnet des créatures ----------------
@@ -1525,11 +1541,13 @@ function draw(now) {
 if (DEV.get('world') || DEV.get('carnet')) {
   const w = WORLDS.find((x) => x.id === DEV.get('world'));
   if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
+  if (w && DEV.get('results')) setTimeout(() => { if (game) { game.score = 2600; game.collected = 14; game.finish(); } }, 7000); // (mode test) écran de fin
   if (DEV.get('carnet')) { // (mode test) carnet avec toutes les créatures connues, rendues en 3D
     const all = {}; CREATURES.forEach((c, i) => { all[c.id] = i % 4 === 3 ? EVOLVE_AT : 1; });
     WUQStore.getCarnet = () => all;
     scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES))).then(() => openCarnet());
   }
+  if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
 

@@ -275,7 +275,7 @@ const WORLDS = [
     sky: ['#10002b', '#5a189a'],
     biomes: [
       { name: 'Piste lumineuse', night: true, sky0: '#10002b', sky1: '#3c096c', sun: '#fff0ff', mount0: '#3c096c', mount1: '#240046',
-        grass: '#1b1035', grass2: '#170d2e', path: '#3a0ca3', path2: '#4361ee', fog: '#3c096c',
+        grass: '#2e1a5c', grass2: '#27164f', path: '#3a0ca3', path2: '#4361ee', fog: '#4a1a80',
         deco: ['🎵', '🟦', '🟧', '🎶', '✨', '🎵'], ambient: ['fireflies'] },
     ],
     endText: 'Bip dit : quel rythme !',
@@ -422,8 +422,8 @@ const WORLDS = [
     collectible: '❄️',
     sky: ['#9ad7ff', '#eef8ff'],
     biomes: [
-      { name: 'Glacier', sky0: '#8fd3ff', sky1: '#eef8ff', sun: '#fff9e0', mount0: '#d7ecf8', mount1: '#b3d6ea',
-        grass: '#f4fbff', grass2: '#e6f3fb', path: '#c9e6f7', path2: '#bcdff3', fog: '#ffffff',
+      { name: 'Glacier', sky0: '#4fb0f0', sky1: '#d6efff', sun: '#fff9e0', mount0: '#d7ecf8', mount1: '#b3d6ea',
+        grass: '#e2f0fa', grass2: '#d4e8f6', path: '#8cc6ea', path2: '#7fbbe2', fog: '#cfe9fb',
         deco: ['⛄', '🧊', '🌲', '❄️', '🧊', '⛄'], ambient: ['snow'] },
       { name: 'Aurore', night: true, sky0: '#0b1d3a', sky1: '#2a6f6a', sun: '#e8fff6', mount0: '#25496b', mount1: '#1b3550',
         grass: '#dcecf5', grass2: '#cfe2ee', path: '#a9cbe0', path2: '#9cc0d8', fog: '#7ff0c8',
@@ -447,11 +447,11 @@ const WORLDS = [
     collectible: '🐚',
     sky: ['#1e90c8', '#7fdbff'],
     biomes: [
-      { name: 'Lagon', sky0: '#1e90c8', sky1: '#7fdbff', sun: '#fdf7c3', mount0: '#3aa6d0', mount1: '#2a8fb8',
-        grass: '#e9d8a6', grass2: '#e0cc93', path: '#d4b483', path2: '#c9a874', fog: '#bdeeff',
+      { name: 'Lagon', sky0: '#0b6fa8', sky1: '#38b6e0', sun: '#fdf7c3', mount0: '#3aa6d0', mount1: '#2a8fb8',
+        grass: '#e3c88f', grass2: '#d9bc80', path: '#c99a5b', path2: '#bd8e50', fog: '#3fb3d9',
         deco: ['🪸', '🐚', '🌿', '🪸', '🐠', '🐚'], ambient: ['rising'] },
       { name: 'Récif', sky0: '#0a5c8a', sky1: '#3fb0d0', sun: '#d8f6ff', mount0: '#1f7fa8', mount1: '#14668b',
-        grass: '#2a9d8f', grass2: '#26907f', path: '#e9c46a', path2: '#ddb85d', fog: '#a8e6ff',
+        grass: '#2a9d8f', grass2: '#26907f', path: '#e9c46a', path2: '#ddb85d', fog: '#1f8fbf',
         deco: ['🪸', '🐠', '🐙', '🪸', '🐡', '🌿'], ambient: ['rising'] },
       { name: 'Abysses', night: true, sky0: '#03045e', sky1: '#0077b6', sun: '#caf0f8', mount0: '#023e8a', mount1: '#012a5e',
         grass: '#023e8a', grass2: '#03357a', path: '#48cae4', path2: '#3fb8d0', fog: '#90e0ef',
@@ -503,11 +503,11 @@ const WORLDS = [
     collectible: '🍬',
     sky: ['#ffc8dd', '#fff0f6'],
     biomes: [
-      { name: 'Prairie sucrée', sky0: '#ffafcc', sky1: '#fff0f6', sun: '#fff6c2', mount0: '#ffc8dd', mount1: '#cdb4db',
-        grass: '#ffafcc', grass2: '#ffa3c4', path: '#fde2e4', path2: '#fad2d8', fog: '#fff5fa',
+      { name: 'Prairie sucrée', sky0: '#ff7eb6', sky1: '#ffe4f0', sun: '#fff6c2', mount0: '#ffc8dd', mount1: '#cdb4db',
+        grass: '#ff8fbb', grass2: '#ff82b2', path: '#fff0f3', path2: '#ffe0e8', fog: '#ffd3e6',
         deco: ['🍭', '🧁', '🍩', '🍬', '🍦', '🧁'], ambient: ['petals'] },
       { name: 'Montagne de glace', sky0: '#a2d2ff', sky1: '#e7f5ff', sun: '#fff6c2', mount0: '#bde0fe', mount1: '#cdb4db',
-        grass: '#bde0fe', grass2: '#b1d8fb', path: '#fff1e6', path2: '#fbe6d6', fog: '#ffffff',
+        grass: '#9fd1ff', grass2: '#92c8fb', path: '#fff1e6', path2: '#fbe6d6', fog: '#dcefff',
         deco: ['🍦', '🍭', '🎂', '🍦', '🍬', '🍩'], ambient: ['petals'] },
     ],
     endText: 'Praline a goûté tous les bonbons du pays !',
@@ -604,7 +604,7 @@ const SPEEDS = [
 
 // Paysage 3D (« kit » de décor, voir props3d.js) de chaque partie de chaque monde
 const WORLD_KITS = {
-  jardin3d: ['meadow'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
+  jardin3d: ['flowers'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
   dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
@@ -612,11 +612,13 @@ const WORLD_KITS = {
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
 const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'], ['star', 'airplane', 'armsUp']];
+let classicN = 0; // rang parmi les mondes « classiques » (même règle que hooks.py)
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
   if (['disco', 'dojo', 'verger', 'rythmo'].includes(w.id)) return; // ces mondes ont leur propre programme
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
+  seq.splice(Math.round(n * 0.62), 0, classicN++ % 2 ? CU(10, 1.5) : SL(12, 6)); // fruits ou cubes, un monde sur deux
   seq.splice(Math.round(n * 0.5), 0, M(12, 6));
   seq.splice(Math.round(n * 0.25), 0, U(4));
 });

@@ -163,7 +163,8 @@ class DepthScene {
 
   biome() {
     const b = this.theme.biomes;
-    const f = Math.min(b.length - 1, this.progress * b.length);
+    const forced = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage n° … du monde
+    const f = forced ? Math.min(b.length - 1, Number(forced)) : Math.min(b.length - 1, this.progress * b.length);
     const i = Math.min(b.length - 1, Math.floor(f));
     const j = Math.min(b.length - 1, i + 1);
     const tr = Math.max(0, (f - i - 0.85) / 0.15); // fondu sur la fin de chaque biome
@@ -274,6 +275,7 @@ class DepthScene {
       if (idx != null && i !== idx) return;
       h.flash = { ok, t: now };
       if (!ok) h.bumpUntil = now + 600;
+      else h.happyUntil = now + 850; // petit geste de joie
     });
   }
 

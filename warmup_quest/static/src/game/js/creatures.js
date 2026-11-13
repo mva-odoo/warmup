@@ -51,7 +51,8 @@ const HABITATS = {
 };
 // Fichiers 3D des créatures animées (forme normale et évoluée)
 const creatureModels = (list) => list.flatMap((c) => [c.model, c.evolvedModel]).filter(Boolean).map((m) => 'monsters/' + m);
-const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(kit));
+const KIT_ALIAS = { flowers: 'meadow' }; // (paysages qui partagent leurs habitants)
+const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(KIT_ALIAS[kit] || kit));
 const EVOLVE_AT = 3;
 
 const Carnet = {
@@ -67,7 +68,7 @@ const Carnet = {
   pick(exclude = [], kit = null) {
     const c = this.get();
     const all = CREATURES.filter((k) => !exclude.includes(k.id));
-    const local = kit ? all.filter((k) => (HABITATS[k.id] || []).includes(kit)) : [];
+    const local = kit ? all.filter((k) => (HABITATS[k.id] || []).includes(KIT_ALIAS[kit] || kit)) : [];
     const pool = local.length ? local : all;
     const fresh = pool.filter((k) => !c[k.id]);
     const list = fresh.length ? fresh : pool.length ? pool : CREATURES;

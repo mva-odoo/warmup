@@ -171,11 +171,21 @@ DEFAULT_SEQUENCES = [
 NO_FUN = {'disco', 'dojo', 'verger', 'rythmo'}
 
 
-def _with_fun(steps):
-    """Insère tunnel, taupes et suite de poses à 1/4, 1/2 et 3/4 de la séquence."""
+def _new_game(world):
+    """Fruits ou cubes, un monde classique sur deux (même règle que worlds.js)."""
+    order = [w for w, _n, _s in DEFAULT_SEQUENCES if w not in NO_FUN]
+    return _CU(10, 1.5) if order.index(world) % 2 else _SL(12, 6)
+
+
+def _with_fun(steps, world=None):
+    """Insère tunnel, taupes, fruits / cubes et suite de poses dans la séquence."""
     steps = list(steps)
     n = len(steps)
-    for step, at in zip(reversed(FUN_STEPS), (round(n * 0.75), round(n * 0.5), round(n * 0.25))):
+    extra = [(FUN_STEPS[2], round(n * 0.75))]
+    if world:
+        extra.append((_new_game(world), round(n * 0.62)))
+    extra += [(FUN_STEPS[1], round(n * 0.5)), (FUN_STEPS[0], round(n * 0.25))]
+    for step, at in extra:  # (de la fin vers le début : les positions restent justes)
         steps.insert(at, step)
     return steps
 
@@ -186,7 +196,7 @@ def post_init_hook(env):
     for world, name, steps in DEFAULT_SEQUENCES:
         if Sequence.search_count([('world', '=', world)]):
             continue
-        steps = steps if world in NO_FUN else _with_fun(steps)
+        steps = steps if world in NO_FUN else _with_fun(steps, world)
         Sequence.create({
             'name': name,
             'world': world,

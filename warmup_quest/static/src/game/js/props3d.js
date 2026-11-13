@@ -3,6 +3,7 @@
 //  - « k:nom » : modèles 3D libres de droits du Nature Kit de Kenney (CC0, models/kenney/) ;
 //  - « q:nom » : modèles du pack Ultimate Stylized Nature de Quaternius (CC0, models/quaternius/,
 //    allégés avec Blender) ; tous mis à l'échelle et passés en style cartoon au chargement ;
+//  - « s: », « f: », « p: » : Space Kit, Food Kit et Pirate Kit de Kenney (CC0, models/space|food|pirate/) ;
 //  - les autres noms : objets à thème construits ici (bonbons, coraux, cristaux, lanternes…).
 // Chaque paysage (« kit ») indique ses objets (avec leur poids), son arrière-plan, ses particules,
 // s'il fait nuit et s'il y a des hautes herbes au bord du chemin.
@@ -12,29 +13,31 @@ const MODELS_BASE = (document.currentScript && document.currentScript.src)
   ? document.currentScript.src.replace(/js\/[^/]*$/, 'models/') : 'models/';
 
 const KITS = {
+  // Jardin Fleuri : des fleurs partout
+  flowers: { grass: true, props: [['q:Flower_1_Clump', 2], ['q:Flower_2_Clump', 2], ['q:Flower_3_Clump', 2], ['q:Flower_4_Clump', 2], ['q:Flower_5_Clump', 2], ['q:Bush_Flowers', 2], ['q:Bush_Large_Flowers', 2], ['roseBush', 2], ['bigFlower', 2], ['q:MapleTree_1', 1], ['k:tree_oak', 1], ['k:mushroom_red', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
   meadow: { grass: true, props: [['q:BirchTree_1', 1], ['q:MapleTree_1', 1], ['k:tree_oak', 1], ['k:tree_default', 1], ['q:Bush_Flowers', 2], ['q:Bush_Large_Flowers', 1], ['q:Flower_1_Clump', 1], ['q:Flower_3_Clump', 1], ['q:Flower_4_Clump', 1], ['k:mushroom_red', 1], ['k:rock_smallA', 1], ['k:stump_round', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
   mountain: { grass: true, props: [['k:tree_pineTallA_detailed', 3], ['k:tree_pineRoundA', 2], ['q:BirchTree_3', 1], ['k:rock_largeA', 2], ['k:rock_tallA', 1], ['snowPine', 1], ['k:log', 1]], backdrop: ['mountains'] },
   desert:   { props: [['k:cactus_tall', 3], ['k:cactus_short', 3], ['k:rock_largeB', 2], ['k:rock_smallFlatA', 1], ['k:tree_palmShort', 1]], backdrop: ['mesas'] },
-  beach:    { props: [['k:tree_palmTall', 2], ['k:tree_palmBend', 2], ['k:tree_palmDetailedShort', 1], ['umbrella', 2], ['k:rock_smallB', 1], ['k:canoe', 1]], backdrop: ['sea'] },
+  beach:    { props: [['p:palm-detailed-bend', 3], ['p:palm-detailed-straight', 2], ['umbrella', 1], ['p:chest', 1], ['p:barrel', 1], ['p:boat-row-small', 1], ['p:rocks-sand-a', 1], ['p:rocks-sand-b', 1], ['p:patch-sand-foliage', 2], ['p:flag-pirate', 1], ['p:ship-pirate-small', 1], ['p:tower-watch', 1]], backdrop: ['sea'] },
   jungle: { grass: true, props: [['k:tree_palmDetailedTall', 2], ['k:plant_flatTall', 3], ['q:Bush_Large_Flowers', 2], ['k:tree_detailed', 2], ['bigFlower', 1], ['k:hanging_moss', 1]], backdrop: ['hills'], particles: 'petals' },
   volcano:  { props: [['k:tree_palmShort', 2], ['k:rock_tallB', 2], ['k:rock_largeC', 2], ['k:plant_flatShort', 2]], backdrop: ['volcano'], particles: 'embers' },
   forest: { grass: true, props: [['k:tree_pineRoundB', 2], ['q:MapleTree_3', 1], ['q:BirchTree_3', 1], ['k:mushroom_redGroup', 2], ['k:stump_old', 1], ['k:log_stack', 1], ['q:Bush', 2], ['q:Flower_2_Clump', 1], ['bigMushroom', 1]], backdrop: ['hills'], particles: 'petals' },
   night: { grass: true, props: [['q:DeadTree_1', 1], ['q:DeadTree_4', 1], ['k:tree_pineRoundC', 2], ['crystal', 2], ['bigMushroom', 2], ['lantern', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
   glacier:  { props: [['snowPine', 3], ['snowman', 1], ['iceBlock', 2], ['igloo', 1], ['k:tree_pineSmallA', 1], ['k:rock_largeD', 1]], backdrop: ['mountains'], particles: 'snow' },
   aurora:   { props: [['snowPine', 3], ['iceBlock', 2], ['crystal', 1], ['snowman', 1], ['k:tent_detailedOpen', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
-  lagoon:   { props: [['coral', 3], ['seaweed', 3], ['k:rock_smallC', 1], ['fish', 2], ['chest', 1], ['k:lily_large', 1]], backdrop: ['hills'], particles: 'bubbles' },
-  reef:     { props: [['coral', 4], ['seaweed', 3], ['fish', 3], ['k:rock_smallA', 1]], backdrop: ['hills'], particles: 'bubbles' },
-  abyss:    { props: [['seaweed', 3], ['crystal', 2], ['coral', 2], ['fish', 2]], backdrop: [], particles: 'bubbles', night: true },
-  moon:     { props: [['crater', 3], ['k:stone_largeA', 2], ['k:stone_tallA', 2], ['rocket', 1]], backdrop: ['planets'], particles: 'stars', night: true },
-  mars:     { props: [['k:rock_tallC', 3], ['k:rock_largeB', 2], ['crater', 2], ['crystal', 1]], backdrop: ['planets', 'mesas'], night: true },
-  nebula:   { props: [['crystal', 4], ['k:stone_tallB', 2], ['k:stone_largeB', 1]], backdrop: ['planets'], particles: 'fireflies', night: true },
-  candy:    { props: [['lollipop', 3], ['candyCane', 3], ['cupcake', 2], ['gumdrop', 3], ['donut', 1]], backdrop: ['hills'], particles: 'petals' },
-  icecream: { props: [['iceCream', 3], ['lollipop', 2], ['gumdrop', 2], ['candyCane', 1]], backdrop: ['hills', 'mountains'] },
+  lagoon:   { props: [['coral', 4], ['seaweed', 4], ['p:rocks-sand-a', 1], ['fish', 3], ['p:chest', 1], ['p:barrel', 1], ['p:ship-wreck', 1], ['crystal', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
+  reef:     { props: [['coral', 5], ['seaweed', 3], ['fish', 3], ['p:rocks-sand-b', 1], ['p:chest', 1], ['p:cannon', 1], ['p:ship-wreck', 1], ['p:bottle-large', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
+  abyss:    { props: [['seaweed', 3], ['crystal', 3], ['coral', 2], ['fish', 2]], backdrop: [], particles: 'bubbles', night: true, underwater: true },
+  moon:     { props: [['s:crater', 2], ['s:craterLarge', 2], ['s:meteor', 2], ['s:rocks_smallA', 2], ['s:rock_crystals', 1], ['s:rover', 1], ['s:satelliteDish', 1], ['s:astronautA', 1], ['s:alien', 1], ['s:hangar_roundGlass', 1], ['rocket', 1]], backdrop: ['planets'], particles: 'stars', night: true },
+  mars:     { props: [['s:rock_largeA', 3], ['s:meteor_detailed', 2], ['s:craterLarge', 2], ['s:rock_crystalsLargeA', 1], ['s:rover', 1], ['s:craft_racer', 1], ['s:machine_wireless', 1]], backdrop: ['planets', 'mesas'], night: true },
+  nebula:   { props: [['s:rock_crystalsLargeA', 3], ['s:rock_crystals', 3], ['s:meteor', 2], ['crystal', 1], ['s:craft_speederA', 1], ['s:alien', 1]], backdrop: ['planets'], particles: 'fireflies', night: true },
+  candy:    { props: [['f:lollypop', 3], ['candyCane', 2], ['f:cupcake', 2], ['f:donut-sprinkles', 2], ['f:cake-birthday', 1], ['f:ginger-bread', 1], ['gumdrop', 2]], backdrop: ['hills'], particles: 'petals' },
+  icecream: { props: [['f:sundae', 2], ['f:popsicle', 3], ['f:ice-cream', 2], ['f:muffin', 1], ['f:pudding', 1], ['f:donut-chocolate', 1], ['iceCream', 1], ['f:lollypop', 1]], backdrop: ['hills', 'mountains'] },
   farm: { grass: true, props: [['k:crop_pumpkin', 2], ['k:crops_cornStageD', 2], ['k:crops_wheatStageB', 2], ['k:fence_simple', 2], ['hayBale', 2], ['sunflower', 1], ['k:tree_oak', 1], ['q:Flower_4_Clump', 1]], backdrop: ['barn', 'windmill', 'hills'] },
-  orchard: { grass: true, props: [['appleTree', 2], ['q:MapleTree_3', 1], ['k:tree_oak', 1], ['k:fence_planks', 2], ['k:crop_melon', 1], ['k:crop_carrot', 1], ['q:Bush_Small_Flowers', 1]], backdrop: ['barn', 'hills'] },
+  orchard: { grass: true, props: [['appleTree', 2], ['q:MapleTree_3', 1], ['k:tree_oak', 1], ['k:fence_planks', 2], ['f:watermelon', 1], ['f:pineapple', 1], ['f:strawberry', 1], ['f:apple', 1], ['f:pear', 1], ['f:cherries', 1], ['q:Bush_Small_Flowers', 1]], backdrop: ['barn', 'hills'] },
   ferns:    { grass: true, props: [['k:plant_flatTall', 3], ['k:tree_palmDetailedTall', 2], ['egg', 1], ['dino', 1], ['k:rock_largeC', 1], ['fern', 1]], backdrop: ['volcano'] },
   dinoland: { props: [['k:rock_tallC', 2], ['k:plant_flatShort', 2], ['egg', 2], ['dino', 1], ['k:stump_oldTall', 1]], backdrop: ['volcano'], particles: 'embers' },
-  garden: { grass: true, props: [['roseBush', 2], ['q:MapleTree_1', 1], ['q:Bush_Flowers', 2], ['q:Flower_5_Clump', 1], ['q:Flower_3_Clump', 1], ['k:plant_bushLargeTriangle', 1], ['k:statue_column', 1], ['lantern', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
+  garden: { grass: true, props: [['roseBush', 3], ['q:MapleTree_1', 2], ['q:Bush_Flowers', 2], ['q:Bush', 2], ['q:Flower_5_Clump', 2], ['q:Flower_3_Clump', 2], ['k:plant_bushLargeTriangle', 2], ['k:statue_column', 1], ['lantern', 2], ['k:tree_oak', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
   magic: { grass: true, props: [['crystal', 3], ['k:tree_tall_dark', 2], ['q:DeadTree_4', 1], ['bigMushroom', 2], ['lantern', 2], ['k:statue_obelisk', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['bamboo', 3], ['cherryTree', 3], ['stoneLantern', 2], ['k:crops_bambooStageB', 2], ['q:Flower_1_Clump', 1], ['k:rock_smallFlatA', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
@@ -43,6 +46,13 @@ const KITS = {
 
 // Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
 const MODEL_HEIGHT = [
+  // (Food / Space / Pirate Kit : par clé complète, ex. « food/lollypop » ; friandises et fruits géants)
+  [/^food\/lollypop/, 3.0], [/^food\/(popsicle|ginger)/, 2.4], [/^food\/(cupcake|sundae|cake|ice-cream)/, 1.9], [/^food\/(muffin|pudding|pineapple)/, 1.5],
+  [/^food\/(donut|watermelon|candy-bar)/, 1.1], [/^food\/(strawberry|pear|cherries|grapes|banana)/, 0.9], [/^food\//, 0.7],
+  [/^space\/hangar/, 4.0], [/^space\/(satellite|rock_crystalsLarge|meteor_detailed)/, 2.6], [/^space\/(astronaut|alien|rover|machine)/, 1.8],
+  [/^space\/(craft|meteor|rock_crystals|rock_large)/, 1.4], [/^space\/craterLarge/, 0.5], [/^space\/crater/, 0.35], [/^space\//, 0.6],
+  [/^pirate\/(ship-pirate)/, 5.0], [/^pirate\/tower/, 6.0], [/^pirate\/(ship-wreck|flag)/, 3.4], [/^pirate\/palm/, 5.6],
+  [/^pirate\/rocks/, 1.2], [/^pirate\/(barrel|cannon|crate)/, 0.95], [/^pirate\/patch/, 0.5], [/^pirate\//, 0.8],
   [/^character-/, 2.0], [/^Bunny$/, 2.1], // dresseur (petit humain) / ancien héros animé
   [/^(Birch|Maple)Tree/, 5.0], [/^DeadTree/, 4.0], [/^Bush_Large/, 1.7], [/^Bush/, 1.2], [/_Clump$/, 0.6],
   [/^Grass_Large/, 0.75], [/^Grass_Small/, 0.45],
@@ -130,8 +140,9 @@ class Props3D {
           root.updateMatrixWorld(true);
           const box = new T.Box3().setFromObject(root, animated), size = box.getSize(new T.Vector3());
           const short = n.split('/').pop();
-          const target = (MODEL_HEIGHT.find(([re]) => re.test(short)) || [null, 1.5])[1];
-          const k = target / Math.max(0.01, size.y);
+          const target = (MODEL_HEIGHT.find(([re]) => re.test(n) || re.test(short)) || [null, 1.5])[1];
+          // (friandises et objets couchés : on mesure leur plus grande dimension, sinon une barre à plat devient immense)
+          const k = target / Math.max(0.01, /^(food|pirate\/(boat|patch))/.test(n) ? Math.max(size.x, size.y, size.z) : size.y);
           const holder = new T.Group();
           root.scale.setScalar(k);
           const c = box.getCenter(new T.Vector3());
@@ -150,6 +161,8 @@ class Props3D {
   modelKey(name) {
     if (name.startsWith('k:')) return 'kenney/' + name.slice(2);
     if (name.startsWith('q:')) return 'quaternius/' + name.slice(2);
+    const pre = { 's:': 'space/', 'f:': 'food/', 'p:': 'pirate/' }[name.slice(0, 2)];
+    if (pre) return pre + name.slice(2);
     return null;
   }
 

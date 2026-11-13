@@ -9,7 +9,8 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loader
 const SKELETON_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js/+esm';
 const LANE = 1.6;          // largeur d'un couloir (unités 3D)
 const FX_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';
-const TER_PERIOD = 100;    // le relief se répète tous les 100 m (invisible grâce à la brume)
+const TER_PERIOD = 100;
+const BEND_START = 12, BEND_K = 0.0017; // courbure du monde (à partir de 12 m devant la caméra)    // le relief se répète tous les 100 m (invisible grâce à la brume)
 
 // Hauteur du terrain : plat près du chemin, collines douces plus loin (périodique en z)
 function terrainH(x, z) {
@@ -72,6 +73,15 @@ class Scene3D extends DepthScene {
     if (progress) progress('Chargement du monde 3D…');
     const T = await import(THREE_URL);
     this.T = T;
+    // Monde « arrondi » (comme les jeux de course du commerce) : au loin, le sol plonge doucement sous l'horizon.
+    // On courbe tout ce qui est dessiné, sauf les ombres (calculées sans courbure) ; project() fait de même.
+    if (!T.ShaderChunk.project_vertex.includes('WUQ_BEND')) {
+      T.ShaderChunk.project_vertex = T.ShaderChunk.project_vertex.replace('gl_Position = projectionMatrix * mvPosition;',
+        `#if !defined( DEPTH_PACKING ) && !defined( DISTANCE ) // WUQ_BEND
+        { float wuqD = max( 0.0, - mvPosition.z - ${BEND_START.toFixed(1)} ); mvPosition.y -= wuqD * wuqD * ${BEND_K}; }
+        #endif
+        gl_Position = projectionMatrix * mvPosition;`);
+    }
     const cv = document.createElement('canvas');
     cv.id = 'scene3d';
     Object.assign(cv.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', display: 'none' });
@@ -130,7 +140,10 @@ class Scene3D extends DepthScene {
 
   setWorld(theme, palettes = null, looks = null) {
     super.setWorld(theme, palettes, looks);
+    this.introT = performance.now(); this.outro = false; // vol d'arrivée de la caméra
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
+    if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
+    this.poseModel = null;
     if (!this.ready) return;
     this.cv3.style.display = theme ? 'block' : 'none';
     if (theme) this.build(theme);
@@ -201,14 +214,14 @@ class Scene3D extends DepthScene {
     const tex = new T.CanvasTexture(this.pathCv);
     tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(1, 30);
     this.pathTex = tex;
-    const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 160), lam('#ffffff', { map: tex }));
+    const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 160, 1, 96), lam('#ffffff', { map: tex }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -70); path.receiveShadow = true;
     scene.add(path);
     // Bords du chemin bien marqués (bordure claire + liseré sombre)
     this.edges = [];
     for (const sg of [-1, 1]) {
       for (const [w, off, col] of [[0.3, 0.15, '#ffffff'], [0.12, 0.36, '#3d2b1f']]) {
-        const e = new T.Mesh(new T.PlaneGeometry(w, 160), lam(col));
+        const e = new T.Mesh(new T.PlaneGeometry(w, 160, 1, 96), lam(col));
         e.rotation.x = -Math.PI / 2; e.position.set(sg * (LANE * 1.5 + 0.4 + off), 0.02, -70); e.receiveShadow = true;
         scene.add(e); this.edges.push(e);
       }
@@ -246,12 +259,25 @@ class Scene3D extends DepthScene {
     this.skyU.top.value.set(b.sky0); this.skyU.mid.value.set(b.sky1); this.skyU.low.value.set(b.fog || b.sky1);
     this.skyU.sunCol.value.set(night ? '#cfd8ff' : '#fff2c7'); this.skyU.glow.value = night ? 0.35 : 1;
     scene.fog.color.set(b.fog || b.sky1);
-    this.hemi.color.set(b.sky0); this.hemi.groundColor.set(b.grass);
-    this.hemi.intensity = night ? 0.85 : 1.1; // (la nuit, le héros reste bien visible)
-    this.sun.intensity = night ? 0.45 : 1.7;
+    // Sous l'eau : brume bleue plus proche, pas de soleil ni de nuages
+    const water = !!kit.underwater;
+    scene.fog.near = water ? 12 : 34; scene.fog.far = water ? 62 : 95;
+    // La nuit : clair de lune bleuté (et non la couleur du ciel noir), lanterne qui suit le héros
+    if (night) {
+      this.hemi.color.set(new T.Color(b.sky1).lerp(new T.Color('#b9c8ff'), 0.7));
+      this.hemi.groundColor.set(new T.Color(b.grass).lerp(new T.Color('#6b5b95'), 0.4));
+    } else { this.hemi.color.set(b.sky0); this.hemi.groundColor.set(b.grass); }
+    this.hemi.intensity = night ? 1.25 : 1.1;
+    this.sun.intensity = night ? 1.0 : 1.7;
+    this.sun.color.set(night ? '#c9d6ff' : '#ffffff');
+    if (!this.lantern) { this.lantern = new T.PointLight('#ffd9a0', 0, 14, 1.4); scene.add(this.lantern); }
+    this.lantern.intensity = night ? 9 : 0;
+    this.renderer.toneMappingExposure = night ? 1.2 : 1.0;
     this.disc.material.color.set(b.sun || '#fff6c2');
     this.disc.scale.setScalar(night ? 0.6 : 1);
-    for (const c of this.clouds) c.visible = !night;
+    for (const c of this.clouds) c.visible = !night && !water;
+    this.disc.visible = !water;
+    if (water) this.skyU.glow.value = 0.2; // (lumière diffuse sous l'eau)
     this.colorTerrain(b, !!kit.grass);
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
     this.paintPath(b, night);
@@ -282,7 +308,7 @@ class Scene3D extends DepthScene {
 
     // Décor : on remplit au départ ; ensuite les objets lointains changent tout de suite, les proches en défilant
     if (!this.decor.length) {
-      for (let k = 0; k < 46; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); }
+      for (let k = 0; k < 64; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); } // (paysage bien rempli)
     } else {
       this.decor = this.decor.map((d) => {
         if (d.position.z > -18) return d;
@@ -421,7 +447,8 @@ class Scene3D extends DepthScene {
     const side = Math.random() < 0.5 ? -1 : 1;
     // Une bande dégagée de chaque côté du chemin : rien ne déborde dessus
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
-    const big = /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|cherryTree|bamboo/.test(d.userData.name || '') ? 2.2 : 0;
+    const nm = d.userData.name || '';
+    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|cherryTree|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
     d.position.set(side * (LANE * 1.5 + 2.0 + big + Math.random() * 10), 0, z);
   }
 
@@ -910,8 +937,8 @@ class Scene3D extends DepthScene {
     sun.position.set(5, 10, 6); sun.castShadow = true; sun.shadow.mapSize.set(512, 512);
     Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 });
     scene.add(sun);
-    const ground = new T.Mesh(new T.PlaneGeometry(160, 160), this.lam(b.grass)); ground.rotation.x = -Math.PI / 2; ground.position.z = -40; ground.receiveShadow = true; scene.add(ground);
-    const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 80), this.lam(b.path)); path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -36); path.receiveShadow = true; scene.add(path);
+    const ground = new T.Mesh(new T.PlaneGeometry(160, 160, 40, 80), this.lam(b.grass)); ground.rotation.x = -Math.PI / 2; ground.position.z = -40; ground.receiveShadow = true; scene.add(ground);
+    const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 80, 1, 60), this.lam(b.path)); path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -36); path.receiveShadow = true; scene.add(path);
     for (const name of kit.backdrop || []) scene.add(this.P.backdrop(name, b));
     for (let i = 0; i < 16; i++) {
       const d = this.P.make(this.P.pick(b.kit || 'meadow'), b);
@@ -1069,7 +1096,10 @@ class Scene3D extends DepthScene {
   z3(depth) { return -(depth - this.heroZ()) * DEPTH_SCALE; }
   heroY3(h) { return -h.y * 5 / this.H; }
   project(x, y, z) {
-    const v = new this.T.Vector3(x, y, z).project(this.camera);
+    // (même courbure que les shaders : voir load())
+    const v = new this.T.Vector3(x, y, z).applyMatrix4(this.camera.matrixWorldInverse);
+    const d = Math.max(0, -v.z - BEND_START); v.y -= d * d * BEND_K;
+    v.applyMatrix4(this.camera.projectionMatrix);
     return { x: (v.x + 1) / 2 * this.W, y: (1 - v.y) / 2 * this.H };
   }
   heroPx(i = 0) {
@@ -1303,6 +1333,7 @@ class Scene3D extends DepthScene {
     if (now < h.bumpUntil) return 'bump';
     if (h.y < -2) return 'jump';
     if (h.squat) return 'duck';
+    if (this.outro || now < (h.happyUntil || 0)) return 'happy';
     if (h.pose && now < h.poseUntil) return h.pose;
     if (h.holdPose) return h.holdPose;
     if (h.demoPose) return h.demoPose;
@@ -1407,7 +1438,8 @@ class Scene3D extends DepthScene {
       this.applyPose(h, now);
     }
     // Paysage suivant quand on avance dans la partie
-    const bi = Math.min(this.theme.biomes.length - 1, Math.floor(this.progress * this.theme.biomes.length));
+    const fb = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage forcé
+    const bi = Math.min(this.theme.biomes.length - 1, fb ? Number(fb) : Math.floor(this.progress * this.theme.biomes.length));
     if (bi !== this.biomeIdx) this.applyBiome(bi);
     // Le chemin et le décor défilent vers nous ; un objet qui sort est remplacé par un objet du paysage courant
     this.pathTex.offset.y = (this.pathTex.offset.y + move / (160 / 30)) % 1;
@@ -1439,9 +1471,36 @@ class Scene3D extends DepthScene {
     this.camera.position.y += (3.2 - 1.25 * cu + hy * 0.35 + Math.sin(now * 0.011) * 0.04 * Math.min(1, this.speed) - this.camera.position.y) * Math.min(1, dt * 4);
     this.camera.position.z = 6.8 - 3.0 * cu;
     this.camera.lookAt(this.camera.position.x * (0.6 + 0.4 * cu), 1.1 + 0.25 * cu + hy * 0.3, -8 + 2 * cu);
+    // Arrivée dans le monde : la caméra descend du ciel en tournant autour du héros (pendant le 3, 2, 1)
+    const ik = this.introT ? Math.min(1, (now - this.introT) / 3600) : 1;
+    if (ik < 1) {
+      const e = 1 - Math.pow(1 - ik, 3), a = (1 - e) * 0.5, r = 6.8 + (1 - e) * 6;
+      const from = new this.T.Vector3(Math.sin(a) * r, 3.2 + (1 - e) * 10, Math.cos(a) * r);
+      this.camera.position.lerp(from, 1 - e);
+      this.camera.lookAt(0, 1.2 * (1 - e) + (1.1 + hy * 0.3) * e, -8 * e);
+    }
+    // Fin de partie : la caméra passe devant le héros qui fête sa victoire
+    if (this.outro) {
+      // (le héros se place sur le côté gauche de l'écran : le tableau des résultats reste lisible au milieu)
+      const ok2 = Math.min(1, (now - this.outro) / 1800), e = ok2 * ok2 * (3 - 2 * ok2);
+      const a = Math.PI * 0.85 * e + Math.sin((now - this.outro) / 2500) * 0.08;
+      const tgt = new this.T.Vector3(Math.sin(a) * 5.2, 1.9 + 0.8 * (1 - e), Math.cos(a) * 5.2);
+      this.camera.position.lerp(tgt, e);
+      const side = 2.3 * e;
+      this.camera.lookAt(Math.cos(a) * side, 1.35, -Math.sin(a) * side);
+    }
+    // Petit « coup » de caméra : rebond quand c'est réussi, secousse quand on se cogne
+    const fl = this.heroes[0] && this.heroes[0].flash;
+    if (fl && now - fl.t < 350) {
+      const k = 1 - (now - fl.t) / 350;
+      if (fl.ok) this.camera.position.y += Math.sin(k * Math.PI) * 0.12;
+      else { this.camera.position.x += Math.sin(now * 0.09) * 0.12 * k; this.camera.position.y += Math.cos(now * 0.11) * 0.08 * k; }
+    }
     this.sky.position.copy(this.camera.position);
+    if (this.lantern) this.lantern.position.set(this.camera.position.x * 0.6, 3.2, 1.5); // (lanterne au-dessus du héros)
 
     this.updateCubes3D(now, dt);
+    this.updatePoseModel(now);
 
     // Obstacles à éviter / étoiles
     this.hazards = this.hazards.filter((hz) => this.hazardZ(hz, now) > -0.9 && !(hz.t0 && now - hz.t0 > 600));

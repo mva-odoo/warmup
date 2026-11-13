@@ -22,7 +22,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1e1b4b; col
   display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 16px;
   padding: 24px 16px; text-align: center; overflow-y: auto;
 }
-#menu { background: radial-gradient(circle at 50% 20%, #4c3fb4, #1e1b4b 70%); color: #fff; }
+#menu { background: radial-gradient(circle at 50% 20%, #4c3fb4, #1e1b4b 70%); color: #fff; overflow-x: hidden; }
+/* Menu vivant : petites étoiles qui scintillent et dérivent, titre qui rebondit */
+#menu::before { content: ''; position: fixed; inset: -50%; pointer-events: none; opacity: 0.55;
+  background-image: radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(3px 3px at 70% 60%, #ffd166, transparent),
+    radial-gradient(2px 2px at 40% 80%, #7bdff2, transparent), radial-gradient(3px 3px at 85% 20%, #ff70a6, transparent),
+    radial-gradient(2px 2px at 55% 45%, #fff, transparent), radial-gradient(2px 2px at 10% 70%, #b388eb, transparent);
+  background-size: 360px 360px; animation: drift 40s linear infinite; }
+@keyframes drift { from { transform: translate(0, 0); } to { transform: translate(-360px, -360px); } }
+#menu h1 { animation: titleBob 3s ease-in-out infinite; }
+@keyframes titleBob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-6px) rotate(1deg); } }
 h1 {
   margin: 0; font-size: clamp(42px, 8vw, 92px); line-height: 1; font-weight: 800; letter-spacing: 1px;
   color: #fff; text-shadow: 0 6px 0 #ff6b35, 0 12px 24px rgba(0, 0, 0, 0.4);
@@ -151,7 +160,11 @@ h1 span { color: var(--brand2); }
   display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 18px;
   background: #fff; border-radius: 30px; padding: 16px 26px 22px; box-shadow: var(--shadow); overflow: hidden;
 }
-.card.enter { animation: cardIn 0.35s cubic-bezier(.2, 1.6, .5, 1) both; }
+.card.enter { animation: cardIn 0.35s cubic-bezier(.2, 1.6, .5, 1) backwards; }
+/* Consigne rangée en petit en haut, après l'annonce (on voit mieux le jeu) */
+.card { transform-origin: 50% 0; transition: transform 0.45s cubic-bezier(.3, 1.4, .5, 1), top 0.45s ease, background 0.3s;
+  background: rgba(255, 255, 255, 0.94); border: 4px solid #fff; backdrop-filter: blur(6px); }
+.card.mini { transform: translateX(-50%) scale(0.58); top: 70px; background: rgba(255, 255, 255, 0.86); }
 @keyframes cardIn { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .card .icon { font-size: clamp(56px, 8vw, 88px); line-height: 1; }
 /* Pictogramme animé : le bonhomme montre le mouvement */
@@ -203,7 +216,9 @@ h1 span { color: var(--brand2); }
 @keyframes blink { 50% { opacity: 0.6; } }
 
 /* ---------- Résultats ---------- */
-#results { background: rgba(30, 27, 75, 0.78); color: #fff; }
+#results { background: radial-gradient(circle at 50% 45%, rgba(30, 27, 75, 0.25), rgba(30, 27, 75, 0.78)); color: #fff; }
+.loot { font-size: clamp(36px, 5vw, 56px); font-weight: 800; color: #fff3a0; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.3); }
+.stars span.on { filter: drop-shadow(0 0 18px rgba(255, 210, 63, 0.8)); }
 #results h2 { margin: 0; font-size: clamp(30px, 5vw, 56px); text-shadow: 0 4px 0 rgba(0, 0, 0, 0.3); }
 .stars { font-size: clamp(70px, 12vw, 130px); letter-spacing: 8px; line-height: 1; }
 .stars span { color: rgba(255, 255, 255, 0.25); display: inline-block; }
