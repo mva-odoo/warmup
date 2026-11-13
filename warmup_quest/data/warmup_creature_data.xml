@@ -14,8 +14,8 @@
             <field name="element">Plante</field><field name="color">#5cc96b</field><field name="sequence">3</field>
         </record>
         <record id="creature_volticube" model="warmup.creature">
-            <field name="code">volticube</field><field name="name">Volticube</field>
-            <field name="element">Électrique</field><field name="color">#7c8cff</field><field name="sequence">4</field>
+            <field name="code">volticube</field><field name="name">Voltiplume</field>
+            <field name="element">Air</field><field name="color">#7c8cff</field><field name="sequence">4</field>
         </record>
         <record id="creature_rocaille" model="warmup.creature">
             <field name="code">rocaille</field><field name="name">Rocaille</field>
@@ -23,7 +23,7 @@
         </record>
         <record id="creature_nuagon" model="warmup.creature">
             <field name="code">nuagon</field><field name="name">Nuagon</field>
-            <field name="element">Air</field><field name="color">#eef2ff</field><field name="sequence">6</field>
+            <field name="element">Air</field><field name="color">#ffe066</field><field name="sequence">6</field>
         </record>
         <record id="creature_givrette" model="warmup.creature">
             <field name="code">givrette</field><field name="name">Givrette</field>
@@ -31,7 +31,7 @@
         </record>
         <record id="creature_nocturne" model="warmup.creature">
             <field name="code">nocturne</field><field name="name">Nocturne</field>
-            <field name="element">Nuit</field><field name="color">#6a4c93</field><field name="sequence">8</field>
+            <field name="element">Nuit</field><field name="color">#8d99ae</field><field name="sequence">8</field>
         </record>
         <record id="creature_sablou" model="warmup.creature">
             <field name="code">sablou</field><field name="name">Sablou</field>
@@ -43,7 +43,7 @@
         </record>
         <record id="creature_braisou" model="warmup.creature">
             <field name="code">braisou</field><field name="name">Braisou</field>
-            <field name="element">Feu</field><field name="color">#c1121f</field><field name="sequence">11</field>
+            <field name="element">Feu</field><field name="color">#f77f00</field><field name="sequence">11</field>
         </record>
         <record id="creature_petalune" model="warmup.creature">
             <field name="code">petalune</field><field name="name">Pétalune</field>
@@ -51,23 +51,23 @@
         </record>
         <record id="creature_cosmino" model="warmup.creature">
             <field name="code">cosmino</field><field name="name">Cosmino</field>
-            <field name="element">Étoile</field><field name="color">#3a0ca3</field><field name="sequence">13</field>
+            <field name="element">Étoile</field><field name="color">#80ed99</field><field name="sequence">13</field>
         </record>
         <record id="creature_sucrette" model="warmup.creature">
             <field name="code">sucrette</field><field name="name">Sucrette</field>
-            <field name="element">Sucre</field><field name="color">#ffafcc</field><field name="sequence">14</field>
+            <field name="element">Sucre</field><field name="color">#d4a373</field><field name="sequence">14</field>
         </record>
         <record id="creature_laineton" model="warmup.creature">
-            <field name="code">laineton</field><field name="name">Laineton</field>
-            <field name="element">Air</field><field name="color">#8d99ae</field><field name="sequence">15</field>
+            <field name="code">laineton</field><field name="name">Meuglou</field>
+            <field name="element">Ferme</field><field name="color">#8d99ae</field><field name="sequence">15</field>
         </record>
         <record id="creature_lucibulle" model="warmup.creature">
             <field name="code">lucibulle</field><field name="name">Lucibulle</field>
-            <field name="element">Lumière</field><field name="color">#ffd166</field><field name="sequence">16</field>
+            <field name="element">Lumière</field><field name="color">#b5e48c</field><field name="sequence">16</field>
         </record>
         <record id="creature_lamalou" model="warmup.creature">
-            <field name="code">lamalou</field><field name="name">Lamalou</field>
-            <field name="element">Air</field><field name="color">#f1e3c8</field><field name="sequence">17</field>
+            <field name="code">lamalou</field><field name="name">Girafou</field>
+            <field name="element">Savane</field><field name="color">#f1c453</field><field name="sequence">17</field>
         </record>
         <record id="creature_bzouille" model="warmup.creature">
             <field name="code">bzouille</field><field name="name">Bzouille</field>
@@ -75,39 +75,39 @@
         </record>
         <record id="creature_glouglou" model="warmup.creature">
             <field name="code">glouglou</field><field name="name">Glouglou</field>
-            <field name="element">Eau</field><field name="color">#4cc9f0</field><field name="sequence">19</field>
+            <field name="element">Eau</field><field name="color">#a47148</field><field name="sequence">19</field>
         </record>
         <record id="creature_rocheron" model="warmup.creature">
             <field name="code">rocheron</field><field name="name">Rocheron</field>
             <field name="element">Roche</field><field name="color">#8d99ae</field><field name="sequence">20</field>
         </record>
         <record id="creature_dragounet" model="warmup.creature">
-            <field name="code">dragounet</field><field name="name">Dragounet</field>
-            <field name="element">Feu</field><field name="color">#ef476f</field><field name="sequence">21</field>
+            <field name="code">dragounet</field><field name="name">Rugissou</field>
+            <field name="element">Feu</field><field name="color">#e9a23b</field><field name="sequence">21</field>
         </record>
         <record id="creature_champilou" model="warmup.creature">
-            <field name="code">champilou</field><field name="name">Champilou</field>
-            <field name="element">Plante</field><field name="color">#e63946</field><field name="sequence">22</field>
+            <field name="code">champilou</field><field name="name">Grimpilou</field>
+            <field name="element">Plante</field><field name="color">#a47148</field><field name="sequence">22</field>
         </record>
         <record id="creature_gelouille" model="warmup.creature">
-            <field name="code">gelouille</field><field name="name">Gélouille</field>
-            <field name="element">Gelée</field><field name="color">#80ed99</field><field name="sequence">23</field>
+            <field name="code">gelouille</field><field name="name">Rosinou</field>
+            <field name="element">Ferme</field><field name="color">#ffafcc</field><field name="sequence">23</field>
         </record>
         <record id="creature_bonbloub" model="warmup.creature">
-            <field name="code">bonbloub</field><field name="name">Bonbloub</field>
-            <field name="element">Sucre</field><field name="color">#ff8fab</field><field name="sequence">24</field>
+            <field name="code">bonbloub</field><field name="name">Croquenoix</field>
+            <field name="element">Sucre</field><field name="color">#e63946</field><field name="sequence">24</field>
         </record>
         <record id="creature_piquito" model="warmup.creature">
-            <field name="code">piquito</field><field name="name">Piquito</field>
-            <field name="element">Plante</field><field name="color">#52b788</field><field name="sequence">25</field>
+            <field name="code">piquito</field><field name="name">Pandou</field>
+            <field name="element">Plante</field><field name="color">#f8f9fa</field><field name="sequence">25</field>
         </record>
         <record id="creature_calmaron" model="warmup.creature">
-            <field name="code">calmaron</field><field name="name">Calmaron</field>
-            <field name="element">Eau</field><field name="color">#9b5de5</field><field name="sequence">26</field>
+            <field name="code">calmaron</field><field name="name">Toufou</field>
+            <field name="element">Normal</field><field name="color">#c08552</field><field name="sequence">26</field>
         </record>
         <record id="creature_tourbillon" model="warmup.creature">
             <field name="code">tourbillon</field><field name="name">Tourbillon</field>
-            <field name="element">Air</field><field name="color">#a2d2ff</field><field name="sequence">27</field>
+            <field name="element">Glace</field><field name="color">#e9f5ff</field><field name="sequence">27</field>
         </record>
         <record id="creature_fantomi" model="warmup.creature">
             <field name="code">fantomi</field><field name="name">Fantômi</field>
@@ -119,7 +119,7 @@
         </record>
         <record id="creature_poilu" model="warmup.creature">
             <field name="code">poilu</field><field name="name">Poilu</field>
-            <field name="element">Glace</field><field name="color">#e9f5ff</field><field name="sequence">30</field>
+            <field name="element">Glace</field><field name="color">#a47148</field><field name="sequence">30</field>
         </record>
     </data>
 </odoo>

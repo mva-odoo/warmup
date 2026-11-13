@@ -1,56 +1,59 @@
 // Créatures originales à rencontrer, à rendre amies et à faire évoluer.
 
+// Tous les amis du héros viennent de la même famille graphique que le dresseur (Kenney, CC0) :
+// 24 animaux animés du pack « Cube Pets », plus 6 personnages assortis (fantôme, bonhomme de neige, renne…).
+// model : fichier 3D (dossier/nom) ; still : modèle sans animation (il est animé par le jeu).
+// (shape / feature / belly : dessin 2D de secours, quand la 3D n'est pas disponible)
 const CREATURES = [
-  { id: 'flammeche', name: 'Flammèche', element: 'Feu', color: '#ff7b39', belly: '#ffd6a8', shape: 'round', feature: 'flame' },
-  { id: 'gouttin', name: 'Gouttin', element: 'Eau', color: '#4ea8ff', belly: '#d4ecff', shape: 'drop', feature: 'fin' },
-  { id: 'feuillou', name: 'Feuillou', element: 'Plante', color: '#5cc96b', belly: '#dbf7c9', shape: 'round', feature: 'leaves' },
-  { id: 'volticube', name: 'Volticube', element: 'Électrique', color: '#7c8cff', belly: '#e0e4ff', shape: 'cube', feature: 'antennas' },
-  { id: 'rocaille', name: 'Rocaille', element: 'Roche', color: '#a3958a', belly: '#e3dbd3', shape: 'round', feature: 'pebbles' },
-  { id: 'nuagon', name: 'Nuagon', element: 'Air', color: '#eef2ff', belly: '#ffffff', shape: 'cloud', feature: 'none' },
-  { id: 'givrette', name: 'Givrette', element: 'Glace', color: '#9fe8f5', belly: '#e9fbff', shape: 'round', feature: 'crystal' },
-  { id: 'nocturne', name: 'Nocturne', element: 'Nuit', color: '#6a4c93', belly: '#c9b6e4', shape: 'round', feature: 'batEars' },
-  { id: 'sablou', name: 'Sablou', element: 'Sable', color: '#e9c46a', belly: '#fff3d6', shape: 'egg', feature: 'shell' },
-  { id: 'coraline', name: 'Coraline', element: 'Eau', color: '#ff8fab', belly: '#ffe5ec', shape: 'drop', feature: 'coralCrown' },
-  { id: 'braisou', name: 'Braisou', element: 'Feu', color: '#c1121f', belly: '#ffb4a2', shape: 'round', feature: 'magma' },
-  { id: 'petalune', name: 'Pétalune', element: 'Fée', color: '#cdb4db', belly: '#ffffff', shape: 'round', feature: 'petalWings' },
-  { id: 'cosmino', name: 'Cosmino', element: 'Étoile', color: '#3a0ca3', belly: '#c77dff', shape: 'round', feature: 'ring' },
-  { id: 'sucrette', name: 'Sucrette', element: 'Sucre', color: '#ffafcc', belly: '#ffffff', shape: 'drop', feature: 'candyHorns' },
-  { id: 'laineton', name: 'Laineton', element: 'Air', color: '#8d99ae', belly: '#edf2f4', shape: 'round', feature: 'wool' },
-  { id: 'lucibulle', name: 'Lucibulle', element: 'Lumière', color: '#ffd166', belly: '#fff9db', shape: 'egg', feature: 'lantern' },
-  // Monstres animés du pack « Ultimate Monsters » de Quaternius (CC0), avec nos propres noms
-  { id: 'lamalou', name: 'Lamalou', element: 'Air', color: '#f1e3c8', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Alpaking', evolvedModel: 'Alpaking_Evolved' },
-  { id: 'bzouille', name: 'Bzouille', element: 'Insecte', color: '#ffbe0b', belly: '#fff3b0', shape: 'round', feature: 'none', model: 'Armabee', evolvedModel: 'Armabee_Evolved' },
-  { id: 'glouglou', name: 'Glouglou', element: 'Eau', color: '#4cc9f0', belly: '#e0f7ff', shape: 'drop', feature: 'none', model: 'Glub', evolvedModel: 'Glub_Evolved' },
-  { id: 'rocheron', name: 'Rocheron', element: 'Roche', color: '#8d99ae', belly: '#e9ecef', shape: 'round', feature: 'none', model: 'Goleling', evolvedModel: 'Goleling_Evolved' },
-  { id: 'dragounet', name: 'Dragounet', element: 'Feu', color: '#ef476f', belly: '#ffd6a5', shape: 'round', feature: 'none', model: 'Dragon', evolvedModel: 'Dragon_Evolved' },
-  { id: 'champilou', name: 'Champilou', element: 'Plante', color: '#e63946', belly: '#fff1e6', shape: 'round', feature: 'none', model: 'Mushnub', evolvedModel: 'Mushnub_Evolved' },
-  { id: 'gelouille', name: 'Gélouille', element: 'Gelée', color: '#80ed99', belly: '#d8f3dc', shape: 'round', feature: 'none', model: 'GreenBlob' },
-  { id: 'bonbloub', name: 'Bonbloub', element: 'Sucre', color: '#ff8fab', belly: '#ffe5ec', shape: 'round', feature: 'none', model: 'PinkBlob' },
-  { id: 'piquito', name: 'Piquito', element: 'Plante', color: '#52b788', belly: '#d8f3dc', shape: 'round', feature: 'none', model: 'Cactoro' },
-  { id: 'calmaron', name: 'Calmaron', element: 'Eau', color: '#9b5de5', belly: '#efe3ff', shape: 'drop', feature: 'none', model: 'Squidle' },
-  { id: 'tourbillon', name: 'Tourbillon', element: 'Air', color: '#a2d2ff', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Hywirl' },
-  { id: 'fantomi', name: 'Fantômi', element: 'Nuit', color: '#e0e1dd', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Ghost' },
-  { id: 'minouille', name: 'Minouille', element: 'Normal', color: '#f4a261', belly: '#fff1e0', shape: 'round', feature: 'none', model: 'Cat' },
-  { id: 'poilu', name: 'Poilu', element: 'Glace', color: '#e9f5ff', belly: '#ffffff', shape: 'round', feature: 'none', model: 'Yeti' },
+  { id: 'flammeche', name: 'Flammèche', element: 'Feu', color: '#ff7b39', belly: '#ffd6a8', shape: 'round', feature: 'flame', model: 'pets/animal-fox' },
+  { id: 'gouttin', name: 'Gouttin', element: 'Eau', color: '#4ea8ff', belly: '#d4ecff', shape: 'drop', feature: 'fin', model: 'pets/animal-penguin' },
+  { id: 'feuillou', name: 'Feuillou', element: 'Plante', color: '#5cc96b', belly: '#dbf7c9', shape: 'round', feature: 'leaves', model: 'pets/animal-bunny' },
+  { id: 'volticube', name: 'Voltiplume', element: 'Air', color: '#7c8cff', belly: '#e0e4ff', shape: 'cube', feature: 'antennas', model: 'pets/animal-parrot' },
+  { id: 'rocaille', name: 'Rocaille', element: 'Roche', color: '#a3958a', belly: '#e3dbd3', shape: 'round', feature: 'pebbles', model: 'pets/animal-hog' },
+  { id: 'nuagon', name: 'Nuagon', element: 'Air', color: '#ffe066', belly: '#ffffff', shape: 'cloud', feature: 'none', model: 'pets/animal-chick' },
+  { id: 'givrette', name: 'Givrette', element: 'Glace', color: '#9fe8f5', belly: '#e9fbff', shape: 'round', feature: 'crystal', model: 'pets/animal-polar' },
+  { id: 'nocturne', name: 'Nocturne', element: 'Nuit', color: '#8d99ae', belly: '#c9b6e4', shape: 'round', feature: 'batEars', model: 'pets/animal-koala' },
+  { id: 'sablou', name: 'Sablou', element: 'Sable', color: '#e9c46a', belly: '#fff3d6', shape: 'egg', feature: 'shell', model: 'pets/animal-crab' },
+  { id: 'coraline', name: 'Coraline', element: 'Eau', color: '#ff8fab', belly: '#ffe5ec', shape: 'drop', feature: 'coralCrown', model: 'pets/animal-fish' },
+  { id: 'braisou', name: 'Braisou', element: 'Feu', color: '#f77f00', belly: '#ffb4a2', shape: 'round', feature: 'magma', model: 'pets/animal-tiger' },
+  { id: 'petalune', name: 'Pétalune', element: 'Fée', color: '#cdb4db', belly: '#ffffff', shape: 'round', feature: 'petalWings', model: 'pets/animal-deer' },
+  { id: 'cosmino', name: 'Cosmino', element: 'Étoile', color: '#80ed99', belly: '#c77dff', shape: 'round', feature: 'ring', model: 'space/alien', still: true, flip: true },
+  { id: 'sucrette', name: 'Sucrette', element: 'Sucre', color: '#d4a373', belly: '#ffffff', shape: 'drop', feature: 'candyHorns', model: 'holiday/gingerbread-man', still: true },
+  { id: 'laineton', name: 'Meuglou', element: 'Ferme', color: '#8d99ae', belly: '#edf2f4', shape: 'round', feature: 'wool', model: 'pets/animal-cow' },
+  { id: 'lucibulle', name: 'Lucibulle', element: 'Lumière', color: '#b5e48c', belly: '#fff9db', shape: 'egg', feature: 'lantern', model: 'pets/animal-caterpillar' },
+  { id: 'lamalou', name: 'Girafou', element: 'Savane', color: '#f1c453', belly: '#ffffff', shape: 'round', feature: 'none', model: 'pets/animal-giraffe' },
+  { id: 'bzouille', name: 'Bzouille', element: 'Insecte', color: '#ffbe0b', belly: '#fff3b0', shape: 'round', feature: 'none', model: 'pets/animal-bee' },
+  { id: 'glouglou', name: 'Glouglou', element: 'Eau', color: '#a47148', belly: '#e0f7ff', shape: 'drop', feature: 'none', model: 'pets/animal-beaver' },
+  { id: 'rocheron', name: 'Rocheron', element: 'Roche', color: '#8d99ae', belly: '#e9ecef', shape: 'round', feature: 'none', model: 'pets/animal-elephant' },
+  { id: 'dragounet', name: 'Rugissou', element: 'Feu', color: '#e9a23b', belly: '#ffd6a5', shape: 'round', feature: 'none', model: 'pets/animal-lion' },
+  { id: 'champilou', name: 'Grimpilou', element: 'Plante', color: '#a47148', belly: '#fff1e6', shape: 'round', feature: 'none', model: 'pets/animal-monkey' },
+  { id: 'gelouille', name: 'Rosinou', element: 'Ferme', color: '#ffafcc', belly: '#ffe5ec', shape: 'round', feature: 'none', model: 'pets/animal-pig' },
+  { id: 'bonbloub', name: 'Croquenoix', element: 'Sucre', color: '#e63946', belly: '#ffe5ec', shape: 'round', feature: 'none', model: 'holiday/nutcracker', still: true },
+  { id: 'piquito', name: 'Pandou', element: 'Plante', color: '#f8f9fa', belly: '#d8f3dc', shape: 'round', feature: 'none', model: 'pets/animal-panda' },
+  { id: 'calmaron', name: 'Toufou', element: 'Normal', color: '#c08552', belly: '#efe3ff', shape: 'round', feature: 'none', model: 'pets/animal-dog' },
+  { id: 'tourbillon', name: 'Tourbillon', element: 'Glace', color: '#e9f5ff', belly: '#ffffff', shape: 'round', feature: 'none', model: 'holiday/snowman', still: true },
+  { id: 'fantomi', name: 'Fantômi', element: 'Nuit', color: '#e0e1dd', belly: '#ffffff', shape: 'round', feature: 'none', model: 'graveyard/character-ghost' },
+  { id: 'minouille', name: 'Minouille', element: 'Normal', color: '#f4a261', belly: '#fff1e0', shape: 'round', feature: 'none', model: 'pets/animal-cat' },
+  { id: 'poilu', name: 'Poilu', element: 'Glace', color: '#a47148', belly: '#ffffff', shape: 'round', feature: 'none', model: 'holiday/reindeer', still: true },
 ];
 
 // Où vit chaque créature (paysages 3D, voir KITS) : on la rencontre surtout là
 const HABITATS = {
-  flammeche: ['volcano', 'dinoland', 'desert'], gouttin: ['beach', 'lagoon', 'reef'],
-  feuillou: ['meadow', 'jungle', 'forest', 'garden', 'ferns'], volticube: ['disco', 'mountain', 'nebula'],
-  rocaille: ['mountain', 'desert', 'dinoland', 'moon', 'mars'], nuagon: ['meadow', 'mountain', 'dojo', 'farm'],
-  givrette: ['glacier', 'aurora', 'icecream'], nocturne: ['night', 'magic', 'dojoNight', 'abyss'],
-  sablou: ['desert', 'beach'], coraline: ['lagoon', 'reef', 'abyss'], braisou: ['volcano', 'dinoland'],
-  petalune: ['garden', 'meadow', 'dojo', 'magic'], cosmino: ['moon', 'mars', 'nebula'], sucrette: ['candy', 'icecream'],
-  laineton: ['farm', 'orchard', 'mountain'], lucibulle: ['night', 'aurora', 'dojoNight', 'magic', 'disco'],
-  lamalou: ['mountain', 'farm', 'meadow'], bzouille: ['meadow', 'garden', 'jungle'], glouglou: ['lagoon', 'reef', 'beach'],
-  rocheron: ['mountain', 'desert', 'mars', 'moon'], dragounet: ['volcano', 'dinoland', 'ferns'], champilou: ['forest', 'night', 'magic'],
-  gelouille: ['meadow', 'jungle', 'ferns', 'disco'], bonbloub: ['candy', 'icecream'], piquito: ['desert'],
-  calmaron: ['abyss', 'reef'], tourbillon: ['mountain', 'aurora', 'nebula'], fantomi: ['night', 'magic', 'dojoNight'],
-  minouille: ['farm', 'orchard', 'garden', 'dojo'], poilu: ['glacier', 'aurora'],
+  flammeche: ['volcano', 'forest', 'desert', 'meadow'], gouttin: ['glacier', 'aurora', 'beach', 'icecream'],
+  feuillou: ['meadow', 'forest', 'garden', 'orchard'], volticube: ['jungle', 'beach', 'disco', 'volcano'],
+  rocaille: ['mountain', 'forest', 'desert', 'dinoland'], nuagon: ['farm', 'orchard', 'meadow'],
+  givrette: ['glacier', 'aurora', 'icecream'], nocturne: ['night', 'magic', 'jungle', 'dojoNight'],
+  sablou: ['beach', 'lagoon', 'reef', 'desert'], coraline: ['lagoon', 'reef', 'abyss'], braisou: ['jungle', 'volcano', 'dinoland', 'ferns'],
+  petalune: ['garden', 'forest', 'magic', 'mountain'], cosmino: ['moon', 'mars', 'nebula'], sucrette: ['candy', 'icecream'],
+  laineton: ['farm', 'orchard', 'meadow'], lucibulle: ['night', 'magic', 'garden', 'dojoNight', 'ferns'],
+  lamalou: ['desert', 'meadow', 'dinoland'], bzouille: ['meadow', 'garden', 'orchard'], glouglou: ['lagoon', 'forest', 'mountain'],
+  rocheron: ['desert', 'jungle', 'dinoland', 'mars'], dragounet: ['desert', 'volcano', 'dinoland'], champilou: ['jungle', 'ferns', 'beach'],
+  gelouille: ['farm', 'orchard'], bonbloub: ['candy', 'icecream', 'magic'], piquito: ['dojo', 'dojoNight', 'jungle'],
+  calmaron: ['farm', 'meadow', 'garden', 'dojo'], tourbillon: ['glacier', 'aurora'], fantomi: ['night', 'magic', 'abyss', 'disco'],
+  minouille: ['farm', 'garden', 'dojo', 'night'], poilu: ['glacier', 'aurora', 'mountain'],
 };
-// Fichiers 3D des créatures animées (forme normale et évoluée)
-const creatureModels = (list) => list.flatMap((c) => [c.model, c.evolvedModel]).filter(Boolean).map((m) => 'monsters/' + m);
+// Fichiers 3D des créatures (la forme évoluée est le même modèle, plus grand, avec une couronne)
+const creatureModels = (list) => [...new Set(list.map((c) => c && c.model).filter(Boolean))];
 const KIT_ALIAS = { flowers: 'meadow' }; // (paysages qui partagent leurs habitants)
 const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(KIT_ALIAS[kit] || kit));
 const EVOLVE_AT = 3;

@@ -2,42 +2,75 @@
 // et un trait distinctif lié à leur élément. Forme évoluée : plus grande, trait renforcé, étoile au-dessus.
 // Construit avec la scène 3D (sc = Scene3D) : matériaux cartoon et contour noir partagés.
 
-// Monstre animé (pack Quaternius) : il attend, saute de joie, dit non et repart… avec ses vraies animations
-function buildMonster3D(sc, cr, evolved) {
-  const key = 'monsters/' + (evolved && cr.evolvedModel ? cr.evolvedModel : cr.model);
-  const obj = sc.P.model(key);
+// Ami du héros en 3D (animaux « Cube Pets » et personnages assortis de Kenney) : il attend, marche, court,
+// danse de joie, fait signe… avec ses vraies animations ; les modèles sans animation sont animés ici (rebonds).
+// Forme évoluée : plus grande, couronne dorée et petites étoiles qui tournent autour.
+function buildPet3D(sc, cr, evolved) {
+  const key = cr.model, obj = sc.P.model(key);
   if (!obj) return null;
-  const T = sc.T, group = new T.Group();
-  group.add(obj);
+  const T = sc.T, group = new T.Group(), inner = new T.Group();
+  group.add(inner); inner.add(obj);
   obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-  if (evolved && !cr.evolvedModel) group.scale.setScalar(1.25);
+  if (cr.flip) obj.rotation.y = Math.PI; // (modèle tourné dans l'autre sens)
   const clips = sc.P.anims.get(key) || [];
-  const find = (...names) => clips.find((c) => names.includes(c.name)) || null;
+  const find = (...names) => { for (const n of names) { const c = clips.find((x) => x.name === n); if (c) return c; } return null; };
   const acts = {
-    idle: find('Idle', 'Flying_Idle'), happy: find('Yes', 'Dance', 'Jump'),
-    wave: find('No', 'Walk', 'Fast_Flying'), show: find('Dance', 'Idle', 'Flying_Idle'),
+    idle: find('idle', 'static'), happy: find('dance', 'emote-yes', 'jump'), wave: find('walk'),
+    run: find('run', 'sprint', 'walk'), show: find('gesture-positive', 'emote-yes', 'idle'), no: find('gesture-negative', 'emote-no', 'walk'),
   };
-  const mixer = new T.AnimationMixer(obj);
+  const mixer = clips.length ? new T.AnimationMixer(obj) : null;
+  // Taille du modèle (pour poser la couronne) ; forme évoluée
+  const h = new T.Box3().setFromObject(obj, true).max.y || 1.2;
+  const stars = [];
+  if (evolved) {
+    inner.scale.setScalar(1.3);
+    const gold = sc.lam('#ffd23f'), crown = new T.Group();
+    const band = new T.Mesh(new T.CylinderGeometry(0.2, 0.22, 0.1, 12, 1, true), gold); crown.add(band);
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * Math.PI * 2, sp = new T.Mesh(new T.ConeGeometry(0.05, 0.14, 6), gold);
+      sp.position.set(Math.cos(a) * 0.2, 0.11, Math.sin(a) * 0.2); crown.add(sp);
+    }
+    crown.position.y = h + 0.06; crown.userData.crown = true; inner.add(crown);
+    for (let k = 0; k < 3; k++) {
+      const st = new T.Mesh(new T.OctahedronGeometry(0.07, 0), new T.MeshBasicMaterial({ color: '#fff3a0' }));
+      group.add(st); stars.push(st);
+    }
+  }
   let cur = null, last = 0;
   const play = (name) => {
     const clip = acts[name] || acts.idle;
-    if (!clip || clip === cur) return;
+    if (!mixer || !clip || clip === cur) return;
     const a = mixer.clipAction(clip);
-    a.reset().fadeIn(0.25).play();
-    if (cur) mixer.clipAction(cur).fadeOut(0.25);
+    a.reset().fadeIn(0.2).play();
+    if (cur) mixer.clipAction(cur).fadeOut(0.2);
     cur = clip;
   };
   const animate = (t, mode = 'idle', pose = null) => {
     const dt = last ? Math.min(0.1, Math.max(0, (t - last) / 1000)) : 0;
     last = t;
-    play(mode === 'happy' ? 'happy' : mode === 'wave' ? 'wave' : pose ? 'show' : 'idle');
-    mixer.update(dt);
+    const m = mode === 'happy' ? 'happy' : mode === 'run' ? 'run' : mode === 'wave' ? 'wave' : mode === 'no' ? 'no' : pose ? 'show' : 'idle';
+    if (mixer) { play(m); mixer.update(dt); }
+    // Modèle sans animation : petits rebonds et balancements selon ce qu'il fait
+    if (!mixer || cr.still) {
+      const k = t * 0.001;
+      const hop = m === 'happy' ? Math.abs(Math.sin(k * 9)) * 0.45 : m === 'run' || m === 'wave' ? Math.abs(Math.sin(k * 11)) * 0.18 : m === 'show' ? Math.abs(Math.sin(k * 5)) * 0.2 : 0;
+      inner.position.y = hop;
+      inner.rotation.z = m === 'happy' ? Math.sin(k * 9) * 0.25 : m === 'no' ? Math.sin(k * 10) * 0.15 : Math.sin(k * 2.2) * 0.04;
+      inner.rotation.y = m === 'happy' ? k * 6 % (Math.PI * 2) : 0;
+      const sq = 1 + Math.sin(k * 3) * 0.025; // il « respire »
+      obj.scale.set(1 / sq, sq, 1 / sq);
+    }
+    stars.forEach((st, i) => {
+      const a = t * 0.002 + i * 2.094, r = 0.55 * (evolved ? 1.3 : 1);
+      st.position.set(Math.cos(a) * r, h * 0.9 + Math.sin(t * 0.004 + i) * 0.12, Math.sin(a) * r);
+      st.rotation.y = t * 0.004;
+    });
   };
-  return { group, animate };
+  return { group, animate, height: h * (evolved ? 1.3 : 1) };
 }
 
 function buildCreature3D(sc, cr, evolved = false) {
-  if (cr.model) { const m = buildMonster3D(sc, cr, evolved); if (m) return m; }
+  if (cr.model) { const m = buildPet3D(sc, cr, evolved); if (m) return m; }
   const T = sc.T, G = sc.geo, lam = sc.lam;
   const group = new T.Group(), body = new T.Group();
   group.add(body);

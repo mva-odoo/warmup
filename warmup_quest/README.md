@@ -79,7 +79,7 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Piste de Danse** : imite Tempo, le danseur, pas à pas en musique (comme dans un miroir).
     **Dojo des Petits Tigres** : imite Maître Bambou (parade, coup de genou, position du cavalier, tranche, saut du tigre).
     Chaque geste est noté ✔ / raté ; les parents peuvent créer leurs chorégraphies (gestes séparés par des virgules).
-  - **30 créatures en 3D** : 16 créatures originales du jeu et 14 monstres animés (pack Quaternius, CC0) (éléments feu, eau, plante, électrique, glace, roche, air, nuit, sable, fée,
+  - **30 amis en 3D**, tous de la même famille que le dresseur (animaux « Cube Pets » de Kenney et personnages assortis) (éléments feu, eau, plante, glace, roche, air, nuit, sable, fée,
     étoile, sucre, lumière…), chacune avec ses lieux de vie, son petit cri et sa forme évoluée. On les voit se promener
     dans les hautes herbes ; elles viennent montrer une pose à copier pour devenir amies, puis rejoignent le carnet.
   - **15 mondes**, tous sur le chemin (Vallée Turbo, Île Bondissante, Monde des Créatures, Banquise, Océan, Espace,
@@ -133,15 +133,14 @@ Les programmes par défaut des séquences Odoo (`hooks.py`) reprennent ceux de `
 si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à jour aussi.
 
 ## Crédits
-- Modèles 3D de nature (arbres, plantes, rochers, champignons, cultures…) : **Nature Kit de Kenney**
-  ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) — voir `static/src/game/models/kenney/License.txt`.
-- Arbres, buissons, fleurs et herbes « cartoon » : **Ultimate Stylized Nature** de Quaternius ([quaternius.com](https://quaternius.com)),
-  licence **CC0**, allégés avec Blender (textures réduites) — `static/src/game/models/quaternius/`.
-- Monstres animés (Lamalou, Bzouille, Glouglou, Champilou…) : modèles et animations du pack **Ultimate Monsters** de Quaternius,
-  licence **CC0** (`static/src/game/models/monsters/License.txt`) ; les noms français sont propres à ce jeu.
-- Petits dresseurs (personnages et animations) : **Mini Characters** de Kenney, licence **CC0**
-  (`static/src/game/models/characters/License.txt`) ; chapeaux, sac à dos et lunettes ajoutés par le jeu.
-- Vaisseaux, rovers, astronautes, cratères (Space Kit), friandises et fruits géants (Food Kit), bateaux, palmiers,
-  coffres et tonneaux pirates (Pirate Kit) : **Kenney**, licence **CC0** (`static/src/game/models/space|food|pirate/License.txt`).
+Tous les modèles 3D viennent de **Kenney** ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) : une seule
+famille graphique pour le dresseur, ses amis et les décors. Chaque dossier de `static/src/game/models/` contient sa `License.txt`.
+- Dresseurs : **Mini Characters** (`characters/`) ; chapeaux, sac à dos, cape, ailes et lunettes ajoutés par le jeu.
+- Amis du héros : 24 animaux animés du pack **Cube Pets** (`pets/`), plus le fantôme (Graveyard Kit), le bonhomme de neige,
+  le renne, le pain d'épices et le casse-noisette (Holiday Kit) et l'extraterrestre (Space Kit). Les noms sont propres au jeu ;
+  la forme évoluée est plus grande, avec une couronne dorée.
+- Décors : **Nature Kit** (`kenney/`), **Space Kit**, **Food Kit**, **Pirate Kit**, **Holiday Kit**, **Graveyard Kit**,
+  **Castle Kit**, **Fantasy Town Kit**, **Platformer Kit**, **Survival Kit**. Quelques éléments restent construits par le jeu
+  (coraux, algues, dinosaures, œufs, cerisiers, scène de danse, arrière-plans lointains).
 - Moteur 3D : Three.js ; détection des mouvements : MediaPipe (chargés depuis jsDelivr).
-- Personnages, créatures, mondes et musiques : créations originales de ce module.
+- Mondes, musiques (synthétiseur intégré) et règles du jeu : créations originales de ce module.

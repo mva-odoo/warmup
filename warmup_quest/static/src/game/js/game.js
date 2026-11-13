@@ -680,7 +680,7 @@ class Game {
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
     if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
       const kit = this.world.biomes[this.world.biomes.length - 1].kit || 'meadow';
-      const pool = creaturesOf(kit).filter((c) => c.model).concat(creaturesOf(kit));
+      const pool = creaturesOf(kit).filter((c) => !c.still); // (un ami animé, pour qu'il montre bien sa joie)
       const cr = pool[(this.world.id.length + this.world.name.length) % Math.max(1, pool.length)] || CREATURES[0];
       this.cur.boss = cr;
       scene.setBoss && scene.setBoss({ cr, pose: s.poses[0] });
