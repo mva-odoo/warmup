@@ -198,6 +198,15 @@ class Scene3D extends DepthScene {
     const path = new T.Mesh(new T.PlaneGeometry(LANE * 3 + 0.8, 160), lam('#ffffff', { map: tex }));
     path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -70); path.receiveShadow = true;
     scene.add(path);
+    // Bords du chemin bien marqués (bordure claire + liseré sombre)
+    this.edges = [];
+    for (const sg of [-1, 1]) {
+      for (const [w, off, col] of [[0.3, 0.15, '#ffffff'], [0.12, 0.36, '#3d2b1f']]) {
+        const e = new T.Mesh(new T.PlaneGeometry(w, 160), lam(col));
+        e.rotation.x = -Math.PI / 2; e.position.set(sg * (LANE * 1.5 + 0.4 + off), 0.02, -70); e.receiveShadow = true;
+        scene.add(e); this.edges.push(e);
+      }
+    }
 
     // Nuages (cachés la nuit)
     this.clouds = [];
@@ -265,7 +274,7 @@ class Scene3D extends DepthScene {
       for (let k = 0; k < 40; k++) {
         const t = this.makeTuft();
         if (!t) break;
-        t.position.set((k % 2 ? 1 : -1) * (LANE * 1.5 + 0.55 + Math.random() * 1.6), 0, -78 + k * 2.1);
+        t.position.set((k % 2 ? 1 : -1) * (LANE * 1.5 + 1.4 + Math.random() * 2.2), 0, -78 + k * 2.1); // jamais sur le chemin
         scene.add(t); this.tufts.push(t);
       }
     }
@@ -377,9 +386,10 @@ class Scene3D extends DepthScene {
 
   placeDecor(d, z) {
     const side = Math.random() < 0.5 ? -1 : 1;
-    if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.0 + Math.random() * 2.2), 0, z); return; } // dans les herbes
-    const big = ['dino', 'igloo', 'palm', 'bigMushroom', 'appleTree', 'roundTree'].includes(d.userData.name) ? 1.5 : 0;
-    d.position.set(side * (LANE * 1.5 + 1.2 + big + Math.random() * 10), 0, z);
+    // Une bande dégagée de chaque côté du chemin : rien ne déborde dessus
+    if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
+    const big = /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|cherryTree|bamboo/.test(d.userData.name || '') ? 2.2 : 0;
+    d.position.set(side * (LANE * 1.5 + 2.0 + big + Math.random() * 10), 0, z);
   }
 
   // Particules : neige, bulles, lucioles, pétales, braises
@@ -1047,6 +1057,7 @@ class Scene3D extends DepthScene {
     this.drawBubbles(now);
     this.drawMoles(now);
     this.drawRope(now);
+    this.drawCue(now);
     this.drawFlashes(now);
     this.drawFx(dt);
   }
@@ -1056,7 +1067,8 @@ class Scene3D extends DepthScene {
     const r = this.rope;
     if (!r) return;
     const ctx = this.ctx, phi = ((now - r.t0) / r.period) * Math.PI * 2;
-    const handY = 0.95, cy = 1.0 + Math.cos(phi) * 1.0; // 0 = pieds, 2 = au-dessus de la tête
+    // Au moment de sauter (phi = 0, 2π…), la corde est SOUS les pieds ; à mi-chemin, au-dessus de la tête
+    const handY = 0.95, cy = 1.0 - Math.cos(phi) * 1.0; // 0 = pieds, 2 = au-dessus de la tête
     const L = this.project(-(LANE * 1.5 + 0.6), handY, 0.2), R = this.project(LANE * 1.5 + 0.6, handY, 0.2);
     const midX = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length * LANE;
     const C = this.project(midX, 2 * cy - handY, 0.2);

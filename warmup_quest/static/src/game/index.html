@@ -71,7 +71,8 @@
       </div>
       <div class="pill score"><span id="hudScore">0</span> pts</div>
       <div class="pill collect"><span id="hudCollect"></span> <span id="hudStreak" class="streak"></span></div>
-      <button class="btn roundBtn" id="pauseBtn" title="Pause">⏸</button>
+      <span class="pill gestureHint" title="Croise les bras pour faire pause">✖️ = ⏸</span>
+      <button class="btn roundBtn" id="pauseBtn" title="Pause (ou croise les bras)">⏸</button>
     </div>
     <div id="card" class="card">
       <canvas id="cardPicto" class="icon picto" width="150" height="150"></canvas>
@@ -91,6 +92,7 @@
     <h2>⏸ Pause</h2>
     <p id="pauseReason" class="subtitle"></p>
     <p class="subtitle">Lève les deux bras 🙌 pour reprendre</p>
+    <p class="hint">Pendant le jeu : croise les bras ✖️ pour faire pause</p>
     <div class="holdbar"><div id="pauseBar"></div></div>
     <div class="row">
       <button class="btn" id="resumeBtn">▶ Reprendre</button>

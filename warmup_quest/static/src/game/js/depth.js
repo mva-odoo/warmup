@@ -110,6 +110,7 @@ class DepthScene {
     this.hands = [];     // mains des joueurs, par héros : [{ u, v }, { u, v }]
     this.moles = [];     // taupes qui sortent autour des héros { hero, u, v, born, state, t }
     this.coach = null;   // coach à imiter (danse / karaté) : { move, style, pal, t0 }
+    this.cue = null;     // grand signe d'action au-dessus du héros : { icon, k (0..1), ok }
     this.obs = null;
     this.enc = null;
     this.decor = [];
@@ -206,6 +207,27 @@ class DepthScene {
   }
 
   setCoach(c) { this.coach = c; }
+  setCue(c) { this.cue = c; }
+
+  // Grand signe d'action (⬆️ saute, ⬇️ baisse-toi, ↔️ va à côté…) qui grossit quand c'est le moment
+  drawCue(now) {
+    const c = this.cue;
+    if (!c) return;
+    const ctx = this.ctx;
+    this.heroes.forEach((h, i) => {
+      const A = this.anchor(i), k = Math.max(0, Math.min(1, c.k));
+      const r = A.u * (0.9 + 0.7 * k) * (c.now ? 1 + 0.12 * Math.sin(now * 0.03) : 1);
+      const x = A.x, y = A.y - A.u * 3.2;
+      ctx.globalAlpha = 0.35 + 0.65 * k;
+      ctx.fillStyle = c.now ? '#22c55e' : '#ffd166';
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(3, r * 0.12);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.font = `${r * 1.15}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(c.icon, x, y + r * 0.06);
+      ctx.textBaseline = 'alphabetic';
+    });
+  }
 
   // Pose du coach pour un geste (les deux scènes) : pose dessinable + petits mouvements
   coachPose(now) {
@@ -276,9 +298,10 @@ class DepthScene {
     if (this.enc && this.enc.state === 'waiting') this.enc.state = 'leaving';
     this.setHoldPose(null);
     this.setDemoPose(null);
-    this.bubbles = []; this.hands = []; this.moles = []; this.coach = null;
+    this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
-    const kind = { jump: 'low', squat: 'high', smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
+    // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
+    const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
     if (s.m === 'pose' && !s.creature) this.obs = { kind: 'wall', pose: s.pose, born: now, dur, state: 'coming', t0: now };
     if (s.m === 'tunnel') this.obs = { kind: 'tunnel', born: now, dur, state: 'coming', t0: now };
@@ -293,6 +316,10 @@ class DepthScene {
     if (o.kind === 'tunnel') { // le tunnel arrive et entoure le héros
       const p = Math.min(1, (now - o.born) / 1500);
       return this.Zfar - (this.Zfar - this.heroZ()) * p;
+    }
+    if (o.kind === 'crate') { // le rocher arrive vite puis attend qu'on le tape
+      const p = Math.min(1, (now - o.born) / 1600);
+      return this.Zfar - (this.Zfar - this.heroZ() - 0.9) * p;
     }
     if (o.kind === 'wall') { // le mur s'approche puis attend devant le héros
       const p = Math.min(1, (now - o.born) / Math.min(1800, o.dur * 0.4));
@@ -467,6 +494,7 @@ class DepthScene {
     this.drawBubbles(now);
     this.drawMoles(now);
     this.drawRope(now);
+    this.drawCue(now);
 
     // Brume à l'horizon
     const fog = ctx.createLinearGradient(0, hy - H * 0.04, 0, hy + H * 0.07);
@@ -622,6 +650,10 @@ class DepthScene {
       ctx.beginPath(); ctx.ellipse(x, by + r * 0.98, r * 0.16, r * 0.11, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ffffff'; ctx.fillRect(x - r * 0.1, by + r * 1.1, r * 0.2, r * 0.16);
       ctx.restore();
+      if (m.state === 'up' && k >= 1) { // une petite main qui montre où taper
+        ctx.font = `${r * 0.9}px serif`; ctx.textAlign = 'center';
+        ctx.fillText('👋', x, by - r * 0.3 + Math.sin(now * 0.012) * r * 0.15);
+      }
       if (bonk) { // petites étoiles
         ctx.fillStyle = `rgba(255, 224, 102, ${bonk})`;
         for (let i = 0; i < 5; i++) { const a = i * 1.2566 + now * 0.01; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 1.4, by + Math.sin(a) * r * 0.5, r * 0.14, 0, Math.PI * 2); ctx.fill(); }
@@ -660,6 +692,9 @@ class DepthScene {
       const A = this.anchor(i), h = this.heroes[i];
       for (const hd of list) {
         const x = A.x + hd.u * A.u, y = A.y + hd.v * A.u, r = A.u * 0.2;
+        // Le bras, de l'épaule au gant : on voit jusqu'où on touche
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.lineWidth = Math.max(4, A.u * 0.12); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(A.x + Math.sign(hd.u || 1) * A.u * 0.35, A.y); ctx.lineTo(x, y); ctx.stroke();
         ctx.fillStyle = 'rgba(255, 255, 200, 0.35)';
         ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = (h && h.pal && h.pal.accent) || '#ffd166'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;

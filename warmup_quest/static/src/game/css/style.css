@@ -278,7 +278,8 @@ body.sim .next { bottom: 78px; }
 }
 @keyframes stickerIn { from { transform: scale(0) rotate(-30deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
 .albumTitle { margin: 10px 0 4px; font-size: 24px; }
-.album { width: min(760px, 100%); margin-bottom: 8px; }
+#stickerAlbum { width: min(760px, 100%); }  /* sans largeur, la grille se réduisait à une seule colonne */
+.album { width: 100%; margin-bottom: 8px; }
 .albumName { font-weight: 800; font-size: 18px; margin-bottom: 4px; }
 .albumGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
 .albumGrid span {
@@ -291,6 +292,8 @@ body.sim .next { bottom: 78px; }
 /* ---------- Simple pour les petits ---------- */
 .pill.score, .next { display: none !important; }        /* points et « Ensuite » : rien à lire pour eux */
 .pill.collect { font-size: 30px; }
+.gestureHint { font-size: 18px; margin-left: auto; opacity: 0.85; }
+.gestureHint + #pauseBtn { margin-left: 0; }
 .roundBtn { width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 30px; line-height: 1; }
 .btn.huge { font-size: clamp(26px, 4vw, 38px); padding: 14px 34px; border-radius: 999px; }
 #results .holdbar { width: min(320px, 70vw); }

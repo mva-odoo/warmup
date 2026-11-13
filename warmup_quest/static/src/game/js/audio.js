@@ -3,6 +3,7 @@
 const Audio8 = (() => {
   let ctx = null;
   let musicTimer = 0;
+  let lastSaid = '', lastSaidAt = 0;
   const ac = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
 
   function tone(freq, dur, type = 'square', vol = 0.1, when = 0, slideTo = null) {
@@ -52,6 +53,9 @@ const Audio8 = (() => {
     unlock() { ac().resume(); },
     say(text) {
       if (!hasTTS || !text) return;
+      const t = performance.now();
+      if (text === lastSaid && t - lastSaidAt < 4000) return; // pas deux fois la même phrase coup sur coup
+      lastSaid = text; lastSaidAt = t;
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'fr-FR';

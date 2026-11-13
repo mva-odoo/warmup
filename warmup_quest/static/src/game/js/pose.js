@@ -52,7 +52,7 @@ function emptyState() {
   return {
     present: false, upperBody: false, fullBody: false, kneesOK: false, anklesOK: false,
     side: 'center', squat: false, jumpUp: false,
-    armsUp: false, airplane: false, star: false, flamingo: false,
+    armsUp: false, airplane: false, star: false, flamingo: false, crossed: false,
   };
 }
 
@@ -166,6 +166,9 @@ class Body {
     // Jambes écartées : chevilles si visibles, sinon genoux, sinon on ne regarde que les bras
     const legsApart = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T > 0.75
       : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) / T > 0.55 : true;
+    // Bras croisés devant la poitrine (geste de pause) : les poignets échangent leur côté
+    const chest = (w) => w.y > sh.y - 0.3 * T && w.y < hip.y + 0.2 * T && Math.abs(w.x - sh.x) < 0.8 * T * 0.75;
+    s.crossed = lw.x < rw.x - 0.03 && chest(lw) && chest(rw);
     s.armsUp = lw.y < nose.y && rw.y < nose.y;
     s.airplane = level(lw) && level(rw) && spread > 1.8;
     s.star = lw.y < sh.y - 0.15 * T && rw.y < sh.y - 0.15 * T && spread > 1.3 && legsApart;
@@ -223,6 +226,7 @@ class Tracker {
     for (const k of ['present', 'upperBody', 'fullBody', 'kneesOK', 'anklesOK', 'squat', ...POSE_NAMES]) m[k] = every(k);
     m.side = all.every((s) => s.side === all[0].side) ? all[0].side : 'center';
     m.someone = all.some((s) => s.present);
+    m.crossed = all.some((s) => s.crossed); // un seul enfant suffit pour faire pause
     return m;
   }
 

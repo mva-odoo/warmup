@@ -1,6 +1,7 @@
 // Boucle principale : menu, calibration, déroulé des séquences, score.
 
 const $ = (id) => document.getElementById(id);
+const DEV = new URLSearchParams(location.search); // mode test : voir en bas du fichier
 const tracker = new Tracker();
 // Tout le jeu se passe sur le chemin, personnage vu de dos (gauche = gauche).
 // Les mondes « 3d » utilisent Scene3D (Three.js), qui garde exactement la même logique.
@@ -278,16 +279,24 @@ function startCalib() {
   $('camBox').classList.add('big');
 }
 
+// Une consigne de calibrage ne change que si la situation dure un peu (évite « ok / pas ok / ok » en 1 s),
+// et la même phrase n'est pas répétée avant 8 s.
 function setCalibStage(stage, text, sub, speak) {
-  if (calibState.stage === stage) return;
-  calibState.stage = stage;
+  const now = performance.now();
+  if (calibState.stage === stage) { calibState.pending = null; return true; }
+  if (calibState.pending !== stage) { calibState.pending = stage; calibState.pendingAt = now; }
+  if (calibState.stage && now - calibState.pendingAt < 900) return false;
+  calibState.stage = stage; calibState.pending = null;
   $('calibText').textContent = text;
   $('calibSub').textContent = sub;
-  if (speak) Audio8.say(speak);
+  calibState.said = calibState.said || {};
+  if (speak && now - (calibState.said[stage] || -1e9) > 8000) { calibState.said[stage] = now; Audio8.say(speak); }
+  return true;
 }
 
 function updateCalib(now) {
   const s = tracker.state;
+  if (tracker.sim && DEV.get('world')) { tracker.calibrate(); startCountdown(); return; }
   if (tracker.sim) {
     setCalibStage('sim', `Monde : ${world.name}`, "Appuie sur Entrée (ou 1 pour lever les bras) pour commencer", null);
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
@@ -316,8 +325,7 @@ function updateCalib(now) {
     if (calibState.stage === 'arms') $('calibSub').textContent = 'Garde les bras en l\'air pour commencer · ' + sub;
     setCalibStage('arms', 'Super ! Lève les deux bras 🙌', 'Garde les bras en l\'air pour commencer · ' + sub, 'Super ! Lève les deux bras pour commencer !');
   } else {
-    setCalibStage('hold', 'Ne bouge plus… ✨', '', null);
-    holdCalib(now);
+    if (setCalibStage('hold', 'Ne bouge plus… ✨', '', null)) holdCalib(now);
   }
 }
 
@@ -358,7 +366,7 @@ function pauseGame(reason) {
   resumeHold = 0;
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   Audio8.music(false);
-  $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : '';
+  $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : reason === 'gesture' ? '✖️ Bras croisés : pause' : '';
   $('pauseBar').style.width = '0%';
   show('lost', false);
   show('pause');
@@ -434,6 +442,8 @@ class Game {
   constructor(w, mul) {
     this.world = w;
     this.steps = store('short') !== false ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+    const devStep = DEV.get('step');
+    if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
     this.mul = mul;
     this.startedAt = performance.now();
     this.pausedTotal = 0;
@@ -487,13 +497,15 @@ class Game {
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     const ropePeriod = 1700 * Math.min(1.3, this.mul);
     if (s.m === 'rope') dur = 1200 + s.n * ropePeriod + 700;
+    const travel = 2600 * Math.min(1.3, this.mul), gapRep = 2400 * Math.min(1.3, this.mul);
+    if (s.m === 'jump' || s.m === 'squat') dur = 600 + (s.n - 1) * gapRep + travel + 700;
     const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
     if (s.m === 'dance' || s.m === 'karate') dur = 2000 + s.moves.length * beat + 600;
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
       ropeT0: now + 1200 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
-      beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0 };
+      beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0, travel, gapRep };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     Audio8.say(s.creature ? `Oh ! ${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s));
@@ -524,7 +536,8 @@ class Game {
     const c = this.cur;
     if (!c || c.done || idx >= this.np) return;
     const s = c.s;
-    if ((s.m === 'jump' || s.m === 'squat' || s.m === 'smash') && type === s.m) {
+    if (s.m === 'smash' && type === 'smash') {
+      if (now - c.start < 1600) return; // le rocher n'est pas encore arrivé
       if (c.counts[idx] >= s.n) return; // ce joueur a fini, on attend l'autre
       c.counts[idx]++;
       c.count++;
@@ -578,14 +591,20 @@ class Game {
   handsOf(b) {
     if (!b.lm || !b.T || !b.state.present) return null;
     const sh = mid(b.lm[11], b.lm[12]);
-    return [15, 16].filter((i) => (b.lm[i].visibility ?? 1) > 0.4)
-      .map((i) => ({ u: -(b.lm[i].x - sh.x) / (b.T * 0.75), v: (b.lm[i].y - sh.y) / b.T }));
+    // Poignets et bouts des doigts (le plus visible des deux pour chaque main)
+    const out = [];
+    for (const [w, f] of [[15, 19], [16, 20]]) {
+      const i = (b.lm[f].visibility ?? 1) > (b.lm[w].visibility ?? 1) ? f : w;
+      if ((b.lm[i].visibility ?? 1) > 0.35) out.push({ u: -(b.lm[i].x - sh.x) / (b.T * 0.75), v: (b.lm[i].y - sh.y) / b.T });
+    }
+    return out;
   }
 
   spawnBubble(c, hero, now) {
     for (let tries = 0; tries < 6; tries++) {
       const side = Math.random() < 0.5 ? -1 : 1;
-      const bb = { hero, u: side * (0.8 + Math.random() * 0.6), v: -1.25 + Math.random() * 1.35, r: 0.32, born: now, p: Math.random() * 6 };
+      // À portée de bras d'enfant (bras ≈ 1 torse) : ni trop loin sur le côté, ni trop haut
+      const bb = { hero, u: side * (0.5 + Math.random() * 0.5), v: -1.0 + Math.random() * 1.0, r: 0.38, born: now, p: Math.random() * 6 };
       if (c.bubbles.every((o) => o.hero !== hero || Math.hypot(o.u - bb.u, o.v - bb.v) > 0.8)) { c.bubbles.push(bb); return; }
     }
   }
@@ -612,7 +631,7 @@ class Game {
       const bb = c.bubbles[i];
       if (now - bb.born < 300) continue; // le temps de la voir apparaître
       const hs = hands[bb.hero];
-      if (hs && hs.some((hd) => Math.hypot(hd.u - bb.u, hd.v - bb.v) < bb.r + 0.2)) this.popBubble(c, i, now);
+      if (hs && hs.some((hd) => Math.hypot(hd.u - bb.u, hd.v - bb.v) < bb.r + 0.35)) this.popBubble(c, i, now);
     }
   }
 
@@ -630,6 +649,7 @@ class Game {
       c.hazards.push(hz);
       scene.addHazard(hz);
     }
+    this.hazardCue(c, now);
     for (const hz of c.hazards) {
       // Petit rappel à la voix juste avant l'obstacle
       if (!hz.cued && now >= hz.arrive - 1100) {
@@ -649,6 +669,41 @@ class Game {
       oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) this.add(this.pts(60), '+' + this.pts(60), i); });
       all ? Audio8.good() : Audio8.soft();
       ui.setDetail(this.detail(c));
+    }
+  }
+
+  // Signe d'action pour l'obstacle le plus proche (⬆️ tronc, ⬇️ branche, ↔️ rocher)
+  hazardCue(c, now) {
+    const next = c.hazards.filter((h) => !h.done && h.kind !== 'star').sort((a, b) => a.arrive - b.arrive)[0];
+    if (!next || next.arrive - now > 1400) { scene.setCue(null); return; }
+    const icon = { log: '⬆️', arch: '⬇️', rock: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️' }[next.kind];
+    scene.setCue({ icon, k: 1 - (next.arrive - now) / 1400, now: next.arrive - now < 450 });
+  }
+
+  // ---------- Saute / Baisse-toi : un obstacle par répétition, il faut agir quand il arrive
+  updateReps(c, now) {
+    const s = c.s, kind = s.m === 'jump' ? 'log' : 'arch';
+    if (c.hazards.length < s.n && now >= c.start + 600 + c.hazards.length * c.gapRep) {
+      const hz = { kind, lane: 0, born: now, dur: c.travel, arrive: now + c.travel };
+      c.hazards.push(hz); scene.addHazard(hz);
+    }
+    this.hazardCue(c, now);
+    for (const hz of c.hazards) {
+      if (hz.done || now < hz.arrive + 150) continue;
+      hz.done = true;
+      const oks = tracker.bodies.map((b, i) => (kind === 'log'
+        ? b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1100
+        : b.state.squat || now - (this.lastEv.squat[i] || 0) < 1100));
+      oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) { c.counts[i]++; c.count++; this.add(this.pts(100), '+' + this.pts(100), i); } });
+      const all = oks.every(Boolean);
+      c.dodges.push(all);
+      scene.resolveHazard(hz, all);
+      all ? Audio8.good() : Audio8.soft();
+      ui.setDetail(this.detail(c));
+    }
+    if (c.hazards.length >= s.n && c.hazards.every((h) => h.done)) {
+      scene.setCue(null);
+      if (c.dodges.every(Boolean)) this.complete(now); else this.timeout(now);
     }
   }
 
@@ -683,16 +738,19 @@ class Game {
   // ---------- Corde à sauter : sauter quand la corde passe sous les pieds
   updateRope(c, now) {
     const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod;
+    const toPass = pass - now;
+    scene.setCue({ icon: '⬆️', k: 1 - Math.min(1, Math.max(0, toPass) / (c.ropePeriod * 0.6)), now: Math.abs(toPass) < 300 });
     if (!c.ticked && now >= pass - 150) { c.ticked = true; Audio8.tick(); }
-    if (now < pass + 250) return;
+    if (now < pass + 350) return;
     c.passes++; c.ticked = false;
-    const oks = tracker.bodies.map((b, i) => b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 950);
+    // Réussi si on a sauté entre 0,65 s avant et 0,35 s après le passage de la corde sous les pieds
+    const oks = tracker.bodies.map((b, i) => b.state.jumpUp || (this.lastEv.jump[i] || 0) >= pass - 650);
     oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), i); });
     if (oks.every(Boolean)) c.ropeOk++;
     oks.every(Boolean) ? Audio8.good() : Audio8.soft();
     ui.setDetail(this.detail(c));
     if (c.passes >= c.s.n) {
-      scene.rope = null;
+      scene.rope = null; scene.setCue(null);
       if (c.ropeOk >= c.s.n) this.complete(now); else this.timeout(now);
     }
   }
@@ -710,7 +768,7 @@ class Game {
 
   // ---------- Taupes : elles sortent à gauche / à droite, en haut / en bas ; on les tape avec la main
   updateMoles(c, now) {
-    const SPOTS = [[-1.55, -0.95], [1.55, -0.95], [-1.65, 0.7], [1.65, 0.7]];
+    const SPOTS = [[-1.0, -0.75], [1.0, -0.75], [-1.1, 0.45], [1.1, 0.45]]; // à portée de bras d'enfant
     const up = 1700 * Math.min(1.3, this.mul), gap = 900 * Math.min(1.3, this.mul);
     const hands = tracker.bodies.map((b) => this.handsOf(b));
     scene.hands = hands;
@@ -954,6 +1012,8 @@ class Game {
     if (s.m === 'bubbles') this.updateBubbles(c, now);
     if (s.m === 'freeze') this.updateFreeze(c, now);
     if (s.m === 'run') this.updateDodge(c, now);
+    if (s.m === 'jump' || s.m === 'squat') { this.updateReps(c, now); if (c.done) return; }
+    if (s.m === 'smash') scene.setCue(now - c.start > 1500 ? { icon: '👊', k: 1, now: true } : { icon: '👊', k: (now - c.start) / 1500 });
     if (s.m === 'catch') this.updateCatch(c, now);
     if (s.m === 'rope') { this.updateRope(c, now); if (c.done) return; }
     if (s.m === 'tunnel') { this.updateTunnel(c, now, dt); if (c.done) return; }
@@ -1182,6 +1242,18 @@ $('againBtn').onclick = () => { show('results', false); startWorld(world); };
 $('menuBtn').onclick = goMenu;
 
 // ---------------- Boucle ----------------
+// Pause par geste : bras croisés pendant 1,2 s (le bouton pause se remplit en vert)
+let pauseGesture = 0;
+function updatePauseGesture(now) {
+  const btn = $('pauseBtn');
+  if (tracker.state.crossed && !tracker.sim) {
+    if (!pauseGesture) pauseGesture = now;
+    const p = Math.min(1, (now - pauseGesture) / 1200);
+    btn.style.background = `conic-gradient(#22c55e ${p * 360}deg, #ffd166 0deg)`;
+    if (p >= 1) { pauseGesture = 0; btn.style.background = ''; pauseGame('gesture'); }
+  } else if (pauseGesture) { pauseGesture = 0; btn.style.background = ''; }
+}
+
 function updateCamStatus(now) {
   const s = tracker.state;
   const el = $('camStatus');
@@ -1203,14 +1275,18 @@ function updateCamStatus(now) {
   }
 }
 
-function loop(now) {
-  requestAnimationFrame(loop);
+// Logique du jeu (détection, épreuves, pause…)
+function tick(now) {
   if (phase !== 'menu') tracker.update(video, now);
   if (phase === 'calib') updateCalib(now);
-  if (phase === 'play' && game) game.update(now);
+  if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); }
   if (phase === 'paused') updatePause(now);
   if (phase === 'results') updateResults(now);
   scene.setLive(phase === 'play' || phase === 'countdown' ? tracker.bodies.map((b) => b.state) : [{ side: 'center', squat: false }]);
+}
+
+// Dessin (décor, pictogramme, caméra)
+function draw(now) {
   if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
@@ -1230,5 +1306,28 @@ function loop(now) {
   }
 }
 
+// Mode test (développement) : ?world=ferme&step=rope lance directement un monde en mode clavier,
+// à partir de la première étape du type demandé (sert à vérifier le rendu sans caméra).
+if (DEV.get('world') || DEV.get('carnet')) {
+  const w = WORLDS.find((x) => x.id === DEV.get('world'));
+  if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
+  if (DEV.get('carnet')) { // (mode test) carnet avec toutes les créatures connues, rendues en 3D
+    const all = {}; CREATURES.forEach((c, i) => { all[c.id] = i % 4 === 3 ? EVOLVE_AT : 1; });
+    WUQStore.getCarnet = () => all;
+    scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES))).then(() => openCarnet());
+  }
+  if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
+}
+
 buildMenu();
-requestAnimationFrame(loop);
+if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: 'female-c', hat: 'beanie', glasses: true }, color: '#5cc96b', onSave() {} }); // (mode test)
+// Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
+// minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
+if (DEV.get('world') || DEV.get('carnet')) {
+  setInterval(() => tick(performance.now()), 33);
+  const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
+  requestAnimationFrame(drawLoop);
+} else {
+  const loop = (now) => { requestAnimationFrame(loop); tick(now); draw(now); };
+  requestAnimationFrame(loop);
+}
