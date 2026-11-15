@@ -112,6 +112,18 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   (mouvement, répétitions, durées, poses, combos `jump,squat,smash`…). S'il y a plusieurs
   séquences pour un monde, le jeu propose de choisir.
 
+## Petits ordinateurs
+Le jeu choisit tout seul sa **qualité** (Haute, Moyenne, Basse) d'après la machine (cœurs, mémoire, carte graphique), puis
+baisse d'un cran s'il n'atteint pas ~28 images/s pendant quelques secondes. Réglage parent « 🖥️ Qualité » pour la forcer.
+- **Haute** : image nette, ombres douces, trait d'encre, halo lumineux, herbe dense, décor complet.
+- **Moyenne** : image normale, ombres simples, trait d'encre, sans halo, moitié moins d'herbe, un peu moins de décor.
+- **Basse** : image plus petite (agrandie à l'écran), sans ombres ni effets, peu d'herbe, décor allégé ; la détection des
+  mouvements analyse une image plus petite (480 × 360) au plus ~16 fois par seconde, et le menu garde ses dessins 2D.
+- Dernier recours : « 🎮 Graphismes 2D (léger) ».
+Repères (mesurés) : 130 à 270 dessins par image et 65 000 à 150 000 triangles selon le monde et la qualité ;
+environ 11 Mo de modèles 3D et 5 Mo pour la détection des mouvements, téléchargés une fois puis gardés par le navigateur.
+Mode test : `&perf=1` affiche ces chiffres dans le titre de la page, `&quality=low` force une qualité.
+
 ## Important : la webcam
 Les navigateurs n'autorisent la caméra qu'en **HTTPS** (ou sur `http://localhost`).
 Sur un serveur, mettre Odoo derrière un proxy HTTPS (nginx, Caddy, Traefik…).
@@ -122,7 +134,7 @@ Le poste qui joue doit avoir accès à internet (chargement de MediaPipe depuis 
 **Mode test (sans caméra)** : ouvrir le jeu avec par exemple `index.html?world=ferme&step=rope` lance directement
 un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` masque l'interface,
 `&creature=champilou` choisit la créature, `&look=female-b,beanie,1` habille le dresseur,
-`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&gpoint=0.5,0.4` (place la main des gestes), `?gtuto=1` (tuto des gestes), `&duo=1` (à deux), `&comp=feuillou:5` (compagnon), `&combo=2`, `?room=1` (chambre), `?starter=1` (choix du compagnon), `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
+`?audiotest=1&errlog=1` calcule chaque musique hors ligne et affiche son volume dans le titre, `&gpoint=0.5,0.4` (place la main des gestes), `?gtuto=1` (tuto des gestes), `&duo=1` (à deux), `&comp=feuillou:5` (compagnon), `&combo=2`, `?room=1` (chambre), `?lineup=1` (planche de tous les chapeaux), `?starter=1` (choix du compagnon), `&results=1` montre l'écran de fin (`&noanim=1` coupe les animations pour la capture), `&forcepose=star` fige une pose, `&biome=2` affiche directement le 3ᵉ paysage du monde, `&fakelimbs=1` simule des bras qui bougent, `&hold=1` garde l'épreuve affichée,
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
@@ -148,7 +160,8 @@ si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à
 ## Crédits
 Tous les modèles 3D viennent de **Kenney** ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) : une seule
 famille graphique pour le dresseur, ses amis et les décors. Chaque dossier de `static/src/game/models/` contient sa `License.txt`.
-- Dresseurs : **Mini Characters** (`characters/`) ; chapeaux, sac à dos, cape, ailes et lunettes ajoutés par le jeu.
+- Dresseurs : **Mini Characters** (`characters/`) ; chapeaux, sac à dos, cape, ailes et lunettes ajoutés par le jeu,
+  taillés sur mesure (le jeu mesure la tête et le torse de chaque personnage) et accrochés aux os : ils suivent les mouvements.
 - Amis du héros : 24 animaux animés du pack **Cube Pets** (`pets/`), plus le fantôme (Graveyard Kit), le bonhomme de neige,
   le renne, le pain d'épices et le casse-noisette (Holiday Kit) et l'extraterrestre (Space Kit). Les noms sont propres au jeu ;
   la forme évoluée est plus grande, avec une couronne dorée.

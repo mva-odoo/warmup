@@ -241,7 +241,8 @@ class Tracker {
   async start(video, progress) {
     progress('Ouverture de la caméra…');
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: false,
+      // (petit PC : image plus petite, plus rapide à analyser ; la détection reste précise pour un enfant entier)
+      video: { width: { ideal: this.lowPower ? 480 : 640 }, height: { ideal: this.lowPower ? 360 : 480 }, facingMode: 'user' }, audio: false,
     });
     video.srcObject = stream;
     await video.play();
@@ -268,7 +269,8 @@ class Tracker {
     if (video.currentTime === this.lastVideoTime) return;
     // Sur un PC lent, on analyse moins d'images pour garder le jeu fluide
     const P = this.perf;
-    const minGap = P.ms > 40 ? 66 : P.ms > 25 ? 45 : 0;
+    // (petit PC : au plus ~16 analyses par seconde, assez pour les mouvements d'un enfant, et le jeu reste fluide)
+    const minGap = Math.max(P.ms > 40 ? 66 : P.ms > 25 ? 45 : 0, this.lowPower ? 60 : 0);
     if (now - P.last < minGap) return;
     P.last = now;
     this.lastVideoTime = video.currentTime;

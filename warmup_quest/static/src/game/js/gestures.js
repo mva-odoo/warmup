@@ -28,6 +28,7 @@ const Gestures = {
     store('gestures', true);
     tracker.setPlayers(1);
     if (!tracker.sim && !tracker.landmarker) {
+      tracker.lowPower = isLowPower();
       try { await tracker.start(video, progress); } catch (e) {
         console.warn(e);
         this.disable();

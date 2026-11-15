@@ -9,6 +9,22 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loader
 const SKELETON_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js/+esm';
 const LANE = 1.6;          // largeur d'un couloir (unités 3D)
 const FX_BASE = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';
+// Niveaux de qualité : ce qui coûte le plus (taille de l'image, ombres, effets, herbe, décor), réglé selon le PC
+const QUALITY = {
+  high:   { px: 1.25, shadows: true,  soft: true,  fx: true,  bloom: true,  grass: 1700, decor: 64, tufts: 40, shelfItems: 12, fogFar: 95 },
+  medium: { px: 1.0,  shadows: true,  soft: false, fx: true,  bloom: false, grass: 900,  decor: 46, tufts: 26, shelfItems: 6,  fogFar: 85 },
+  low:    { px: 0.75, shadows: false, soft: false, fx: false, bloom: false, grass: 350,  decor: 30, tufts: 14, shelfItems: 3,  fogFar: 70 },
+};
+const QUALITY_ORDER = ['high', 'medium', 'low'];
+// Première estimation, avant de mesurer : nombre de cœurs, mémoire et carte graphique
+function guessQuality(renderer) {
+  let gpu = '';
+  try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch (e) { /* (inconnu) */ }
+  const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 8;
+  if (/swiftshader|llvmpipe|software|basic render/i.test(gpu) || cores <= 2 || mem <= 2) return 'low';
+  if (/intel|mali|adreno|powervr|apple gpu|uhd|iris/i.test(gpu) || cores <= 4 || mem <= 4) return 'medium';
+  return 'high';
+}
 const cubeCol = (side) => (side < 0 ? '#4ea8ff' : side > 0 ? '#ff6b35' : '#b388eb'); // cubes : bleu gauche, orange droite, violet en haut
 const TER_PERIOD = 100;
 const BEND_START = 12, BEND_K = 0.0017; // courbure du monde (à partir de 12 m devant la caméra)    // le relief se répète tous les 100 m (invisible grâce à la brume)
@@ -74,6 +90,7 @@ class Scene3D extends DepthScene {
     if (progress) progress('Chargement du monde 3D…');
     const T = await import(THREE_URL);
     this.T = T;
+    try { this.RoundedBox = (await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js/+esm')).RoundedBoxGeometry; } catch (e) { console.warn('Boîtes arrondies indisponibles', e); }
     // Monde « arrondi » (comme les jeux de course du commerce) : au loin, le sol plonge doucement sous l'horizon.
     // On courbe tout ce qui est dessiné, sauf les ombres (calculées sans courbure) ; project() fait de même.
     if (!T.ShaderChunk.project_vertex.includes('WUQ_BEND')) {
@@ -90,9 +107,14 @@ class Scene3D extends DepthScene {
     this.cv3 = cv;
     // (mode test : on garde l'image pour les captures d'écran sans fenêtre)
     const r = new T.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: !!(typeof DEV !== 'undefined' && (DEV.get('world') || DEV.get('carnet'))) });
-    r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
     r.shadowMap.enabled = true;
     r.shadowMap.type = T.PCFSoftShadowMap;
+    // Qualité : choix des parents (réglage), sinon estimation puis ajustement automatique en jouant
+    const forced = typeof store === 'function' ? store('quality') : null;
+    this.qualityAuto = !QUALITY[forced];
+    this.quality = QUALITY[forced] ? forced : (typeof DEV !== 'undefined' && DEV.get('quality')) || guessQuality(r);
+    this.Q = QUALITY[this.quality];
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, this.Q.px));
     r.toneMapping = T.ACESFilmicToneMapping; // couleurs plus riches, comme au cinéma
     r.toneMappingExposure = 1.0;
     this.renderer = r;
@@ -107,6 +129,43 @@ class Scene3D extends DepthScene {
     this.helpers();
     this.ready = true;
     if (this.theme) this.build(this.theme);
+  }
+
+  // Applique un niveau de qualité (à chaud : taille de l'image, ombres, effets, herbe, décor, brume)
+  setQuality(q) {
+    if (!QUALITY[q] || !this.renderer) return;
+    const T = this.T;
+    this.quality = q; this.Q = QUALITY[q];
+    const Q = this.Q, r = this.renderer;
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, Q.px));
+    this.resize3d();
+    if (r.shadowMap.enabled !== Q.shadows || (r.shadowMap.type === T.PCFSoftShadowMap) !== Q.soft) {
+      r.shadowMap.enabled = Q.shadows; r.shadowMap.type = Q.soft ? T.PCFSoftShadowMap : T.PCFShadowMap;
+      if (this.sun) this.sun.castShadow = Q.shadows;
+      this.s3 && this.s3.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
+    }
+    if (this.bloomPass) this.bloomPass.enabled = Q.bloom;
+    for (const c of this.chunks || []) if (c.grass) c.grass.count = Q.grass;
+    if (this.s3 && this.s3.fog && !(KITS[this.kitName] || {}).underwater) this.s3.fog.far = Q.fogFar;
+    // décor en trop : on le retire (il n'est pas recréé)
+    while (this.decor && this.decor.length > Q.decor) this.s3.remove(this.decor.pop());
+    while (this.tufts && this.tufts.length > Q.tufts) this.s3.remove(this.tufts.pop());
+    console.info('Qualité 3D :', q);
+  }
+
+  // Ajustement automatique : si l'image met trop longtemps à venir (moins de ~28 images/s) pendant 3 s, on baisse d'un cran
+  autoQuality(now) {
+    if (!this.qualityAuto || !this.theme) return;
+    if (!this.qT || now - this.qT > 3000) {
+      if (this.qT && this.qSlow > 0.6) {
+        const next = QUALITY_ORDER[QUALITY_ORDER.indexOf(this.quality) + 1];
+        if (next) this.setQuality(next);
+      }
+      this.qT = now; this.qSlow = 0; this.qN = 0;
+    }
+    this.qN = (this.qN || 0) + 1;
+    const slow = this.frameMs > 36 ? 1 : 0;
+    this.qSlow = ((this.qSlow || 0) * (this.qN - 1) + slow) / this.qN;
   }
 
   resize3d() {
@@ -175,7 +234,9 @@ class Scene3D extends DepthScene {
     inkPass.setSize = (w, h) => inkMat.uniforms.texel.value.set(1 / w, 1 / h);
     c.addPass(inkPass);
     this.inkMat = inkMat;
-    c.addPass(new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.16, 0.4, 0.95)); // halo discret (sinon l'image devient laiteuse)
+    this.bloomPass = new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.16, 0.4, 0.95); // halo discret (sinon l'image devient laiteuse)
+    this.bloomPass.enabled = this.Q.bloom;
+    c.addPass(this.bloomPass);
     c.addPass(new ShaderPass({
       uniforms: { tDiffuse: { value: null } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -200,7 +261,7 @@ class Scene3D extends DepthScene {
     super.setWorld(theme, palettes, looks);
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
-    this.shot = null; this.stepKind = null; this.roll = 0;
+    this.shot = null; this.stepKind = null; this.roll = 0; this.qT = 0;
     if (this.cart && this.s3) this.s3.remove(this.cart);
     this.cart = null; this.cartItems = []; this.cartX = null;
     if (this.bossM && this.s3) this.s3.remove(this.bossM.group);
@@ -316,6 +377,9 @@ class Scene3D extends DepthScene {
     this.coachMesh = null; this.coachStyle = null; this.encMesh = null; this.encRef = null;
     this.biomeIdx = -1;
     this.applyBiome(0);
+    for (const c of this.chunks || []) if (c.grass) c.grass.count = this.Q.grass;
+    if (this.sun) this.sun.castShadow = this.Q.shadows;
+    this.renderer.shadowMap.enabled = this.Q.shadows;
   }
 
   // Paysage n° i du monde : couleurs, ciel, nuit, arrière-plan, particules et objets du décor
@@ -328,7 +392,7 @@ class Scene3D extends DepthScene {
     scene.fog.color.set(b.fog || b.sky1);
     // Sous l'eau : brume bleue plus proche, pas de soleil ni de nuages
     const water = !!kit.underwater;
-    scene.fog.near = water ? 12 : 34; scene.fog.far = water ? 62 : 95;
+    scene.fog.near = water ? 12 : 34; scene.fog.far = water ? 62 : this.Q.fogFar;
     // La nuit : clair de lune bleuté (et non la couleur du ciel noir), lanterne qui suit le héros
     if (night) {
       this.hemi.color.set(new T.Color(b.sky1).lerp(new T.Color('#b9c8ff'), 0.7));
@@ -367,7 +431,7 @@ class Scene3D extends DepthScene {
     for (const t of this.tufts) scene.remove(t);
     this.tufts = [];
     if (kit.grass) {
-      for (let k = 0; k < 40; k++) {
+      for (let k = 0; k < this.Q.tufts; k++) {
         const t = this.makeTuft();
         if (!t) break;
         t.position.set((k % 2 ? 1 : -1) * (LANE * 1.5 + 1.4 + Math.random() * 2.2), 0, -78 + k * 2.1); // jamais sur le chemin
@@ -377,7 +441,7 @@ class Scene3D extends DepthScene {
 
     // Décor : on remplit au départ ; ensuite les objets lointains changent tout de suite, les proches en défilant
     if (!this.decor.length) {
-      for (let k = 0; k < 64; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); } // (paysage bien rempli)
+      for (let k = 0; k < this.Q.decor; k++) { const d = this.makeDecor(); this.placeDecor(d, -80 + Math.random() * 86); scene.add(d); this.decor.push(d); } // (paysage bien rempli)
     } else {
       this.decor = this.decor.map((d) => {
         if (d.position.z > -18) return d;
@@ -447,7 +511,7 @@ class Scene3D extends DepthScene {
       g.computeVertexNormals();
       const mesh = new T.Mesh(g, terMat);
       mesh.receiveShadow = true;
-      const n = 1700, grass = new T.InstancedMesh(blade, grassMat, n);
+      const n = 1700, grass = new T.InstancedMesh(blade, grassMat, n); // (on n'en dessine qu'une partie selon la qualité : grass.count)
       const m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), pos = new T.Vector3(), up = new T.Vector3(0, 1, 0);
       for (let i = 0; i < n; i++) {
         let x;
@@ -601,89 +665,155 @@ class Scene3D extends DepthScene {
       const disk = new T.Mesh(new T.CircleGeometry(0.75, 32), new T.MeshBasicMaterial({ color: pal.body, transparent: true, opacity: 0.55 }));
       disk.rotation.x = -Math.PI / 2; disk.position.y = 0.02; group.add(disk);
     }
-    // Accessoires à la couleur préférée de l'enfant
-    const col = look.color || DEFAULT_LOOK.color, dark = shade(col, -0.3), lam = this.lam, G = this.geo;
+    // ---------- Accessoires faits sur mesure : on mesure la tête et le torse de CE personnage, et chaque accessoire
+    // est accroché à l'os (il suit la tête quand elle bouge, sans jamais flotter ni s'enfoncer)
+    const fit = this.measureHuman(obj, bones, look);
+    const col = look.color || DEFAULT_LOOK.color, dark = shade(col, -0.32), light = shade(col, 0.35);
     const hat = new T.Group(), bag = new T.Group(), glasses = new T.Group();
-    inner.add(hat, bag, glasses);
-    const add = (grp, geo, c, x, y, z, sx, sy = sx, sz = sx, rot) => {
-      const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); if (rot) m.rotation.set(...rot); grp.add(m); return m;
+    (bones.head || inner).add(hat, glasses);
+    (bones.torso || inner).add(bag);
+    const RB = this.RoundedBox, mat = (c, o = {}) => this.lam(c, o);
+    // (forme arrondie « jouet » : boîte aux coins doux)
+    const rbox = (w, h, d, r = 0.12) => (RB ? new RB(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2) * 0.999) : new T.BoxGeometry(w, h, d));
+    const put = (grp, geo, c, x, y, z, rot, o) => { const m = new T.Mesh(geo, mat(c, o)); m.position.set(x, y, z); if (rot) m.rotation.set(...rot); m.castShadow = true; grp.add(m); return m; };
+    // Repère de la tête : origine au sommet du crâne, unité = largeur de la tête
+    const H = fit.head, u = H.w, dr = H.d / u, hr = H.h / u;
+    hat.position.set(H.cx, H.top, H.cz); hat.scale.setScalar(u);
+    const hatKind = HUMAN_OWN_HAT.includes(look.model || DEFAULT_LOOK.model) ? 'none' : look.hat;
+    const band = (grp, y, thick, hgt, c, grow = 1.04) => { // bandeau rectangulaire aux coins arrondis, tout autour de la tête
+      const w = grow, d = dr * grow, r = 0.16;
+      const shape = new T.Shape(), hole = new T.Path(), o = thick;
+      const rr = (pth, x0, y0, x1, y1, rad) => { pth.moveTo(x0 + rad, y0); pth.lineTo(x1 - rad, y0); pth.quadraticCurveTo(x1, y0, x1, y0 + rad); pth.lineTo(x1, y1 - rad); pth.quadraticCurveTo(x1, y1, x1 - rad, y1); pth.lineTo(x0 + rad, y1); pth.quadraticCurveTo(x0, y1, x0, y1 - rad); pth.lineTo(x0, y0 + rad); pth.quadraticCurveTo(x0, y0, x0 + rad, y0); };
+      rr(shape, -w / 2 - o, -d / 2 - o, w / 2 + o, d / 2 + o, r + o); rr(hole, -w / 2, -d / 2, w / 2, d / 2, r); shape.holes.push(hole);
+      const geo = new T.ExtrudeGeometry(shape, { depth: hgt, bevelEnabled: false, curveSegments: 6 });
+      const m = put(grp, geo, c, 0, y, 0, [Math.PI / 2, 0, 0]); m.position.y = y + hgt / 2; return m;
     };
-    const dome = new T.SphereGeometry(1, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-    const hatKind = HUMAN_OWN_HAT.includes(look.model || DEFAULT_LOOK.model) ? 'none' : look.hat; // ce personnage a déjà sa casquette
-    if (hatKind === 'cap') { // casquette portée à l'envers : on voit la visière de dos
-      add(hat, dome, col, 0, 0, 0, 0.5, 0.36, 0.5);
-      add(hat, new T.CylinderGeometry(1, 1, 1, 20, 1, false, -Math.PI / 2, Math.PI), dark, 0, 0.01, 0.32, 0.36, 0.03, 0.34);
-      add(hat, G.sphere, '#ffffff', 0, 0.36, 0, 0.06);
-    } else if (hatKind === 'beanie') {
-      add(hat, dome, col, 0, -0.02, 0, 0.5, 0.44, 0.5);
-      add(hat, new T.TorusGeometry(0.48, 0.07, 8, 24), dark, 0, 0.0, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
-      add(hat, G.sphere, '#ffffff', 0, 0.47, 0, 0.11);
+    if (hatKind === 'cap') { // casquette : calotte arrondie, visière, bouton
+      put(hat, rbox(1.08, 0.36, dr * 1.08, 0.17), col, 0, -0.16, 0);
+      put(hat, rbox(0.84, 0.05, 0.42, 0.04), dark, 0, -0.3, dr * 0.54 + 0.15, [0.12, 0, 0]);
+      put(hat, this.geo.sphere, light, 0, 0.03, 0).scale.setScalar(0.07);
+    } else if (hatKind === 'beanie') { // bonnet : grande calotte douce, revers, pompon
+      put(hat, rbox(1.08, 0.56, dr * 1.08, 0.26), col, 0, -0.22, 0);
+      band(hat, -0.46, 0.035, 0.13, dark, 1.06);
+      put(hat, this.geo.sphere, '#ffffff', 0, 0.12, 0).scale.setScalar(0.14);
     } else if (hatKind === 'headband') {
-      add(hat, new T.TorusGeometry(0.47, 0.06, 8, 24), col, 0, -0.08, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
-    // --- Chapeaux à débloquer avec les étoiles
-    } else if (hatKind === 'crown') { // couronne dorée à pointes, avec des pierres
-      add(hat, new T.CylinderGeometry(0.42, 0.44, 0.22, 20, 1, true), '#ffd23f', 0, 0.02, 0, 1);
-      for (let k = 0; k < 6; k++) {
-        const a = k / 6 * Math.PI * 2;
-        add(hat, G.cone || new T.ConeGeometry(1, 1, 8), '#ffd23f', Math.cos(a) * 0.42, 0.2, Math.sin(a) * 0.42, 0.07, 0.16, 0.07);
-        add(hat, G.sphere, ['#ef476f', '#4ea8ff', '#5cc96b'][k % 3], Math.cos(a) * 0.44, 0.03, Math.sin(a) * 0.44, 0.05);
-      }
-    } else if (hatKind === 'flowers') { // couronne de fleurs
-      add(hat, new T.TorusGeometry(0.45, 0.05, 8, 24), '#5cc96b', 0, -0.04, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      band(hat, -0.34, 0.03, 0.12, col);
+      put(hat, this.geo.sphere, dark, 0, -0.28, -dr * 0.56).scale.set(0.12, 0.09, 0.09);
+    } else if (hatKind === 'crown') { // couronne : bandeau doré, pointes boulées, pierres
+      const gold = '#ffd23f';
+      band(hat, -0.3, 0.035, 0.2, gold, 1.0);
       for (let k = 0; k < 8; k++) {
-        const a = k / 8 * Math.PI * 2;
-        add(hat, G.sphere, ['#ff70a6', '#ffd166', '#ffffff', '#b388eb'][k % 4], Math.cos(a) * 0.45, 0.0, Math.sin(a) * 0.45, 0.09);
+        const a = k / 8 * Math.PI * 2, x = Math.cos(a) * 0.52, z = Math.sin(a) * dr * 0.52;
+        put(hat, new T.ConeGeometry(0.07, 0.2, 8), gold, x, -0.02, z);
+        put(hat, this.geo.sphere, gold, x, 0.09, z).scale.setScalar(0.04);
       }
-    } else if (hatKind === 'wizard') { // chapeau de magicien étoilé
-      add(hat, new T.CylinderGeometry(0.62, 0.62, 0.04, 24), dark, 0, -0.04, 0, 1);
-      const cone = add(hat, new T.ConeGeometry(0.4, 0.9, 20), col, 0.03, 0.42, 0, 1); cone.rotation.z = -0.15;
-      add(hat, G.sphere, '#ffd23f', 0.1, 0.55, 0.3, 0.06); add(hat, G.sphere, '#ffd23f', -0.15, 0.3, 0.33, 0.05);
-    } else if (hatKind === 'pirate') { // bicorne de pirate
-      add(hat, dome, '#1e1b4b', 0, -0.02, 0, 0.48, 0.3, 0.48);
-      add(hat, new T.CylinderGeometry(1, 1, 1, 24), '#1e1b4b', 0, 0.02, 0, 0.75, 0.05, 0.42);
-      add(hat, new T.BoxGeometry(1, 1, 1), '#ffd23f', 0, 0.05, 0.42, 0.5, 0.04, 0.02);
-      add(hat, G.sphere, '#ffffff', 0, 0.2, 0.44, 0.07);
-    } else if (hatKind === 'cat') { // oreilles de chat
-      add(hat, new T.TorusGeometry(0.46, 0.04, 8, 24), col, 0, -0.06, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      for (const [x, c] of [[-0.24, '#ef476f'], [0, '#4ea8ff'], [0.24, '#5cc96b']]) put(hat, this.geo.sphere, c, x, -0.2, dr * 0.53).scale.setScalar(0.05);
+    } else if (hatKind === 'flowers') { // couronne de fleurs : liane et fleurs à cinq pétales
+      band(hat, -0.3, 0.03, 0.07, '#5cc96b', 1.02);
+      const fc = ['#ff70a6', '#ffd166', '#ffffff', '#b388eb', '#ff9f1c'];
+      for (let k = 0; k < 10; k++) {
+        const a = k / 10 * Math.PI * 2, x = Math.cos(a) * 0.55, z = Math.sin(a) * dr * 0.55, f = new T.Group();
+        for (let p = 0; p < 5; p++) { const b = put(f, this.geo.sphere, fc[k % 5], Math.cos(p * 1.257) * 0.05, 0, Math.sin(p * 1.257) * 0.05); b.scale.setScalar(0.045); }
+        put(f, this.geo.sphere, '#ffd23f', 0, 0.012, 0).scale.setScalar(0.03);
+        f.position.set(x, -0.26, z); hat.add(f);
+      }
+    } else if (hatKind === 'wizard') { // chapeau de magicien : bord, cône incliné, étoile
+      put(hat, new T.CylinderGeometry(0.82, 0.82, 0.04, 32), dark, 0, -0.2, 0).scale.z = dr;
+      const cone = put(hat, new T.ConeGeometry(0.46, 1.05, 32), col, 0.04, 0.32, 0); cone.rotation.z = -0.12;
+      put(hat, new T.CylinderGeometry(0.47, 0.47, 0.08, 32), '#ffd23f', 0, -0.14, 0);
+      put(hat, new T.OctahedronGeometry(0.08, 0), '#fff3a0', 0.1, 0.25, 0.36);
+    } else if (hatKind === 'cat') { // oreilles de chat sur un serre-tête
+      band(hat, -0.26, 0.025, 0.06, col, 1.02);
       for (const sg of [-1, 1]) {
-        add(hat, new T.ConeGeometry(0.16, 0.32, 4), col, sg * 0.3, 0.2, 0, 1);
-        add(hat, new T.ConeGeometry(0.09, 0.2, 4), '#ffb4c8', sg * 0.3, 0.18, 0.06, 1);
+        put(hat, new T.ConeGeometry(0.17, 0.32, 4), col, sg * 0.3, 0.0, 0, [0, Math.PI / 4, sg * -0.25]);
+        put(hat, new T.ConeGeometry(0.1, 0.2, 4), '#ffb4c8', sg * 0.3, -0.02, 0.06, [0, Math.PI / 4, sg * -0.25]);
       }
+    } else if (hatKind === 'pirate') { // bicorne : deux ailes relevées, galon doré, tête de mort
+      put(hat, rbox(1.06, 0.32, dr * 1.06, 0.15), '#1e1b4b', 0, -0.16, 0);
+      put(hat, rbox(1.5, 0.34, 0.16, 0.08), '#1e1b4b', 0, -0.04, dr * 0.32, [-0.25, 0, 0]);
+      put(hat, rbox(1.5, 0.3, 0.16, 0.08), '#1e1b4b', 0, -0.06, -dr * 0.32, [0.25, 0, 0]);
+      put(hat, rbox(1.52, 0.04, 0.17, 0.02), '#ffd23f', 0, 0.12, dr * 0.36, [-0.25, 0, 0]);
+      put(hat, this.geo.sphere, '#ffffff', 0, -0.02, dr * 0.42).scale.set(0.09, 0.08, 0.05);
     } else if (hatKind === 'viking') { // casque à cornes
-      add(hat, dome, '#adb5bd', 0, -0.03, 0, 0.5, 0.42, 0.5);
-      add(hat, new T.TorusGeometry(0.49, 0.05, 8, 24), '#8d5a3b', 0, -0.02, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
-      for (const sg of [-1, 1]) { const h = add(hat, new T.ConeGeometry(0.09, 0.42, 10), '#fff8e7', sg * 0.52, 0.22, 0, 1); h.rotation.z = -sg * 0.7; }
-    } else if (hatKind === 'astro') { // casque d'astronaute (bulle transparente)
-      const bub = new T.Mesh(new T.SphereGeometry(0.62, 24, 16), new T.MeshPhysicalMaterial({ color: '#dff6ff', transparent: true, opacity: 0.28, roughness: 0.05 }));
-      bub.position.set(0, -0.25, 0); hat.add(bub);
-      add(hat, new T.TorusGeometry(0.5, 0.07, 8, 24), '#ffffff', 0, -0.68, 0, 1, 1, 1, [Math.PI / 2, 0, 0]);
+      put(hat, rbox(1.08, 0.5, dr * 1.08, 0.25), '#adb5bd', 0, -0.2, 0);
+      band(hat, -0.42, 0.035, 0.1, '#8d5a3b', 1.06);
+      put(hat, rbox(0.1, 0.5, 0.06, 0.03), '#ced4da', 0, -0.2, dr * 0.55);
+      for (const sg of [-1, 1]) put(hat, new T.ConeGeometry(0.1, 0.5, 16), '#fff8e7', sg * 0.64, -0.02, 0, [0, 0, -sg * 0.75]);
+    } else if (hatKind === 'astro') { // casque d'astronaute : bulle transparente autour de la tête, col
+      const R = 0.5 * Math.sqrt(1 + dr * dr + hr * hr) * 0.98;
+      const bub = new T.Mesh(new T.SphereGeometry(R, 32, 20), new T.MeshPhysicalMaterial({ color: '#dff6ff', transparent: true, opacity: 0.22, roughness: 0.05, depthWrite: false }));
+      bub.position.set(0, -hr / 2, 0); bub.userData.noOutline = true; hat.add(bub);
+      put(hat, new T.TorusGeometry(R * 0.82, 0.07, 10, 32), '#ffffff', 0, -hr / 2 - R * 0.62, 0, [Math.PI / 2, 0, 0]);
     }
-    // Dos : sac à dos de dresseur, cape ou ailes (à débloquer)
+    // Lunettes rondes posées sur le devant du visage, à hauteur des yeux
+    if (look.glasses) {
+      glasses.position.set(H.cx, H.top - H.h * 0.47, H.front + 0.004 * u); glasses.scale.setScalar(u);
+      const frame = new T.TorusGeometry(0.13, 0.028, 8, 24);
+      for (const sg of [-1, 1]) put(glasses, frame, '#1e1b4b', sg * 0.19, 0, 0.01);
+      put(glasses, rbox(0.12, 0.03, 0.03, 0.012), '#1e1b4b', 0, 0.02, 0.01);
+      for (const sg of [-1, 1]) put(glasses, new T.CircleGeometry(0.12, 20), '#e0f4ff', sg * 0.19, 0, 0.005, null, { transparent: true, opacity: 0.35 });
+    }
+    // Dos : sac à dos ajusté (collé au dos, bretelles sur les épaules), cape ou ailes
+    const B = fit.torso, tu = B.w;
+    bag.position.set(B.cx, B.cy, B.back); bag.scale.setScalar(tu);
     const backKind = look.back || 'bag';
     if (backKind === 'cape') {
-      const cape = new T.Mesh(new T.PlaneGeometry(0.75, 0.95, 4, 8), new T.MeshToonMaterial({ color: col, side: T.DoubleSide, gradientMap: this.P.gradient || null }));
-      cape.position.set(0, -0.48, 0.16); cape.name = 'cape'; bag.add(cape);
-      add(bag, new T.BoxGeometry(1, 1, 1), '#ffd23f', 0, 0, 0, 0.7, 0.06, 0.06);
+      const cape = new T.Mesh(new T.CylinderGeometry(0.62, 0.78, 1.3, 16, 4, true, Math.PI - 0.85, 1.7), new T.MeshToonMaterial({ color: col, side: T.DoubleSide, gradientMap: this.P.gradient || null }));
+      cape.geometry.translate(0, -0.65, 0.5); cape.position.set(0, B.h / tu * 0.45, -0.03); cape.name = 'cape'; cape.castShadow = true; bag.add(cape);
+      put(bag, rbox(1.02, 0.08, 0.08, 0.03), '#ffd23f', 0, B.h / tu * 0.46, -0.02);
     } else if (backKind === 'wings') {
       for (const sg of [-1, 1]) {
-        const w = add(bag, G.sphere, '#ffffff', sg * 0.42, 0.05, 0.05, 0.42, 0.22, 0.05);
-        w.rotation.z = sg * 0.5; w.name = sg < 0 ? 'wingL' : 'wingR';
-        add(w, G.sphere, '#bde0fe', 0.2, 0, 0.3, 0.6, 0.6, 0.6);
+        const w = new T.Group(); w.name = sg < 0 ? 'wingL' : 'wingR'; w.position.set(sg * 0.14, 0.12, -0.04); bag.add(w);
+        const f = put(w, this.geo.sphere, '#ffffff', sg * 0.42, 0.06, -0.02); f.scale.set(0.46, 0.24, 0.05); f.rotation.z = sg * 0.4;
+        const f2 = put(w, this.geo.sphere, '#dbeafe', sg * 0.32, -0.12, -0.03); f2.scale.set(0.3, 0.16, 0.05); f2.rotation.z = sg * 0.2;
       }
     } else {
-      // Sac à dos de dresseur, avec un rabat et deux bretelles
-      add(bag, new T.BoxGeometry(1, 1, 1), col, 0, 0, 0, 0.52, 0.58, 0.26);
-      add(bag, new T.BoxGeometry(1, 1, 1), dark, 0, 0.18, 0.02, 0.54, 0.2, 0.28);
-      add(bag, G.sphere, '#ffd166', 0, 0.12, 0.15, 0.05);
+      const bd = 0.42;
+      put(bag, rbox(0.74, 0.86, bd, 0.14), col, 0, 0.02, -bd / 2);
+      put(bag, rbox(0.78, 0.3, bd * 0.9, 0.1), dark, 0, 0.32, -bd / 2 - 0.02);
+      put(bag, rbox(0.5, 0.28, 0.1, 0.06), light, 0, -0.18, -bd - 0.03);
+      put(bag, this.geo.sphere, '#ffd166', 0, 0.2, -bd - 0.03).scale.setScalar(0.05);
+      // bretelles : passent par-dessus les épaules et redescendent devant
+      const front = (B.front - B.back) / tu, top = B.h / tu * 0.5;
+      for (const sg of [-1, 1]) {
+        put(bag, rbox(0.12, 0.06, front + 0.06, 0.02), dark, sg * 0.24, top + 0.02, front / 2);
+        put(bag, rbox(0.12, top * 1.3, 0.05, 0.02), dark, sg * 0.24, top * 0.35, front + 0.02);
+      }
     }
-    if (look.glasses) {
-      for (const sg of [-1, 1]) add(glasses, new T.TorusGeometry(0.1, 0.022, 6, 16), '#1e1b4b', sg * 0.15, 0, 0, 1);
-      add(glasses, new T.BoxGeometry(1, 1, 1), '#1e1b4b', 0, 0, 0, 0.12, 0.025, 0.025);
-    }
-    this.shadow(hat); this.shadow(bag); this.outline(hat); this.outline(bag);
+    this.shadow(hat); this.shadow(bag);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
     return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, obj, cur: null, last: 0 } };
+  }
+
+  // Mesure (une fois par personnage) la tête et le torse dans le repère de leur os : largeur, profondeur, sommet, avant / arrière
+  measureHuman(obj, bones, look) {
+    const T = this.T, key = lookKeys(look).join('|');
+    this.humanFits = this.humanFits || new Map();
+    if (this.humanFits.has(key)) return this.humanFits.get(key);
+    obj.updateMatrixWorld(true);
+    const boxIn = (mesh, bone, keep) => {
+      const b = new T.Box3(), v = new T.Vector3(), pos = mesh.geometry.attributes.position, si = mesh.geometry.attributes.skinIndex;
+      for (let i = 0; i < pos.count; i++) {
+        if (keep && !keep(si.getX(i))) continue;
+        v.fromBufferAttribute(pos, i); mesh.applyBoneTransform(i, v); v.applyMatrix4(mesh.matrixWorld); bone.worldToLocal(v); b.expandByPoint(v);
+      }
+      return b;
+    };
+    let head = null, body = null;
+    obj.traverse((o) => { if (o.isSkinnedMesh) { if (o.name.startsWith('head')) head = o; else if (o.name.startsWith('body')) body = o; } });
+    const res = { head: { cx: 0, cz: 0, top: 0.2, front: 0.1, w: 0.25, d: 0.25, h: 0.25 }, torso: { cx: 0, cy: 0.1, back: -0.06, front: 0.06, w: 0.2, h: 0.2 } };
+    if (head && bones.head) {
+      const b = boxIn(head, bones.head);
+      res.head = { cx: (b.min.x + b.max.x) / 2, cz: (b.min.z + b.max.z) / 2, top: b.max.y, front: b.max.z, w: b.max.x - b.min.x, d: b.max.z - b.min.z, h: b.max.y - b.min.y };
+    }
+    if (body && bones.torso) {
+      const ti = body.skeleton.bones.indexOf(bones.torso);
+      const b = boxIn(body, bones.torso, (j) => j === ti);
+      res.torso = { cx: (b.min.x + b.max.x) / 2, cy: (b.min.y + b.max.y) / 2, back: b.min.z, front: b.max.z, w: b.max.x - b.min.x, h: b.max.y - b.min.y };
+    }
+    this.humanFits.set(key, res);
+    return res;
   }
 
   // Dresseur immobile (aperçus) : première image de l'animation de repos + pose
@@ -878,9 +1008,7 @@ class Scene3D extends DepthScene {
       const v = bone.getWorldPosition(new T.Vector3()); m.inner.worldToLocal(v);
       target.position.set(v.x + dx, v.y + dy, v.z + dz);
     };
-    at(r.bones.head, 0, HUMAN_FIT.hatY, 0, r.hat);
-    at(r.bones.head, 0, HUMAN_FIT.glassesY, -HUMAN_FIT.glassesZ, r.glasses);
-    at(r.bones.torso, 0, HUMAN_FIT.bagY, HUMAN_FIT.bagZ, r.bag);
+    // (chapeau, lunettes et sac sont accrochés aux os : ils suivent tout seuls)
     // Cape qui flotte, ailes qui battent
     const t9 = now / 1000, cape = r.bag.getObjectByName('cape');
     if (cape) cape.rotation.x = 0.25 + 0.15 * Math.sin(t9 * 6) + (pose === 'run' ? 0.35 : 0);
@@ -1966,8 +2094,14 @@ class Scene3D extends DepthScene {
     this.updateEncounter3D(now);
     // Rendu avec effets d'image, sauf si le PC rame (moyenne des images trop lente) ou si les parents les ont coupés
     this.frameMs = (this.frameMs || 16) * 0.95 + dt * 1000 * 0.05;
-    if (this.frameMs > 40 && this.composer && !this.lowQuality) { this.lowQuality = true; console.info('PC lent : effets d\'image coupés'); }
-    const fx = this.composer && !this.lowQuality && (typeof store !== 'function' || store('effects') !== false);
+    this.autoQuality(now);
+    if (typeof DEV !== 'undefined' && DEV.get('perf')) { // (mode test) coût de l'image
+      const t0 = performance.now(); this.renderer.render(this.s3, this.camera); const ms = performance.now() - t0;
+      const i = this.renderer.info.render, m = this.renderer.info.memory; let meshes = 0, skinned = 0;
+      this.s3.traverse((o) => { if (o.isMesh && o.visible) { meshes++; if (o.isSkinnedMesh) skinned++; } });
+      document.title = 'PERF ' + JSON.stringify({ calls: i.calls, tris: i.triangles, meshes, skinned, geo: m.geometries, tex: m.textures, renderMs: +ms.toFixed(1), px: [this.renderer.domElement.width, this.renderer.domElement.height] });
+    }
+    const fx = this.composer && this.Q.fx && (typeof store !== 'function' || store('effects') !== false);
     this.outlineMat.visible = !fx; // (sans effets : anciens contours « coque » ; avec : trait d'encre sur toute l'image)
     if (fx) { this.renderPass.scene = this.s3; this.composer.render(); }
     else this.renderer.render(this.s3, this.camera);

@@ -54,8 +54,10 @@ const MODEL_DIRS = { k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holida
 const SHOP_GOODS = ['carton', 'soda-bottle', 'can', 'bottle-ketchup', 'cheese', 'bread', 'loaf-baguette', 'pizza-box', 'croissant', 'cookie-chocolate', 'bag', 'fish'];
 // Caddie de supermarché (fil métallique, panier, poignée rouge, roues) ; P = Props3D
 function makeShopCart(P) {
-  const T = P.T, g = new T.Group(), wire = P.toon('#ced4da'), dark = P.toon('#495057'), red = P.toon('#ef476f');
-  const bar = (x, y, z, sx, sy, sz, m = wire) => { const b = new T.Mesh(P.geo.box, m); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.castShadow = true; g.add(b); return b; };
+  const T = P.T, g = new T.Group(), dark = P.toon('#495057'), list = [];
+  // (toutes les barres en un seul objet : voir Props3D.boxes)
+  const bar = (x, y, z, sx, sy, sz, m) => list.push([m === 'red' ? '#ef476f' : '#ced4da', x, y, z, sx, sy, sz]);
+  const red = 'red';
   bar(0, 0.55, 0, 0.8, 0.05, 1.0);                                   // fond du panier
   for (const x of [-0.4, 0.4]) bar(x, 0.85, 0, 0.04, 0.6, 1.0);      // côtés
   for (const z of [-0.5, 0.5]) bar(0, 0.85, z, 0.84, 0.6, 0.04);     // avant / arrière
@@ -67,6 +69,7 @@ function makeShopCart(P) {
     bar(x, 0.3, z, 0.04, 0.5, 0.04);
     const w = new T.Mesh(P.geo.cyl, dark); w.scale.set(0.09, 0.05, 0.09); w.rotation.z = Math.PI / 2; w.position.set(x, 0.09, z); g.add(w);
   }
+  P.boxes(g, list);
   g.userData.basketY = 0.6;
   return g;
 }
@@ -459,33 +462,85 @@ class Props3D {
   }
 
   // ---------- Disco
+  // Boîtes regroupées en UN seul objet (couleurs par sommet) : un rayon entier = un seul dessin pour la carte graphique
+  boxes(g, list) {
+    const T = this.T, pos = [], nor = [], col = [], idx = [], base = this.geo.box, c = new T.Color();
+    const bp = base.attributes.position, bn = base.attributes.normal, bi = base.index.array;
+    for (const [hex, x, y, z, sx, sy, sz] of list) {
+      const o = pos.length / 3; c.set(hex);
+      for (let i = 0; i < bp.count; i++) {
+        pos.push(bp.getX(i) * sx + x, bp.getY(i) * sy + y, bp.getZ(i) * sz + z);
+        nor.push(bn.getX(i), bn.getY(i), bn.getZ(i)); col.push(c.r, c.g, c.b);
+      }
+      for (const k of bi) idx.push(o + k);
+    }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));
+    geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    this.boxMat = this.boxMat || this.toon('#ffffff', { vertexColors: true });
+    const m = new T.Mesh(geo, this.boxMat); m.castShadow = m.receiveShadow = true; g.add(m);
+    return m;
+  }
+  // Modèles texturés (même palette Kenney) fusionnés en un seul objet : les produits d'un rayon = un seul dessin
+  mergeTextured(g, meshes) {
+    const T = this.T;
+    if (meshes.length < 2) return;
+    g.updateMatrixWorld(true);
+    const inv = new T.Matrix4().copy(g.matrixWorld).invert();
+    const pos = [], nor = [], uv = [], idx = [];
+    for (const m of meshes) {
+      const geo = m.geometry, mat = new T.Matrix4().multiplyMatrices(inv, m.matrixWorld), nm = new T.Matrix3().getNormalMatrix(mat);
+      const p = geo.attributes.position, n = geo.attributes.normal, u = geo.attributes.uv, o = pos.length / 3, v = new T.Vector3();
+      if (!p || !n || !u) continue;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(mat); pos.push(v.x, v.y, v.z);
+        v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+        uv.push(u.getX(i), u.getY(i));
+      }
+      if (geo.index) for (const k of geo.index.array) idx.push(o + k); else for (let i = 0; i < p.count; i++) idx.push(o + i);
+      m.parent.remove(m);
+    }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    const mesh = new T.Mesh(geo, meshes[0].material); mesh.castShadow = mesh.receiveShadow = true; g.add(mesh);
+  }
   // Rayon de supermarché : étagères blanches et produits du Food Kit (s'ils sont chargés), petit fronton coloré
   shelf(g) {
     const cols = ['#ef476f', '#118ab2', '#06d6a0', '#ffd166'], col = cols[Math.floor(Math.random() * cols.length)];
-    this.add(g, 'box', '#f8f9fa', 0, 1.3, -0.25, 2.6, 2.6, 0.12);
-    for (const y of [0.15, 0.95, 1.75, 2.55]) this.add(g, 'box', '#e9ecef', 0, y, 0.1, 2.6, 0.08, 0.75);
-    for (const x of [-1.3, 1.3]) this.add(g, 'box', '#dee2e6', x, 1.3, 0.1, 0.08, 2.6, 0.75);
-    this.add(g, 'box', col, 0, 2.85, 0.15, 2.7, 0.35, 0.1);
+    const bx = [['#f8f9fa', 0, 1.3, -0.25, 2.6, 2.6, 0.12], ['#e9ecef', 0, 0.15, 0.1, 2.6, 0.08, 0.75], ['#e9ecef', 0, 0.95, 0.1, 2.6, 0.08, 0.75],
+      ['#e9ecef', 0, 1.75, 0.1, 2.6, 0.08, 0.75], ['#e9ecef', 0, 2.55, 0.1, 2.6, 0.08, 0.75], ['#dee2e6', -1.3, 1.3, 0.1, 0.08, 2.6, 0.75],
+      ['#dee2e6', 1.3, 1.3, 0.1, 0.08, 2.6, 0.75], [col, 0, 2.85, 0.15, 2.7, 0.35, 0.1]];
     const goods = SHOP_GOODS.filter((n) => this.models && this.models.has('food/' + n));
+    // (vrais produits 3D en nombre limité selon la qualité ; les autres places : boîtes colorées, très légères)
+    let real = (typeof scene3d !== 'undefined' && scene3d.Q ? scene3d.Q.shelfItems : 12);
     for (const y of [0.2, 1.0, 1.8]) {
       for (let k = 0; k < 4; k++) {
-        const n = goods.length ? goods[Math.floor(Math.random() * goods.length)] : null;
+        const n = goods.length && real-- > 0 ? goods[Math.floor(Math.random() * goods.length)] : null;
         const x = -0.95 + k * 0.63;
         if (n) { const m = this.model('food/' + n); m.scale.multiplyScalar(0.55); m.position.set(x, y, 0.15); g.add(m); }
-        else this.add(g, 'box', cols[(k + Math.floor(y)) % 4], x, y + 0.25, 0.15, 0.4, 0.5, 0.35);
+        else bx.push([cols[(k + Math.floor(y * 2)) % 4], x, y + 0.25, 0.15, 0.4, 0.5, 0.35]);
       }
     }
+    this.boxes(g, bx);
+    const prods = []; g.traverse((o) => { if (o.isMesh && o.material && o.material.map) prods.push(o); });
+    this.mergeTextured(g, prods);
   }
   // Cageot de fruits
   fruitCrate(g) {
-    this.add(g, 'box', '#c08552', 0, 0.3, 0, 1.2, 0.6, 0.8);
-    this.add(g, 'box', '#8d5a3b', 0, 0.62, 0, 1.24, 0.06, 0.84);
+    this.boxes(g, [['#c08552', 0, 0.3, 0, 1.2, 0.6, 0.8], ['#8d5a3b', 0, 0.62, 0, 1.24, 0.06, 0.84]]);
     const fruits = ['apple', 'orange', 'pear', 'lemon', 'tomato', 'banana'].filter((n) => this.models && this.models.has('food/' + n));
     for (let k = 0; k < 5; k++) {
       const n = fruits[Math.floor(Math.random() * fruits.length)];
       if (!n) break;
       const m = this.model('food/' + n); m.scale.multiplyScalar(0.5); m.position.set(-0.4 + (k % 3) * 0.4, 0.62, -0.15 + Math.floor(k / 3) * 0.3); g.add(m);
     }
+    const prods = []; g.traverse((o) => { if (o.isMesh && o.material && o.material.map) prods.push(o); });
+    this.mergeTextured(g, prods);
   }
   // Caddie garé le long du rayon
   parkedCart(g) { g.add(makeShopCart(this)); g.rotation.y = Math.random() * 6; }

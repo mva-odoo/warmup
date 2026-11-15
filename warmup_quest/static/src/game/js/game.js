@@ -158,6 +158,13 @@ function showMenuCam() {
   show('camBox');
 }
 
+// Petite machine ? (qualité forcée « basse », ou estimation de la scène 3D)
+function isLowPower() {
+  const q = store('quality');
+  if (q) return q === 'low';
+  return scene3d.ready ? scene3d.quality === 'low' : (navigator.hardwareConcurrency || 4) <= 2 || (navigator.deviceMemory || 8) <= 2;
+}
+
 function store(key, val) {
   try {
     if (val === undefined) return JSON.parse(localStorage.getItem('wuq_' + key));
@@ -291,7 +298,7 @@ function buildMenu() {
   wrap.appendChild(sur);
   // Aperçus 3D (même rendu que le jeu) dès que la 3D est prête ; sinon on garde le dessin 2D
   const menuLooks = trainerLooks();
-  if (store('3d') !== false) {
+  if (store('3d') !== false && store('quality') !== 'low' && !isLowPower()) {
     scene3d.load()
       .then(() => Promise.all([scene3d.preloadTrainers([...new Set(menuLooks.flatMap((l) => [l.model, l.body, l.legs]))]),
         scene3d.P.preload([...scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]),
@@ -339,6 +346,17 @@ function buildMenu() {
   ob.textContent = store('allOpen') ? '🗺️ Toutes les îles ouvertes ✓' : '🗺️ Îles à ouvrir une à une';
   ob.onclick = () => { store('allOpen', !store('allOpen')); buildMenu(); };
   sp.appendChild(ob);
+  const qb = document.createElement('button'); // qualité des graphismes (auto par défaut)
+  const qv = store('quality'), qName = { high: 'Haute', medium: 'Moyenne', low: 'Basse' };
+  qb.className = 'btn small' + (qv ? '' : ' ghost');
+  qb.textContent = qv ? `🖥️ Qualité : ${qName[qv]}` : `🖥️ Qualité : Auto${scene3d.quality ? ' (' + qName[scene3d.quality] + ')' : ''}`;
+  qb.onclick = () => {
+    const next = { null: 'high', high: 'medium', medium: 'low', low: null }[String(qv || null)];
+    store('quality', next);
+    if (scene3d.ready) { scene3d.qualityAuto = !next; if (next) scene3d.setQuality(next); }
+    buildMenu();
+  };
+  sp.appendChild(qb);
   const mb = document.createElement('button'); // musique de fond
   mb.className = 'btn small' + (Audio8.musicEnabled() ? '' : ' ghost');
   mb.textContent = Audio8.musicEnabled() ? '🎵 Musique ✓' : '🎵 Musique coupée';
@@ -469,6 +487,7 @@ async function startWorld(w) {
     phase = 'loading';
     show('loading'); show('loadingError', false); show('loadingBack', false);
     try {
+      tracker.lowPower = isLowPower();
       await tracker.start(video, (t) => ($('loadingText').textContent = t));
     } catch (e) {
       console.error(e);
@@ -1951,6 +1970,15 @@ if (DEV.get('page')) turnMenuPage(Number(DEV.get('page'))); // (mode test)
 let menuResizeT = 0;
 addEventListener('resize', () => { clearTimeout(menuResizeT); menuResizeT = setTimeout(() => { if (phase === 'menu') buildMenu(); }, 300); });
 if (DEV.get('starter')) chooseStarter(0, 'Léo'); // (mode test)
+if (DEV.get('lineup')) scene3d.load().then(() => scene3d.preloadTrainers()).then(() => { // (mode test) planche des chapeaux, de face et de dos
+  const hats = ['cap', 'beanie', 'headband', 'crown', 'flowers', 'wizard', 'cat', 'pirate', 'viking', 'astro'], box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;z-index:999;background:#cfe8ff;display:flex;flex-wrap:wrap;align-content:flex-start';
+  for (const view of ['front', 'back']) for (const hat of hats) {
+    const look = { model: hats.indexOf(hat) % 2 ? 'female-c' : 'male-a', hat, glasses: hat === 'cap', back: view === 'back' ? (hat === 'crown' ? 'cape' : hat === 'cat' ? 'wings' : 'bag') : 'bag', color: '#ef476f', view };
+    const c = scene3d.trainerThumb(look, 128); c.style.cssText = 'width:128px;height:160px'; box.appendChild(c);
+  }
+  document.body.appendChild(box);
+});
 if (DEV.get('room')) { // (mode test) chambre remplie
   const all = {}; CREATURES.slice(0, 8).forEach((c, i) => { all[c.id] = i % 3 === 0 ? EVOLVE_AT : 1; });
   Carnet.get = () => all; WUQStore.setCompanion(0, { id: 'feuillou', xp: 5 });
