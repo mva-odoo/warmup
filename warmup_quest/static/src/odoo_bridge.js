@@ -134,7 +134,8 @@
         box.appendChild(chip);
         // 👕 : changer son dresseur (personnage, chapeau, lunettes, couleur)
         if (pos >= 0 && typeof Trainer !== 'undefined') {
-          const dress = el('button', 'dressBtn', '👕');
+          // (le visage de son dresseur ; on le touche pour l'habiller)
+          const dress = el('button', 'avatarBtn', `<canvas class="avatarCv" width="96" height="96" data-player="${pos}"></canvas><span class="avatarPen">👕</span>`);
           dress.title = 'Mon dresseur';
           dress.style.setProperty('--pc', p.color);
           dress.onclick = () => openTrainer(p, rebuild);

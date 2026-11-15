@@ -51,19 +51,18 @@ const Trainer = {
     const bg = document.createElement('div');
     bg.id = 'trainerBox';
     bg.className = 'trainerBg';
+    // Un onglet à la fois, avec de GROSSES vignettes (faciles à toucher, ou à viser avec la main)
+    const TABS = [['model', '🙂'], ['body', '👕'], ['legs', '👖'], ['hat', '🎩'], ['back', '🎒'], ['color', '🎨']];
+    let tab = 'model', page = 0;
     bg.innerHTML = `<div class="trainerPanel">
         <div class="trainerTop">
           <div class="trainerHero"><canvas width="240" height="300"></canvas>
-            <div class="trainerName">${String(opts.name || '').replace(/[&<>"]/g, '')}</div></div>
+            <div class="trainerName">${String(opts.name || '').replace(/[&<>"]/g, '')}</div>
+            <button type="button" class="trDice" title="Au hasard">🎲</button></div>
           <div class="trainerChoices">
-            <div class="trParts">
-              ${[['model', '🙂'], ['body', '👕'], ['legs', '👖']].map(([k, ic]) => `<div class="trPart" data-part="${k}">
-                <span class="trPartIcon">${ic}</span><div class="trStrip"></div></div>`).join('')}
-              <button type="button" class="trDice" title="Au hasard">🎲</button>
-            </div>
-            <div class="trRow" data-row="hat"></div>
-            <div class="trRow" data-row="back"></div>
-            <div class="trRow" data-row="color"></div>
+            <div class="trTabs">${TABS.map(([k, ic]) => `<button type="button" class="trTab" data-tab="${k}">${ic}</button>`).join('')}</div>
+            <div class="trGridRow"><button type="button" class="trPg" data-d="-1">◀</button><div class="trGrid"></div><button type="button" class="trPg" data-d="1">▶</button></div>
+            <div class="trStarsRow"></div>
           </div>
         </div>
         <p class="trainerErr"></p>
@@ -71,25 +70,47 @@ const Trainer = {
       </div>`;
     document.body.appendChild(bg);
     const hero = bg.querySelector('.trainerHero canvas').getContext('2d');
-    const rows = {};
-    bg.querySelectorAll('.trRow').forEach((r) => (rows[r.dataset.row] = r));
+    const grid = bg.querySelector('.trGrid');
     const can3d = typeof scene3d !== 'undefined' && store('3d') !== false;
+    const stars = opts.stars || 0, cost = (id) => (TRAINER_REWARDS.find((r) => r.id === id) || { stars: 0 }).stars;
+    const PER = 6; // vignettes par page
+    const CROPS = { model: [45, 40, 150, 150], body: [40, 150, 160, 70], legs: [55, 198, 130, 76] };
 
-    // Petite vignette 3D (ou pastille de couleur si la 3D n'est pas disponible)
-    const tile = (row, variant, selected, onPick, label) => {
+    // Grosse vignette : image (canvas) ou émoji, verte quand c'est le choix actuel
+    const cell = (selected, draw, onPick, cls = '') => {
       const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'trTile' + (selected ? ' on' : '');
-      if (label) b.innerHTML = `<span class="trEmoji">${label}</span>`;
-      else {
-        const c = document.createElement('canvas'); c.width = 96; c.height = 120;
-        b.appendChild(c);
-        if (can3d && scene3d.ready) {
-          try { c.getContext('2d').drawImage(scene3d.trainerThumb({ ...look, ...variant }, 96), 0, 0); } catch (e) { console.warn(e); }
-        }
+      b.type = 'button'; b.className = 'trBig' + (selected ? ' on' : '') + cls;
+      draw(b);
+      if (onPick) b.onclick = () => { onPick(); Audio8.pop(); render(); };
+      grid.appendChild(b);
+    };
+    const canvasOf = (b, w = 120, h = 120) => { const c = document.createElement('canvas'); c.width = w; c.height = h; b.appendChild(c); return c.getContext('2d'); };
+    const lockedCell = (id) => cell(false, (b) => { b.innerHTML = `<span class="trLock">🔒</span><span class="trCost">⭐ ${cost(id)}</span>`; }, null, ' locked');
+
+    // Liste des choix de l'onglet courant : [{ key, selected, draw, pick } | { locked: id }]
+    const items = () => {
+      if (tab === 'model' || tab === 'body' || tab === 'legs') {
+        const [x, y, w, h] = CROPS[tab];
+        return TRAINER_MODELS.map((m) => ({ selected: look[tab] === m, pick: () => (look[tab] = m), draw: (b) => {
+          const g = canvasOf(b), src = this.pieceThumb(m, can3d);
+          if (!src) { b.textContent = '…'; return; }
+          const k = Math.min(120 / w, 120 / h), dw = w * k, dh = h * k;
+          g.drawImage(src, x, y, w, h, (120 - dw) / 2, (120 - dh) / 2, dw, dh);
+        } }));
       }
-      b.onclick = () => { onPick(); Audio8.pop(); render(); };
-      row.appendChild(b);
+      if (tab === 'hat') {
+        const list = TRAINER_OWN_HAT.includes(look.model) ? [] : ALL_HATS.map((hId) => (stars < cost(hId) ? { locked: hId } : {
+          selected: look.hat === hId, pick: () => (look.hat = hId),
+          draw: (b) => { if (can3d && scene3d.ready) try { canvasOf(b, 96, 120).drawImage(scene3d.trainerThumb({ ...look, hat: hId, glasses: false }, 96), 0, 0); } catch (e) { /* */ } },
+        }));
+        list.push({ selected: look.glasses, pick: () => (look.glasses = !look.glasses), draw: (b) => { b.innerHTML = '<span class="trEmoji">👓</span>'; } });
+        return list;
+      }
+      if (tab === 'back') return ALL_BACKS.map((bk) => (stars < cost(bk) ? { locked: bk } : {
+        selected: look.back === bk, pick: () => (look.back = bk),
+        draw: (b) => { if (can3d && scene3d.ready) try { canvasOf(b, 96, 120).drawImage(scene3d.trainerThumb({ ...look, back: bk, view: 'back' }, 96), 0, 0); } catch (e) { /* */ } },
+      }));
+      return TRAINER_COLORS.map((c) => ({ selected: look.color === c, pick: () => (look.color = c), draw: (b) => { b.innerHTML = `<span class="trDot" style="--c:${c}"></span>`; } }));
     };
 
     const render = () => {
@@ -99,56 +120,20 @@ const Trainer = {
       } else {
         hero.fillStyle = look.color; hero.beginPath(); hero.arc(120, 150, 80, 0, Math.PI * 2); hero.fill();
       }
-      // Toutes les têtes, tous les corps, toutes les jambes : une vignette par personnage, on touche celle qu'on veut
-      const CROPS = { model: [50, 38, 140, 124], body: [40, 150, 160, 62], legs: [55, 198, 130, 70] };
-      bg.querySelectorAll('.trPart').forEach((row) => {
-        const part = row.dataset.part, strip = row.querySelector('.trStrip'), [x, y, w, h] = CROPS[part];
-        strip.innerHTML = '';
-        for (const m of TRAINER_MODELS) {
-          const b = document.createElement('button');
-          b.type = 'button'; b.className = 'trPiece' + (look[part] === m ? ' on' : '');
-          const cv = document.createElement('canvas'); cv.width = 64; cv.height = 52; b.appendChild(cv);
-          const src = this.pieceThumb(m, can3d);
-          if (src) {
-            const g = cv.getContext('2d'), k = Math.min(cv.width / w, cv.height / h), dw = w * k, dh = h * k;
-            g.drawImage(src, x, y, w, h, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
-          } else b.textContent = '…'; // (personnages 3D en cours de chargement)
-          b.onclick = () => { look[part] = m; Audio8.pop(); render(); };
-          strip.appendChild(b);
-        }
-      });
-      rows.hat.innerHTML = '';
-      const stars = opts.stars || 0, cost = (id) => (TRAINER_REWARDS.find((r) => r.id === id) || { stars: 0 }).stars;
-      // Objet pas encore gagné : cadenas et nombre d'étoiles à réunir
-      const locked = (row, id) => {
-        const b = document.createElement('div');
-        b.className = 'trTile locked';
-        b.innerHTML = `<span class="trLock">🔒</span><span class="trCost">⭐ ${cost(id)}</span>`;
-        b.onclick = () => { Audio8.soft(); Audio8.say(`Gagne ${cost(id)} étoiles pour l'avoir !`); };
-        row.appendChild(b);
-      };
-      if (!TRAINER_OWN_HAT.includes(look.model)) {
-        for (const h of ALL_HATS) {
-          if (stars < cost(h)) locked(rows.hat, h);
-          else tile(rows.hat, { hat: h, glasses: false }, look.hat === h, () => (look.hat = h));
-        }
-      }
-      tile(rows.hat, { glasses: !look.glasses }, false, () => (look.glasses = !look.glasses), look.glasses ? '🚫👓' : '👓');
-      rows.back.innerHTML = '<span class="trStars">⭐ ' + stars + '</span>';
-      for (const bk of ALL_BACKS) {
-        if (stars < cost(bk)) locked(rows.back, bk);
-        else tile(rows.back, { back: bk, view: 'back' }, look.back === bk, () => (look.back = bk));
-      }
-      rows.color.innerHTML = '';
-      for (const c of TRAINER_COLORS) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'trSwatch' + (look.color === c ? ' on' : '');
-        b.style.setProperty('--c', c);
-        b.onclick = () => { look.color = c; render(); };
-        rows.color.appendChild(b);
-      }
+      bg.querySelectorAll('.trTab').forEach((t) => t.classList.toggle('on', t.dataset.tab === tab));
+      const list = items(), pages = Math.max(1, Math.ceil(list.length / PER));
+      page = Math.max(0, Math.min(pages - 1, page));
+      grid.innerHTML = '';
+      for (const it of list.slice(page * PER, page * PER + PER)) it.locked ? lockedCell(it.locked) : cell(it.selected, it.draw, it.pick);
+      bg.querySelectorAll('.trPg').forEach((p) => p.classList.toggle('off', pages < 2 || (p.dataset.d < 0 ? page === 0 : page >= pages - 1)));
+      bg.querySelector('.trStarsRow').innerHTML = tab === 'hat' || tab === 'back'
+        ? `⭐ ${stars}${Trainer.nextReward(stars) ? ` · prochain cadeau à ⭐ ${Trainer.nextReward(stars).stars} ${Trainer.nextReward(stars).icon}` : ''}` : '';
     };
+    bg.querySelectorAll('.trTab').forEach((t) => (t.onclick = () => { tab = t.dataset.tab; page = 0; Audio8.pop(); render(); }));
+    bg.querySelectorAll('.trPg').forEach((p) => (p.onclick = () => { page += Number(p.dataset.d); Audio8.whoosh(); render(); }));
+    // (page de la vignette choisie, pour la voir tout de suite)
+    const pageOfSelected = () => { const i = items().findIndex((it) => it.selected); page = i > 0 ? Math.floor(i / PER) : 0; };
+    bg.querySelectorAll('.trTab').forEach((t) => t.addEventListener('click', () => { pageOfSelected(); render(); }));
 
     const pick = (list) => list[Math.floor(Math.random() * list.length)];
     bg.querySelector('.trDice').onclick = () => {
@@ -165,7 +150,7 @@ const Trainer = {
         e.target.disabled = false;
       }
     };
-    render();
+    pageOfSelected(); render();
     // Les modèles 3D se chargent une fois, puis on redessine avec les vrais personnages
     if (can3d) scene3d.preloadTrainers().then(() => { if (bg.isConnected) render(); }).catch((e) => console.warn(e));
   },

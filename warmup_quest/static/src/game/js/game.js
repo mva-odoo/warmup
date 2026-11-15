@@ -150,6 +150,19 @@ function drawMapPath(wrap, nodes) {
   wrap.insertAdjacentHTML('afterbegin', `<svg class="mapPath" width="${box.width}" height="${box.height}"><path d="${d}"/></svg>`);
 }
 
+// Visage du dresseur de chaque joueur dans la barre du menu (dès que la 3D est prête)
+function drawAvatars() {
+  const cvs = document.querySelectorAll('.avatarCv');
+  if (!cvs.length) return;
+  const looks = trainerLooks();
+  const paint = () => cvs.forEach((cv) => {
+    const lk = looks[Number(cv.dataset.player) || 0] || looks[0];
+    try { const src = scene3d.trainerThumb({ ...lk, view: 'front' }, 240); cv.getContext('2d').drawImage(src, 50, 46, 140, 140, 0, 0, 96, 96); } catch (e) { /* */ }
+  });
+  if (scene3d.ready && looks.every((l) => lookKeys(l).every((k) => scene3d.P.models && scene3d.P.models.has(k)))) paint();
+  else if (store('3d') !== false) scene3d.load().then(() => scene3d.preloadTrainers([...new Set(looks.flatMap((l) => [l.model, l.body, l.legs]))])).then(paint).catch(() => {});
+}
+
 // Dans le menu, avec les gestes : petite vidéo pour se voir (elle aide à placer sa main)
 function showMenuCam() {
   if (!Gestures.on || tracker.sim) return;
@@ -186,14 +199,14 @@ function buildMenu() {
   // Gestes : choisir avec la main (et son petit tuto), École des dresseurs
   const gbar = document.createElement('div');
   gbar.className = 'gBar';
-  gbar.innerHTML = `<button class="btn small${Gestures.on ? '' : ' ghost'}" id="gToggle">🖐️ ${Gestures.on ? 'Je choisis avec ma main ✓' : 'Choisir avec ma main'}</button>
-    ${Gestures.on ? '<button class="btn small ghost" id="gTutoBtn">🎓 Apprendre les gestes</button>' : ''}`;
+  gbar.innerHTML = `<button class="pillBtn${Gestures.on ? ' on' : ''}" id="gToggle" title="Choisir avec ma main"><span>🖐️</span>${Gestures.on ? '✓' : ''}</button>
+    ${Gestures.on ? '<button class="pillBtn" id="gTutoBtn" title="Apprendre les gestes"><span>🎓</span></button>' : ''}`;
   extra.appendChild(gbar);
   gbar.querySelector('#gToggle').onclick = async () => {
     if (Gestures.on) { Gestures.disable(); show('camBox', false); buildMenu(); return; }
     const first = !store('gesturesLearned');
-    const t = gbar.querySelector('#gToggle'); t.textContent = '🖐️ La caméra s\'allume…';
-    if (await Gestures.enable((txt) => (t.textContent = '🖐️ ' + txt))) {
+    const t = gbar.querySelector('#gToggle'); t.innerHTML = '<span>🖐️</span>⏳';
+    if (await Gestures.enable(() => {})) {
       buildMenu(); showMenuCam();
       if (first) { await Gestures.tutorial(); store('gesturesLearned', true); }
     } else buildMenu();
@@ -205,9 +218,13 @@ function buildMenu() {
   const rest = limit0 && plays0 >= limit0;
   const day = document.createElement('div');
   day.className = 'dayBar';
-  day.innerHTML = rest ? `🌙 Bravo, échauffement fini pour aujourd'hui ! Reviens demain 👋`
-    : `${plays0 ? '✅' : '🎯'} Échauffement du jour ${plays0 ? 'réussi' : 'à faire'} · 🎁 Surprise : ${d0.creature ? d0.creature.name + ' dans ' : ''}${d0.world.name}`;
+  // (des images plutôt que des phrases : objectif du jour fait / à faire, et la surprise du jour)
+  day.innerHTML = rest ? `<span class="dayIc">🌙</span><span class="dayTxt">À demain 👋</span>`
+    : `<span class="dayIc" title="Échauffement du jour">${plays0 ? '✅' : '🎯'}</span><span class="dayIc" title="Surprise du jour">🎁 <small>${d0.world.collectible}</small></span>`;
   extra.appendChild(day);
+  // Une seule barre « joueur » : dresseur(s) à gauche, main au milieu, objectif du jour à droite
+  extra.classList.add('playerBar');
+  drawAvatars();
   wrap.classList.toggle('resting', !!rest);
   // Carte des îles : chemin en serpentin, îles fermées tant que la précédente n'est pas réussie,
   // le dresseur posé sur l'île où il en est, la surprise du jour marquée d'un cadeau
@@ -229,15 +246,18 @@ function buildMenu() {
   $('pgDots').innerHTML = Array.from({ length: pages }, (_, i) => `<span class="${i === menuPage ? 'on' : ''}"></span>`).join('');
   const nodes = [];
   const first = menuPage * perPage, onPage = list.slice(first, first + perPage);
+  // (seule la PROCHAINE île à gagner est montrée ; les suivantes restent des surprises « ? »)
+  const firstLocked = Progress.ordered().findIndex((x) => !Progress.unlocked(x));
   Progress.ordered().forEach((w, k) => {
     if (k < first || k >= first + perPage) return; // (autre page)
+    const mystery = firstLocked >= 0 && k > firstLocked;
     const kk = k - first;
     const best = WUQStore.getBest(w.id);
     const open = Progress.unlocked(w);
     const card = document.createElement('div');
     card.setAttribute('role', 'button');
     card.tabIndex = 0;
-    card.className = 'worldCard' + (open ? '' : ' locked') + (w === here ? ' here' : '');
+    card.className = 'worldCard' + (open ? '' : ' locked') + (mystery ? ' mystery' : '') + (w === here ? ' here' : '');
     const row = Math.floor(kk / perRow), col = kk % perRow;
     card.style.order = row * perRow + (row % 2 ? perRow - 1 - col : col); // (une ligne sur deux à l'envers : serpentin)
     nodes.push({ card, k });
@@ -250,19 +270,22 @@ function buildMenu() {
     card.title = w.tagline;
     if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
     if (w === here) card.insertAdjacentHTML('beforeend', '<div class="herePin"><canvas width="80" height="100"></canvas></div>');
-    if (!open) {
+    if (mystery) { // île surprise : pas d'image ni de nom, juste un gros « ? »
+      card.innerHTML = '<div class="mysteryQ">?</div>';
+    } else if (!open) { // prochaine île : cadenas, et l'icône de l'île à réussir avant (pas de texte à lire)
       const prev = Progress.ordered()[k - 1];
-      card.insertAdjacentHTML('beforeend', `<div class="lockVeil"><span>🔒</span><small>⭐ ${prev.name}</small></div>`);
+      card.insertAdjacentHTML('beforeend', `<div class="lockVeil"><span>🔒</span><small>⭐ ← ${prev.collectible}</small></div>`);
     }
-    const cctx = card.querySelector('canvas').getContext('2d');
+    const cv0 = card.querySelector('canvas'), cctx = cv0 ? cv0.getContext('2d') : null;
     let drawn = false;
     const anim = (t) => {
+      if (!cctx) return;
       if (!card.isConnected || card.has3d) return;
       const hover = card.matches(':hover, :focus-visible');
       if (phase === 'menu' && (hover || !drawn)) { drawWorldPreview(cctx, 300, 400, w, t, hover); drawn = !hover; }
       requestAnimationFrame(anim);
     };
-    previews.push({ card, cctx, w });
+    if (cctx) previews.push({ card, cctx, w });
     requestAnimationFrame(anim);
     const ce = WUQStore.cardExtra(w, buildMenu);
     if (ce) {
@@ -273,7 +296,7 @@ function buildMenu() {
     const go1 = () => {
       if (wrap.classList.contains('resting')) { Audio8.say("C'est fini pour aujourd'hui, à demain !"); return; }
       if (open) return startWorld(w);
-      Audio8.soft(); Audio8.say(`Gagne une étoile dans ${Progress.ordered()[k - 1].name} pour ouvrir cette île !`);
+      Audio8.soft(); Audio8.say(mystery ? 'Surprise ! Continue de jouer pour découvrir cette île !' : `Gagne une étoile dans ${Progress.ordered()[k - 1].name} pour ouvrir cette île !`);
       card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
     };
     card.onclick = go1;
@@ -1696,7 +1719,7 @@ function celebrate() {
 
 let resultsAt = 0, againHold = 0, againSaid = false;
 function updateResults(now) {
-  if (now - resultsAt < 4000) return; // on laisse le temps de fêter (les bras en l'air !)
+  if (now - resultsAt < 4000 || now < (resultsCeremonyEnd || 0)) return; // on laisse le temps de fêter (les bras en l'air !)
   if (!againSaid) { againSaid = true; Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
   const s = tracker.state;
   if (s.present && s.armsUp) {
@@ -1705,6 +1728,34 @@ function updateResults(now) {
     $('againBar').style.width = p * 100 + '%';
     if (p >= 1) $('againBtn').click();
   } else { againHold = 0; $('againBar').style.width = '0%'; }
+}
+
+// Écran de fin en petite cérémonie : chaque récompense arrive seule, en grand, puis va se ranger en petit
+// dans la rangée du haut ; à la fin seulement, les deux gros boutons « Encore » et « Maison »
+let resultsCeremonyEnd = 0, resultsTimers = [];
+function resultsCeremony() {
+  resultsTimers.forEach(clearTimeout); resultsTimers = [];
+  const ids = ['resStars', 'resLoot', 'resSticker', 'resUnlock', 'resComp', 'resTeam', 'resDay'];
+  const steps = ids.map((id) => $(id)).filter((el) => el.innerHTML.trim());
+  const later = [...document.querySelectorAll('#results .resLater')];
+  const fast = DEV.get('fastend'); // (mode test : tout de suite)
+  ids.forEach((id) => $(id).classList.remove('rsNow', 'rsDone', 'rsWait'));
+  steps.forEach((el) => el.classList.add('rsWait'));
+  later.forEach((el) => el.classList.add('rsHide'));
+  const STEP = fast ? 0 : 1900;
+  steps.forEach((el, k) => resultsTimers.push(setTimeout(() => {
+    if (k > 0) { steps[k - 1].classList.remove('rsNow'); steps[k - 1].classList.add('rsDone'); }
+    el.classList.remove('rsWait'); el.classList.add('rsNow');
+    el.querySelectorAll('[style*="animation-delay"]').forEach((c, i) => (c.style.animationDelay = (0.15 + i * 0.3) + 's')); // (les étoiles arrivent une à une, tout de suite)
+    if (k > 0) Audio8.coin();
+  }, k * STEP)));
+  const end = steps.length * STEP;
+  resultsTimers.push(setTimeout(() => {
+    const last = steps[steps.length - 1];
+    if (last) { last.classList.remove('rsNow'); last.classList.add('rsDone'); }
+    later.forEach((el) => el.classList.remove('rsHide'));
+  }, end));
+  resultsCeremonyEnd = performance.now() + end;
 }
 
 function showResults(g, stars) {
@@ -1771,6 +1822,7 @@ function showResults(g, stars) {
   $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
   Audio8.win();
+  resultsCeremony();
   const names = team.map((p) => p.name).filter(Boolean);
   const bravo = names.length ? `Bravo ${names.join(' et ')} !` : 'Bravo !';
   Audio8.say(`${bravo} ${duo() ? 'Vous avez' : 'Tu as'} gagné ${stars} étoile${stars > 1 ? 's' : ''} et ${duo() ? 'des nouvelles gommettes' : 'une nouvelle gommette'} !`);

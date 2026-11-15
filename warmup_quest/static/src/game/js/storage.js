@@ -60,9 +60,10 @@ const WUQStore = {
     const box = document.createElement('div');
     box.className = 'dressBar';
     this.players().forEach((p, i) => {
+      // Le visage du dresseur (dessiné par le jeu) : on le touche pour l'habiller
       const b = document.createElement('button');
-      b.className = 'btn small';
-      b.textContent = '👕' + (p.name ? ' ' + p.name : '');
+      b.className = 'avatarBtn';
+      b.innerHTML = `<canvas class="avatarCv" width="96" height="96" data-player="${i}"></canvas><span class="avatarPen">👕</span>${p.name ? `<b>${p.name}</b>` : ''}`;
       b.onclick = () => Trainer.open({ name: p.name, look: p.look, color: p.color, stars: this.totalStars(i), onSave: (l) => { this.setLook(i, l); rebuild(); } });
       box.appendChild(b);
     });

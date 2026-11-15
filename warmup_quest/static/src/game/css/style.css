@@ -531,3 +531,56 @@ body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; b
 #menu .parents { margin-top: 2px; }
 .lockVeil { padding-top: 10%; }
 .lockVeil small { margin-bottom: 6px; }
+/* ---------- Mon dresseur : onglets et grosses vignettes ---------- */
+.trainerHero { position: relative; }
+.trainerHero .trDice { position: absolute; right: -6px; top: 6px; width: 72px; height: 72px; font-size: 40px; grid-row: auto; grid-column: auto; }
+.trTabs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.trTab { width: 74px; height: 64px; font-size: 34px; border-radius: 18px; border: 4px solid #e2e8f0; background: #fff; cursor: pointer; }
+.trTab.on { border-color: #7c3aed; background: #ede9fe; transform: translateY(-3px); box-shadow: 0 4px 0 #c4b5fd; }
+.trGridRow { display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 6px; }
+.trGrid { display: grid; grid-template-columns: repeat(3, 118px); grid-auto-rows: 118px; gap: 10px; }
+.trBig { width: 118px; height: 118px; border-radius: 22px; border: 4px solid #e2e8f0; background: #fff; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; font-family: inherit; overflow: hidden; }
+.trBig canvas { width: 100%; height: 100%; object-fit: contain; }
+.trBig.on { border-color: #22c55e; box-shadow: 0 0 0 5px rgba(34,197,94,.35); }
+.trBig.locked { background: #eef2f7; border-style: dashed; cursor: default; }
+.trBig .trLock { font-size: 40px; } .trBig .trCost { font-size: 18px; }
+.trBig .trEmoji { font-size: 60px; }
+.trDot { width: 76px; height: 76px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -6px 0 rgba(0,0,0,.15); }
+.trPg { width: 58px; height: 58px; border-radius: 50%; border: 0; background: #7c3aed; color: #fff; font-size: 26px; cursor: pointer; box-shadow: 0 4px 0 #5b21b6; }
+.trPg.off { visibility: hidden; }
+.trStarsRow { font-size: 18px; font-weight: 800; color: #b45309; min-height: 24px; margin-top: 4px; }
+/* ---------- Écran de fin : cérémonie ---------- */
+.resStage { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 18px; max-width: 1100px; min-height: 40vh; align-content: center; }
+.resStage > .rsWait { display: none; }
+.resStage > .rsNow { order: 2; flex-basis: 100%; display: flex; justify-content: center; transform: scale(1.25); animation: rsIn .6s cubic-bezier(.2, 1.6, .4, 1); }
+.resStage > .rsDone { order: 1; transform: scale(0.62); margin: -14px -18px; transition: transform .4s; }
+@keyframes rsIn { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1.25); opacity: 1; } }
+#results .rsHide { visibility: hidden; opacity: 0; }
+#results .resLater { transition: opacity .5s; }
+#results .resStage .team .crCard { width: 120px; }
+.polaroid { bottom: auto; top: 14vh; right: 3vw; }
+.polaroid img { width: min(20vw, 230px); }
+/* Îles surprises (après la prochaine à gagner) */
+.worldCard.mystery { background: linear-gradient(160deg, #3b2f8f, #2a2170); border-style: dashed; border-color: rgba(255,255,255,.5); box-shadow: none; }
+.mysteryQ { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: clamp(60px, 7vw, 96px);
+  font-weight: 800; color: rgba(255,255,255,.55); text-shadow: 0 4px 0 rgba(0,0,0,.2); animation: titleBob 3s ease-in-out infinite; }
+.lockVeil small { font-size: 22px; background: rgba(15,12,50,.6); }
+/* ---------- Barre joueur (accueil) ---------- */
+#menuExtra.playerBar { background: rgba(255,255,255,.12); border-radius: 999px; padding: 6px 14px; gap: 14px; }
+.avatarBtn { position: relative; display: flex; align-items: center; gap: 8px; border: 0; background: none; cursor: pointer; color: #fff;
+  font-family: inherit; font-size: 22px; font-weight: 800; padding: 0; }
+.avatarCv { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #ffe9a8, #ffd166); border: 4px solid #fff;
+  box-shadow: 0 4px 0 rgba(0,0,0,.25); }
+.avatarPen { position: absolute; left: 44px; bottom: -4px; font-size: 22px; background: #fff; border-radius: 50%; width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,.3); }
+.avatarBtn:hover .avatarCv { transform: scale(1.08); }
+.dressBar { display: flex; gap: 12px; }
+.pillBtn { height: 56px; min-width: 56px; padding: 0 12px; border-radius: 999px; border: 3px solid rgba(255,255,255,.6); background: rgba(255,255,255,.14);
+  color: #fff; font-family: inherit; font-size: 20px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.pillBtn span { font-size: 30px; }
+.pillBtn.on { background: #22c55e; border-color: #fff; }
+.gBar { margin: 0; }
+.dayBar { margin: 0; padding: 4px 12px; display: flex; gap: 10px; align-items: center; font-size: 30px; background: rgba(255,255,255,.14); }
+.dayBar small { font-size: 22px; } .dayTxt { font-size: 18px; }
+.worldCard.locked .wBest { display: none; }

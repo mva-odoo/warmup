@@ -19,6 +19,12 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   l'enfant déplace une petite main à l'écran, et on la garde 1,5 s sur un monde, un bouton, une vignette… pour le choisir
   (menu, carte, carnet, chambre, « Mon dresseur », fin de partie, pause). La première fois, un petit tuto apprend le geste
   (poser la main sur une étoile, une pomme, un ballon) ; on peut le revoir avec « 🎓 Apprendre les gestes ».
+- **Accueil simple pour les petits** : une barre « joueur » (le visage de son dresseur, à toucher pour l'habiller ; 🖐️ pour
+  choisir avec la main ; 🎯/✅ objectif du jour et 🎁 surprise en images). Sur la carte, seules les îles ouvertes et la
+  **prochaine à gagner** sont montrées ; les suivantes sont des surprises « ? ».
+- **Fin de partie en cérémonie** : étoiles, butin, gommette, récompense, compagnon… arrivent un par un en grand, puis se rangent ;
+  les boutons « Encore » et « Maison » apparaissent à la fin.
+- **Mon dresseur** : six onglets à grosses images (tête, corps, jambes, chapeau, dos, couleur), six grandes vignettes à la fois.
 - **Accueil en pages** : la carte des îles tient dans l'écran, sans défilement (deux rangées) ; on tourne la page avec les
   grosses flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main vers la gauche / la droite.
 - **Carte des îles** : les mondes forment un chemin ; les 3 premiers sont ouverts, chaque île suivante s'ouvre quand on gagne

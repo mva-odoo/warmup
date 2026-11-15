@@ -108,20 +108,22 @@
   <!-- Résultats -->
   <section id="results" class="screen hidden">
     <h2 id="resTitle"></h2>
-    <div id="resStars" class="stars"></div>
-    <div id="resLoot" class="loot"></div>
-    <div id="resUnlock"></div>
-    <div id="resComp"></div>
-    <div id="resPhoto"></div>
-    <div id="resDay"></div>
-    <div id="resSticker" class="stickerWin"></div>
-    <div id="resTeam" class="team"></div>
-    <div class="row">
+    <div class="resStage">
+      <div id="resStars" class="stars"></div>
+      <div id="resLoot" class="loot"></div>
+      <div id="resSticker" class="stickerWin"></div>
+      <div id="resUnlock"></div>
+      <div id="resComp"></div>
+      <div id="resTeam" class="team"></div>
+      <div id="resDay"></div>
+    </div>
+    <div id="resPhoto" class="resLater"></div>
+    <div class="row resLater">
       <button class="btn huge" id="againBtn">🔁 Encore !</button>
       <button class="btn huge ghost" id="menuBtn" title="Choisir un monde">🏠</button>
     </div>
-    <p class="subtitle">🙌 Lève les bras pour rejouer</p>
-    <div class="holdbar"><div id="againBar"></div></div>
+    <p class="subtitle resLater">🙌 Lève les bras pour rejouer</p>
+    <div class="holdbar resLater"><div id="againBar"></div></div>
     <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span></p>
   </section>
 
