@@ -15,6 +15,7 @@ WORLDS = [
     ('dojo', 'Dojo des Petits Tigres'),
     ('verger', 'Verger des Ninjas'),
     ('rythmo', 'Planète Rythmo'),
+    ('supermarche', 'Super Marché Rigolo'),
 ]
 
 MOVES = [
@@ -40,6 +41,7 @@ MOVES = [
     ('cubes', 'Taper les cubes en rythme'),
     ('boss', 'Gardien du monde (copier ses poses)'),
     ('ball', 'Passe de ballon (à deux)'),
+    ('shop', 'Remplir le caddie (supermarché)'),
 ]
 
 # Gestes que le coach (danse / karaté) peut demander

@@ -25,6 +25,9 @@ const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 // Épreuves où le héros imite en direct les bras et les jambes de son joueur
 // Fruits et cubes : emplacements autour du dresseur, au bout de ses bras (unités des bulles : ~ demi-mètre, v vers le bas)
 const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1.1 }, { u: 0, v: -1.7 }, { u: 1.6, v: -1.1 }, { u: 2.2, v: -0.1 }, { u: 2.0, v: 0.9 }];
+// Produits du supermarché (Food Kit de Kenney)
+const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tomato', 'broccoli', 'carton', 'soda-bottle', 'can',
+  'bottle-ketchup', 'pizza-box', 'croissant', 'corn', 'eggplant', 'orange', 'grapes', 'apple', 'watermelon', 'pineapple', 'cake-birthday', 'fish'];
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
 const LIVE_STEPS = new Set(['learn', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
@@ -101,6 +104,35 @@ function chooseStarter(i, name) {
   });
 }
 
+// Pages de la carte : flèches de chaque côté et petits points (créés une fois autour de la grille)
+let menuPage = null, menuSlide = 0;
+function ensurePager(wrap) {
+  let row = $('worldsRow');
+  if (row) return row;
+  row = document.createElement('div');
+  row.id = 'worldsRow';
+  wrap.parentNode.insertBefore(row, wrap);
+  row.innerHTML = '<button class="pgArrow" id="pgPrev" title="Page précédente">◀</button><button class="pgArrow" id="pgNext" title="Page suivante">▶</button>';
+  row.insertBefore(wrap, $('pgNext'));
+  const dots = document.createElement('div'); dots.id = 'pgDots'; row.after(dots);
+  $('pgPrev').onclick = () => turnMenuPage(-1);
+  $('pgNext').onclick = () => turnMenuPage(1);
+  return row;
+}
+function turnMenuPage(d) {
+  if (phase !== 'menu' || !$('carnet').classList.contains('hidden')) return;
+  const was = menuPage;
+  menuPage = Math.max(0, (menuPage || 0) + d);
+  menuSlide = d;
+  buildMenu();
+  if (menuPage !== was) Audio8.whoosh(); else menuSlide = 0;
+}
+addEventListener('keydown', (e) => {
+  if (phase !== 'menu' || document.querySelector('.trainerBg, .gTutoBg')) return;
+  if (e.key === 'ArrowRight') turnMenuPage(1);
+  if (e.key === 'ArrowLeft') turnMenuPage(-1);
+});
+
 // Chemin de la carte : courbe pointillée qui passe par le centre de chaque île, dans l'ordre
 function drawMapPath(wrap, nodes) {
   const old = wrap.querySelector('svg.mapPath'); if (old) old.remove();
@@ -122,6 +154,7 @@ function drawMapPath(wrap, nodes) {
 function showMenuCam() {
   if (!Gestures.on || tracker.sim) return;
   $('camBox').classList.remove('big', 'duo');
+  $('camBox').classList.add('camMenu'); // (en bas à droite seulement dans le menu)
   show('camBox');
 }
 
@@ -172,25 +205,41 @@ function buildMenu() {
   // Carte des îles : chemin en serpentin, îles fermées tant que la précédente n'est pas réussie,
   // le dresseur posé sur l'île où il en est, la surprise du jour marquée d'un cadeau
   const daily = Progress.daily(), here = Progress.current();
-  const perRow = Math.max(2, Math.min(6, Math.floor(((wrap.clientWidth || Math.min(innerWidth, 1100)) + 18) / (160 + 18))));
-  wrap.style.gridTemplateColumns = `repeat(${perRow}, 1fr)`;
+  // Pages de la carte : deux rangées d'îles qui tiennent dans l'écran (pas de défilement) ;
+  // on tourne la page avec les flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main
+  const row0 = ensurePager(wrap);
+  const top = ($('menuExtra').getBoundingClientRect().bottom || 140) + 12, gap = 16; // (haut de la carte, une fois l'entête posé)
+  const availH = Math.max(340, innerHeight - top - 78), ch = Math.max(170, Math.min(300, (availH - gap) / 2)), cw = ch * 0.75;
+  const perRow = Math.max(2, Math.min(7, Math.floor((Math.min(row0.clientWidth || innerWidth, 1400) - 2 * 96 + gap) / (cw + gap))));
+  const list = [...Progress.ordered(), 'surprise'], perPage = perRow * 2;
+  const pages = Math.ceil(list.length / perPage);
+  if (menuPage == null) menuPage = Math.floor(Math.max(0, list.indexOf(here)) / perPage); // (on ouvre sur la page de l'île en cours)
+  menuPage = Math.max(0, Math.min(pages - 1, menuPage));
+  wrap.style.gridTemplateColumns = `repeat(${perRow}, ${cw}px)`;
+  wrap.style.gridAutoRows = ch + 'px';
+  $('pgPrev').classList.toggle('off', menuPage === 0);
+  $('pgNext').classList.toggle('off', menuPage >= pages - 1);
+  $('pgDots').innerHTML = Array.from({ length: pages }, (_, i) => `<span class="${i === menuPage ? 'on' : ''}"></span>`).join('');
   const nodes = [];
+  const first = menuPage * perPage, onPage = list.slice(first, first + perPage);
   Progress.ordered().forEach((w, k) => {
+    if (k < first || k >= first + perPage) return; // (autre page)
+    const kk = k - first;
     const best = WUQStore.getBest(w.id);
     const open = Progress.unlocked(w);
     const card = document.createElement('div');
     card.setAttribute('role', 'button');
     card.tabIndex = 0;
     card.className = 'worldCard' + (open ? '' : ' locked') + (w === here ? ' here' : '');
-    const row = Math.floor(k / perRow), col = k % perRow;
+    const row = Math.floor(kk / perRow), col = kk % perRow;
     card.style.order = row * perRow + (row % 2 ? perRow - 1 - col : col); // (une ligne sur deux à l'envers : serpentin)
     nodes.push({ card, k });
     card.style.setProperty('--c1', w.sky[0]);
     card.style.setProperty('--c2', w.hero.body);
     card.innerHTML = `
       <canvas width="300" height="400"></canvas>
-      <div class="wName">${w.name}</div>
-      <div class="wBest">${'★'.repeat(best.stars)}${'☆'.repeat(3 - best.stars)}</div>`;
+      <div class="wName"><span class="wIcon">${w.collectible}</span>${w.name}</div>
+      <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>`;
     card.title = w.tagline;
     if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
     if (w === here) card.insertAdjacentHTML('beforeend', '<div class="herePin"><canvas width="80" height="100"></canvas></div>');
@@ -226,12 +275,16 @@ function buildMenu() {
   });
   // Chemin pointillé qui relie les îles dans l'ordre (dessiné une fois la mise en page faite)
   requestAnimationFrame(() => drawMapPath(wrap, nodes));
-  // Monde surprise : pour ceux qui n'arrivent pas à choisir
+  // Monde surprise : pour ceux qui n'arrivent pas à choisir (sur la dernière page)
   const sur = document.createElement('div');
+  if (!onPage.includes('surprise')) sur.style.display = 'none';
   sur.setAttribute('role', 'button'); sur.tabIndex = 0;
   sur.className = 'worldCard surprise';
   sur.innerHTML = '<div class="surpriseIcon">🎲</div><div class="wName">Surprise !</div><div class="wBest">Un monde au hasard</div>';
   sur.style.order = 999;
+  wrap.classList.remove('slideL', 'slideR'); void wrap.offsetWidth;
+  if (menuSlide) wrap.classList.add(menuSlide > 0 ? 'slideL' : 'slideR');
+  menuSlide = 0;
   const go = () => { const open = WORLDS.filter((x) => Progress.unlocked(x)); startWorld(open[Math.floor(Math.random() * open.length)]); };
   sur.onclick = go;
   sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
@@ -381,6 +434,7 @@ async function startWorld(w) {
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
   tracker.setPlayers(team.length);
   $('camBox').classList.toggle('duo', duo());
+  $('camBox').classList.remove('camMenu'); // (pendant le jeu : petite vidéo en haut à droite, elle ne cache jamais le dresseur)
   Audio8.unlock();
   Audio8.say(' ');
   // En duo, chaque joueur a son personnage, à sa couleur
@@ -791,6 +845,7 @@ class Game {
     const rows = (fn) => np === 1 ? fn(0) : c.counts.map((_, i) => `<div class="playerRow">${whoTag(i)}${fn(i)}</div>`).join('');
     switch (s.m) {
       case 'run': return dodgeDots(c, dodgeCount(s));
+      case 'shop': return `<div class="runCount">🛒 <b>${c.inCart || 0}</b></div>` + dodgeDots(c, dodgeCount(s));
       case 'smash':
         if (np > 1) return `<div class="runCount">🤜🤛 Ensemble : <b>${c.count}</b> / ${s.n * np + 1}</div>`;
         return s.n === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
@@ -931,9 +986,13 @@ class Game {
     const gap = n > 1 ? Math.max(900, (c.dur - travel - 900) / (n - 1)) : 0;
     // Nouvel obstacle
     if (c.hazards.length < n && now >= c.start + 400 + c.hazards.length * gap) {
-      const kinds = duo() ? ['log', 'arch'] : ['rock', 'log', 'rock', 'arch'];
+      // Supermarché : des produits à mettre dans le caddie (aller dans leur couloir) et des chapardeurs à éviter
+      const shop = c.s.m === 'shop';
+      const kinds = shop ? ['item', 'item', 'thief', 'item', 'item', 'item', 'thief'] : duo() ? ['log', 'arch'] : ['rock', 'log', 'rock', 'arch'];
       const kind = kinds[c.hazards.length % kinds.length];
-      const hz = { kind, lane: kind === 'rock' ? this.laneOf(0) : 0, born: now, dur: travel, arrive: now + travel };
+      const cur = this.laneOf(0), others = [-1, 0, 1].filter((l) => l !== cur);
+      const lane = kind === 'rock' || kind === 'thief' ? cur : kind === 'item' ? (duo() ? 0 : others[Math.floor(Math.random() * others.length)]) : 0;
+      const hz = { kind, lane, born: now, dur: travel, arrive: now + travel, prod: kind === 'item' ? SHOP_ITEMS[Math.floor(Math.random() * SHOP_ITEMS.length)] : null };
       c.hazards.push(hz);
       scene.addHazard(hz);
     }
@@ -942,17 +1001,21 @@ class Game {
       // Petit rappel à la voix juste avant l'obstacle
       if (!hz.cued && now >= hz.arrive - 1100) {
         hz.cued = true;
-        Audio8.say(hz.kind === 'rock' ? 'Va à côté !' : hz.kind === 'log' ? 'Saute !' : 'Baisse-toi !');
+        Audio8.say(hz.kind === 'rock' ? 'Va à côté !' : hz.kind === 'log' ? 'Saute !' : hz.kind === 'item' ? 'Attrape-le !' : hz.kind === 'thief' ? 'Attention, un chapardeur !' : 'Baisse-toi !');
       }
       if (hz.done || now < hz.arrive + 150) continue;
       hz.done = true;
       const oks = tracker.bodies.map((b, i) => {
         if (hz.kind === 'log') return b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200;
         if (hz.kind === 'arch') return b.state.squat || now - (this.lastEv.squat[i] || 0) < 1200;
+        if (hz.kind === 'item') return duo() || this.laneOf(i) === hz.lane; // (à deux : le produit arrive au milieu, chacun l'attrape)
+        if (hz.kind === 'thief') return this.laneOf(i) !== hz.lane || b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200; // (à côté, ou par-dessus !)
         return this.laneOf(i) !== hz.lane;
       });
       const all = oks.every(Boolean);
       c.dodges.push(all);
+      if (hz.kind === 'item' && all) c.inCart = (c.inCart || 0) + 1;
+      if (hz.kind === 'thief' && !all && c.inCart) c.inCart--; // (le chapardeur a pris un produit dans le caddie !)
       scene.resolveHazard(hz, all);
       oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) this.add(this.pts(60), '+' + this.pts(60), i); });
       all ? Audio8.good() : Audio8.soft();
@@ -964,7 +1027,9 @@ class Game {
   hazardCue(c, now) {
     const next = c.hazards.filter((h) => !h.done && h.kind !== 'star').sort((a, b) => a.arrive - b.arrive)[0];
     if (!next || next.arrive - now > 1400) { scene.setCue(null); return; }
-    const icon = { log: '⬆️', arch: '⬇️', rock: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️' }[next.kind];
+    const rel = next.lane - this.laneOf(0); // (produit : flèche vers son couloir, ou le caddie si on y est déjà)
+    const icon = { log: '⬆️', arch: '⬇️', rock: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️',
+      item: rel === 0 ? '🛒' : rel < 0 ? '⬅️' : '➡️', thief: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️' }[next.kind];
     scene.setCue({ icon, k: 1 - (next.arrive - now) / 1400, now: next.arrive - now < 450 });
   }
 
@@ -1134,7 +1199,10 @@ class Game {
         const q = fruitPos(f, now);
         if (q.t >= 1.05) continue;
         const L2 = du * du + dv * dv || 1, t = Math.max(0, Math.min(1, ((q.u - p.u) * du + (q.v - p.v) * dv) / L2));
-        if (Math.hypot(p.u + du * t - q.u, p.v + dv * t - q.v) < f.r + 0.35) this.sliceFruit(c, f, now, Math.atan2(dv, du), q);
+        // (la lame du sabre : de la main jusqu'à sa pointe, 1,5 unité plus loin dans la direction du bras)
+        const nb = Math.hypot(hd.u - (hd.u < 0 ? -0.35 : 0.35), hd.v) || 1, bu = (hd.u - (hd.u < 0 ? -0.35 : 0.35)) / nb, bv = hd.v / nb;
+        const onBlade = [0.5, 1, 1.5].some((d) => Math.hypot(hd.u + bu * d - q.u, hd.v + bv * d - q.v) < f.r + 0.3);
+        if (onBlade || Math.hypot(p.u + du * t - q.u, p.v + dv * t - q.v) < f.r + 0.35) this.sliceFruit(c, f, now, Math.atan2(dv, du), q);
       }
     }));
     c.prevHands = hands.map((hs) => (hs ? hs.map((h) => ({ u: h.u, v: h.v })) : null)); c.prevT = now;
@@ -1412,7 +1480,7 @@ class Game {
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
       scene.rope = null;
-    } else if (s.m === 'run') {
+    } else if (s.m === 'run' || s.m === 'shop') {
       const r = c.dodges.length ? c.dodges.filter(Boolean).length / c.dodges.length : 0;
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -1451,7 +1519,7 @@ class Game {
     }
     if (s.m === 'bubbles') this.updateBubbles(c, now);
     if (s.m === 'freeze') this.updateFreeze(c, now);
-    if (s.m === 'run') this.updateDodge(c, now);
+    if (s.m === 'run' || s.m === 'shop') this.updateDodge(c, now);
     if (s.m === 'jump' || s.m === 'squat') { this.updateReps(c, now); if (c.done) return; }
     if (s.m === 'smash') scene.setCue(now - c.start > 1500 ? { icon: '👊', k: 1, now: true } : { icon: '👊', k: (now - c.start) / 1500 });
     if (s.m === 'catch') this.updateCatch(c, now);
@@ -1878,6 +1946,8 @@ buildMenu();
 if (store('gestures') && !DEV.get('world')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
 if (DEV.get('gtuto')) Gestures.tutorial(); // (mode test)
+Gestures.onSwipe = (d) => { if (phase === 'menu' && !document.querySelector('.trainerBg, .gTutoBg')) turnMenuPage(d); };
+if (DEV.get('page')) turnMenuPage(Number(DEV.get('page'))); // (mode test)
 let menuResizeT = 0;
 addEventListener('resize', () => { clearTimeout(menuResizeT); menuResizeT = setTimeout(() => { if (phase === 'menu') buildMenu(); }, 300); });
 if (DEV.get('starter')) chooseStarter(0, 'Léo'); // (mode test)

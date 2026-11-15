@@ -6,7 +6,7 @@ from .warmup_constants import COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
-    if m in ('run', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice'):
+    if m in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice'):
         return step.duration or 0
     if m == 'cubes':
         return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
@@ -105,6 +105,8 @@ class WarmupStep(models.Model):
         for s in self:
             if s.move == 'run':
                 s.summary = f"Éviter les obstacles pendant {s.duration:g} s"
+            elif s.move == 'shop':
+                s.summary = f"Remplir le caddie pendant {s.duration:g} s"
             elif s.move in ('jump', 'squat', 'smash'):
                 s.summary = f"{moves[s.move]} ×{max(1, s.count)}"
             elif s.move == 'pose':
@@ -187,7 +189,7 @@ class WarmupStep(models.Model):
                 raise ValidationError('Le nombre de répétitions doit être entre 1 et 10.')
             if s.move in ('bubbles', 'moles', 'slice') and not 1 <= s.count <= 30:
                 raise ValidationError('Le nombre de bulles ou de taupes doit être entre 1 et 30.')
-            if s.move in ('run', 'rest') and not 1 <= s.duration <= 60:
+            if s.move in ('run', 'shop', 'rest') and not 1 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 1 et 60 secondes.')
             if s.move in ('bubbles', 'freeze', 'catch', 'moles', 'slice') and not 5 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
@@ -207,6 +209,8 @@ class WarmupStep(models.Model):
         m = self.move
         if m == 'run':
             return {'m': 'run', 't': self.duration or 6}
+        if m == 'shop':
+            return {'m': 'shop', 't': self.duration or 12}
         if m in ('jump', 'squat', 'smash'):
             return {'m': m, 'n': max(1, self.count)}
         if m in ('left', 'right'):

@@ -81,7 +81,7 @@ BOSS_POSES = [('star', 'airplane', 'armsUp'), ('armsUp', 'star', 'airplane'), ('
 
 
 # Ordre des mondes dans worlds.js (le gardien de chaque monde y est choisi par sa position)
-JS_WORLD_ORDER = ['jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'turbo', 'island', 'forest', 'banquise', 'ocean',
+JS_WORLD_ORDER = ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'turbo', 'island', 'forest', 'banquise', 'ocean',
                   'espace', 'bonbons', 'ferme', 'dinos', 'chateau']
 
 
@@ -96,6 +96,10 @@ def _with_boss(steps, world):
     steps = list(steps)
     steps.insert(len(steps) - 1, _boss_step(world))
     return steps
+
+
+def _SH(t):
+    return {'move': 'shop', 'duration': t}
 
 
 def _SL(t, n):
@@ -136,6 +140,10 @@ DEFAULT_SEQUENCES = [
     ('rythmo', 'Rythmes de Bip', [
         _Z(2.5, 'Prêt ? Musique !'), _CU(12, 1.6), _S(2), _CU(16, 1.4), _P('armsUp'),
         _CU(16, 1.3), _J(2), _CU(20, 1.2), _Z(3, 'Bravo ! Quel rythme…'),
+    ]),
+    ('supermarche', 'Les courses de Panier', [
+        _Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
+        _SH(16), _X(2), _SH(14), _Z(3, 'Les courses sont faites ! Respire bien…'),
     ]),
     ('turbo', 'Échauffement Turbo', [
         _Z(2.5, "Prêt ? On s'échauffe !"), _R(6), _J(), _R(5), _L(), _D(), _L(), _D(), _S(), _J(2), _X(),
@@ -193,7 +201,7 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo', 'verger', 'rythmo'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche'}
 
 
 def _new_game(world):

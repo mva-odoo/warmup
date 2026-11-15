@@ -479,7 +479,7 @@ body.sim .next { bottom: 78px; }
 .gClicked { animation: gClick .4s; }
 @keyframes gClick { 50% { transform: scale(0.92); } }
 .gBar { display: flex; gap: 10px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
-body.gestures #camBox { width: max(150px, min(14vw, 22vh)); top: auto; bottom: 16px; right: 16px; }
+body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; bottom: 16px; right: 16px; }
 /* Tuto des gestes */
 .gTutoBg { position: fixed; inset: 0; z-index: 250; background: radial-gradient(circle at 50% 40%, rgba(76, 63, 180, .92), rgba(30, 27, 75, .97)); color: #fff; }
 .gTutoTop { position: absolute; top: 3vh; left: 0; right: 0; text-align: center; padding: 0 20px; }
@@ -499,3 +499,35 @@ body.gestures #camBox { width: max(150px, min(14vw, 22vh)); top: auto; bottom: 1
 .card.isLearn .label { font-size: clamp(28px, 3.8vw, 44px); }
 .card.isLearn { left: 3vw; transform: none; width: min(560px, 46vw); }
 .card.isLearn.enter { animation: none; }
+
+/* ---------- Accueil : carte en pages (sans défilement) ---------- */
+#menu { justify-content: flex-start; gap: 8px; padding-top: 12px; overflow-y: auto; }
+#menu h1 { font-size: clamp(34px, 5.5vw, 64px); }
+#menu .subtitle { display: none; }
+#worldsRow { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; }
+#worldsRow .worlds { width: auto; gap: 16px; justify-content: center; }
+.pgArrow { flex: none; width: 82px; height: 82px; border-radius: 50%; border: 5px solid #fff; background: #ffd166; color: #1e1b4b;
+  font-size: 38px; cursor: pointer; box-shadow: 0 6px 0 #c9971c, 0 10px 24px rgba(0,0,0,.3); font-family: inherit; }
+.pgArrow.off { opacity: 0.2; pointer-events: none; }
+.pgArrow:hover { transform: scale(1.08); }
+#pgDots { display: flex; gap: 10px; justify-content: center; }
+#pgDots span { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.3); }
+#pgDots span.on { background: #ffd166; transform: scale(1.3); }
+.worlds.slideL { animation: pageL .45s cubic-bezier(.2, 1.2, .4, 1); }
+.worlds.slideR { animation: pageR .45s cubic-bezier(.2, 1.2, .4, 1); }
+@keyframes pageL { from { transform: translateX(18%) rotateY(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pageR { from { transform: translateX(-18%) rotateY(12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Vignettes des mondes */
+.worldCard { aspect-ratio: auto; height: 100%; border-radius: 26px; border: 5px solid #fff; box-shadow: 0 8px 0 rgba(0,0,0,.18), 0 14px 28px rgba(0,0,0,.35); }
+.worldCard .wName { padding: 40px 8px 12px; font-size: clamp(16px, 1.6vw, 21px); background: linear-gradient(transparent, color-mix(in srgb, var(--c1) 55%, #1e1b4b) 70%); }
+.wIcon { display: block; font-size: 24px; margin-bottom: 2px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+.worldCard .wBest { background: rgba(15,12,50,.55); padding: 2px 8px; }
+.worldCard .wBest i { font-style: normal; color: rgba(255,255,255,.35); font-size: 16px; }
+.worldCard .wBest i.on { color: #ffd23f; text-shadow: 0 0 6px rgba(255,210,63,.8); }
+.worldCard:not(.locked):hover { transform: translateY(-6px) rotate(-1deg) scale(1.03); }
+#menuExtra { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: center; align-items: center; max-width: 1200px; }
+#menuExtra > * { margin: 0 !important; }
+.menuBottom { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+#menu .parents { margin-top: 2px; }
+.lockVeil { padding-top: 10%; }
+.lockVeil small { margin-bottom: 6px; }

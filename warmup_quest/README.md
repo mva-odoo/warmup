@@ -19,6 +19,8 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   l'enfant déplace une petite main à l'écran, et on la garde 1,5 s sur un monde, un bouton, une vignette… pour le choisir
   (menu, carte, carnet, chambre, « Mon dresseur », fin de partie, pause). La première fois, un petit tuto apprend le geste
   (poser la main sur une étoile, une pomme, un ballon) ; on peut le revoir avec « 🎓 Apprendre les gestes ».
+- **Accueil en pages** : la carte des îles tient dans l'écran, sans défilement (deux rangées) ; on tourne la page avec les
+  grosses flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main vers la gauche / la droite.
 - **Carte des îles** : les mondes forment un chemin ; les 3 premiers sont ouverts, chaque île suivante s'ouvre quand on gagne
   une étoile dans la précédente (réglage parent « 🗺️ Toutes les îles ouvertes »). Le dresseur est posé sur l'île où il en est.
 - **Surprise du jour** 🎁 : chaque jour, une créature spéciale attend dans un des mondes ouverts (rien n'est perdu si on ne vient pas).
@@ -63,8 +65,8 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - Pendant une pose, le **modèle à imiter** se tient de face sur une estrade dorée à côté du chemin, et une silhouette
     dorée se pose sur le dresseur ; elles deviennent vertes quand c'est bon.
   - **Corde à sauter** : décompte 3, 2, 1 avant chaque saut (lent pour le premier, en rythme ensuite).
-  - **Fruits** : ils arrivent de partout (d'en bas, du ciel, de gauche, de droite) ; le dresseur s'efface pour laisser
-    voir les fruits, et les gants lumineux suivent directement les mains de l'enfant.
+  - **Fruits** : ils arrivent de partout (d'en bas, du ciel, de gauche, de droite) ; le dresseur s'efface, et l'enfant tient
+    un **sabre lumineux** dans chaque main (bleu à gauche, rose à droite) : la lame coupe les fruits.
   - La petite vidéo de la caméra est en haut à droite (dans le ciel) pour ne plus cacher les épreuves.
   - **Rendu dessin animé** : trait d'encre calculé sur toute l'image (contours nets sur tous les objets et personnages,
     qui s'effacent au loin), bords lissés, contre-jour qui détache les personnages.
@@ -81,6 +83,9 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     trop faibles ; repli automatique sur le chemin 2D si la 3D ne se charge pas.
   - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** qui sortent de petites îles volantes de chaque côté, **copie les poses**.
   - **Verger des Ninjas** : des fruits sautent en l'air, on les coupe en deux d'un geste vif de la main (traînée de sabre, jus).
+  - **Super Marché Rigolo** 🛒 : des produits arrivent dans les couloirs ; un pas à gauche ou à droite pour se mettre devant
+    et ils tombent dans le caddie (poussé à côté du dresseur, il se remplit pour de vrai). De petits chapardeurs masqués
+    foncent sur le dresseur : il faut les éviter (ou sauter par-dessus), sinon ils volent un produit !
   - **Planète Rythmo** : des cubes arrivent en musique à 7 endroits autour du dresseur (en bas, au milieu, en haut de chaque
     côté, au-dessus de la tête) ; bleu = main gauche, orange = main droite, violet = n'importe laquelle ; un anneau montre
     où taper juste avant qu'il arrive.

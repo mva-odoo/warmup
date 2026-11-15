@@ -39,6 +39,9 @@ const KITS = {
   dinoland: { props: [['k:rock_tallC', 2], ['k:plant_flatShort', 2], ['egg', 2], ['dino', 1], ['k:stump_oldTall', 1]], backdrop: ['volcano'], particles: 'embers' },
   garden: { grass: true, props: [['k:plant_bushLargeTriangle', 3], ['k:plant_bushLarge', 2], ['k:plant_bushDetailed', 1], ['c:flag', 2], ['t:banner-red', 1], ['t:lantern', 2], ['c:tree-large', 2], ['c:tree-small', 2], ['k:statue_column', 1], ['pf:flowers', 2], ['k:flower_redA', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
   magic: { grass: true, props: [['s:rock_crystalsLargeA', 2], ['s:rock_crystals', 1], ['k:tree_tall_dark', 2], ['g:pine-crooked', 1], ['k:mushroom_redTall', 2], ['t:lantern', 2], ['g:lightpost-single', 1], ['k:statue_obelisk', 1], ['g:pumpkin', 1], ['c:flag-banner-long', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
+  // Supermarché : rayons remplis de produits (Food Kit), cageots de fruits, caddies garés
+  market: { props: [['shelf', 7], ['fruitCrate', 2], ['parkedCart', 1]], backdrop: [], flat: true },
+  marketFruit: { props: [['fruitCrate', 6], ['shelf', 3], ['parkedCart', 1], ['f:watermelon', 1], ['f:pineapple', 1]], backdrop: [], flat: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 3], ['t:lantern', 2], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
   dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 2], ['t:lantern', 3], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
@@ -47,6 +50,26 @@ const KITS = {
 // Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
 // Préfixe d'un objet de kit -> dossier de ses modèles
 const MODEL_DIRS = { k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival' };
+// Produits rangés dans les rayons du supermarché
+const SHOP_GOODS = ['carton', 'soda-bottle', 'can', 'bottle-ketchup', 'cheese', 'bread', 'loaf-baguette', 'pizza-box', 'croissant', 'cookie-chocolate', 'bag', 'fish'];
+// Caddie de supermarché (fil métallique, panier, poignée rouge, roues) ; P = Props3D
+function makeShopCart(P) {
+  const T = P.T, g = new T.Group(), wire = P.toon('#ced4da'), dark = P.toon('#495057'), red = P.toon('#ef476f');
+  const bar = (x, y, z, sx, sy, sz, m = wire) => { const b = new T.Mesh(P.geo.box, m); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.castShadow = true; g.add(b); return b; };
+  bar(0, 0.55, 0, 0.8, 0.05, 1.0);                                   // fond du panier
+  for (const x of [-0.4, 0.4]) bar(x, 0.85, 0, 0.04, 0.6, 1.0);      // côtés
+  for (const z of [-0.5, 0.5]) bar(0, 0.85, z, 0.84, 0.6, 0.04);     // avant / arrière
+  for (const y of [0.7, 1.0]) for (const x of [-0.4, 0.4]) bar(x, y, 0, 0.05, 0.03, 1.0);
+  for (const y of [0.7, 1.0]) for (const z of [-0.5, 0.5]) bar(0, y, z, 0.84, 0.03, 0.05);
+  bar(0, 1.25, 0.62, 0.9, 0.07, 0.07, red);                           // poignée
+  for (const x of [-0.36, 0.36]) bar(x, 1.1, 0.56, 0.04, 0.3, 0.04);
+  for (const x of [-0.32, 0.32]) for (const z of [-0.42, 0.42]) {
+    bar(x, 0.3, z, 0.04, 0.5, 0.04);
+    const w = new T.Mesh(P.geo.cyl, dark); w.scale.set(0.09, 0.05, 0.09); w.rotation.z = Math.PI / 2; w.position.set(x, 0.09, z); g.add(w);
+  }
+  g.userData.basketY = 0.6;
+  return g;
+}
 const MODEL_HEIGHT = [
   // Amis du héros (Cube Pets et personnages assortis)
   [/^pets\/animal-(giraffe|elephant)/, 1.55], [/^pets\/animal-(bee|chick|caterpillar|crab|fish)/, 1.0], [/^pets\//, 1.25],
@@ -182,6 +205,11 @@ class Props3D {
     const out = [];
     for (const k of kits) for (const [n] of (KITS[k] || KITS.meadow).props) { const key = this.modelKey(n); if (key) out.push(key); }
     if (kits.some((k) => (KITS[k] || {}).grass)) out.push('kenney/grass_large', 'kenney/grass');
+    // Supermarché : tous les produits (rayons, cageots, produits à attraper) et les petits chapardeurs
+    if (kits.some((k) => k === 'market' || k === 'marketFruit')) {
+      out.push(...[...SHOP_GOODS, ...SHOP_ITEMS, 'apple', 'orange', 'pear', 'lemon', 'tomato', 'banana'].map((n) => 'food/' + n));
+      out.push(...['dog', 'fox', 'monkey', 'cat', 'hog'].map((n) => 'pets/animal-' + n));
+    }
     return out;
   }
 
@@ -431,6 +459,36 @@ class Props3D {
   }
 
   // ---------- Disco
+  // Rayon de supermarché : étagères blanches et produits du Food Kit (s'ils sont chargés), petit fronton coloré
+  shelf(g) {
+    const cols = ['#ef476f', '#118ab2', '#06d6a0', '#ffd166'], col = cols[Math.floor(Math.random() * cols.length)];
+    this.add(g, 'box', '#f8f9fa', 0, 1.3, -0.25, 2.6, 2.6, 0.12);
+    for (const y of [0.15, 0.95, 1.75, 2.55]) this.add(g, 'box', '#e9ecef', 0, y, 0.1, 2.6, 0.08, 0.75);
+    for (const x of [-1.3, 1.3]) this.add(g, 'box', '#dee2e6', x, 1.3, 0.1, 0.08, 2.6, 0.75);
+    this.add(g, 'box', col, 0, 2.85, 0.15, 2.7, 0.35, 0.1);
+    const goods = SHOP_GOODS.filter((n) => this.models && this.models.has('food/' + n));
+    for (const y of [0.2, 1.0, 1.8]) {
+      for (let k = 0; k < 4; k++) {
+        const n = goods.length ? goods[Math.floor(Math.random() * goods.length)] : null;
+        const x = -0.95 + k * 0.63;
+        if (n) { const m = this.model('food/' + n); m.scale.multiplyScalar(0.55); m.position.set(x, y, 0.15); g.add(m); }
+        else this.add(g, 'box', cols[(k + Math.floor(y)) % 4], x, y + 0.25, 0.15, 0.4, 0.5, 0.35);
+      }
+    }
+  }
+  // Cageot de fruits
+  fruitCrate(g) {
+    this.add(g, 'box', '#c08552', 0, 0.3, 0, 1.2, 0.6, 0.8);
+    this.add(g, 'box', '#8d5a3b', 0, 0.62, 0, 1.24, 0.06, 0.84);
+    const fruits = ['apple', 'orange', 'pear', 'lemon', 'tomato', 'banana'].filter((n) => this.models && this.models.has('food/' + n));
+    for (let k = 0; k < 5; k++) {
+      const n = fruits[Math.floor(Math.random() * fruits.length)];
+      if (!n) break;
+      const m = this.model('food/' + n); m.scale.multiplyScalar(0.5); m.position.set(-0.4 + (k % 3) * 0.4, 0.62, -0.15 + Math.floor(k / 3) * 0.3); g.add(m);
+    }
+  }
+  // Caddie garé le long du rayon
+  parkedCart(g) { g.add(makeShopCart(this)); g.rotation.y = Math.random() * 6; }
   speaker(g) {
     this.add(g, 'box', '#1b1b2f', 0, 0.8, 0, 0.9, 1.6, 0.7);
     for (const [y, r] of [[1.15, 0.28], [0.5, 0.2]]) this.add(g, 'cyl', '#4a4e69', 0, y, 0.36, r, 0.05, r, {}, [Math.PI / 2, 0, 0]);

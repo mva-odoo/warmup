@@ -201,6 +201,8 @@ class Scene3D extends DepthScene {
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     this.shot = null; this.stepKind = null; this.roll = 0;
+    if (this.cart && this.s3) this.s3.remove(this.cart);
+    this.cart = null; this.cartItems = []; this.cartX = null;
     if (this.bossM && this.s3) this.s3.remove(this.bossM.group);
     this.boss = null; this.bossM = null;
     if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
@@ -344,6 +346,8 @@ class Scene3D extends DepthScene {
     this.disc.visible = !water;
     if (water) this.skyU.glow.value = 0.2; // (lumière diffuse sous l'eau)
     this.colorTerrain(b, !!kit.grass);
+    this.flatK = kit.flat ? 0.04 : 1; // (supermarché : le sol est plat)
+    if (this.chunks) for (const c of this.chunks) c.mesh.scale.y = this.flatK;
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
     this.paintPath(b, night);
 
@@ -488,7 +492,7 @@ class Scene3D extends DepthScene {
   }
 
   // Hauteur du sol à une position du monde (pour poser le décor sur les collines)
-  groundY(x, z) { return terrainH(x, z - this.terOff - TER_PERIOD / 2); }
+  groundY(x, z) { return terrainH(x, z - this.terOff - TER_PERIOD / 2) * (this.flatK ?? 1); } // (sol plat au supermarché)
 
   makeTuft() {
     const t = this.P.model(Math.random() < 0.6 ? 'kenney/grass_large' : 'kenney/grass');
@@ -511,6 +515,9 @@ class Scene3D extends DepthScene {
   placeDecor(d, z) {
     const side = Math.random() < 0.5 ? -1 : 1;
     // Une bande dégagée de chaque côté du chemin : rien ne déborde dessus
+    if (d.userData.name === 'shelf' || d.userData.name === 'fruitCrate') { // (rayons et cageots face au chemin)
+      d.position.set(side * (LANE * 1.5 + 2.4 + Math.random() * 7), 0, z); d.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; return;
+    }
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const nm = d.userData.name || '';
     const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|cherryTree|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
@@ -1291,6 +1298,12 @@ class Scene3D extends DepthScene {
       this.emojiPop(p.x, p.y - this.size * 1.1, 2);
       this.burst(p.x, p.y - this.size * 0.8, 14, ['#fff', '#ffe066', '#ffd166']);
       hz.t0 -= 500;
+    } else if (hz.kind === 'item' && ok) {
+      this.cartAdd(hz.prod);
+      const p = this.heroPx(idx); this.burst(p.x, p.y - this.size * 0.5, 16, ['#ffffff', '#ffe066', '#4ade80']);
+      hz.t0 -= 450;
+    } else if (hz.kind === 'thief' && !ok) {
+      this.cartSteal();
     } else if (ok) {
       const p = this.project(hz.kind === 'rock' ? hz.lane * LANE : 0, 0.8, 0.4);
       this.burst(p.x, p.y, 14, ['#ffffff', '#ffe066', '#4ade80']);
@@ -1534,6 +1547,36 @@ class Scene3D extends DepthScene {
     });
   }
 
+  // ---------- Caddie (supermarché) : poussé devant le dresseur, il se remplit des produits attrapés
+  updateCart(now) {
+    const on = this.stepKind === 'shop', h = this.heroes[0];
+    if (!on || !h || !h.m3) { if (this.cart) this.cart.visible = false; return; }
+    if (!this.cart) { try { this.cart = makeShopCart(this.P); } catch (e) { console.warn(e); return; } this.cart.scale.setScalar(1.1); this.cartItems = []; this.s3.add(this.cart); }
+    this.cart.visible = !this.hideHero;
+    const x = h.lane * LANE;
+    // (poussé à côté du dresseur, pour qu'on le voie se remplir ; du côté du chemin qui reste libre)
+    const side = h.lane > 0.5 ? -1 : 1;
+    this.cartX = (this.cartX ?? x + side) + (x + side * 1.05 - (this.cartX ?? x + side)) * 0.2;
+    this.cart.position.set(this.cartX, this.heroY3(h) * 0.3, -0.7);
+    this.cart.rotation.y = side * 0.12;
+    this.cart.rotation.z = Math.sin(now * 0.02) * 0.02 * this.speed;
+  }
+  cartAdd(prod) {
+    if (!this.cart) return;
+    const m = this.P.model('food/' + prod) || new this.T.Mesh(this.geo.sphere, this.lam('#ffd166'));
+    const n = this.cartItems.length, s = 0.45;
+    m.scale.multiplyScalar(s);
+    m.position.set(-0.22 + (n % 3) * 0.22, 0.65 + Math.floor(n / 6) * 0.22, -0.25 + (Math.floor(n / 3) % 2) * 0.35);
+    m.rotation.y = Math.random() * 6;
+    this.cart.add(m); this.cartItems.push(m);
+    if (this.cartItems.length > 18) this.cart.remove(this.cartItems.shift()); // (caddie bien plein !)
+  }
+  cartSteal() {
+    const m = this.cartItems && this.cartItems.pop();
+    if (m) this.cart.remove(m);
+    const p = this.heroPx(0); this.emojiPop(p.x, p.y - this.size * 0.9, 1, '😝');
+  }
+
   // ---------- Créature compagnon : elle court à côté de son dresseur, saute de joie quand il réussit
   // list : par joueur, { cr, level } ou null (niveau 1..5 : elle grandit ; au niveau 5 elle a évolué)
   setCompanions(list) { this.companionSpec = list || []; this.rebuildCompanions = true; }
@@ -1673,6 +1716,25 @@ class Scene3D extends DepthScene {
     if (hz.kind === 'log') return this.makeLog();
     if (hz.kind === 'arch') return this.makeArch();
     if (hz.kind === 'star') { const g = new this.T.Group(); const s = this.emojiSprite(this.theme.collectible, 1.1); s.position.set(hz.lane * LANE, 1.1, 0); g.add(s); return g; }
+    if (hz.kind === 'item') { // produit qui arrive en tournant, posé sur un petit halo
+      const g = new this.T.Group(), m = this.P.model('food/' + hz.prod) || this.emojiSprite('🛒', 1);
+      m.scale.multiplyScalar(1.15); m.position.y = 0.9; m.userData.spin = true; g.add(m);
+      const halo = new this.T.Mesh(new this.T.CircleGeometry(0.6, 24), new this.T.MeshBasicMaterial({ color: '#fff3a0', transparent: true, opacity: 0.6 }));
+      halo.rotation.x = -Math.PI / 2; halo.position.y = 0.03; g.add(halo);
+      g.position.x = hz.lane * LANE; g.userData.item = m; return g;
+    }
+    if (hz.kind === 'thief') { // chapardeur : un petit animal masqué qui court vers toi
+      const list = ['dog', 'fox', 'monkey', 'cat', 'hog'].map((n) => creaturesByModel('pets/animal-' + n)).filter(Boolean);
+      const cr = list[Math.floor(Math.random() * list.length)];
+      const g = new this.T.Group();
+      if (cr) {
+        const c = buildCreature3D(this, cr, false); c.group.scale.multiplyScalar(1.1); g.add(c.group); g.userData.pet = c;
+        const mask = new this.T.Mesh(new this.T.BoxGeometry(1, 1, 1), this.lam('#1e1b4b')); // masque de bandit
+        mask.scale.set(0.62, 0.12, 0.1); mask.position.set(0, (c.height || 1.2) * 0.72, 0.42); c.group.add(mask);
+        const sack = new this.T.Mesh(this.geo.sphere, this.lam('#c08552')); sack.scale.set(0.25, 0.3, 0.25); sack.position.set(0.45, 0.6, 0); g.add(sack);
+      } else g.add(this.makeRock());
+      g.position.x = hz.lane * LANE; return g;
+    }
     const g = this.makeRock(); g.position.x = hz.lane * LANE; return g;
   }
 
@@ -1787,6 +1849,7 @@ class Scene3D extends DepthScene {
     }
     this.updateCompanions(now);
     this.updateFx(now);
+    this.updateCart(now);
     this.updateBoss(now);
     this.updateBall3D(now);
     // Paysage suivant quand on avance dans la partie
@@ -1874,6 +1937,8 @@ class Scene3D extends DepthScene {
       const k = hz.t0 ? Math.max(0.01, 1 - (now - hz.t0) / 600) : 1;
       mesh.scale.setScalar(k);
       if (hz.kind === 'star') mesh.position.y = Math.sin(now * 0.006) * 0.1 + (hz.t0 ? (1 - k) * 1.5 : 0);
+      if (hz.kind === 'item' && mesh.userData.item) { mesh.userData.item.rotation.y = now * 0.003; mesh.userData.item.position.y = 0.9 + Math.sin(now * 0.006) * 0.12; }
+      if (hz.kind === 'thief' && mesh.userData.pet) { mesh.userData.pet.animate(now, hz.t0 && hz.state === 'hit' ? 'happy' : 'run'); mesh.rotation.y = hz.state === 'cleared' ? Math.PI : 0; }
     }
 
     // Obstacle de l'étape (tronc, branche, rocher, étoile dans un couloir, mur)

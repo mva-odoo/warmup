@@ -322,7 +322,7 @@ class DepthScene {
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -385,9 +385,9 @@ class DepthScene {
     }
   }
 
-  emojiPop(x, y, n) {
+  emojiPop(x, y, n, text = null) {
     for (let i = 0; i < n; i++) {
-      this.floaters.push({ x: x + (i - (n - 1) / 2) * this.size * 0.3, y, text: this.theme.collectible, size: this.size * 0.32, life: 1, max: 1, vy: -this.H * (0.25 + i * 0.03) });
+      this.floaters.push({ x: x + (i - (n - 1) / 2) * this.size * 0.3, y, text: text || this.theme.collectible, size: this.size * 0.32, life: 1, max: 1, vy: -this.H * (0.25 + i * 0.03) });
     }
   }
 
@@ -691,6 +691,35 @@ class DepthScene {
     }
   }
 
+  // Sabre lumineux tenu dans la main (fruits) : la lame prolonge le bras, une traînée suit les coups
+  drawSaber(i, k, A, x, y, hd, now) {
+    const ctx = this.ctx;
+    const sx = hd.su != null ? A.x + hd.su * A.u : A.x + (hd.u < 0 ? -1 : 1) * A.u * 0.35, sy = hd.sv != null ? A.y + hd.sv * A.u : A.y;
+    let dx = x - sx, dy = y - sy; const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
+    const len = A.u * 1.5, tx = x + dx * len, ty = y + dy * len, w = A.u * 0.16;
+    const col = k === 0 ? '#4ea8ff' : '#ff4d9d', glow = k === 0 ? 'rgba(78,168,255,' : 'rgba(255,77,157,';
+    // traînée de la pointe (le geste se voit)
+    const key = 'sab' + (i * 2 + k);
+    const tr = (this.trails[key] = (this.trails[key] || []).filter((p) => now - p.t < 200));
+    tr.push({ x: tx, y: ty, hx: x, hy: y, t: now });
+    if (tr.length > 1) {
+      ctx.beginPath(); ctx.moveTo(tr[0].hx, tr[0].hy);
+      for (const p of tr) ctx.lineTo(p.x, p.y);
+      for (let j = tr.length - 1; j >= 0; j--) ctx.lineTo(tr[j].hx, tr[j].hy);
+      ctx.closePath(); ctx.fillStyle = glow + '0.25)'; ctx.fill();
+    }
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = glow + '0.35)'; ctx.lineWidth = w * 3.2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke(); // halo
+    ctx.strokeStyle = col; ctx.lineWidth = w * 1.4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();      // lame
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = w * 0.55; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke(); // cœur blanc
+    // garde et poignée
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = w * 0.9;
+    ctx.beginPath(); ctx.moveTo(x - dy * w * 1.6, y + dx * w * 1.6); ctx.lineTo(x + dy * w * 1.6, y - dx * w * 1.6); ctx.stroke();
+    ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = w * 1.1;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - dx * A.u * 0.35, y - dy * A.u * 0.35); ctx.stroke();
+    hd.tipU = (tx - A.x) / A.u; hd.tipV = (ty - A.y) / A.u; // (la lame coupe aussi : voir updateSlice)
+  }
+
   // Traînée lumineuse derrière la main (coup de sabre) : on voit son geste
   drawTrail(i, k, x, y, r, now) {
     const ctx = this.ctx, key = i * 2 + k;
@@ -802,6 +831,7 @@ class DepthScene {
       for (const hd of list) {
         const x = A.x + hd.u * A.u, y = A.y + hd.v * A.u, r = A.u * 0.2;
         // Le bras, de l'épaule au gant : on voit jusqu'où on touche
+        if (this.sliceOn) { this.drawSaber(i, list.indexOf(hd), A, x, y, hd, now); continue; } // fruits : un sabre lumineux dans chaque main
         if (!(h && h.m3 && h.m3.human && this.mirror)) {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.lineWidth = Math.max(4, A.u * 0.12); ctx.lineCap = 'round';
           ctx.beginPath(); ctx.moveTo(A.x + Math.sign(hd.u || 1) * A.u * 0.35, A.y); ctx.lineTo(x, y); ctx.stroke();

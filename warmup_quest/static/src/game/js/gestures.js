@@ -70,10 +70,25 @@ const Gestures = {
     return { x: innerWidth / 2 + u * innerWidth * 0.5, y: v * innerHeight };
   },
 
+  // Grand geste de la main vers la gauche ou la droite (comme pour tourner une page) : appelle onSwipe(-1 | 1)
+  onSwipe: null,
+  checkSwipe(now, p) {
+    const h = (this.hist = (this.hist || []).filter((q) => now - q.t < 450));
+    h.push({ x: p.x, y: p.y, t: now });
+    if (now < (this.swipeT || 0) || h.length < 3) return false;
+    const dx = p.x - h[0].x, dy = p.y - h[0].y;
+    if (Math.abs(dx) > innerWidth * 0.32 && Math.abs(dy) < Math.abs(dx) * 0.6) {
+      this.swipeT = now + 1000; this.hist = [];
+      if (this.onSwipe) { this.clearTarget(); this.onSwipe(dx < 0 ? 1 : -1); return true; } // (main vers la gauche = page suivante)
+    }
+    return false;
+  },
+
   update(now) {
     if (!this.on || !this.el) return;
     const p = this.handPoint();
-    if (!p) { this.el.classList.remove('show'); this.clearTarget(); this.seen = false; return; }
+    if (!p) { this.el.classList.remove('show'); this.clearTarget(); this.seen = false; this.hist = []; return; }
+    if (this.checkSwipe(now, p)) return;
     // (lissage : la petite main ne tremble pas)
     if (!this.seen) { this.x = p.x; this.y = p.y; this.seen = true; }
     this.x += (p.x - this.x) * 0.35; this.y += (p.y - this.y) * 0.35;

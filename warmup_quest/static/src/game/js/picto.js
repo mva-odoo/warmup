@@ -145,6 +145,14 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, lift: Math.sin(t * 0.004) * S * 0.01, ...f }, '#16a34a');
       break;
     }
+    case 'shop': { // un produit arrive dans un couloir : un pas de côté, et il tombe dans le caddie
+      const k = cyc(1600), side = Math.floor(t / 1600) % 2 ? 1 : -1, step = Math.min(1, k * 2.5);
+      ctx.font = `${S * 0.2}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🛒', gx + side * S * 0.3 * step + S * 0.18, gy - S * 0.12);
+      if (k < 0.75) ctx.fillText('🥕', gx + side * S * 0.3, gy - S * (0.85 - k * 0.6));
+      stickFigure(ctx, { ...base, x: gx + side * S * 0.3 * step, legL: 0.25, legR: 0.25 });
+      break;
+    }
     case 'ball': { // le ballon arrive en cloche, le bonhomme lève la main pour le renvoyer
       const k = cyc(1600), bx = gx + S * (0.45 - k * 0.5), by = gy - S * (0.75 + Math.sin(k * Math.PI) * 0.25);
       ctx.font = `${S * 0.16}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', bx, by);
