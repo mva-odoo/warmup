@@ -53,13 +53,17 @@ const HUMAN_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f'
 const HUMAN_OWN_HAT = ['male-c'];
 // Coachs (danse, karaté, école) : mêmes petits humains que les dresseurs
 const COACH_LOOKS = {
-  dance: { model: 'female-b', body: 'female-e', legs: 'female-e', hat: 'headband', glasses: true, back: 'bag', color: '#ff70a6' },
-  karate: { model: 'male-e', body: 'male-g', legs: 'male-g', hat: 'headband', glasses: false, back: 'bag', color: '#e63946' },
+  dance: { model: 'kk-mage', hat: 'none', glasses: false, back: 'none', color: '#ff70a6' },
+  karate: { model: 'kk-barbarian', hat: 'headband', glasses: false, back: 'none', color: '#e63946' },
 };
 const DEFAULT_LOOK = { model: 'male-a', hat: 'cap', glasses: false, color: '#ff6b35' };
-const humanKey = (look) => 'characters/character-' + (HUMAN_MODELS.includes(look && look.model) ? look.model : DEFAULT_LOOK.model);
+// Aventuriers KayKit (style « jouet » arrondi) : un personnage entier, avec son chapeau et sa cape
+const KAY_MODELS = { 'kk-knight': 'Knight', 'kk-mage': 'Mage', 'kk-barbarian': 'Barbarian', 'kk-rogue': 'Rogue', 'kk-hood': 'Rogue_Hooded' };
+const isKay = (model) => !!KAY_MODELS[model];
+const humanKey = (look) => (look && isKay(look.model)) ? 'kaykit/' + KAY_MODELS[look.model]
+  : 'characters/character-' + (HUMAN_MODELS.includes(look && look.model) ? look.model : DEFAULT_LOOK.model);
 // Morceaux du dresseur : tête (look.model), corps (look.body), jambes (look.legs) — chacun pris d'un des 13 personnages
-const partKey = (look, part) => humanKey({ model: (look && (part === 'legs' ? look.legs || look.body : part === 'body' ? look.body : null)) || (look && look.model) });
+const partKey = (look, part) => (look && isKay(look.model)) ? humanKey(look) : humanKey({ model: (look && (part === 'legs' ? look.legs || look.body : part === 'body' ? look.body : null)) || (look && look.model) });
 const lookKeys = (look) => [...new Set(['head', 'body', 'legs'].map((p) => partKey(look, p)))];
 // Poses du dresseur : direction visée par bras / jambes (même repère que pour le héros animé)
 const HUMAN_POSES = {
@@ -584,7 +588,7 @@ class Scene3D extends DepthScene {
     }
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const nm = d.userData.name || '';
-    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|cherryTree|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
+    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
     d.position.set(side * (LANE * 1.5 + 2.0 + big + Math.random() * 10), 0, z);
   }
 
@@ -656,9 +660,28 @@ class Scene3D extends DepthScene {
     obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); } });
     const bones = {};
     obj.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+    // Squelette KayKit : mêmes noms que les autres dresseurs pour le reste du jeu ; ses bras ont un avant-bras
+    // (on vise du bras vers l'avant-bras), et son chapeau / sa cape d'origine peuvent être cachés
+    const kay = !!bones['upperarm.l'], child = {};
+    if (kay) {
+      for (const [n, a, c] of [['arm-left', 'upperarm.l', 'lowerarm.l'], ['arm-right', 'upperarm.r', 'lowerarm.r'], ['leg-left', 'upperleg.l', 'lowerleg.l'], ['leg-right', 'upperleg.r', 'lowerleg.r']]) {
+        bones[n] = bones[a]; child[n] = bones[c];
+      }
+      bones.torso = bones.chest; bones.handL = bones['hand.l']; bones.handR = bones['hand.r'];
+      const native = { hat: null, cape: null };
+      obj.traverse((o) => {
+        if (!o.isMesh || o.isSkinnedMesh) return;
+        if (/Throwable/i.test(o.name)) o.visible = false;
+        else if (/_Cape$/.test(o.name)) native.cape = o;
+        else if (/_Hat$|_Helmet$/.test(o.name)) native.hat = o;
+      });
+      // (chapeau d'origine gardé si l'enfant choisit « rien » ; cape d'origine si l'enfant choisit la cape)
+      if (native.hat) native.hat.visible = !look.hat || look.hat === 'none' || look.hat === 'own';
+      if (native.cape) native.cape.visible = look.back === 'cape';
+    }
     const mixer = new T.AnimationMixer(obj), actions = {};
     for (const c of this.P.anims.get(key) || []) actions[c.name] = mixer.clipAction(c);
-    for (const n of ['jump', 'crouch', 'attack-melee-right', 'emote-no']) if (actions[n]) { actions[n].setLoop(T.LoopOnce); actions[n].clampWhenFinished = true; }
+    for (const n of ['jump', 'crouch', 'attack-melee-right', 'emote-no', 'Jump_Full_Short', 'Sit_Floor_Down', 'Unarmed_Melee_Attack_Punch_A', 'Hit_A']) if (actions[n]) { actions[n].setLoop(T.LoopOnce); actions[n].clampWhenFinished = true; }
     const ring = new T.Mesh(new T.TorusGeometry(0.95, 0.06, 8, 40), new T.MeshBasicMaterial({ color: '#4ade80' }));
     ring.rotation.x = Math.PI / 2; ring.position.y = 0.06; ring.visible = false; group.add(ring);
     if (small) {
@@ -757,7 +780,9 @@ class Scene3D extends DepthScene {
     const B = fit.torso, tu = B.w;
     bag.position.set(B.cx, B.cy, B.back); bag.scale.setScalar(tu);
     const backKind = look.back || 'bag';
-    if (backKind === 'cape') {
+    if (backKind === 'cape' && kay) {
+      // (aventurier KayKit : il a déjà sa propre cape, montrée à la place)
+    } else if (backKind === 'cape') {
       const cape = new T.Mesh(new T.CylinderGeometry(0.62, 0.78, 1.3, 16, 4, true, Math.PI - 0.85, 1.7), new T.MeshToonMaterial({ color: col, side: T.DoubleSide, gradientMap: this.P.gradient || null }));
       cape.geometry.translate(0, -0.65, 0.5); cape.position.set(0, B.h / tu * 0.45, -0.03); cape.name = 'cape'; cape.castShadow = true; bag.add(cape);
       put(bag, rbox(1.02, 0.08, 0.08, 0.03), '#ffd23f', 0, B.h / tu * 0.46, -0.02);
@@ -767,7 +792,7 @@ class Scene3D extends DepthScene {
         const f = put(w, this.geo.sphere, '#ffffff', sg * 0.42, 0.06, -0.02); f.scale.set(0.46, 0.24, 0.05); f.rotation.z = sg * 0.4;
         const f2 = put(w, this.geo.sphere, '#dbeafe', sg * 0.32, -0.12, -0.03); f2.scale.set(0.3, 0.16, 0.05); f2.rotation.z = sg * 0.2;
       }
-    } else {
+    } else if (backKind !== 'none') {
       const bd = 0.42;
       put(bag, rbox(0.74, 0.86, bd, 0.14), col, 0, 0.02, -bd / 2);
       put(bag, rbox(0.78, 0.3, bd * 0.9, 0.1), dark, 0, 0.32, -bd / 2 - 0.02);
@@ -783,7 +808,7 @@ class Scene3D extends DepthScene {
     this.shadow(hat); this.shadow(bag);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
-    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, obj, cur: null, last: 0 } };
+    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, obj, kay, child, cur: null, last: 0 } };
   }
 
   // Mesure (une fois par personnage) la tête et le torse dans le repère de leur os : largeur, profondeur, sommet, avant / arrière
@@ -801,7 +826,7 @@ class Scene3D extends DepthScene {
       return b;
     };
     let head = null, body = null;
-    obj.traverse((o) => { if (o.isSkinnedMesh) { if (o.name.startsWith('head')) head = o; else if (o.name.startsWith('body')) body = o; } });
+    obj.traverse((o) => { if (o.isSkinnedMesh) { if (/^head|_Head/.test(o.name)) head = o; else if (/^body|_Body$/.test(o.name)) body = o; } });
     const res = { head: { cx: 0, cz: 0, top: 0.2, front: 0.1, w: 0.25, d: 0.25, h: 0.25 }, torso: { cx: 0, cy: 0.1, back: -0.06, front: 0.06, w: 0.2, h: 0.2 } };
     if (head && bones.head) {
       const b = boxIn(head, bones.head);
@@ -809,7 +834,8 @@ class Scene3D extends DepthScene {
     }
     if (body && bones.torso) {
       const ti = body.skeleton.bones.indexOf(bones.torso);
-      const b = boxIn(body, bones.torso, (j) => j === ti);
+      const kayUp = bones['upperarm.l'] ? new Set([bones.chest, bones.spine].map((x) => body.skeleton.bones.indexOf(x))) : null; // (KayKit : poitrine et dos)
+      const b = boxIn(body, bones.torso, kayUp ? (j) => kayUp.has(j) : (j) => j === ti);
       res.torso = { cx: (b.min.x + b.max.x) / 2, cy: (b.min.y + b.max.y) / 2, back: b.min.z, front: b.max.z, w: b.max.x - b.min.x, h: b.max.y - b.min.y };
     }
     this.humanFits.set(key, res);
@@ -847,13 +873,14 @@ class Scene3D extends DepthScene {
   hasTrainer(model) { return !!(this.P.models && this.P.models.has(humanKey({ model }))); }
 
   // Charge les petits dresseurs (tous, pour la fenêtre de choix)
-  preloadTrainers(models = HUMAN_MODELS) {
+  preloadTrainers(models = [...Object.keys(KAY_MODELS), ...HUMAN_MODELS]) {
     return this.load().then(() => this.P.preload(models.map((model) => humanKey({ model }))));
   }
 
   // Dresseur « à la carte » : squelette et corps d'un personnage, tête d'un autre, jambes d'un troisième
   // (les 13 personnages ont le même squelette et la même palette de couleurs : on échange les géométries)
   composeHuman(look) {
+    if (look && isKay(look.model)) return this.P.model(humanKey(look));
     const kb = partKey(look, 'body'), kh = partKey(look, 'head'), kl = partKey(look, 'legs');
     const obj = this.P.model(kb);
     if (kh === kb && kl === kb) return obj;
@@ -979,25 +1006,28 @@ class Scene3D extends DepthScene {
   // Dresseur : animation, poses (bras / jambes visés), accessoires posés sur la tête et le dos
   applyHumanPose(h, m, pose, now) {
     const r = m.human, T = this.T;
-    const clip = { run: 'sprint', jump: 'jump', duck: 'crouch', smash: 'attack-melee-right', bump: 'emote-no', happy: 'emote-yes' }[pose] || 'idle';
-    const next = r.actions[clip] || r.actions.idle;
+    const clip = (r.kay ? { run: 'Running_A', jump: 'Jump_Full_Short', duck: 'Sit_Floor_Down', smash: 'Unarmed_Melee_Attack_Punch_A', bump: 'Hit_A', happy: 'Cheer' }
+      : { run: 'sprint', jump: 'jump', duck: 'crouch', smash: 'attack-melee-right', bump: 'emote-no', happy: 'emote-yes' })[pose] || (r.kay ? 'Idle' : 'idle');
+    const next = r.actions[clip] || r.actions.idle || r.actions.Idle;
     if (next && next !== r.cur) { next.reset().fadeIn(0.15).play(); if (r.cur) r.cur.fadeOut(0.15); r.cur = next; }
     const dt = r.last ? Math.min(0.1, Math.max(0, (now - r.last) / 1000)) : 0;
     r.last = now;
     r.mixer.update(dt);
     // Proportions « dessin animé » lisibles de dos : tête un peu plus petite, bras plus longs (la pose se voit)
-    if (r.bones.head) r.bones.head.scale.setScalar(HUMAN_FIT.head);
+    if (r.bones.head && !r.kay) r.bones.head.scale.setScalar(HUMAN_FIT.head);
     const P = HUMAN_POSES[pose];
     const L = !m.isGhost && this.liveLimbs(h); // imitation en direct du joueur
     const long = P || L ? HUMAN_FIT.arm : 1; // bras un peu plus longs pendant une pose (on la voit mieux)
-    for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(long, 1, 1);
+    if (!r.kay) for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(long, 1, 1);
     // De face (modèle à imiter, fruits) : son bras gauche est à droite de l'écran, on échange gauche / droite
     const facing = !!m.facing || (!m.isGhost && this.faceCam && !!L);
     const sw = (b) => (facing ? b.replace(/left|right/, (x) => (x === 'left' ? 'right' : 'left')) : b);
     m.inner.rotation.y = facing && !m.facing ? Math.PI : 0;
     this.setSeeThrough(m, facing && !m.facing);
-    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[sw(bone)], null, facing ? [dir[0], dir[1], -dir[2]] : dir, m.inner, HUMAN_AXIS[sw(bone)]);
-    if (L) for (const [bone, d] of Object.entries(L)) if (d && r.bones[sw(bone)]) this.aimBone(r.bones[sw(bone)], null, [d[0], d[1], facing ? -0.08 : 0.08], m.inner, HUMAN_AXIS[sw(bone)]);
+    const ch = (b) => (r.kay ? r.child[b] : null); // (KayKit : on vise du bras vers son avant-bras)
+    if (P) for (const [bone, dir] of Object.entries(P)) this.aimBone(r.bones[sw(bone)], ch(sw(bone)), facing ? [dir[0], dir[1], -dir[2]] : dir, m.inner, HUMAN_AXIS[sw(bone)]);
+    if (L) for (const [bone, d] of Object.entries(L)) if (d && r.bones[sw(bone)]) this.aimBone(r.bones[sw(bone)], ch(sw(bone)), [d[0], d[1], facing ? -0.08 : 0.08], m.inner, HUMAN_AXIS[sw(bone)]);
+    if (r.kay && (P || L)) for (const n of ['arm-left', 'arm-right', 'leg-left', 'leg-right']) if (r.child[n] && (P && P[n] || L && L[n])) r.child[n].quaternion.identity(); // (bras tendu)
     if (!m.isGhost) this.updateGhost(h, m);
     m.ring.visible = !!h.holdPose;
     m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
@@ -1019,7 +1049,8 @@ class Scene3D extends DepthScene {
       this.avatarHands = this.avatarHands || [];
       this.avatarHands[idx] = ['arm-left', 'arm-right'].map((n) => {
         const b = r.bones[n]; if (!b) return null;
-        const v = b.localToWorld(new T.Vector3(HUMAN_AXIS[n][0] * HUMAN_HAND, 0, 0)), o = b.getWorldPosition(new T.Vector3());
+        const hb = r.kay && (n === 'arm-left' ? r.bones.handL : r.bones.handR);
+        const v = hb ? hb.getWorldPosition(new T.Vector3()) : b.localToWorld(new T.Vector3(HUMAN_AXIS[n][0] * HUMAN_HAND, 0, 0)), o = b.getWorldPosition(new T.Vector3());
         // main (u, v) et épaule (su, sv) : on touche avec tout le bras
         return { u: (v.x - ax) / (0.5 * sc), v: -(v.y - ay) / (0.5 * sc), su: (o.x - ax) / (0.5 * sc), sv: -(o.y - ay) / (0.5 * sc) };
       }).filter(Boolean);
@@ -1526,6 +1557,13 @@ class Scene3D extends DepthScene {
     add(box, '#ffd6e0', 0, 3.5, -4.5, 12, 7, 0.2);
     add(box, '#ffe9b8', -6, 3.5, 0, 0.2, 7, 9);
     add(new T.CylinderGeometry(1, 1, 0.04, 40), '#7c8cff', 0, 0.03, 0.8, 2.4, 1, 2.4);
+    // Meubles (KayKit Furniture Bits) : lit, canapé, lampe, plante, étagère à livres
+    for (const [n, x, z, ry, s] of [['fu-bed_single_A', 4.2, -2.6, -Math.PI / 2, 1.3], ['fu-couch_pillows', -3.6, 1.6, Math.PI / 2, 1.2],
+      ['fu-lamp_standing', -5.2, -3.6, 0, 1.4], ['fu-cactus_medium_A', 5.2, 1.5, 0, 1], ['fu-shelf_B_large_decorated', -4.6, -3.9, 0, 1.3],
+      ['fu-rug_rectangle_stripes_A', 2.6, -1.4, 0, 1.6], ['fu-pillow_A', -1.6, 2.6, 0.4, 1]]) {
+      const m = this.P.model('kaykit/' + n); if (!m) continue;
+      m.position.set(x, 0, z); m.rotation.y = ry; m.scale.multiplyScalar(s); m.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); scene.add(m);
+    }
     add(box, '#a7e3ff', -5.85, 4.2, 0.5, 0.05, 2, 2.6); add(box, '#ffffff', -5.82, 4.2, 0.5, 0.05, 0.08, 2.6);
     // Étagères : créatures amies et trophées (or : 3 étoiles, argent : 2, bronze : 1)
     for (const y of [2.2, 4.0]) add(box, '#8d5a3b', 1.8, y, -4.1, 6.5, 0.15, 0.7);

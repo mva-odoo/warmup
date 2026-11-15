@@ -48,7 +48,8 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 - **Musique** : chaque monde a sa petite musique originale (aventure, danse, karaté, espace, sous l'eau, bonbons…),
   jouée par un synthétiseur intégré (instruments, batterie, réverbération) ; elle baisse quand la voix parle.
   Réglage parent « 🎵 Musique » pour la couper.
-- **Mon dresseur 👕** : chaque enfant compose son petit dresseur, uniquement avec des images : la **tête**, le **corps**
+- **Mon dresseur 👕** : chaque enfant choisit un **aventurier** (chevalier, magicien, barbare, aventurières, avec leurs
+  vraies animations) ou compose son petit dresseur, uniquement avec des images : la **tête**, le **corps**
   et les **jambes** (une rangée de vignettes pour chacun, parmi 13 personnages, ou 🎲 au hasard), casquette / bonnet / bandeau, lunettes
   et sa couleur préférée (sac à dos et chapeau).
   La fenêtre s'ouvre juste après l'ajout d'un enfant, puis avec le bouton 👕 à côté de son prénom ;
@@ -164,7 +165,12 @@ Les programmes par défaut des séquences Odoo (`hooks.py`) reprennent ceux de `
 si on change le programme d'un monde dans le jeu, penser à mettre `hooks.py` à jour aussi.
 
 ## Crédits
-Tous les modèles 3D viennent de **Kenney** ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) : une seule
+Les dresseurs aventuriers, les coachs et une partie des décors viennent de **KayKit** de Kay Lousberg
+([kaylousberg.com](https://www.kaylousberg.com)), licence **CC0** : Adventurers Character Pack (chevalier, magicien, barbare,
+aventurières ; armes retirées, animations et textures allégées avec Blender), Medieval Hexagon Pack (arbres, rochers),
+Halloween Bits (citrouilles, lanternes, arbres de nuit), Furniture Bits (meubles de la chambre), Restaurant Bits
+(cageots de légumes, frigo du supermarché) — `static/src/game/models/kaykit/License.txt`.
+Les autres modèles 3D viennent de **Kenney** ([kenney.nl](https://www.kenney.nl)), licence **CC0** (domaine public) : une seule
 famille graphique pour le dresseur, ses amis et les décors. Chaque dossier de `static/src/game/models/` contient sa `License.txt`.
 - Dresseurs : **Mini Characters** (`characters/`) ; chapeaux, sac à dos, cape, ailes et lunettes ajoutés par le jeu,
   taillés sur mesure (le jeu mesure la tête et le torse de chaque personnage) et accrochés aux os : ils suivent les mouvements.

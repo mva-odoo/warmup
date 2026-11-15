@@ -14,15 +14,15 @@ const MODELS_BASE = (document.currentScript && document.currentScript.src)
 
 const KITS = {
   // Jardin Fleuri : des fleurs partout
-  flowers: { grass: true, props: [['pf:flowers', 3], ['pf:flowers-tall', 2], ['k:flower_redA', 3], ['k:flower_yellowA', 3], ['k:flower_purpleA', 3], ['k:plant_bushDetailed', 2], ['k:plant_bushLarge', 1], ['t:tree-high-round', 1], ['k:tree_oak', 1], ['pf:mushrooms', 1], ['k:plant_bushLargeTriangle', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
-  meadow: { grass: true, props: [['k:tree_oak', 2], ['k:tree_default', 2], ['k:tree_detailed', 1], ['t:tree-high-round', 1], ['k:plant_bushDetailed', 2], ['k:plant_bushLarge', 1], ['pf:flowers', 2], ['k:flower_redA', 1], ['k:flower_yellowA', 1], ['k:mushroom_red', 1], ['k:rock_smallA', 1], ['k:stump_round', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
+  flowers: { grass: true, props: [['pf:flowers', 3], ['pf:flowers-tall', 2], ['k:flower_redA', 3], ['k:flower_yellowA', 3], ['k:flower_purpleA', 3], ['k:plant_bushDetailed', 2], ['kk:hex-tree_single_A', 2], ['kk:hex-trees_A_small', 1], ['pf:mushrooms', 1], ['kk:hex-rock_single_B', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
+  meadow: { grass: true, props: [['kk:hex-trees_A_medium', 2], ['kk:hex-trees_B_medium', 2], ['kk:hex-tree_single_A', 2], ['kk:hex-tree_single_B', 1], ['k:plant_bushDetailed', 2], ['pf:flowers', 2], ['k:flower_redA', 1], ['k:flower_yellowA', 1], ['kk:hex-rock_single_A', 1], ['kk:hex-rock_single_C', 1], ['k:mushroom_red', 1]], backdrop: ['hills', 'windmill'], particles: 'petals' },
   mountain: { grass: true, props: [['k:tree_pineTallA_detailed', 3], ['k:tree_pineRoundA', 2], ['k:tree_cone', 1], ['k:rock_largeA', 2], ['k:rock_tallA', 1], ['pf:tree-pine-snow', 1], ['k:log', 1], ['sv:tent', 1], ['sv:campfire-pit', 1]], backdrop: ['mountains'] },
   desert:   { props: [['k:cactus_tall', 3], ['k:cactus_short', 3], ['k:rock_largeB', 2], ['k:rock_smallFlatA', 1], ['k:tree_palmShort', 1], ['sv:signpost', 1]], backdrop: ['mesas'] },
   beach:    { props: [['p:palm-detailed-bend', 3], ['p:palm-detailed-straight', 2], ['p:chest', 1], ['p:barrel', 1], ['p:boat-row-small', 1], ['p:rocks-sand-a', 1], ['p:rocks-sand-b', 1], ['p:patch-sand-foliage', 2], ['p:flag-pirate', 1], ['p:ship-pirate-small', 1], ['p:tower-watch', 1]], backdrop: ['sea'] },
   jungle: { grass: true, props: [['k:tree_palmDetailedTall', 2], ['k:plant_flatTall', 3], ['k:plant_bushLarge', 2], ['k:tree_detailed', 2], ['pf:flowers-tall', 1], ['k:hanging_moss', 1], ['pf:mushrooms', 1]], backdrop: ['hills'], particles: 'petals' },
   volcano:  { props: [['k:tree_palmShort', 2], ['k:rock_tallB', 2], ['k:rock_largeC', 2], ['k:plant_flatShort', 2]], backdrop: ['volcano'], particles: 'embers' },
-  forest: { grass: true, props: [['k:tree_pineRoundB', 2], ['sv:tree-autumn', 2], ['sv:tree-autumn-tall', 1], ['k:tree_detailed_dark', 1], ['k:mushroom_redGroup', 2], ['k:mushroom_tanTall', 1], ['k:stump_old', 1], ['k:log_stack', 1], ['k:plant_bush', 2], ['pf:flowers', 1], ['sv:tent', 1]], backdrop: ['hills'], particles: 'petals' },
-  night: { grass: true, props: [['g:pine-crooked', 2], ['g:pine', 2], ['k:tree_pineRoundC', 1], ['s:rock_crystals', 2], ['k:mushroom_redTall', 2], ['g:lightpost-single', 1], ['g:lantern-glass', 2], ['g:pumpkin', 1], ['sv:campfire-pit', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
+  forest: { grass: true, props: [['kk:hex-trees_B_large', 2], ['kk:hex-trees_A_large', 2], ['kk:hex-trees_B_medium', 1], ['sv:tree-autumn', 1], ['k:mushroom_redGroup', 2], ['k:mushroom_tanTall', 1], ['k:stump_old', 1], ['k:log_stack', 1], ['kk:hex-rock_single_D', 1], ['pf:flowers', 1], ['sv:tent', 1]], backdrop: ['hills'], particles: 'petals' },
+  night: { grass: true, props: [['kk:hw-tree_pine_orange_large', 2], ['kk:hw-tree_dead_large', 2], ['kk:hw-tree_dead_medium', 1], ['kk:hw-pumpkin_orange_jackolantern', 2], ['kk:hw-pumpkin_yellow', 1], ['kk:hw-lantern_standing', 2], ['kk:hw-post_lantern', 1], ['s:rock_crystals', 1], ['kk:hw-candle_triple', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
   glacier:  { props: [['h:tree-snow-a', 2], ['h:tree-snow-b', 2], ['pf:tree-pine-snow', 2], ['h:snowman-hat', 1], ['h:snow-pile', 2], ['h:snow-bunker', 1], ['h:present-a-cube', 1], ['h:sled', 1], ['h:rocks-large', 1]], backdrop: ['mountains'], particles: 'snow' },
   aurora:   { props: [['h:tree-snow-c', 2], ['h:tree-decorated-snow', 1], ['pf:tree-snow', 1], ['h:snow-pile', 2], ['s:rock_crystals', 1], ['h:lantern', 2], ['k:tent_detailedOpen', 1], ['h:snowman-hat', 1], ['h:present-b-round', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
   lagoon:   { props: [['coral', 4], ['seaweed', 4], ['p:rocks-sand-a', 1], ['p:chest', 1], ['p:barrel', 1], ['p:ship-wreck', 1], ['s:rock_crystals', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
@@ -34,14 +34,14 @@ const KITS = {
   candy:    { props: [['f:lollypop', 3], ['h:candy-cane-red', 2], ['h:candy-cane-green', 1], ['f:cupcake', 2], ['f:donut-sprinkles', 2], ['f:cake-birthday', 1], ['f:ginger-bread', 1], ['h:present-b-round', 1], ['h:present-a-cube', 1]], backdrop: ['hills'], particles: 'petals' },
   icecream: { props: [['f:sundae', 2], ['f:popsicle', 3], ['f:ice-cream', 2], ['f:muffin', 1], ['f:pudding', 1], ['f:donut-chocolate', 1], ['f:lollypop', 1], ['h:snow-pile', 1]], backdrop: ['hills', 'mountains'] },
   farm: { grass: true, props: [['k:crop_pumpkin', 2], ['k:crops_cornStageD', 2], ['k:crops_wheatStageB', 2], ['k:fence_simple', 2], ['g:hay-bale', 2], ['g:hay-bale-bundled', 1], ['pf:flowers-tall', 1], ['k:tree_oak', 1], ['t:cart', 1], ['sv:signpost', 1], ['sv:barrel', 1]], backdrop: ['barn', 'windmill', 'hills'] },
-  orchard: { grass: true, props: [['k:tree_default', 2], ['t:tree-high-round', 2], ['k:tree_oak', 1], ['k:fence_planks', 2], ['f:watermelon', 1], ['f:pineapple', 1], ['f:strawberry', 1], ['f:apple', 2], ['f:pear', 1], ['f:cherries', 1], ['t:cart', 1], ['pf:flowers', 1]], backdrop: ['barn', 'hills'] },
+  orchard: { grass: true, props: [['kk:hex-tree_single_A', 2], ['kk:hex-trees_A_small', 2], ['k:fence_planks', 2], ['f:watermelon', 1], ['f:pineapple', 1], ['f:apple', 2], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['t:cart', 1], ['pf:flowers', 1]], backdrop: ['barn', 'hills'] },
   ferns:    { grass: true, props: [['k:plant_flatTall', 4], ['k:tree_palmDetailedTall', 2], ['egg', 1], ['dino', 1], ['k:rock_largeC', 1], ['k:plant_bushLarge', 1]], backdrop: ['volcano'] },
   dinoland: { props: [['k:rock_tallC', 2], ['k:plant_flatShort', 2], ['egg', 2], ['dino', 1], ['k:stump_oldTall', 1]], backdrop: ['volcano'], particles: 'embers' },
   garden: { grass: true, props: [['k:plant_bushLargeTriangle', 3], ['k:plant_bushLarge', 2], ['k:plant_bushDetailed', 1], ['c:flag', 2], ['t:banner-red', 1], ['t:lantern', 2], ['c:tree-large', 2], ['c:tree-small', 2], ['k:statue_column', 1], ['pf:flowers', 2], ['k:flower_redA', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
-  magic: { grass: true, props: [['s:rock_crystalsLargeA', 2], ['s:rock_crystals', 1], ['k:tree_tall_dark', 2], ['g:pine-crooked', 1], ['k:mushroom_redTall', 2], ['t:lantern', 2], ['g:lightpost-single', 1], ['k:statue_obelisk', 1], ['g:pumpkin', 1], ['c:flag-banner-long', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
+  magic: { grass: true, props: [['s:rock_crystalsLargeA', 2], ['kk:hw-tree_pine_yellow_large', 2], ['kk:hw-tree_dead_medium', 1], ['kk:hw-pumpkin_yellow', 1], ['kk:hw-lantern_standing', 2], ['t:lantern', 1], ['k:statue_obelisk', 1], ['c:flag-banner-long', 1], ['s:rock_crystals', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
   // Supermarché : rayons remplis de produits (Food Kit), cageots de fruits, caddies garés
-  market: { props: [['shelf', 7], ['fruitCrate', 2], ['parkedCart', 1]], backdrop: [], flat: true },
-  marketFruit: { props: [['fruitCrate', 6], ['shelf', 3], ['parkedCart', 1], ['f:watermelon', 1], ['f:pineapple', 1]], backdrop: [], flat: true },
+  market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: [], flat: true },
+  marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: [], flat: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 3], ['t:lantern', 2], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
   dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 2], ['t:lantern', 3], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
@@ -49,7 +49,7 @@ const KITS = {
 
 // Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
 // Préfixe d'un objet de kit -> dossier de ses modèles
-const MODEL_DIRS = { k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival' };
+const MODEL_DIRS = { kk: 'kaykit', k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival' };
 // Produits rangés dans les rayons du supermarché
 const SHOP_GOODS = ['carton', 'soda-bottle', 'can', 'bottle-ketchup', 'cheese', 'bread', 'loaf-baguette', 'pizza-box', 'croissant', 'cookie-chocolate', 'bag', 'fish'];
 // Caddie de supermarché (fil métallique, panier, poignée rouge, roues) ; P = Props3D
@@ -74,6 +74,13 @@ function makeShopCart(P) {
   return g;
 }
 const MODEL_HEIGHT = [
+  [/^kaykit\/(Knight|Mage|Barbarian|Rogue|Rogue_Hooded)$/, 2.05], // aventuriers KayKit (dresseurs)
+  [/^kaykit\/hex-trees_.*_large/, 6.0], [/^kaykit\/hex-trees_.*_medium/, 4.8], [/^kaykit\/hex-trees_.*_small/, 3.6], [/^kaykit\/hex-tree_single/, 4.2],
+  [/^kaykit\/hex-rock/, 1.0], [/^kaykit\/hex-cloud/, 2.0], [/^kaykit\/hex-water/, 0.5],
+  [/^kaykit\/hw-tree_pine.*large/, 5.2], [/^kaykit\/hw-tree_pine/, 4.0], [/^kaykit\/hw-tree_dead_large/, 4.6], [/^kaykit\/hw-tree_dead/, 3.4],
+  [/^kaykit\/hw-pumpkin.*small/, 0.6], [/^kaykit\/hw-pumpkin/, 0.9], [/^kaykit\/hw-(lantern_standing|post_lantern)/, 2.4], [/^kaykit\/hw-fence/, 1.1], [/^kaykit\/hw-candle/, 0.6],
+  [/^kaykit\/re-fridge/, 1.9], [/^kaykit\/re-crate/, 0.9], [/^kaykit\/re-(jar|ketchup)/, 0.5], [/^kaykit\/re-food/, 0.45],
+  [/^kaykit\/fu-(bed|couch|cabinet|shelf)/, 1.6], [/^kaykit\/fu-(armchair|lamp)/, 1.4], [/^kaykit\/fu-(table|chair)/, 1.0], [/^kaykit\/fu-rug/, 0.08], [/^kaykit\/fu-/, 0.6],
   // Amis du héros (Cube Pets et personnages assortis)
   [/^pets\/animal-(giraffe|elephant)/, 1.55], [/^pets\/animal-(bee|chick|caterpillar|crab|fish)/, 1.0], [/^pets\//, 1.25],
   [/^graveyard\/character-ghost/, 1.35], [/^holiday\/(snowman|reindeer|nutcracker)$/, 1.45], [/^holiday\/gingerbread-man/, 1.25], [/^space\/alien/, 1.35],

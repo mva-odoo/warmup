@@ -1,7 +1,10 @@
 // Fenêtre « Mon dresseur » : l'enfant compose son petit personnage (tête, corps, jambes avec des flèches),
 // son chapeau, ses lunettes et sa couleur préférée, uniquement avec des images (pas besoin de savoir lire).
-const TRAINER_MODELS = ['male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
+// (d'abord les 5 aventuriers KayKit, entiers ; puis les 13 petits personnages qu'on compose tête / corps / jambes)
+const TRAINER_KAY = ['kk-knight', 'kk-mage', 'kk-barbarian', 'kk-rogue', 'kk-hood'];
+const TRAINER_MODELS = [...TRAINER_KAY, 'male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
+const TRAINER_SMALL = TRAINER_MODELS.filter((m) => !TRAINER_KAY.includes(m));
 const TRAINER_HATS = ['cap', 'beanie', 'headband', 'none'];
 // Récompenses : chapeaux et dos à débloquer avec les étoiles gagnées (total de tous les mondes)
 const TRAINER_REWARDS = [
@@ -21,8 +24,9 @@ const Trainer = {
     const l = look || {};
     return {
       model: TRAINER_MODELS.includes(l.model) ? l.model : 'male-a', // tête
-      body: TRAINER_MODELS.includes(l.body) ? l.body : TRAINER_MODELS.includes(l.model) ? l.model : 'male-a',
-      legs: TRAINER_MODELS.includes(l.legs) ? l.legs : TRAINER_MODELS.includes(l.body) ? l.body : TRAINER_MODELS.includes(l.model) ? l.model : 'male-a',
+      // (corps et jambes : seulement les petits personnages ; un aventurier KayKit est entier)
+      body: TRAINER_SMALL.includes(l.body) ? l.body : TRAINER_SMALL.includes(l.model) ? l.model : 'male-a',
+      legs: TRAINER_SMALL.includes(l.legs) ? l.legs : TRAINER_SMALL.includes(l.body) ? l.body : TRAINER_SMALL.includes(l.model) ? l.model : 'male-a',
       hat: ALL_HATS.includes(l.hat) ? l.hat : 'cap',
       back: ALL_BACKS.includes(l.back) ? l.back : 'bag',
       glasses: !!l.glasses,
@@ -91,11 +95,14 @@ const Trainer = {
     const items = () => {
       if (tab === 'model' || tab === 'body' || tab === 'legs') {
         const [x, y, w, h] = CROPS[tab];
-        return TRAINER_MODELS.map((m) => ({ selected: look[tab] === m, pick: () => (look[tab] = m), draw: (b) => {
+        const pool = tab === 'model' ? TRAINER_MODELS : TRAINER_MODELS.filter((m) => !TRAINER_KAY.includes(m));
+        return pool.map((m) => ({ selected: look[tab] === m, pick: () => { look[tab] = m; if (tab === 'model' && !TRAINER_KAY.includes(m)) { if (TRAINER_KAY.includes(look.body)) look.body = m; if (TRAINER_KAY.includes(look.legs)) look.legs = m; } }, draw: (b) => {
           const g = canvasOf(b), src = this.pieceThumb(m, can3d);
           if (!src) { b.textContent = '…'; return; }
-          const k = Math.min(120 / w, 120 / h), dw = w * k, dh = h * k;
-          g.drawImage(src, x, y, w, h, (120 - dw) / 2, (120 - dh) / 2, dw, dh);
+          const [x2, y2, w2, h2] = TRAINER_KAY.includes(m) ? [45, 40, 150, 200] : [x, y, w, h]; // (aventurier : on le montre en entier)
+          const k = Math.min(120 / w2, 120 / h2), dw = w2 * k, dh = h2 * k;
+          g.drawImage(src, x2, y2, w2, h2, (120 - dw) / 2, (120 - dh) / 2, dw, dh);
+          if (TRAINER_KAY.includes(m)) b.classList.add('kayTile');
         } }));
       }
       if (tab === 'hat') {
@@ -120,7 +127,9 @@ const Trainer = {
       } else {
         hero.fillStyle = look.color; hero.beginPath(); hero.arc(120, 150, 80, 0, Math.PI * 2); hero.fill();
       }
-      bg.querySelectorAll('.trTab').forEach((t) => t.classList.toggle('on', t.dataset.tab === tab));
+      const kay = TRAINER_KAY.includes(look.model);
+      if (kay && (tab === 'body' || tab === 'legs')) tab = 'model';
+      bg.querySelectorAll('.trTab').forEach((t) => { t.classList.toggle('on', t.dataset.tab === tab); t.style.display = kay && (t.dataset.tab === 'body' || t.dataset.tab === 'legs') ? 'none' : ''; });
       const list = items(), pages = Math.max(1, Math.ceil(list.length / PER));
       page = Math.max(0, Math.min(pages - 1, page));
       grid.innerHTML = '';
@@ -138,7 +147,7 @@ const Trainer = {
     const pick = (list) => list[Math.floor(Math.random() * list.length)];
     bg.querySelector('.trDice').onclick = () => {
       const st = opts.stars || 0, free = (id) => st >= ((TRAINER_REWARDS.find((r) => r.id === id) || { stars: 0 }).stars);
-      Object.assign(look, { model: pick(TRAINER_MODELS), body: pick(TRAINER_MODELS), legs: pick(TRAINER_MODELS), hat: pick(ALL_HATS.filter(free)), back: pick(ALL_BACKS.filter(free)) });
+      Object.assign(look, { model: pick(TRAINER_MODELS), body: pick(TRAINER_SMALL), legs: pick(TRAINER_SMALL), hat: pick(ALL_HATS.filter(free)), back: pick(ALL_BACKS.filter(free)) });
       Audio8.boing(); render();
     };
     const close = () => bg.remove();

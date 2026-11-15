@@ -5,6 +5,8 @@ from .warmup_constants import WORLDS
 PLAYER_COLORS = ['#ff6b35', '#4ea8ff', '#5cc96b', '#b388eb', '#ffb703', '#ef476f', '#2ec4b6', '#7c8cff']
 # Apparence du dresseur dans le jeu (petits personnages « Mini Characters » de Kenney, CC0)
 AVATAR_MODELS = [
+    ('kk-knight', 'Chevalier'), ('kk-mage', 'Magicien'), ('kk-barbarian', 'Barbare'), ('kk-rogue', 'Aventurière'),
+    ('kk-hood', 'Aventurière à capuche'),
     ('male-a', 'Garçon 1'), ('male-b', 'Garçon 2'), ('male-c', 'Garçon 3'), ('male-d', 'Garçon 4'),
     ('male-e', 'Garçon 5'), ('male-f', 'Garçon 6'), ('male-g', 'Garçon 7'),
     ('female-a', 'Fille 1'), ('female-b', 'Fille 2'), ('female-c', 'Fille 3'),

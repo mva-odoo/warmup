@@ -1916,7 +1916,8 @@ function openRoom() {
   const friends = CREATURES.filter((x) => carnet[x.id]).sort((a, b) => carnet[b.id] - carnet[a.id]).map((x) => ({ cr: x, evolved: carnet[x.id] >= EVOLVE_AT }));
   const data = { look, companion: cr ? { cr, level: Progress.companionLevel(c) } : null, friends,
     trophies: Progress.ordered().map((w) => Progress.stars(w)), photos: Photos.list(0), stickers: WUQStore.getStickers(0) };
-  const keys = [...lookKeys(look), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...(cr ? [cr] : [])])];
+  const keys = [...lookKeys(look), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...(cr ? [cr] : [])]),
+    ...['fu-bed_single_A', 'fu-couch_pillows', 'fu-lamp_standing', 'fu-cactus_medium_A', 'fu-shelf_B_large_decorated', 'fu-rug_rectangle_stripes_A', 'fu-pillow_A'].map((n) => 'kaykit/' + n)];
   scene3d.load().then(() => scene3d.P.preload(keys)).then(() => scene3d.openRoom($('roomCanvas'), data)).catch((e) => console.warn(e));
   Audio8.theme('jardin3d');
 }
@@ -2038,7 +2039,7 @@ if (DEV.get('room')) { // (mode test) chambre remplie
   WUQStore.getStickers = () => ['🦄', '🐳', '🦖', '🌈', '🚀', '🍦', '🐙'];
   scene3d.load().then(openRoom);
 }
-if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: 'female-c', body: 'male-d', legs: 'female-a', hat: 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
+if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
 if (DEV.get('world') || DEV.get('carnet')) {
