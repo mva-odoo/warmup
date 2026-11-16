@@ -397,12 +397,15 @@ function buildMenu() {
   gb.onclick = () => { store('3d', !g3); buildMenu(); };
   sp.appendChild(gb);
   $('simToggle').checked = !!store('sim');
+  $('recToggle').checked = store('rec') === true;
   const dr = $('duoRow');
   dr.innerHTML = '';
   const dt = WUQStore.duoToggle(buildMenu);
   if (dt) dr.appendChild(dt);
 }
 
+$('recToggle').onchange = (e) => store('rec', e.target.checked);
+$('recDl').onclick = () => Rec.download();
 $('simToggle').onchange = (e) => {
   store('sim', e.target.checked);
   if (!e.target.checked && tracker.sim) location.reload(); // repasser à la caméra
@@ -454,6 +457,7 @@ $('voiceSelect').onchange = (e) => { Audio8.setVoice(e.target.value); Audio8.say
 $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ? Cours sur place, puis saute !');
 
 function goMenu() {
+  if (phase === 'play' || phase === 'calib' || phase === 'countdown') Rec.end(null); // (partie abandonnée : on garde quand même les mouvements)
   phase = 'menu'; game = null; frozen = false;
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
@@ -474,12 +478,12 @@ async function startWorld(w) {
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
   // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
-  if (!DEV.get('world')) {
+  if (!DEV.get('world') && !Rec.playing) {
     for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
   tracker.setPlayers(team.length);
-  tracker.bodies.forEach((b, i) => (b.easy = !!(team[i] && team[i].easy))); // (mode petit : par enfant)
+  tracker.bodies.forEach((b, i) => (b.easy = Rec.playing ? !!(Rec.data.easy || [])[i] : !!(team[i] && team[i].easy))); // (mode petit : par enfant)
   $('camBox').classList.toggle('duo', duo());
   $('camBox').classList.remove('camMenu'); // (pendant le jeu : petite vidéo en haut à droite, elle ne cache jamais le dresseur)
   Audio8.unlock();
@@ -512,7 +516,7 @@ async function startWorld(w) {
     show('simHelp');
     document.body.classList.add('sim');
   }
-  if (!tracker.sim && !tracker.landmarker) {
+  if (!tracker.sim && !tracker.landmarker && !Rec.playing) {
     phase = 'loading';
     show('loading'); show('loadingError', false); show('loadingBack', false);
     try {
@@ -547,6 +551,8 @@ $('loadingBack').onclick = goMenu;
 // ---------------- Calibration ----------------
 function startCalib() {
   phase = 'calib';
+  Rec.begin({ world: world.id, players: tracker.bodies.length, easy: tracker.bodies.map((b) => !!b.easy), speed: speed.id,
+    video: { w: video.videoWidth, h: video.videoHeight }, lowPower: !!tracker.lowPower, sim: tracker.sim });
   calibState = { stage: '', holdStart: 0 };
   show('calib');
   show('camBox');
@@ -731,6 +737,7 @@ class Game {
     this.steps = store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps); // (carrefours : on choisit son épreuve)
+    this.steps = Rec.steps(this.steps); // (enregistreur : on garde le parcours ; rejeu : on reprend le même)
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
     this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
@@ -798,6 +805,7 @@ class Game {
     this.i++;
     if (this.i >= this.steps.length) return this.finish();
     const s = this.adapt(this.steps[this.i]);
+    Rec.stepStart(this.i, s);
     const fixed = s.m === 'rest' || s.m === 'freeze' || s.m === 'learn';
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
     const ropePeriod = 1700 * Math.min(1.3, this.mul);
@@ -1600,6 +1608,7 @@ class Game {
     this.success++;
     this.collect(c.s.m === 'combo' ? 3 : 2);
     const rating = c.s.m === 'combo' || frac > 0.45 ? 'perfect' : 'good';
+    Rec.stepEnd(this.i, rating);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
     if (c.s.creature) {
       const cr = c.s.creature;
@@ -1675,6 +1684,7 @@ class Game {
     else { this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); ui.setStreak(this.streak); this.comboCheck(); }
     rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
+    Rec.stepEnd(this.i, rating);
   }
 
   update(now) {
@@ -1768,7 +1778,9 @@ class Game {
       speed: speed.id,
       catches: this.team.map((c) => c.id),
     });
+    Rec.end({ score: this.score, max: this.maxScore, stars });
     showResults(this, stars);
+    show('recDl', !!Rec.last && !Rec.playing);
   }
 }
 
@@ -2166,9 +2178,20 @@ if (DEV.get('world') || DEV.get('carnet')) {
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
 
+// Rejeu d'un enregistrement de mouvements : ?replay=recordings/fichier.json (même partie, sans caméra, rapport à la fin)
+if (DEV.get('replay')) {
+  store('fullscreen', false); $('simToggle').checked = false; store('sim', false);
+  Rec.load(DEV.get('replay')).then((d) => {
+    WUQStore._set('duo', d.players === 2);
+    speed = SPEEDS.find((s) => s.id === d.speed) || speed;
+    const w = WORLDS.find((x) => x.id === d.world);
+    if (w) setTimeout(() => startWorld(w), 200);
+  }).catch((e) => { console.error(e); document.title = 'replay: ' + e.message; });
+}
+
 buildMenu();
 // Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
-if (store('gestures') && !DEV.get('world')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
+if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
 if (DEV.get('gtuto')) Gestures.tutorial(); // (mode test)
 Gestures.onSwipe = (d) => { if (phase === 'menu' && !document.querySelector('.trainerBg, .gTutoBg')) turnMenuPage(d); };
@@ -2195,7 +2218,7 @@ if (DEV.get('room')) { // (mode test) chambre remplie
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
-if (DEV.get('world') || DEV.get('carnet')) {
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay')) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   requestAnimationFrame(drawLoop);

@@ -160,6 +160,17 @@ un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` 
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
+**Enregistreur de mouvements** (pour régler la détection sur les vrais gestes des enfants) : cocher
+« 🎥 Enregistrer les mouvements » dans les réglages parents. Pendant la partie, seuls les **points du corps** vus par la
+caméra sont gardés (33 points par enfant, jamais l'image) ; à la fin (ou à l'abandon après 20 s), le navigateur télécharge
+`wuq-mouvements-<date>-<monde>.json` (2 à 3 Mo pour une partie ; bouton « 💾 Mouvements » sur l'écran de fin pour le
+reprendre). Pour le **rejouer** : copier le fichier dans `static/src/game/recordings/` (ignoré par git) et ouvrir
+`index.html?replay=recordings/<fichier>.json` : la même partie se rejoue sans caméra (même parcours, mêmes carrefours) et
+un rapport s'affiche à la fin. Pour chaque épreuve, il donne la note obtenue et celle de la partie enregistrée, les
+gestes reconnus (sauts, accroupis, pas de côté…), le temps passé dans chaque pose, et les mesures qui décident
+(hauteur du saut, écart des bras et des jambes, pas de côté, rapportés à la taille du torse). En automatique :
+`chrome --headless --virtual-time-budget=300000 --dump-dom "…index.html?replay=…&quality=low"`, rapport dans `#replayReport`.
+
 Le jeu se développe **directement dans ce module** : il n'y a plus de projet séparé à recopier
 (l'ancien script `sync-odoo.ps1` ne doit plus être utilisé, il écraserait le jeu).
 Après une modification, augmenter la version dans `__manifest__.py` puis mettre à jour le module
@@ -170,6 +181,7 @@ Après une modification, augmenter la version dans `__manifest__.py` puis mettre
 | `worlds.js` | mondes, paysages, programmes, consignes et voix |
 | `game.js` | menu, calibrage, déroulé des épreuves, résultats |
 | `pose.js` | détection des mouvements (MediaPipe), 1 ou 2 joueurs |
+| `rec.js` | enregistreur de mouvements et rejeu (rapport de détection) |
 | `scene3d.js`, `props3d.js` | monde en 3D (Three.js) et catalogue de décors |
 | `depth.js`, `decor.js` | chemin 2D (repli) et éléments partagés (bulles, taupes, créatures) |
 | `picto.js` | petit bonhomme animé qui montre chaque mouvement |

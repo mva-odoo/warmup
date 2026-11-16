@@ -34,6 +34,7 @@
       <p id="voiceTip" class="voiceTip hidden">💡 Pour une voix bien plus naturelle, ouvre le jeu avec <b>Microsoft Edge</b> (voix « Natural »).</p>
       <div class="duoRow" id="duoRow"></div>
       <label class="sim"><input type="checkbox" id="simToggle"> Mode clavier (test sans caméra)</label>
+      <label class="sim" title="Seulement les points du corps (pas d'image) : un fichier est téléchargé à la fin de la partie, pour régler la détection des mouvements."><input type="checkbox" id="recToggle"> 🎥 Enregistrer les mouvements (pour régler le jeu)</label>
       </div>
     </details>
   </section>
@@ -125,7 +126,7 @@
     </div>
     <p class="subtitle resLater">🙌 Lève les bras pour rejouer</p>
     <div class="holdbar resLater"><div id="againBar"></div></div>
-    <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span></p>
+    <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span> <button class="btn small ghost hidden" id="recDl">💾 Mouvements</button></p>
   </section>
 
   <!-- Caméra -->
@@ -146,6 +147,7 @@
   <script src="js/audio.js"></script>
   <script src="js/worlds.js"></script>
   <script src="js/pose.js"></script>
+  <script src="js/rec.js"></script>
   <script src="js/decor.js"></script>
   <script src="js/creatures.js"></script>
   <script src="js/depth.js"></script>

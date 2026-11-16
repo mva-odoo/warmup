@@ -167,8 +167,11 @@ class Body {
     const level = (w) => Math.abs(w.y - sh.y) < 0.35 * T / E;
     // Jambes écartées : chevilles si visibles, sinon genoux, sinon on ne regarde que les bras
     // (seuils généreux : un petit enfant écarte moins les jambes qu'un adulte)
-    const legsApart = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T > 0.5
-      : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) / T > 0.4 : true;
+    const legs = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) / T * 1.25 : null;
+    const legsApart = legs == null || legs > 0.5;
+    s.legsApart = legsApart;
+    // (mesures gardées pour le rapport de l'enregistreur : pourquoi un geste est reconnu ou pas)
+    this.diag = { dy: dy / T, spread, legs, dx: this.calib ? (sh.x - this.calib.cx) / T : null, kneeL, kneeR };
     // Bras croisés devant la poitrine (geste de pause) : les poignets échangent leur côté
     const chest = (w) => w.y > sh.y - 0.3 * T && w.y < hip.y + 0.2 * T && Math.abs(w.x - sh.x) < 0.8 * T * 0.75;
     s.crossed = lw.x < rw.x - 0.03 && chest(lw) && chest(rw);
@@ -207,7 +210,7 @@ class Tracker {
   }
 
   on(fn) { this.listeners.push(fn); }
-  emit(type, idx = 0) { const now = performance.now(); for (const f of this.listeners) f(type, now, idx); }
+  emit(type, idx = 0) { const now = performance.now(); if (typeof Rec !== 'undefined') Rec.event(type, idx); for (const f of this.listeners) f(type, now, idx); }
 
   // 1 joueur ou 2 joueurs (coopératif). Repart de zéro pour chaque joueur.
   setPlayers(n) {
@@ -267,6 +270,7 @@ class Tracker {
   }
 
   update(video, now) {
+    if (typeof Rec !== 'undefined' && Rec.playing) return Rec.feed(this, now); // (rejeu d'un enregistrement)
     if (this.sim || !this.landmarker || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
     // Sur un PC lent, on analyse moins d'images pour garder le jeu fluide
@@ -282,6 +286,7 @@ class Tracker {
     P.frames++;
     if (!P.since) P.since = now;
     if (now - P.since >= 1000) { P.fps = Math.round(P.frames * 1000 / (now - P.since)); P.frames = 0; P.since = now; }
+    if (typeof Rec !== 'undefined') Rec.frame(now, res.landmarks || []);
     this.assign(res.landmarks || [], now);
   }
 
