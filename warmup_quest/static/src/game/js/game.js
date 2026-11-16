@@ -274,6 +274,9 @@ function buildMenu() {
       <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>`;
     card.title = w.tagline;
     if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
+    // Chemins pris aux carrefours la dernière fois, et clé dorée si on a trouvé le chemin secret de cette île
+    const paths = Paths.get(0), trail = (paths.last[w.id] || []).map((m) => MOVE_ICONS[m] || '').join(''), keys = paths.secrets[w.id] ? '🗝️' : '';
+    if (open && !mystery && (trail || keys)) card.insertAdjacentHTML('beforeend', `<div class="wTrail">${trail ? '🔀' + trail : ''}${keys}</div>`);
     if (w === here) card.insertAdjacentHTML('beforeend', '<div class="herePin"><canvas width="80" height="100"></canvas></div>');
     if (mystery) { // île surprise : pas d'image ni de nom, juste un gros « ? »
       card.innerHTML = '<div class="mysteryQ">?</div>';
@@ -741,7 +744,8 @@ class Game {
     this.world = w;
     this.steps = store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
-    if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps); // (carrefours : on choisit son épreuve)
+    // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
+    if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
     this.steps = Rec.steps(this.steps); // (enregistreur : on garde le parcours ; rejeu : on reprend le même)
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
@@ -1421,17 +1425,28 @@ class Game {
     ui.setDetail(this.detail(c));
   }
 
+  // Fin du chemin secret : un coffre au trésor (gros bonus) et une clé dorée sur la carte des îles
+  secretTreasure(now) {
+    this.add(this.pts(300), '+300 🗝️'); this.collect(5);
+    scene.burst(scene.W / 2, scene.H * 0.42, 70, ['#ffd23f', '#ffffff', '#ffb703', '#fb8500']);
+    team.forEach((p, i) => Paths.secretFound(i, this.world.id));
+    if (DEV.get('errlog')) document.body.dataset.treasure = (+document.body.dataset.treasure || 0) + 1; // (mode test)
+    ui.feedback('🗝️ Trésor secret !', 'perfect');
+    setTimeout(() => { Audio8.perfect(); Audio8.say('Incroyable ! Tu as trouvé le trésor du chemin secret ! Une clé dorée pour ta carte !'); }, 900);
+    this.gapUntil = Math.max(this.gapUntil || 0, now + 1800);
+  }
+
   // ---------- Carrefour : deux panneaux, un pas à gauche ou à droite (tenu un instant) choisit l'épreuve suivante
   updateFork(c, now) {
     const s = c.s, opts = s.opts || (s.opts = forkOptions());
     if (!c.forkInit) {
       c.forkInit = true; c.sel = 0; c.selT = now;
-      scene.fork = { key: now, opts: opts.map((o) => ({ icon: stepIcon(o), label: FORK_SHORT[o.m] || stepLabel(o) })), sel: 0, k: 0, chosen: 0 };
+      scene.fork = { key: now, opts: opts.map((o) => (o.secret ? { icon: '❓', label: 'Secret !', secret: true } : { icon: stepIcon(o), label: FORK_SHORT[o.m] || stepLabel(o) })), sel: 0, k: 0, chosen: 0 };
     }
     const f = scene.fork;
     if (c.chosen) return;
     // (à deux : le premier qui fait un pas choisit pour l'équipe)
-    const dev = Number(DEV.get('forkside') || 0);
+    const dv = DEV.get('forkside'), dev = dv === 'secret' ? (opts[0].secret ? -1 : 1) : Number(dv || 0); // (mode test)
     const sides = tracker.bodies.map((b) => b.state.side);
     const sel = dev || (sides[0] === 'left' || sides[0] === 'right' ? (sides[0] === 'left' ? -1 : 1) : sides.includes('left') ? -1 : sides.includes('right') ? 1 : 0);
     if (sel !== c.sel) { c.sel = sel; c.selT = now; if (sel) Audio8.tick && Audio8.tick(); }
@@ -1445,7 +1460,12 @@ class Game {
     this.steps.splice(this.i + 1, 0, next);
     this.maxScore += maxPoints(next); this.scored++;
     this.add(this.pts(100), '+100');
-    Audio8.say((pickSide < 0 ? 'À gauche : ' : 'À droite : ') + FORK_NAMES[next.m] + ' !');
+    team.forEach((p, i) => Paths.choose(i, this.world.id, next.m, !this.pathN));
+    this.pathN = (this.pathN || 0) + 1;
+    if (next.secret) { // (on découvre ce que cachait le panneau)
+      f.opts[pickSide < 0 ? 0 : 1] = { icon: stepIcon(next), label: FORK_SHORT[next.m] || stepLabel(next) }; f.key = now;
+      Audio8.say('Le chemin secret ! Il cache… ' + FORK_NAMES[next.m] + ' ! Et peut-être un trésor…');
+    } else Audio8.say((pickSide < 0 ? 'À gauche : ' : 'À droite : ') + FORK_NAMES[next.m] + ' !');
     if (!DEV.get('hold')) setTimeout(() => { if (this.cur === c && !c.done) this.complete(performance.now()); }, 1300);
   }
 
@@ -1614,6 +1634,7 @@ class Game {
     this.collect(c.s.m === 'combo' ? 3 : 2);
     const rating = c.s.m === 'combo' || frac > 0.45 ? 'perfect' : 'good';
     Rec.stepEnd(this.i, rating);
+    if (c.s.secret) this.secretTreasure(now);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
     if (c.s.creature) {
       const cr = c.s.creature;
@@ -1690,6 +1711,7 @@ class Game {
     rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
     Rec.stepEnd(this.i, rating);
+    if (c.s.secret) this.secretTreasure(now);
   }
 
   update(now) {

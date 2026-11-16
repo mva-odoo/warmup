@@ -75,7 +75,7 @@
       if (phase !== 'results') rpc('/warmup/api/player/companion', { player_id: p.id, companion: c }).catch((e) => console.warn(e));
     },
     players() {
-      return selected().map((p) => ({ name: p.name, color: p.color, look: p.look, easy: !!(p.easy || (p.look && p.look.easy)) }));
+      return selected().map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look, easy: !!(p.easy || (p.look && p.look.easy)) }));
     },
     // Gommettes : enregistrées dans la fiche du joueur (Odoo). Les anciennes, gardées dans ce
     // navigateur, sont reprises automatiquement à la prochaine partie.

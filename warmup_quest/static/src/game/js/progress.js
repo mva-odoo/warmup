@@ -54,6 +54,25 @@ const Progress = {
   companionCreature(c) { return c && CREATURES.find((x) => x.id === c.id) || null; },
 };
 
+// Chemins pris aux carrefours (par enfant) : épreuves choisies, derniers chemins de chaque île, clés des chemins secrets
+const Paths = {
+  key(i = 0) { const p = WUQStore.players()[i]; return 'paths_' + (p && p.id != null ? 'p' + p.id : i); },
+  get(i = 0) { return { counts: {}, last: {}, secrets: {}, ...(WUQStore._get(this.key(i)) || {}) }; },
+  // first : premier carrefour de la partie (on repart d'une trace neuve pour cette île)
+  choose(i, world, kind, first) {
+    const p = this.get(i);
+    p.counts[kind] = (p.counts[kind] || 0) + 1;
+    p.last[world] = [...(first ? [] : p.last[world] || []), kind].slice(-2);
+    WUQStore._set(this.key(i), p);
+  },
+  secretFound(i, world) { const p = this.get(i); p.secrets[world] = (p.secrets[world] || 0) + 1; WUQStore._set(this.key(i), p); },
+  // Épreuve préférée : la plus choisie (au moins 2 fois)
+  favorite(i = 0) {
+    const e = Object.entries(this.get(i).counts).sort((a, b) => b[1] - a[1])[0];
+    return e && e[1] >= 2 ? e[0] : null;
+  },
+};
+
 // Petits souvenirs : photos de fin de partie gardées dans ce navigateur (6 dernières par joueur)
 const Photos = {
   list(i = 0) { return WUQStore._get('photos_' + i) || []; },

@@ -40,24 +40,38 @@ const CU = (n, beat = 1.4) => ({ m: 'cubes', n, beat }); // taper n cubes qui ar
 
 // Carrefours : le chemin se sépare, un pas à gauche ou à droite choisit l'épreuve suivante
 const FORK_POOL = [B(12, 5), M(12, 6), SL(12, 6), CU(8, 1.5), MO(16, 5), K(10), Q(4), U(4), F(14)];
-const FORK_NAMES = { bubbles: 'les bulles', moles: 'les taupes', slice: 'les fruits ninja', cubes: 'les cubes en musique', foam: 'les singes farceurs',
+const FORK_NAMES = { posemix: 'les poses', bubbles: 'les bulles', moles: 'les taupes', slice: 'les fruits ninja', cubes: 'les cubes en musique', foam: 'les singes farceurs',
   catch: 'les étoiles qui tombent', rope: 'la corde à sauter', tunnel: 'le tunnel', freeze: 'les statues musicales' };
-const FORK_SHORT = { bubbles: 'Bulles', moles: 'Taupes', slice: 'Fruits', cubes: 'Cubes', foam: 'Mousse', catch: 'Étoiles', rope: 'Corde', tunnel: 'Tunnel', freeze: 'Statues' };
-// Deux épreuves au hasard, différentes de celles juste avant et juste après
-function forkOptions(avoid = []) {
+const FORK_SHORT = { posemix: 'Poses', bubbles: 'Bulles', moles: 'Taupes', slice: 'Fruits', cubes: 'Cubes', foam: 'Mousse', catch: 'Étoiles', rope: 'Corde', tunnel: 'Tunnel', freeze: 'Statues' };
+// Chemin secret : une épreuve surprise (on ne sait pas laquelle avant d'y aller), avec un trésor à la fin
+const SECRET_POOL = [PM('armsUp', 'star', 'airplane'), F(12), K(10), Q(4), U(4)];
+// Deux épreuves au hasard, différentes de celles juste avant et juste après.
+// fav : épreuve préférée de l'enfant (proposée plus souvent) ; secret : un des deux panneaux mène au chemin secret
+function forkOptions(avoid = [], { fav = null, secret = false } = {}) {
   const pool = FORK_POOL.filter((st) => !avoid.includes(st.m)).sort(() => Math.random() - 0.5);
-  return [pool[0], pool[1]].map((st) => JSON.parse(JSON.stringify(st)));
+  const favStep = fav && !avoid.includes(fav) && Math.random() < 0.6 && pool.find((st) => st.m === fav);
+  let two = favStep ? [favStep, pool.find((st) => st !== favStep)] : [pool[0], pool[1]];
+  if (Math.random() < 0.5) two.reverse();
+  two = two.map((st) => JSON.parse(JSON.stringify(st)));
+  if (secret) {
+    const k = favStep ? two.findIndex((st) => st.m !== fav) : Math.floor(Math.random() * 2);
+    const sp = SECRET_POOL.filter((st) => st.m !== two[1 - k].m && !avoid.includes(st.m));
+    two[k] = { ...JSON.parse(JSON.stringify(sp[Math.floor(Math.random() * sp.length)])), secret: true };
+  }
+  return two;
 }
-// Un carrefour vers 40 % du parcours (et un deuxième vers 70 % pour les longs parcours)
-function withForks(steps) {
+// Un carrefour vers 40 % du parcours (et un deuxième vers 70 % pour les longs parcours) ; le chemin secret, s'il y en a
+// un, est au premier carrefour
+function withForks(steps, { fav = null, secret = false } = {}) {
   if (steps.some((st) => st.m === 'fork') || steps.length < 5) return steps;
   const out = steps.slice(), at = steps.length >= 12 ? [0.7, 0.4] : [0.45];
-  for (const f of at) {
+  at.forEach((f, n) => {
     const k = Math.max(1, Math.round(steps.length * f));
-    out.splice(k, 0, { m: 'fork', opts: forkOptions([out[k - 1] && out[k - 1].m, out[k] && out[k].m]) });
-  }
+    out.splice(k, 0, { m: 'fork', opts: forkOptions([out[k - 1] && out[k - 1].m, out[k] && out[k].m], { fav, secret: secret && n === at.length - 1 }) });
+  });
   return out;
 }
+const forkName = (o) => (o.secret ? 'un chemin secret' : FORK_NAMES[o.m]);
 
 // Fruits à couper : émoji, couleur du jus
 const FRUITS = [['🍉', '#ff4d6d'], ['🍊', '#ffa62b'], ['🍎', '#ff3b3b'], ['🍍', '#ffd60a'], ['🥝', '#8ac926'], ['🍋', '#ffe94a'], ['🍑', '#ffb4a2'], ['🍇', '#9b5de5']];
@@ -147,7 +161,7 @@ function stepSpeech(s) {
     case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
     case 'foam': return 'Les singes farceurs couvrent la vitre de mousse ! Tes mains sont des raclettes : lave toute la vitre !';
-    case 'fork': return `Un carrefour ! À gauche : ${FORK_NAMES[s.opts[0].m]}. À droite : ${FORK_NAMES[s.opts[1].m]}. Fais un grand pas du côté que tu veux !`;
+    case 'fork': return `Un carrefour ! À gauche : ${forkName(s.opts[0])}. À droite : ${forkName(s.opts[1])}. Fais un grand pas du côté que tu veux !`;
     case 'shop': return 'Au supermarché ! Va dans le couloir du produit pour le mettre dans ton caddie. Attention aux chapardeurs : évite-les, ou saute par-dessus !';
     case 'ball': return 'Passe de ballon ! Quand le ballon arrive vers toi, lève la main pour le renvoyer à ton copain !';
     case 'boss': return 'Oh ! Le gardien du monde bloque le chemin ! Copie ses poses pour devenir son ami ! ' + POSES[s.poses[0]].say;

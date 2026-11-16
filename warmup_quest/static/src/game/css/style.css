@@ -409,6 +409,9 @@ body.sim .next { bottom: 78px; }
   animation: pinBob 1.2s ease-in-out infinite; filter: drop-shadow(0 6px 4px rgba(0,0,0,.4)); z-index: 2; }
 .herePin canvas { width: 64px; height: 80px; }
 @keyframes pinBob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -8px); } }
+.wTrail { position: absolute; left: 8px; top: 42px; z-index: 2; background: rgba(15,12,50,.55); color: #fff; border-radius: 99px;
+  padding: 2px 8px; font-size: 15px; white-space: nowrap; }
+.dailyBadge ~ .wTrail { top: 80px; }
 .dailyBadge { position: absolute; left: 8px; top: 8px; font-size: 30px; animation: wobble 1.6s ease-in-out infinite; z-index: 2; }
 .worldCard.shake { animation: shake 0.4s; }
 @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }

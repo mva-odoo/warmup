@@ -734,10 +734,11 @@ class DepthScene {
       const ck = f.chosen ? Math.min(1, (now - f.chosenT) / 500) : 0;
       const sc = picked ? 1.12 + ck * 0.08 : on ? 1.08 : 1, a = lost ? 1 - ck * 0.8 : 1;
       const x = W / 2 + side * Math.min(W * 0.3, S * 0.62), y = H * 0.48 + Math.sin(now / 400 + i) * S * 0.008;
-      const col = side < 0 ? '#3a86ff' : '#ff8c42';
+      const col = o.secret ? '#ffb703' : side < 0 ? '#3a86ff' : '#ff8c42';
       ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(sc, sc);
       ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
-      ctx.fillStyle = '#fffdf5'; ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.fill();
+      ctx.fillStyle = o.secret ? '#fff1b8' : '#fffdf5'; ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.fill();
+      if (o.secret) { ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,183,3,.25)'; for (let k = 0; k < 5; k++) { const a = now / 600 + k * 1.26; ctx.beginPath(); ctx.arc(Math.cos(a) * cw * 0.38, Math.sin(a) * ch * 0.38, S * 0.012, 0, 6.29); ctx.fill(); } }
       ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
       ctx.lineWidth = S * 0.012; ctx.strokeStyle = col; ctx.stroke();
       // anneau de choix : le bord se remplit pendant qu'on reste du bon côté

@@ -105,6 +105,10 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Carrefours** 🔀 : dans chaque parcours (sauf l'école), le chemin se sépare. Deux panneaux montrent deux épreuves
     tirées au hasard (bulles, taupes, fruits, cubes, mousse, étoiles, corde, tunnel, statues) ; un grand pas à gauche
     ou à droite, tenu un instant, choisit la suivante. Un carrefour au milieu, deux pour les longs parcours.
+    Le jeu retient les choix de chaque enfant : son **épreuve préférée** (la plus choisie) revient plus souvent, et la carte
+    des îles montre les chemins pris la dernière fois (🔀). Une partie sur trois environ, un panneau doré « ❓ Secret ! »
+    cache une épreuve surprise (poses, statues, étoiles, corde, tunnel) ; au bout, un **trésor** (+300 points) et une
+    **clé dorée** 🗝️ sur l'île de la carte. Mode test : `&forksecret=1&forkside=secret`.
   - **Super Marché Rigolo** 🛒 : des produits arrivent dans les couloirs ; un pas à gauche ou à droite pour se mettre devant
     et ils tombent dans le caddie (poussé à côté du dresseur, il se remplit pour de vrai). De petits chapardeurs masqués
     foncent sur le dresseur : il faut les éviter (ou sauter par-dessus), sinon ils volent un produit !
