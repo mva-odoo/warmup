@@ -70,4 +70,40 @@ const WUQStore = {
     return box;
   },
   cardExtra(world, rebuild) { return null; },
+
+  // ---------- Voix des parents (studio) : gardées dans ce navigateur (IndexedDB) ; le module Odoo les garde sur le serveur
+  _vdb() {
+    return (this._vdbP = this._vdbP || new Promise((ok, ko) => {
+      const r = indexedDB.open('wuq_voice', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('clips');
+      r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+    }));
+  },
+  async _vtx(mode, fn) {
+    const db = await this._vdb();
+    return new Promise((ok, ko) => { const tx = db.transaction('clips', mode), st = tx.objectStore('clips'), r = fn(st); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => ko(tx.error); });
+  },
+  // Map clé -> adresse du son
+  async voices() {
+    const out = new Map();
+    const db = await this._vdb();
+    await new Promise((ok) => {
+      const req = db.transaction('clips').objectStore('clips').openCursor();
+      req.onsuccess = () => { const c = req.result; if (!c) return ok(); if (c.value.blob) out.set(c.key, URL.createObjectURL(c.value.blob)); c.continue(); };
+      req.onerror = () => ok();
+    });
+    return out;
+  },
+  // meta : { moment, player } pour un message perso (blob peut manquer : le jeu le lit avec sa voix)
+  saveVoice(key, text, blob, meta = {}) { return this._vtx('readwrite', (st) => st.put({ text, blob, ...meta }, key)); },
+  async messages() {
+    const out = [], db = await this._vdb();
+    await new Promise((ok) => {
+      const req = db.transaction('clips').objectStore('clips').openCursor();
+      req.onsuccess = () => { const c = req.result; if (!c) return ok(); const v = c.value; if (v.moment) out.push({ key: c.key, text: v.text, moment: v.moment, player: v.player || null, url: v.blob ? URL.createObjectURL(v.blob) : null }); c.continue(); };
+      req.onerror = () => ok();
+    });
+    return out;
+  },
+  deleteVoice(key) { return this._vtx('readwrite', (st) => st.delete(key)); },
 };

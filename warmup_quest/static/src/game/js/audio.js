@@ -250,27 +250,66 @@ const Audio8 = (() => {
     loadVoices();
   }
 
+  // ---------- Voix : synthèse du navigateur, morceaux enregistrés (décodés une fois, gardés en mémoire)
+  let speakToken = 0, curSrc = null;
+  const clips = new Map();
+  const clip = (url) => {
+    if (!clips.has(url)) clips.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then((b) => ac().decodeAudioData(b)));
+    const pr = clips.get(url); pr.catch(() => clips.delete(url));
+    return pr;
+  };
+  // La musique se fait plus discrète pendant que la voix parle
+  const duck = (on) => { if (musicBus) musicBus.gain.setTargetAtTime(on ? musicVol * 0.35 : musicVol, ac().currentTime, 0.12); };
+  function stopSpeech() {
+    speakToken++;
+    if (curSrc) { try { curSrc.onended = null; curSrc.stop(); } catch {} curSrc = null; }
+    if (hasTTS) speechSynthesis.cancel();
+  }
+  // Voix de synthèse (onend : suite de la phrase ; inChain : la musique est déjà baissée)
+  function tts(text, opts = {}, onend = null, inChain = false) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fr-FR';
+    if (voice) u.voice = voice;
+    const natural = voice && quality(voice) >= 4;
+    // Les voix naturelles sonnent mieux sans modification ; les autres un peu plus enjouées
+    u.rate = (natural ? 1.0 : 1.05) * (opts.slow ? 0.86 : 1);
+    u.pitch = natural ? 1.05 : 1.15;
+    if (!inChain) { u.onstart = () => duck(true); u.onend = u.onerror = () => { duck(false); if (onend) onend(); }; }
+    else u.onend = u.onerror = () => onend && onend();
+    speechSynthesis.speak(u);
+  }
+
   return {
     unlock() { ac().resume(); },
     // opts.slow : voix plus lente (tuto)
     say(text, opts = {}) {
-      if (!hasTTS || !text) return;
+      if (!text) return;
       const t = performance.now();
       if (text === lastSaid && t - lastSaidAt < 4000) return; // pas deux fois la même phrase coup sur coup
       lastSaid = text; lastSaidAt = t;
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'fr-FR';
-      if (voice) u.voice = voice;
-      const natural = voice && quality(voice) >= 4;
-      // Les voix naturelles sonnent mieux sans modification ; les autres un peu plus enjouées
-      u.rate = (natural ? 1.0 : 1.05) * (opts.slow ? 0.86 : 1);
-      u.pitch = natural ? 1.05 : 1.15;
-      // La musique se fait plus discrète pendant que la voix parle
-      const duck = (v) => { if (musicBus) musicBus.gain.setTargetAtTime(v, ac().currentTime, 0.12); };
-      u.onstart = () => duck(musicVol * 0.35); u.onend = u.onerror = () => duck(musicVol);
-      speechSynthesis.speak(u);
+      stopSpeech();
+      // Voix enregistrée (parents) ou voix naturelle du jeu, morceau par morceau ; synthèse pour ce qui manque.
+      // opts.clip : un seul enregistrement pour tout le texte (message perso) ; opts.onend : appelé à la fin
+      const parts = opts.clip ? [{ text, url: opts.clip }] : typeof Voice !== 'undefined' ? Voice.parts(text) : [];
+      if (!parts.some((p) => p.url)) { if (hasTTS) tts(text, opts, opts.onend); else if (opts.onend) opts.onend(); return; }
+      const token = ++speakToken;
+      duck(true);
+      const next = (i) => {
+        if (token !== speakToken) return;
+        if (i >= parts.length) { duck(false); if (opts.onend) opts.onend(); return; }
+        const p = parts[i], go = () => setTimeout(() => next(i + 1), opts.slow ? 380 : 90); // (petite pause entre deux phrases)
+        if (!p.url) { if (hasTTS) tts(p.text, opts, go, true); else go(); return; }
+        clip(p.url).then((buf) => {
+          if (token !== speakToken) return;
+          const c = ac(), src = c.createBufferSource(), g = c.createGain();
+          g.gain.value = 1.0; src.buffer = buf; src.connect(g); g.connect(c.destination);
+          src.onended = () => { if (curSrc === src) curSrc = null; go(); };
+          curSrc = src; src.start();
+        }).catch(() => { if (hasTTS) tts(p.text, opts, go, true); else go(); });
+      };
+      next(0);
     },
+    stopSpeech() { stopSpeech(); },
     voices: () => voices,
     voiceName: () => (voice ? voice.name : ''),
     isNatural: () => !!voice && quality(voice) >= 4,

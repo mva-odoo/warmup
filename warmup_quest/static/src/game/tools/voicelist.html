@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- Outil (développement) : liste toutes les phrases que le jeu peut dire, découpées en morceaux, avec leur clé.
+     Utilisé par tools/make_voice.py (ouvert avec Chrome sans fenêtre, résultat lu dans #out). -->
+<meta charset="utf-8"><title>voicelist</title><body><pre id="out">…</pre>
+<script src="../js/storage.js"></script>
+<script src="../js/audio.js"></script>
+<script src="../js/voice.js"></script>
+<script src="../js/worlds.js"></script>
+<script src="../js/decor.js"></script>
+<script src="../js/creatures.js"></script>
+<script src="../js/progress.js"></script>
+<script>
+(async () => {
+  const out = new Map();
+  // c : rubrique du studio (bravo, consigne, tuto, jeu) ; e : parmi « les plus dites »
+  const add = (text, c, e = false, force = false) => {
+    for (const s of Voice.split(text)) {
+      const k = Voice.key(s), o = out.get(k);
+      // (rubrique décidée morceau par morceau : « Super ! » va dans les bravos, la suite garde sa rubrique)
+      const bravo = /^(Bravo|Super|Génial|Trop fort|Incroyable|Waouh|Tope|Bien joué|Parfait|Magnifique)\b/.test(s);
+      const cat = bravo || force ? c === 'bravo' || bravo ? 'bravo' : c : c === 'bravo' ? 'jeu' : c, ess = e && (force || bravo || c !== 'bravo');
+      if (!o) out.set(k, { k, t: s, c: cat, ...(ess ? { e: 1 } : {}) }); else if (ess) o.e = 1;
+    }
+  };
+  // 1. Phrases écrites telles quelles dans le code (relevées par make_voice.py)
+  for (const [t, c, e] of await (await fetch('literals.json?' + Date.now())).json()) add(t, c, e);
+  // 2. Consignes de toutes les épreuves de tous les mondes (+ carrefours, chemins secrets, nombres de répétitions)
+  const BASIC = ['jump', 'squat', 'smash', 'left', 'right', 'run', 'pose', 'bubbles', 'catch', 'moles', 'slice'];
+  const steps = [];
+  WORLDS.forEach((w) => w.sequence.forEach((s) => steps.push([s, !!w.tutorial])));
+  [...FORK_POOL, ...SECRET_POOL].forEach((s) => steps.push([s, false]));
+  for (let n = 1; n <= 12; n++) for (const m of ['jump', 'squat', 'smash', 'rope']) steps.push([{ m, n }, false]);
+  for (const [s, tuto] of steps) {
+    if (s.m === 'learn') { add(tutoText(s.of), 'tuto'); continue; }
+    if (s.m === 'fork' || s.m === 'combo' && !s.parts) continue;
+    add(stepSpeech(s), tuto ? 'tuto' : 'consigne', BASIC.includes(s.m) && (!s.n || s.n <= 3));
+    add(tutoText(s), 'tuto');
+  }
+  for (const p of Object.values(POSES)) { add(p.say, 'consigne', true); add(p.label, 'consigne'); }
+  for (const st of Object.values(MIMIC)) for (const t of Object.values(st.say)) add(t, 'consigne');
+  // 3. Carrefours
+  add('Un carrefour !', 'consigne'); add('Fais un grand pas du côté que tu veux !', 'consigne');
+  const forkNames = [...Object.values(FORK_NAMES), 'un chemin secret'];
+  for (const n of forkNames) for (const side of ['À gauche', 'À droite']) { add(`${side} : ${n}.`, 'jeu'); add(`${side} : ${n} !`, 'jeu'); }
+  add('Le chemin secret !', 'jeu'); add('Et peut-être un trésor…', 'jeu');
+  for (const n of Object.values(FORK_NAMES)) add(`Il cache… ${n} !`, 'jeu');
+  // 4. Créatures (amis, compagnons, gardiens)
+  add('Surprise du jour !', 'jeu'); add('pour devenir son ami !', 'jeu');
+  for (const cr of CREATURES) {
+    const n = cr.name;
+    add(`Oh ! ${n} arrive !`, 'jeu'); add(`Super ! ${n} va courir avec toi !`, 'bravo');
+    add(`Bravo ! ${n} est ton ami !`, 'bravo'); add(`Incroyable ! ${n} a évolué !`, 'bravo'); add(`${n} a grandi !`, 'bravo');
+    add(`${n} est ton nouveau compagnon !`, 'bravo'); add(`Bravo ! ${n}, le gardien du monde, devient ton ami !`, 'bravo');
+    for (const p of Object.values(POSES)) add(`${n} arrive ! ${p.say} pour devenir son ami !`, 'jeu');
+  }
+  add(`Choisis ton compagnon : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`, 'jeu');
+  // 5. Carte, résultats, tours, décompte
+  for (const w of WORLDS) add(`Gagne une étoile dans ${w.name} pour ouvrir cette île !`, 'jeu');
+  add('Bravo !', 'bravo', true);
+  for (let n = 1; n <= 3; n++) for (const who of ['Tu as', 'Vous avez']) add(`${who} gagné ${n} étoile${n > 1 ? 's' : ''} et ${who === 'Vous avez' ? 'des nouvelles gommettes' : 'une nouvelle gommette'} !`, 'bravo', true, true);
+  add('À toi joueur un !', 'jeu'); add('À toi joueur deux !', 'jeu');
+  for (let n = 1; n <= 10; n++) add(String(n), 'jeu');
+  const list = [...out.values()].sort((a, b) => a.t.localeCompare(b.t, 'fr'));
+  document.getElementById('out').textContent = JSON.stringify(list);
+})().catch((e) => { document.getElementById('out').textContent = 'ERREUR ' + e.message; });
+</script>

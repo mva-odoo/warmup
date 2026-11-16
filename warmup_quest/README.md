@@ -164,6 +164,24 @@ un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` 
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
+**Voix** : chaque phrase est découpée en morceaux (une phrase = un morceau). Pour chacun, le jeu joue la **voix d'un parent**
+si elle a été enregistrée, sinon la **voix naturelle** livrée avec le jeu (585 morceaux, Piper, voix « siwis »), sinon la voix
+de synthèse du navigateur (prénoms, phrases ajoutées par les parents dans les séquences). La musique baisse pendant que la voix parle.
+- **🎙️ Studio voix** (réglages parents) : rubriques « Les plus dites », Bravos, Consignes, École, Prénoms (« Bravo Léo ! »,
+  « À toi Léo ! » avec les prénoms des enfants), Ma voix, Toutes (avec recherche). ▶ écoute, ⏺ enregistre (10 s au plus),
+  🗑 reprend la voix du jeu. Une case coupe la voix naturelle (retour à la voix du navigateur). Le micro demande HTTPS, comme la caméra.
+- **💌 Mes messages** (premier onglet du studio) : un petit mot perso (« Allez mon champion, papa est fier de toi ! »),
+  avec le moment où le jeu le dit (🚀 au début, avant le 3-2-1 ; 👏 après une réussite ; 💪 quand c'est raté ; 🏁 à la fin,
+  avant « Lève les bras pour rejouer ») et pour qui (tous, ou un enfant). On l'enregistre avec sa voix, ou on l'ajoute sans
+  enregistrement (le jeu le lit avec sa voix). Après une réussite ou un raté, un message arrive de temps en temps (au plus un
+  toutes les 40 s, jamais deux fois le même à la suite) et l'épreuve suivante attend qu'il soit fini.
+- Les enregistrements sont gardés **dans Odoo** (Configuration › Voix et messages perso) et suivent sur tous les postes ;
+  sans Odoo, dans le navigateur.
+- Refaire la voix naturelle après un changement de texte : serveur local lancé dans `static/src/game`, puis
+  `python -I static/src/game/tools/make_voice.py --model fr_FR-siwis-medium.onnx --chrome <chemin de chrome>`
+  (`pip install piper-tts soundfile numpy`). Le script relève les phrases du code, liste tous les morceaux (`voice/phrases.json`)
+  et ne synthétise que ceux qui manquent.
+
 **Mets-toi bien** : au départ (seul), une grande silhouette s'affiche dans l'image de la caméra. Chaque partie du corps
 que la caméra voit devient verte (tête, bras, ventre, genoux, pieds) et une consigne s'affiche en gros (« Recule ! »,
 « Avance un peu », « Par ici ! »). Si les pieds ne sont pas visibles, le jeu demande d'abord de reculer, puis joue quand même
@@ -191,6 +209,7 @@ Après une modification, augmenter la version dans `__manifest__.py` puis mettre
 | `game.js` | menu, calibrage, déroulé des épreuves, résultats |
 | `pose.js` | détection des mouvements (MediaPipe), 1 ou 2 joueurs |
 | `rec.js` | enregistreur de mouvements et rejeu (rapport de détection) |
+| `voice.js` | voix du jeu (voix des parents, voix naturelle, synthèse) et studio voix |
 | `scene3d.js`, `props3d.js` | monde en 3D (Three.js) et catalogue de décors |
 | `depth.js`, `decor.js` | chemin 2D (repli) et éléments partagés (bulles, taupes, créatures) |
 | `picto.js` | petit bonhomme animé qui montre chaque mouvement |
@@ -214,7 +233,12 @@ famille graphique pour le dresseur, ses amis et les décors. Chaque dossier de `
   le renne, le pain d'épices et le casse-noisette (Holiday Kit) et l'extraterrestre (Space Kit). Les noms sont propres au jeu ;
   la forme évoluée est plus grande, avec une couronne dorée.
 - Décors : **Nature Kit** (`kenney/`), **Space Kit**, **Food Kit**, **Pirate Kit**, **Holiday Kit**, **Graveyard Kit**,
-  **Castle Kit**, **Fantasy Town Kit**, **Platformer Kit**, **Survival Kit**. Quelques éléments restent construits par le jeu
-  (coraux, algues, dinosaures, œufs, cerisiers, scène de danse, arrière-plans lointains).
+  **Castle Kit**, **Fantasy Town Kit**, **Platformer Kit**, **Survival Kit**.
+- Décors maison, modelés pour le jeu dans Blender (`custom/`) : grands fonds à l'horizon (château, pagode, grange,
+  volcan qui fume, montagnes, mesas, phare), torii, lanternes de pierre, cerisiers, coraux, algues, étoiles de mer.
+  Posés loin, ils ne sont pas effacés par la brume mais légèrement voilés, et relevés de la courbure du monde pour rester
+  sur l'horizon. Quelques éléments restent construits par le jeu (dinosaures, œufs, algues qui ondulent, scène de danse).
+- Voix naturelle : **Piper** (MIT) avec la voix française « siwis », base SIWIS de l'Université d'Édimbourg, licence **CC-BY 4.0**
+  (`static/src/game/voice/License.txt`).
 - Moteur 3D : Three.js ; détection des mouvements : MediaPipe (chargés depuis jsDelivr).
 - Mondes, musiques (synthétiseur intégré) et règles du jeu : créations originales de ce module.

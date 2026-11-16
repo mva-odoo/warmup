@@ -457,6 +457,7 @@ function buildVoices() {
 Audio8.onVoices(buildVoices);
 buildVoices();
 $('voiceSelect').onchange = (e) => { Audio8.setVoice(e.target.value); Audio8.say('Salut ! Prêt pour l\'échauffement ? Saute !'); };
+$('voiceStudio').onclick = () => Voice.openStudio();
 $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ? Cours sur place, puis saute !');
 
 function goMenu() {
@@ -664,7 +665,7 @@ function pauseGame(reason) {
   frozen = true;
   pausedAt = performance.now();
   resumeHold = 0;
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  Audio8.stopSpeech();
   Audio8.music(false); Audio8.theme(null);
   $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : reason === 'gesture' ? '✖️ Bras croisés : pause' : '';
   $('pauseBar').style.width = '0%';
@@ -713,6 +714,15 @@ function startCountdown(done = startGame) {
   const el = $('countdown');
   show('countdown');
   let n = 3;
+  // Message perso « au début » (studio voix) : dit avant le 3, 2, 1
+  const msg = done === startGame && Voice.pickMessage('start', team);
+  if (msg) {
+    el.textContent = '💌'; el.className = 'pop anim';
+    let went = false;
+    const go = () => { if (!went) { went = true; tick(); } };
+    setTimeout(() => Voice.sayMessage(msg, () => setTimeout(go, 400)), 300);
+    setTimeout(go, 12000);
+  }
   const tick = () => {
     if (phase !== 'countdown') return;
     if (n > 0) {
@@ -727,7 +737,7 @@ function startCountdown(done = startGame) {
       setTimeout(() => { show('countdown', false); done(); }, 700);
     }
   };
-  tick();
+  if (!msg) tick();
 }
 
 // ---------------- Partie ----------------
@@ -1656,6 +1666,17 @@ class Game {
     scene.bubbles = []; scene.hands = []; scene.moles = [];
     this.endTargets(c);
     if (!c.s.creature) this.gapUntil = now + 1100;
+    this.personalMessage('success', now);
+  }
+
+  // Message perso des parents (studio) : de temps en temps après une réussite ou un raté (au plus un toutes les 40 s) ;
+  // la suite attend la fin du message (10 s au plus)
+  personalMessage(moment, now) {
+    if (now - (this.msgT || -1e9) < 40000 || Math.random() > (moment === 'miss' ? 0.5 : 0.35)) return;
+    const m = Voice.pickMessage(moment, team);
+    if (!m) return;
+    this.msgT = now; this.msgUntil = now + 11000;
+    setTimeout(() => Voice.sayMessage(m, () => { this.msgUntil = 0; }), 800);
   }
 
   // Fin des fruits / cubes : la musique s'arrête, les morceaux finissent leur chute
@@ -1712,6 +1733,7 @@ class Game {
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
     Rec.stepEnd(this.i, rating);
     if (c.s.secret) this.secretTreasure(now);
+    if (rating === 'miss' || rating === 'ok') this.personalMessage('miss', now);
   }
 
   update(now) {
@@ -1719,7 +1741,7 @@ class Game {
     const c = this.cur;
     this.updateLive(c);
     if (!c) return this.nextStep(now);
-    if (c.done) { if (now >= this.gapUntil) this.nextStep(now); return; }
+    if (c.done) { if (now >= this.gapUntil && !(this.msgUntil > now)) this.nextStep(now); return; }
     const s = c.s, st = tracker.state;
     const dt = now - c.lastT;
     c.lastT = now;
@@ -2006,6 +2028,12 @@ function showResults(g, stars) {
   const names = team.map((p) => p.name).filter(Boolean);
   const bravo = names.length ? `Bravo ${names.join(' et ')} !` : 'Bravo !';
   Audio8.say(`${bravo} ${duo() ? 'Vous avez' : 'Tu as'} gagné ${stars} étoile${stars > 1 ? 's' : ''} et ${duo() ? 'des nouvelles gommettes' : 'une nouvelle gommette'} !`);
+  // Message perso « à la fin » (studio voix), après les annonces de récompenses
+  const endMsg = Voice.pickMessage('end', team);
+  if (endMsg) {
+    againSaid = true; // (« Lève les bras pour rejouer » vient après le message)
+    setTimeout(() => { if (phase === 'results') Voice.sayMessage(endMsg, () => setTimeout(() => { if (phase === 'results') Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }, 800)); }, 6500);
+  }
   scene.targetSpeed = 0.2;
   scene.obs = null;
   scene.hazards = [];
@@ -2204,6 +2232,14 @@ if (DEV.get('world') || DEV.get('carnet')) {
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
+
+Voice.init(); // (voix naturelle du jeu et voix enregistrées par les parents)
+if (DEV.get('msgdemo')) { // (mode test) deux messages perso, sans passer par la base du navigateur
+  WUQStore.voices = async () => new Map();
+  WUQStore.messages = async () => [{ key: 'a1b2c3d4', text: 'Allez mon champion, papa est fier de toi !', moment: 'start', player: null, url: 'x' },
+    { key: 'a1b2c3d5', text: 'Bravo ma puce, tu sautes comme un kangourou !', moment: 'success', player: null, url: null }];
+}
+if (DEV.get('studio')) setTimeout(() => Voice.openStudio(), 300); // (mode test)
 
 // Rejeu d'un enregistrement de mouvements : ?replay=recordings/fichier.json (même partie, sans caméra, rapport à la fin)
 if (DEV.get('replay')) {

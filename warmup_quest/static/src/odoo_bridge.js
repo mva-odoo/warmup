@@ -44,6 +44,16 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   Object.assign(WUQStore, {
+    // Studio voix : enregistrements gardés dans Odoo (ils suivent sur tous les postes)
+    async voices() { return new Map((await rpc('/warmup/api/voice/list', {})).map((v) => [v.key, v.url])); },
+    async saveVoice(key, text, blob, meta = {}) {
+      const data = blob ? await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(blob); }) : null;
+      return rpc('/warmup/api/voice/save', { key, text, data, mimetype: blob ? blob.type : null, moment: meta.moment || null, player: meta.player || null });
+    },
+    messages() { return rpc('/warmup/api/voice/messages', {}); },
+    deleteVoice(key) { return rpc('/warmup/api/voice/delete', { key }); },
+    // Tous les enfants (pour enregistrer leurs prénoms dans le studio)
+    allPlayers() { return cfg.players.map((p) => ({ id: p.id, name: p.name })); },
     getCarnet() { const p = player(); return p ? { ...(p.carnet || {}) } : {}; },
     setCarnet(c) { const p = player(); if (p) p.carnet = c; },
     // Records par joueur (i = position dans la partie)

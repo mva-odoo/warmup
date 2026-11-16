@@ -23,4 +23,6 @@
               action="action_warmup_sequence" sequence="10"/>
     <menuitem id="menu_warmup_creature" name="Créatures" parent="menu_warmup_config"
               action="action_warmup_creature" sequence="20"/>
+    <menuitem id="menu_warmup_voice" name="Voix et messages perso" parent="menu_warmup_config"
+              action="action_warmup_voice" sequence="30"/>
 </odoo>

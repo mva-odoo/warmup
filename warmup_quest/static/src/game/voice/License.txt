@@ -1,0 +1,8 @@
+Voix naturelle du jeu (voice/piper/*.ogg)
+
+Générée avec Piper (https://github.com/rhasspy/piper, licence MIT) et la voix française « siwis » (fr_FR-siwis-medium,
+https://huggingface.co/rhasspy/piper-voices). Voix entraînée sur la base SIWIS French Speech Synthesis Database
+(University of Edinburgh, https://datashare.is.ed.ac.uk/handle/10283/2353), licence Creative Commons Attribution 4.0 (CC-BY 4.0).
+Les fichiers audio sont distribués sous la même licence CC-BY 4.0.
+
+Pour les refaire après un changement de texte : static/src/game/tools/make_voice.py (voir le README du module).

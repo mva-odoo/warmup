@@ -6,3 +6,4 @@ access_warmup_session_user,warmup.session user,warmup.session,base.group_user,cr
 access_warmup_creature_user,warmup.creature user,warmup.creature,base.group_user,r,
 access_warmup_creature_system,warmup.creature admin,warmup.creature,base.group_system,crud,
 access_warmup_creature_catch_user,warmup.creature.catch user,warmup.creature.catch,base.group_user,crud,
+access_warmup_voice_user,warmup.voice user,warmup.voice,base.group_user,crud,

@@ -1,0 +1,322 @@
+[
+[
+"C'est fini pour aujourd'hui, à demain !",
+"jeu",
+false
+],
+[
+"Surprise ! Continue de jouer pour découvrir cette île !",
+"jeu",
+false
+],
+[
+"Salut ! Prêt pour l'échauffement ? Saute !",
+"jeu",
+false
+],
+[
+"Salut ! Prêt pour l'échauffement ? Cours sur place, puis saute !",
+"jeu",
+false
+],
+[
+"lost",
+"jeu",
+false
+],
+[
+"Pause ! Reviens devant la caméra et lève les bras pour continuer.",
+"jeu",
+false
+],
+[
+"Pause !",
+"jeu",
+false
+],
+[
+"C'est parti !",
+"jeu",
+false
+],
+[
+"Surprise du jour ! ",
+"jeu",
+false
+],
+[
+"Oh ! ",
+"jeu",
+false
+],
+[
+"Combo !",
+"jeu",
+false
+],
+[
+"Super combo !",
+"bravo",
+true
+],
+[
+"Méga combo !",
+"jeu",
+false
+],
+[
+"rock",
+"jeu",
+false
+],
+[
+"Va à côté !",
+"jeu",
+false
+],
+[
+"log",
+"jeu",
+false
+],
+[
+"Saute !",
+"jeu",
+false
+],
+[
+"item",
+"jeu",
+false
+],
+[
+"Attrape-le !",
+"jeu",
+false
+],
+[
+"thief",
+"jeu",
+false
+],
+[
+"Attention, un chapardeur !",
+"jeu",
+false
+],
+[
+"Baisse-toi !",
+"jeu",
+false
+],
+[
+"Baissez-vous dans le tunnel !",
+"jeu",
+false
+],
+[
+"Baisse-toi dans le tunnel !",
+"jeu",
+false
+],
+[
+"Oh non ! Les singes farceurs lancent de la mousse sur la vitre ! On ne voit plus rien ! Tes mains sont des raclettes : lave la vitre !",
+"jeu",
+false
+],
+[
+"Bravo ! La vitre brille ! Les singes sont tout étonnés !",
+"bravo",
+true
+],
+[
+"Bravo, ça brille ! Oh non… les singes recommencent !",
+"bravo",
+true
+],
+[
+"Super ! Attention, encore de la mousse !",
+"bravo",
+true
+],
+[
+"Incroyable ! Tu as trouvé le trésor du chemin secret ! Une clé dorée pour ta carte !",
+"bravo",
+true
+],
+[
+"Le chemin secret ! Il cache… ",
+"jeu",
+false
+],
+[
+" ! Et peut-être un trésor…",
+"jeu",
+false
+],
+[
+"À gauche : ",
+"jeu",
+false
+],
+[
+"À droite : ",
+"jeu",
+false
+],
+[
+"Lève la main quand le ballon arrive !",
+"jeu",
+false
+],
+[
+"Dansez !",
+"jeu",
+false
+],
+[
+"Danse !",
+"jeu",
+false
+],
+[
+"Statue !",
+"jeu",
+false
+],
+[
+"Tope là !",
+"bravo",
+true
+],
+[
+"Bravo l'équipe !",
+"bravo",
+true
+],
+[
+"Super équipe !",
+"bravo",
+true
+],
+[
+"Levez les bras pour rejouer !",
+"jeu",
+false
+],
+[
+"Lève les bras pour rejouer !",
+"jeu",
+false
+],
+[
+"Bravo ! Ton échauffement est fini pour aujourd'hui. À demain !",
+"bravo",
+true
+],
+[
+"Waouh ! Tu as débloqué un nouvel objet pour ton dresseur !",
+"bravo",
+true
+],
+[
+"Vous avez",
+"jeu",
+false
+],
+[
+"Tu as",
+"jeu",
+false
+],
+[
+"des nouvelles gommettes",
+"jeu",
+false
+],
+[
+"une nouvelle gommette",
+"jeu",
+false
+],
+[
+"Écartez-vous un peu, chacun de son côté !",
+"jeu",
+false
+],
+[
+"Je ne vois qu'un joueur ! Mettez-vous chacun d'un côté du trait, et écartez-vous bien.",
+"jeu",
+false
+],
+[
+"Mettez-vous à deux face à la caméra, chacun d'un côté !",
+"jeu",
+false
+],
+[
+"Mets-toi face à la caméra, recule un peu !",
+"jeu",
+false
+],
+[
+"Allez chacun dans votre rond, il devient vert quand c'est bon !",
+"jeu",
+false
+],
+[
+"Écartez-vous un peu, faites un grand pas chacun sur le côté !",
+"jeu",
+false
+],
+[
+"Super ! Levez tous les deux les bras pour commencer !",
+"bravo",
+true
+],
+[
+"Recule un peu, pour que je voie tes pieds ! Remplis bien la silhouette.",
+"jeu",
+false
+],
+[
+"Super ! Lève les deux bras pour commencer !",
+"bravo",
+true
+],
+[
+"La caméra ne marche pas. Demande à un grand !",
+"jeu",
+false
+],
+[
+"Génial ! Maintenant, tu sais tout choisir avec ta main : les mondes, ton dresseur, rejouer… Garde ta main sur ce que tu veux !",
+"bravo",
+true
+],
+[
+"Lève une main bien haut. Tu vois la petite main sur l'écran ? Elle bouge comme ta main ! Pose-la sur l'étoile, et ne bouge plus.",
+"jeu",
+false
+],
+[
+"Super ! Maintenant, va chercher la pomme, de l'autre côté. Garde ta main dessus jusqu'à ce que le rond soit plein.",
+"bravo",
+true
+],
+[
+"Bravo ! Et le ballon, tout en haut ! Lève bien ton bras.",
+"bravo",
+true
+],
+[
+"Mode petit : tout est plus facile !",
+"jeu",
+false
+],
+[
+"Mode grand !",
+"jeu",
+false
+]
+]

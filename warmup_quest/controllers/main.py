@@ -69,6 +69,27 @@ class WarmupQuestController(http.Controller):
         player._set_companion(companion)
         return player._game_data()['companion']
 
+    # ---------- Studio voix : phrases enregistrées par les parents
+    @http.route('/warmup/api/voice/list', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_voice_list(self, **kwargs):
+        return request.env['warmup.voice']._game_list()
+
+    @http.route('/warmup/api/voice/save', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_voice_save(self, key=None, text=None, data=None, mimetype=None, moment=None, player=None, **kwargs):
+        try:
+            return request.env['warmup.voice']._game_save(key, text, data, mimetype, moment=moment, player_id=player)
+        except ValueError as e:
+            raise UserError(f"Enregistrement refusé : {e}") from e
+
+    @http.route('/warmup/api/voice/messages', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_voice_messages(self, **kwargs):
+        return request.env['warmup.voice']._game_messages()
+
+    @http.route('/warmup/api/voice/delete', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_voice_delete(self, key=None, **kwargs):
+        request.env['warmup.voice'].search([('key', '=', str(key or ''))]).unlink()
+        return True
+
     @http.route('/warmup/api/session', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_save_session(self, **params):
         """Reçoit le résumé d'une partie terminée."""

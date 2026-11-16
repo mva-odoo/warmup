@@ -1,6 +1,6 @@
 {
     'name': 'Warm-Up Quest',
-    'version': '20.0.9.2.0',
+    'version': '20.0.10.1.0',
     'summary': "Jeu d'échauffement pour enfants contrôlé par webcam (détection des mouvements)",
     'description': """
 Warm-Up Quest
@@ -29,6 +29,7 @@ La webcam nécessite que Odoo soit servi en HTTPS (ou sur localhost).
         'views/warmup_sequence_views.xml',
         'views/warmup_session_views.xml',
         'views/warmup_creature_views.xml',
+        'views/warmup_voice_views.xml',
         'views/warmup_menus.xml',
     ],
     'post_init_hook': 'post_init_hook',
