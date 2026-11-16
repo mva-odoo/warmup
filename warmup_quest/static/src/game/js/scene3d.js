@@ -590,7 +590,7 @@ class Scene3D extends DepthScene {
     }
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const nm = d.userData.name || '';
-    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
+    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|cherry-tree|torii|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
     d.position.set(side * (LANE * 1.5 + 2.0 + big + Math.random() * 10), 0, z);
   }
 

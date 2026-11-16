@@ -1,0 +1,8 @@
+Warm-Up Quest - décors maison (custom)
+
+Modèles low-poly créés pour ce jeu dans Blender 5.2.
+Libres d'utilisation dans ce projet.
+
+Décors (pour les props des KITS) : cherry-tree-a, cherry-tree-b, torii, stone-lantern,
+coral-branch-pink, coral-branch-orange, coral-brain, coral-fan, seaweed, starfish
+Grands arrière-plans : castle, pagoda, barn, volcano, mountains, lighthouse, mesas

@@ -25,9 +25,9 @@ const KITS = {
   night: { grass: true, props: [['kk:hw-tree_pine_orange_large', 2], ['kk:hw-tree_dead_large', 2], ['kk:hw-tree_dead_medium', 1], ['kk:hw-pumpkin_orange_jackolantern', 2], ['kk:hw-pumpkin_yellow', 1], ['kk:hw-lantern_standing', 2], ['kk:hw-post_lantern', 1], ['s:rock_crystals', 1], ['kk:hw-candle_triple', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
   glacier:  { props: [['h:tree-snow-a', 2], ['h:tree-snow-b', 2], ['pf:tree-pine-snow', 2], ['h:snowman-hat', 1], ['h:snow-pile', 2], ['h:snow-bunker', 1], ['h:present-a-cube', 1], ['h:sled', 1], ['h:rocks-large', 1]], backdrop: ['mountains'], particles: 'snow' },
   aurora:   { props: [['h:tree-snow-c', 2], ['h:tree-decorated-snow', 1], ['pf:tree-snow', 1], ['h:snow-pile', 2], ['s:rock_crystals', 1], ['h:lantern', 2], ['k:tent_detailedOpen', 1], ['h:snowman-hat', 1], ['h:present-b-round', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
-  lagoon:   { props: [['coral', 4], ['seaweed', 4], ['p:rocks-sand-a', 1], ['p:chest', 1], ['p:barrel', 1], ['p:ship-wreck', 1], ['s:rock_crystals', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
-  reef:     { props: [['coral', 5], ['seaweed', 3], ['p:rocks-sand-b', 1], ['p:chest', 1], ['p:cannon', 1], ['p:ship-wreck', 1], ['p:bottle-large', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
-  abyss:    { props: [['seaweed', 3], ['s:rock_crystals', 3], ['coral', 2], ['p:rocks-sand-a', 1], ['p:ship-wreck', 1]], backdrop: [], particles: 'bubbles', night: true, underwater: true },
+  lagoon:   { props: [['cu:coral-branch-pink', 2], ['cu:coral-branch-orange', 1], ['cu:coral-brain', 1], ['cu:coral-fan', 1], ['cu:seaweed', 2], ['seaweed', 2], ['cu:starfish', 1], ['p:rocks-sand-a', 1], ['p:chest', 1], ['p:barrel', 1], ['p:ship-wreck', 1], ['s:rock_crystals', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
+  reef:     { props: [['cu:coral-branch-orange', 2], ['cu:coral-branch-pink', 1], ['cu:coral-fan', 2], ['cu:coral-brain', 1], ['cu:seaweed', 2], ['seaweed', 1], ['cu:starfish', 1], ['p:rocks-sand-b', 1], ['p:chest', 1], ['p:cannon', 1], ['p:ship-wreck', 1], ['p:bottle-large', 1]], backdrop: ['hills'], particles: 'bubbles', underwater: true },
+  abyss:    { props: [['cu:seaweed', 2], ['seaweed', 1], ['s:rock_crystals', 3], ['cu:coral-fan', 1], ['cu:coral-brain', 1], ['p:rocks-sand-a', 1], ['p:ship-wreck', 1]], backdrop: [], particles: 'bubbles', night: true, underwater: true },
   moon:     { props: [['s:crater', 2], ['s:craterLarge', 2], ['s:meteor', 2], ['s:rocks_smallA', 2], ['s:rock_crystals', 1], ['s:rover', 1], ['s:satelliteDish', 1], ['s:astronautA', 1], ['s:hangar_roundGlass', 1], ['s:craft_racer', 1]], backdrop: ['planets'], particles: 'stars', night: true },
   mars:     { props: [['s:rock_largeA', 3], ['s:meteor_detailed', 2], ['s:craterLarge', 2], ['s:rock_crystalsLargeA', 1], ['s:rover', 1], ['s:craft_racer', 1], ['s:machine_wireless', 1]], backdrop: ['planets', 'mesas'], night: true },
   nebula:   { props: [['s:rock_crystalsLargeA', 3], ['s:rock_crystals', 3], ['s:meteor', 2], ['s:craft_speederA', 1], ['s:satelliteDish', 1]], backdrop: ['planets'], particles: 'fireflies', night: true },
@@ -43,13 +43,24 @@ const KITS = {
   market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: [], flat: true },
   marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: [], flat: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
-  dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 3], ['t:lantern', 2], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
-  dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cherryTree', 2], ['t:lantern', 3], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
+  dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 2], ['cu:cherry-tree-b', 2], ['cu:stone-lantern', 2], ['cu:torii', 1], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
+  dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 1], ['cu:cherry-tree-b', 1], ['cu:stone-lantern', 2], ['t:lantern', 2], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
 };
 
 // Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
 // Préfixe d'un objet de kit -> dossier de ses modèles
-const MODEL_DIRS = { kk: 'kaykit', k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival' };
+const MODEL_DIRS = { kk: 'kaykit', k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival', cu: 'custom' };
+// Grands fonds à l'horizon modelés pour le jeu (custom/) : modèle, part enfoncée dans le sol (le modèle a une base
+// prévue pour être cachée), puis copies [x, z, échelle, rotation]
+const BACKDROP_MODELS = {
+  castle: ['custom/castle', 0.11, [[0, -66, 1, 0]]],
+  pagoda: ['custom/pagoda', 0.02, [[-18, -56, 1, 0.4]]],
+  barn: ['custom/barn', 0, [[17, -42, 1, -0.5]]],
+  volcano: ['custom/volcano', 0.45, [[24, -70, 1, 0]]],
+  mountains: ['custom/mountains', 0.3, [[-46, -78, 1, 0.2], [8, -86, 1.2, -0.3], [56, -76, 0.9, 2.8]]],
+  mesas: ['custom/mesas', 0.1, [[-34, -64, 1, 0.1], [38, -70, 0.85, 3.0]]],
+  sea: ['custom/lighthouse', 0.15, [[26, -40, 1, 0.6]]],
+};
 // Produits rangés dans les rayons du supermarché
 const SHOP_GOODS = ['carton', 'soda-bottle', 'can', 'bottle-ketchup', 'cheese', 'bread', 'loaf-baguette', 'pizza-box', 'croissant', 'cookie-chocolate', 'bag', 'fish'];
 // Caddie de supermarché (fil métallique, panier, poignée rouge, roues) ; P = Props3D
@@ -74,6 +85,9 @@ function makeShopCart(P) {
   return g;
 }
 const MODEL_HEIGHT = [
+  [/^custom\/castle/, 26], [/^custom\/pagoda/, 19], [/^custom\/barn/, 10], [/^custom\/volcano/, 34], [/^custom\/mountains/, 40], [/^custom\/mesas/, 13],
+  [/^custom\/lighthouse/, 13], [/^custom\/torii/, 4.6], [/^custom\/stone-lantern/, 1.6], [/^custom\/cherry-tree/, 3.8],
+  [/^custom\/coral-brain/, 0.6], [/^custom\/coral-fan/, 1.7], [/^custom\/coral-branch/, 1.5], [/^custom\/seaweed/, 2.2], [/^custom\/starfish/, 0.3],
   [/^kaykit\/(Knight|Mage|Barbarian|Rogue|Rogue_Hooded)$/, 2.05], // aventuriers KayKit (dresseurs)
   [/^kaykit\/hex-trees_.*_large/, 6.0], [/^kaykit\/hex-trees_.*_medium/, 4.8], [/^kaykit\/hex-trees_.*_small/, 3.6], [/^kaykit\/hex-tree_single/, 4.2],
   [/^kaykit\/hex-rock/, 1.0], [/^kaykit\/hex-cloud/, 2.0], [/^kaykit\/hex-water/, 0.5],
@@ -215,6 +229,7 @@ class Props3D {
     const out = [];
     for (const k of kits) for (const [n] of (KITS[k] || KITS.meadow).props) { const key = this.modelKey(n); if (key) out.push(key); }
     if (kits.some((k) => (KITS[k] || {}).grass)) out.push('kenney/grass_large', 'kenney/grass');
+    for (const k of kits) for (const b of (KITS[k] || {}).backdrop || []) if (BACKDROP_MODELS[b]) out.push(BACKDROP_MODELS[b][0], ...(b === 'pagoda' ? ['custom/torii'] : []));
     // Supermarché : tous les produits (rayons, cageots, produits à attraper) et les petits chapardeurs
     if (kits.some((k) => k === 'market' || k === 'marketFruit')) {
       out.push(...[...SHOP_GOODS, ...SHOP_ITEMS, 'apple', 'orange', 'pear', 'lemon', 'tomato', 'banana'].map((n) => 'food/' + n));
@@ -598,6 +613,30 @@ class Props3D {
   backdrop(name, pal) {
     const T = this.T, g = new T.Group();
     const add = (...a) => this.add(g, ...a);
+    // Modèle fait pour le jeu, s'il est chargé (sinon : la version dessinée ci-dessous)
+    const bm = BACKDROP_MODELS[name];
+    if (bm && this.models && this.models.has(bm[0])) {
+      // (loin : pas de brume qui les efface, mais une couleur un peu voilée par l'air ; relevés de la courbure du monde
+      //  pour rester posés sur l'horizon au lieu de s'enfoncer derrière les collines)
+      const fogC = new T.Color(pal.fog || pal.sky1 || '#ffffff');
+      for (const [x, z, s, r] of bm[2]) {
+        const m = this.model(bm[0]), d = Math.max(0, 7 - z - BEND_START);
+        const h = new T.Box3().setFromObject(m).getSize(new T.Vector3()).y * s;
+        m.position.set(x, d * d * BEND_K * 0.7 - bm[1] * h, z); m.scale.multiplyScalar(s); m.rotation.y = r;
+        m.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.fog = false; o.material.color.lerp(fogC, Math.min(0.55, 0.15 - z / 220)); } });
+        g.add(m);
+      }
+      if (name === 'volcano') { // (fumée qui monte du cratère)
+        const puffs = [];
+        const top = new T.Box3().setFromObject(g.children[0]).max.y - 1;
+        for (let i = 0; i < 5; i++) puffs.push(add('sphere', '#b0a8a0', 24, top, -70, 2.5, 2.5, 2.5, { fog: false }));
+        g.userData.anim = (t) => puffs.forEach((p, i) => { const k = ((t * 0.0002 + i / 5) % 1); p.position.set(24 + k * 6, top + k * 14, -70); p.scale.setScalar(2 + k * 4); });
+      }
+      if (name === 'sea') add('box', '#3fa7f5', 40, -0.05, -40, 60, 0.1, 140, { transparent: true, opacity: 0.9 });
+      if (name === 'pagoda') { const t = this.model('custom/torii'); if (t) { t.position.set(0, 0, -26); t.scale.multiplyScalar(1.6); g.add(t); } }
+      g.traverse((o) => { if (o.isMesh) { o.receiveShadow = true; o.castShadow = false; } });
+      return g;
+    }
     switch (name) {
       case 'hills':
         for (let i = 0; i < 7; i++) add('sphere', shade(pal.grass, -0.1 + (i % 3) * 0.06), -50 + i * 16, -2, -70 - (i % 2) * 10, 12, 7, 8);
