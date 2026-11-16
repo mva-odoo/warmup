@@ -14,7 +14,8 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).
 - **🎓 École des dresseurs** (première île de la carte, toujours ouverte) : le mode tuto. Tout y est plus lent ; avant chaque
   épreuve, une grande carte et une voix lente expliquent quoi faire, et Tempo (un petit dresseur) montre le geste à côté
-  du chemin. Puis on essaie, sans stress. Le programme fait le tour de tous les jeux.
+  du chemin. Puis on essaie, sans stress. Le programme fait le tour de tous les jeux, y compris le tunnel, la vitre des
+  singes, le supermarché, les carrefours et le gardien du monde.
 - **🖐️ Choisir avec la main** (bouton du menu, gardé pour la fois suivante) : la caméra s'allume dans le menu ; la main levée de
   l'enfant déplace une petite main à l'écran, et on la garde 1,5 s sur un monde, un bouton, une vignette… pour le choisir
   (menu, carte, carnet, chambre, « Mon dresseur », fin de partie, pause). La première fois, un petit tuto apprend le geste
@@ -105,11 +106,12 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   - **Carrefours** 🔀 : dans chaque parcours (sauf l'école), le chemin se sépare. Deux panneaux montrent deux épreuves
     tirées au hasard (bulles, taupes, fruits, cubes, mousse, étoiles, corde, tunnel, statues) ; un grand pas à gauche
     ou à droite, tenu un instant, choisit la suivante. Un carrefour au milieu, deux pour les longs parcours.
-    Le jeu retient les choix de chaque enfant : son **épreuve préférée** (la plus choisie) revient plus souvent, et la carte
+    Les épreuves proposées ne sont pas déjà au programme (sinon, celles qui reviennent le plus loin).
+    Le jeu retient les choix de chaque enfant (dans sa fiche Odoo) : son **épreuve préférée** (la plus choisie) revient plus souvent, et la carte
     des îles montre les chemins pris la dernière fois (🔀). Une partie sur trois environ, un panneau doré « ❓ Secret ! »
     cache une épreuve surprise (poses, statues, étoiles, corde, tunnel) ; au bout, un **trésor** (+300 points) et une
     **clé dorée** 🗝️ sur l'île de la carte. Mode test : `&forksecret=1&forkside=secret`.
-  - **Super Marché Rigolo** 🛒 : des produits arrivent dans les couloirs ; un pas à gauche ou à droite pour se mettre devant
+  - **Super Marché Rigolo** 🛒 (au loin : façade et enseigne, hauts rayons, panneaux de rayon) : des produits arrivent dans les couloirs ; un pas à gauche ou à droite pour se mettre devant
     et ils tombent dans le caddie (poussé à côté du dresseur, il se remplit pour de vrai). De petits chapardeurs masqués
     foncent sur le dresseur : il faut les éviter (ou sauter par-dessus), sinon ils volent un produit !
   - **Planète Rythmo** : des cubes arrivent en musique à 7 endroits autour du dresseur (en bas, au milieu, en haut de chaque

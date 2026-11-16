@@ -49,6 +49,7 @@ class WarmupPlayer(models.Model):
     stickers = fields.Json(string='Gommettes', default=list, help='Gommettes gagnées (émojis), dans l\'ordre.')
     companion = fields.Json(string='Compagnon', help='Créature qui accompagne l\'enfant dans le jeu : {"id": code, "xp": parties}.')
     companion_display = fields.Char(string='Créature compagnon', compute='_compute_companion')
+    paths = fields.Json(string='Chemins aux carrefours', help='Épreuves choisies aux carrefours, derniers chemins de chaque île, clés des chemins secrets.')
     week_sessions = fields.Integer(string='Parties (7 derniers jours)', compute='_compute_week')
     week_minutes = fields.Float(string="Minutes d'échauffement (7 derniers jours)", compute='_compute_week', digits=(6, 1))
     today_sessions = fields.Integer(string="Parties aujourd'hui", compute='_compute_week')
@@ -81,6 +82,20 @@ class WarmupPlayer(models.Model):
             p.week_sessions = len(week)
             p.week_minutes = sum(week.mapped('duration')) / 60.0
             p.today_sessions = len(week.filtered(lambda s: fields.Date.context_today(p, s.date) == today))
+
+    def _set_paths(self, paths):
+        """Mémoire des carrefours envoyée par le jeu : {counts: {épreuve: n}, last: {monde: [épreuves]}, secrets: {monde: n}}."""
+        self.ensure_one()
+        if not isinstance(paths, dict):
+            return
+        word = lambda k: isinstance(k, str) and len(k) <= 20 and k.replace('_', '').isalnum()
+        num = lambda v: isinstance(v, int) and 0 <= v < 100000
+        clean = {
+            'counts': {k: v for k, v in (paths.get('counts') or {}).items() if word(k) and num(v)},
+            'last': {k: [m for m in v if word(m)][:2] for k, v in (paths.get('last') or {}).items() if word(k) and isinstance(v, list)},
+            'secrets': {k: v for k, v in (paths.get('secrets') or {}).items() if word(k) and num(v)},
+        }
+        self.paths = clean
 
     def _set_companion(self, comp):
         """Compagnon envoyé par le jeu (créature connue, expérience bornée)."""
@@ -159,6 +174,7 @@ class WarmupPlayer(models.Model):
             'stickers': self.stickers if isinstance(self.stickers, list) else [],
             'look': self._game_look(),
             'companion': self.companion if isinstance(self.companion, dict) else None,
+            'paths': self.paths if isinstance(self.paths, dict) else None,
         }
 
     def _game_look(self):

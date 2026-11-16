@@ -56,16 +56,16 @@ const Progress = {
 
 // Chemins pris aux carrefours (par enfant) : épreuves choisies, derniers chemins de chaque île, clés des chemins secrets
 const Paths = {
-  key(i = 0) { const p = WUQStore.players()[i]; return 'paths_' + (p && p.id != null ? 'p' + p.id : i); },
-  get(i = 0) { return { counts: {}, last: {}, secrets: {}, ...(WUQStore._get(this.key(i)) || {}) }; },
+  // (gardés par WUQStore : dans ce navigateur, ou dans la fiche de l'enfant avec Odoo)
+  get(i = 0) { return { counts: {}, last: {}, secrets: {}, ...(WUQStore.getPaths(i) || {}) }; },
   // first : premier carrefour de la partie (on repart d'une trace neuve pour cette île)
   choose(i, world, kind, first) {
     const p = this.get(i);
     p.counts[kind] = (p.counts[kind] || 0) + 1;
     p.last[world] = [...(first ? [] : p.last[world] || []), kind].slice(-2);
-    WUQStore._set(this.key(i), p);
+    WUQStore.setPaths(i, p);
   },
-  secretFound(i, world) { const p = this.get(i); p.secrets[world] = (p.secrets[world] || 0) + 1; WUQStore._set(this.key(i), p); },
+  secretFound(i, world) { const p = this.get(i); p.secrets[world] = (p.secrets[world] || 0) + 1; WUQStore.setPaths(i, p); },
   // Épreuve préférée : la plus choisie (au moins 2 fois)
   favorite(i = 0) {
     const e = Object.entries(this.get(i).counts).sort((a, b) => b[1] - a[1])[0];

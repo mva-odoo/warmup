@@ -45,18 +45,26 @@ const FORK_NAMES = { posemix: 'les poses', bubbles: 'les bulles', moles: 'les ta
 const FORK_SHORT = { posemix: 'Poses', bubbles: 'Bulles', moles: 'Taupes', slice: 'Fruits', cubes: 'Cubes', foam: 'Mousse', catch: 'Étoiles', rope: 'Corde', tunnel: 'Tunnel', freeze: 'Statues' };
 // Chemin secret : une épreuve surprise (on ne sait pas laquelle avant d'y aller), avec un trésor à la fin
 const SECRET_POOL = [PM('armsUp', 'star', 'airplane'), F(12), K(10), Q(4), U(4)];
-// Deux épreuves au hasard, différentes de celles juste avant et juste après.
-// fav : épreuve préférée de l'enfant (proposée plus souvent) ; secret : un des deux panneaux mène au chemin secret
-function forkOptions(avoid = [], { fav = null, secret = false } = {}) {
-  const pool = FORK_POOL.filter((st) => !avoid.includes(st.m)).sort(() => Math.random() - 0.5);
-  const favStep = fav && !avoid.includes(fav) && Math.random() < 0.6 && pool.find((st) => st.m === fav);
+// Deux épreuves au hasard pour un carrefour. dist : pour chaque épreuve, distance (en étapes) à la plus proche
+// du même genre dans le parcours (absente = Infinity) : on prend celles qui n'y sont pas, sinon les plus lointaines
+// (jamais deux fois la même coup sur coup). fav : épreuve préférée de l'enfant (proposée plus souvent) ;
+// secret : un des deux panneaux mène au chemin secret.
+function forkOptions({ dist = {}, fav = null, secret = false } = {}) {
+  const d = (m) => (m in dist ? dist[m] : Infinity);
+  const rank = (list) => list.map((st) => ({ st, r: Math.random() })).sort((x, y) => (d(y.st.m) - d(x.st.m)) || (x.r - y.r)).map((x) => x.st);
+  let pool = FORK_POOL.filter((st) => d(st.m) >= 6);
+  if (pool.length < 3) pool = rank(FORK_POOL).slice(0, 3);
+  pool = pool.sort(() => Math.random() - 0.5);
+  const favStep = fav && Math.random() < 0.6 && pool.find((st) => st.m === fav);
   let two = favStep ? [favStep, pool.find((st) => st !== favStep)] : [pool[0], pool[1]];
   if (Math.random() < 0.5) two.reverse();
   two = two.map((st) => JSON.parse(JSON.stringify(st)));
   if (secret) {
     const k = favStep ? two.findIndex((st) => st.m !== fav) : Math.floor(Math.random() * 2);
-    const sp = SECRET_POOL.filter((st) => st.m !== two[1 - k].m && !avoid.includes(st.m));
-    two[k] = { ...JSON.parse(JSON.stringify(sp[Math.floor(Math.random() * sp.length)])), secret: true };
+    const sp = rank(SECRET_POOL.filter((st) => st.m !== two[1 - k].m && d(st.m) > 1));
+    const pick = sp.filter((st) => d(st.m) >= 6);
+    const st = (pick.length ? pick : sp)[Math.floor(Math.random() * (pick.length || Math.min(2, sp.length)))] || SECRET_POOL[0];
+    two[k] = { ...JSON.parse(JSON.stringify(st)), secret: true };
   }
   return two;
 }
@@ -67,7 +75,9 @@ function withForks(steps, { fav = null, secret = false } = {}) {
   const out = steps.slice(), at = steps.length >= 12 ? [0.7, 0.4] : [0.45];
   at.forEach((f, n) => {
     const k = Math.max(1, Math.round(steps.length * f));
-    out.splice(k, 0, { m: 'fork', opts: forkOptions([out[k - 1] && out[k - 1].m, out[k] && out[k].m], { fav, secret: secret && n === at.length - 1 }) });
+    const dist = {}; // (distance au plus proche du même genre, pour ne pas proposer ce qui arrive juste après)
+    out.forEach((st, i) => { const e = i < k ? k - i : i - k + 1; dist[st.m] = Math.min(dist[st.m] ?? Infinity, e); }); // (1 = juste à côté)
+    out.splice(k, 0, { m: 'fork', opts: forkOptions({ dist, fav, secret: secret && n === at.length - 1 }) });
   });
   return out;
 }
@@ -203,6 +213,7 @@ function tutoText(s) {
     tunnel: 'Un tunnel arrive. Baisse-toi tout en bas, et reste baissé jusqu\'à la sortie du tunnel !',
     freeze: 'Danse quand la musique joue ! Quand elle s\'arrête : statue ! Ne bouge plus du tout, même pas un doigt.',
     posemix: 'Ton dresseur va faire des poses, l\'une après l\'autre. Copie-les, comme dans un miroir !',
+    boss: 'À la fin de chaque monde, un gardien bloque le chemin. Il te montre des poses : copie-les, une après l\'autre, et il deviendra ton ami !',
   }[s.m] || stepSpeech(s);
 }
 // Geste que Tempo montre pendant l'explication (quand il y en a un)
@@ -283,6 +294,9 @@ const WORLDS = [
       LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2),
       LN(B(14, 4)), B(14, 4), LN(M(14, 4)), M(14, 4), LN(SL(16, 4)), SL(16, 4), LN(CU(6, 2.0)), CU(6, 2.0),
       LN(F(14)), F(14),
+      LN(U(4)), U(4), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10),
+      LN({ m: 'fork', opts: [B(10, 3), M(10, 3)] }), { m: 'fork', opts: [B(10, 3), M(10, 3)] },
+      LN(BS('armsUp', 'star')), BS('armsUp', 'star'),
       Z(4, 'Tu sais tout faire ! Respire bien… Bravo, champion !'),
     ],
   },

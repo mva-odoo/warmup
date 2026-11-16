@@ -90,6 +90,15 @@ class WarmupQuestController(http.Controller):
         request.env['warmup.voice'].search([('key', '=', str(key or ''))]).unlink()
         return True
 
+    @http.route('/warmup/api/player/paths', type='jsonrpc', auth='user', methods=['POST'])
+    def warmup_player_paths(self, player_id=None, paths=None, **kwargs):
+        """Mémoire des carrefours (épreuve préférée, chemins pris, clés des chemins secrets)."""
+        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
+        if not player:
+            raise UserError("Cet enfant n'existe plus.")
+        player._set_paths(paths)
+        return True
+
     @http.route('/warmup/api/session', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_save_session(self, **params):
         """Reçoit le résumé d'une partie terminée."""

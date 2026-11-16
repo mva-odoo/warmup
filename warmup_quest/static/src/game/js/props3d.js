@@ -40,8 +40,8 @@ const KITS = {
   garden: { grass: true, props: [['k:plant_bushLargeTriangle', 3], ['k:plant_bushLarge', 2], ['k:plant_bushDetailed', 1], ['c:flag', 2], ['t:banner-red', 1], ['t:lantern', 2], ['c:tree-large', 2], ['c:tree-small', 2], ['k:statue_column', 1], ['pf:flowers', 2], ['k:flower_redA', 1]], backdrop: ['castle', 'hills'], particles: 'petals' },
   magic: { grass: true, props: [['s:rock_crystalsLargeA', 2], ['kk:hw-tree_pine_yellow_large', 2], ['kk:hw-tree_dead_medium', 1], ['kk:hw-pumpkin_yellow', 1], ['kk:hw-lantern_standing', 2], ['t:lantern', 1], ['k:statue_obelisk', 1], ['c:flag-banner-long', 1], ['s:rock_crystals', 1]], backdrop: ['castle'], particles: 'fireflies', night: true },
   // Supermarché : rayons remplis de produits (Food Kit), cageots de fruits, caddies garés
-  market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: [], flat: true },
-  marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: [], flat: true },
+  market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
+  marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 2], ['cu:cherry-tree-b', 2], ['cu:stone-lantern', 2], ['cu:torii', 1], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
   dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 1], ['cu:cherry-tree-b', 1], ['cu:stone-lantern', 2], ['t:lantern', 2], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
@@ -638,6 +638,38 @@ class Props3D {
       return g;
     }
     switch (name) {
+      case 'mall': { // Supermarché : grande façade au bout de l'allée, hauts rayons de chaque côté, panneaux suspendus
+        const lift = (z) => { const d = Math.max(0, 7 - z - BEND_START); return d * d * BEND_K * 0.7; };
+        const list = [], z0 = -64, y0 = lift(z0);
+        list.push([pal.mount0 || '#ffd6a5', 0, y0 + 8, z0, 72, 16, 3], ['#e9ecef', 0, y0 + 1.2, z0 + 1.6, 72, 2.4, 0.4]);
+        for (let i = 0; i < 18; i++) list.push([i % 2 ? '#ffffff' : '#ef476f', -34 + i * 4, y0 + 10.6, z0 + 2.2, 4, 1.2, 1.6]); // auvent rayé
+        for (const x of [-26, -14, 14, 26]) list.push(['#bde0fe', x, y0 + 5, z0 + 1.6, 7, 5, 0.3]); // vitrines
+        list.push(['#adb5bd', 0, y0 + 3.5, z0 + 1.6, 8, 7, 0.3]); // portes
+        const shelfCols = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93', '#ff924c'];
+        for (const side of [-1, 1]) for (let k = 0; k < 6; k++) { // rayons lointains, rangées de produits colorés
+          const z = -28 - k * 7, x = side * (16 + (k % 2) * 3), y = lift(z);
+          list.push(['#dee2e6', x, y + 3, z, 2.2, 6, 5.5]);
+          for (let r = 0; r < 4; r++) list.push([shelfCols[(k + r) % 6], x - side * 1.15, y + 1 + r * 1.4, z, 0.3, 0.9, 5]);
+        }
+        this.boxes(g, list);
+        // enseigne et panneaux de rayon (texte dessiné une fois)
+        const label = (txt, w, h, bg, fg) => {
+          const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.round(512 * h / w);
+          const x = cv.getContext('2d'); x.fillStyle = bg; x.fillRect(0, 0, cv.width, cv.height);
+          x.fillStyle = fg; x.font = `800 ${Math.round(cv.height * 0.55)}px "Baloo 2", sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+          x.fillText(txt, cv.width / 2, cv.height * 0.54);
+          const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+          return new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, fog: false }));
+        };
+        const sign = label('🛒 SUPER MARCHÉ', 30, 4.2, '#ef476f', '#ffffff'); sign.position.set(0, y0 + 14, z0 + 1.8); g.add(sign);
+        [['🍎 Fruits', -24, -9], ['🥛 Lait', -34, 9], ['🍪 Gâteaux', -44, -9]].forEach(([t, z, x], i) => { // (sur les côtés : l'enseigne reste visible)
+          const y = lift(z), p = label(t, 6, 1.6, ['#06d6a0', '#118ab2', '#ffd166'][i], i === 2 ? '#1e1b4b' : '#ffffff');
+          p.position.set(x, y + 6, z); g.add(p);
+          this.add(g, 'cyl', '#adb5bd', x - 2.6, y + 8, z, 0.04, 4, 0.04); this.add(g, 'cyl', '#adb5bd', x + 2.6, y + 8, z, 0.04, 4, 0.04);
+        });
+        g.traverse((o) => { if (o.isMesh && o.material) o.material.fog = false; });
+        break;
+      }
       case 'hills':
         for (let i = 0; i < 7; i++) add('sphere', shade(pal.grass, -0.1 + (i % 3) * 0.06), -50 + i * 16, -2, -70 - (i % 2) * 10, 12, 7, 8);
         break;

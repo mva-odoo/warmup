@@ -71,6 +71,10 @@ const WUQStore = {
   },
   cardExtra(world, rebuild) { return null; },
 
+  // Chemins aux carrefours (par joueur de la partie)
+  getPaths(i = 0) { return this._get('paths_' + i); },
+  setPaths(i, p) { this._set('paths_' + i, p); },
+
   // ---------- Voix des parents (studio) : gardées dans ce navigateur (IndexedDB) ; le module Odoo les garde sur le serveur
   _vdb() {
     return (this._vdbP = this._vdbP || new Promise((ok, ko) => {

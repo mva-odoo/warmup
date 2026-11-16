@@ -52,6 +52,14 @@
     },
     messages() { return rpc('/warmup/api/voice/messages', {}); },
     deleteVoice(key) { return rpc('/warmup/api/voice/delete', { key }); },
+    // Chemins aux carrefours : dans la fiche de l'enfant (ils suivent sur tous les postes)
+    getPaths(i = 0) { const p = selected()[i]; return p ? p.paths || ls.get('paths_p' + p.id) || null : null; },
+    setPaths(i, paths) {
+      const p = selected()[i];
+      if (!p) return;
+      p.paths = paths;
+      rpc('/warmup/api/player/paths', { player_id: p.id, paths }).catch((e) => { console.warn(e); ls.set('paths_p' + p.id, paths); });
+    },
     // Tous les enfants (pour enregistrer leurs prénoms dans le studio)
     allPlayers() { return cfg.players.map((p) => ({ id: p.id, name: p.name })); },
     getCarnet() { const p = player(); return p ? { ...(p.carnet || {}) } : {}; },

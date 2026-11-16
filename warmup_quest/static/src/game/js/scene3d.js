@@ -412,7 +412,7 @@ class Scene3D extends DepthScene {
     this.renderer.toneMappingExposure = night ? 1.2 : 1.0;
     this.disc.material.color.set(b.sun || '#fff6c2');
     this.disc.scale.setScalar(night ? 0.6 : 1);
-    for (const c of this.clouds) c.visible = !night && !water;
+    for (const c of this.clouds) c.visible = !night && !water && !kit.flat; // (pas de nuages dans le supermarché)
     this.disc.visible = !water;
     if (water) this.skyU.glow.value = 0.2; // (lumière diffuse sous l'eau)
     this.colorTerrain(b, !!kit.grass);
@@ -1763,8 +1763,10 @@ class Scene3D extends DepthScene {
     if (!b || !m) return;
     const arrive = Math.min(1, (now - m.t0) / 1500), e = 1 - Math.pow(1 - arrive, 3);
     const hit = b.hitT ? Math.max(0, 1 - (now - b.hitT) / 500) : 0;
-    m.group.position.set(Math.sin(now * 0.001) * 0.3, b.won ? Math.abs(Math.sin(now * 0.012)) * 0.6 : hit * 0.5, -22 + 15 * e);
-    m.group.rotation.y = Math.sin(now * 0.0015) * 0.15;
+    // (seul : sur le côté du chemin, tourné vers le dresseur, pour ne jamais le cacher ; à deux : au milieu, plus loin)
+    const duo = this.heroes.length > 1, x = duo ? 0 : LANE * 1.5 + 1.2, z = duo ? -13 : -8.5;
+    m.group.position.set(x + Math.sin(now * 0.001) * 0.3, b.won ? Math.abs(Math.sin(now * 0.012)) * 0.6 : hit * 0.5, -22 + (22 + z) * e);
+    m.group.rotation.y = (duo ? 0 : -0.55) + Math.sin(now * 0.0015) * 0.15;
     m.group.rotation.z = hit * Math.sin(now * 0.05) * 0.2;
     m.animate(now, b.won ? 'happy' : 'idle', b.won ? null : b.pose);
   }
