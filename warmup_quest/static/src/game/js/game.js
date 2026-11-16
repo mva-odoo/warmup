@@ -604,6 +604,11 @@ function updateCalib(now) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
     setCalibStage('arms2', 'Super ! Levez tous les deux les bras 🙌', 'Gardez les bras en l\'air pour commencer', 'Super ! Levez tous les deux les bras pour commencer !');
+  } else if (!duo() && !s.anklesOK && now - (calibState.seenAt = calibState.seenAt || now) < 6000) {
+    // (seul : d'abord, on essaie de voir les pieds — après quelques secondes, on joue quand même avec le haut du corps)
+    calibState.holdStart = 0;
+    $('calibBar').style.width = '0%';
+    setCalibStage('back', 'Recule un peu 👣', 'Remplis la silhouette : on doit voir tes pieds', 'Recule un peu, pour que je voie tes pieds ! Remplis bien la silhouette.');
   } else if (!s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -2154,7 +2159,7 @@ function draw(now) {
   if (!$('camBox').classList.contains('hidden')) {
     const cur = phase === 'play' && game && game.cur;
     const posing = !!(cur && cur.s.m === 'pose' && !cur.done);
-    tracker.draw(camCtx, 640, 480, { colors, target: posing ? cur.s.pose : null, names: team.map((p) => p.name), guide: phase === 'calib' && duo() });
+    tracker.draw(camCtx, 640, 480, { colors, target: posing ? cur.s.pose : null, names: team.map((p) => p.name), guide: phase === 'calib' && duo(), fit: phase === 'calib' && !duo() });
     $('camBox').classList.toggle('pose', posing);
     updateCamStatus(now);
   }

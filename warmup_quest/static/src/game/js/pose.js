@@ -334,9 +334,10 @@ class Tracker {
     return { spots: [a, b], apart, ok: a.ok && b.ok && apart };
   }
 
-  draw(ctx, w, h, { colors = [], target = null, names = [], guide = false } = {}) {
+  draw(ctx, w, h, { colors = [], target = null, names = [], guide = false, fit = false } = {}) {
     ctx.clearRect(0, 0, w, h);
     if (this.sim) return;
+    if (fit && this.bodies.length === 1) this.drawFit(ctx, w, h);
     // Placement guidé (à deux, au départ) : deux grands ronds « ici », verts quand l'enfant est bien placé
     const pl = guide && this.duoPlacement();
     if (pl) pl.spots.forEach((sp, i) => {
@@ -378,6 +379,48 @@ class Tracker {
         ctx.beginPath(); ctx.arc(lm[i].x * w, lm[i].y * h, 7, 0, Math.PI * 2); ctx.fill();
       }
     }
+  }
+
+  // « Mets-toi bien » (au départ, seul) : une grande silhouette en pointillés à remplir. Chaque partie du corps
+  // que la caméra voit devient verte (tête, bras, ventre, genoux, pieds) ; une grosse consigne dit quoi faire.
+  fitParts() {
+    const lm = this.bodies[0] && this.bodies[0].lm;
+    const ok = (ids) => !!lm && ids.every((i) => (lm[i].visibility ?? 1) > 0.5 && lm[i].x > 0.02 && lm[i].x < 0.98 && lm[i].y > 0.01 && lm[i].y < 0.99);
+    const parts = { head: ok([0]), arms: ok([11, 12, 13, 14]), body: ok([23, 24]), knees: ok([25, 26]), feet: ok([27, 28]) };
+    let hint = null;
+    if (lm && parts.arms) {
+      const sh = mid(lm[11], lm[12]), T = parts.body ? dist(sh, mid(lm[23], lm[24])) : 0.2, sx = 1 - sh.x; // (sx : position à l'écran, en miroir)
+      if (!parts.feet || !parts.knees) hint = { icon: '👣', text: 'Recule !' };
+      else if (T < 0.11) hint = { icon: '🚶', text: 'Avance un peu' };
+      else if (sx < 0.33) hint = { icon: '➡️', text: 'Par ici !' };
+      else if (sx > 0.67) hint = { icon: '⬅️', text: 'Par ici !' };
+    } else hint = { icon: '👀', text: 'Mets-toi devant !' };
+    return { parts, hint, n: Object.values(parts).filter(Boolean).length };
+  }
+  drawFit(ctx, w, h) {
+    const { parts, hint, n } = this.fitParts();
+    const X = (u) => (0.5 + u) * w, Y = (v) => v * h, U = h; // (silhouette idéale : du haut de la tête aux pieds, ~80 % de l'image)
+    // (silhouette douce et large derrière le squelette de l'enfant : jaune en pointillés = où se mettre, verte = la caméra voit la partie)
+    const seg = (on, pts, width = 0.085) => {
+      ctx.strokeStyle = on ? 'rgba(74,222,128,.45)' : 'rgba(255,224,102,.5)'; ctx.lineWidth = width * U; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.setLineDash(on ? [] : [U * 0.05, U * 0.035]);
+      ctx.beginPath(); pts.forEach(([u, v], i) => (i ? ctx.lineTo(X(u * h / w), Y(v)) : ctx.moveTo(X(u * h / w), Y(v)))); ctx.stroke();
+    };
+    ctx.save();
+    seg(parts.arms, [[-0.24, 0.52], [-0.17, 0.38], [-0.09, 0.27], [0.09, 0.27], [0.17, 0.38], [0.24, 0.52]]);
+    seg(parts.body, [[-0.05, 0.3], [-0.045, 0.5], [0.045, 0.5], [0.05, 0.3], [-0.05, 0.3]], 0.1);
+    seg(parts.knees, [[-0.05, 0.53], [-0.07, 0.7]]); seg(parts.knees, [[0.05, 0.53], [0.07, 0.7]]);
+    seg(parts.feet, [[-0.07, 0.71], [-0.08, 0.87], [-0.12, 0.89]]); seg(parts.feet, [[0.07, 0.71], [0.08, 0.87], [0.12, 0.89]]);
+    ctx.fillStyle = parts.head ? 'rgba(74,222,128,.45)' : 'rgba(255,224,102,.42)';
+    ctx.beginPath(); ctx.arc(X(0), Y(0.17), 0.08 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.setLineDash([]); ctx.shadowBlur = 0;
+    // consigne (la vidéo est en miroir : on retourne le texte)
+    ctx.translate(w / 2, h * 0.96); ctx.scale(-1, 1);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 8; ctx.strokeStyle = '#1e1b4b'; ctx.fillStyle = '#ffffff';
+    const label = n === 5 && !hint ? '✔ Parfait !' : hint ? hint.icon + ' ' + hint.text : '';
+    ctx.font = '800 48px "Baloo 2", sans-serif';
+    ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
+    ctx.restore();
   }
 
   // Résumé lisible : « 24 img/s · GPU » (🐢 si la détection rame)

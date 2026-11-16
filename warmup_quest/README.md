@@ -160,6 +160,11 @@ un monde en mode clavier, à la première épreuve du type demandé (`&nohud=1` 
 `?carnet=1` ouvre le carnet complet, `?trainer=1` la fenêtre « Mon dresseur »). Pratique pour vérifier le rendu
 ou faire des captures d'écran automatiques.
 
+**Mets-toi bien** : au départ (seul), une grande silhouette s'affiche dans l'image de la caméra. Chaque partie du corps
+que la caméra voit devient verte (tête, bras, ventre, genoux, pieds) et une consigne s'affiche en gros (« Recule ! »,
+« Avance un peu », « Par ici ! »). Si les pieds ne sont pas visibles, le jeu demande d'abord de reculer, puis joue quand même
+avec le haut du corps au bout de 6 secondes.
+
 **Enregistreur de mouvements** (pour régler la détection sur les vrais gestes des enfants) : cocher
 « 🎥 Enregistrer les mouvements » dans les réglages parents. Pendant la partie, seuls les **points du corps** vus par la
 caméra sont gardés (33 points par enfant, jamais l'image) ; à la fin (ou à l'abandon après 20 s), le navigateur télécharge
