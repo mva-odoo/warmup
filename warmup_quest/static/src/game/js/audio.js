@@ -331,6 +331,8 @@ const Audio8 = (() => {
     },
     musicEnabled: () => enabled,
     setMusicEnabled(on) { enabled = on; try { localStorage.setItem('wuq_music', on ? 'true' : 'false'); } catch {} refresh(); },
+    // Raclette qui couine sur la vitre
+    squeak() { play('bell', deg(7, 2), 0, 0.08, 0.08); play('bell', deg(9, 2), 0.06, 0.12, 0.07); play('noise', 2500, 0, 0.12, 0.06); },
     // Photo : déclic d'appareil
     photo() { play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
     // Combo : petite montée de notes, et la musique s'emballe (charleston rapide, arpèges doublés) quelques mesures

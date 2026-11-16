@@ -266,6 +266,8 @@ class Scene3D extends DepthScene {
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     this.shot = null; this.stepKind = null; this.roll = 0; this.qT = 0;
+    if (this.monkeys && this.s3) this.monkeys.forEach((m) => this.s3.remove(m.mesh.group));
+    this.monkeys = null;
     if (this.cart && this.s3) this.s3.remove(this.cart);
     this.cart = null; this.cartItems = []; this.cartX = null;
     if (this.bossM && this.s3) this.s3.remove(this.bossM.group);
@@ -982,7 +984,8 @@ class Scene3D extends DepthScene {
 
   // Silhouette dorée de la pose à prendre, posée sur le héros (verte quand c'est bon)
   updateGhost(h, m) {
-    const r = m.human, want = HUMAN_POSES[this.ghostPose] ? this.ghostPose : null;
+    const turnOk = this.turnHero == null || this.stepKind !== 'pose' || this.heroes.indexOf(h) === this.turnHero; // (à deux : seulement celui dont c'est le tour)
+    const r = m.human, want = HUMAN_POSES[this.ghostPose] && turnOk ? this.ghostPose : null;
     if (!want) { if (r.ghost) r.ghost.group.visible = false; return; }
     if (!r.ghost) {
       const g = this.makeHumanHero({ body: '#ffd166' }, false, r.look);
@@ -1031,6 +1034,10 @@ class Scene3D extends DepthScene {
     if (!m.isGhost) this.updateGhost(h, m);
     m.ring.visible = !!h.holdPose;
     m.group.position.set(h.lane * LANE, this.heroY3(h), 0);
+    if (this.highFiveT && this.heroes.length > 1) { // (tape dans la main : on se rapproche puis on revient)
+      const k = (performance.now() - this.highFiveT) / 1100;
+      if (k < 1) { const i = this.heroes.indexOf(h); m.group.position.x += (i === 0 ? 1 : -1) * Math.sin(k * Math.PI) * LANE * 0.35; }
+    }
     m.group.rotation.z = 0;
     m.group.updateMatrixWorld(true);
     const at = (bone, dx, dy, dz, target) => {
@@ -1148,6 +1155,7 @@ class Scene3D extends DepthScene {
   // Modèles du monde (Kenney) chargés avant de jouer
   preloadWorld(world, looks = [], extra = []) {
     const kits = world.biomes.map((b) => b.kit || 'meadow');
+    if (world.id === 'singes') extra = [...extra, 'pets/animal-monkey'];
     return this.load().then(() => this.P.preload([...new Set([DEFAULT_LOOK, ...looks, ...Object.values(COACH_LOOKS)].flatMap(lookKeys)), ...this.P.modelsOf(kits), ...creatureModels(kits.flatMap((k) => creaturesOf(k))), ...extra]));
   }
 
@@ -1652,6 +1660,79 @@ class Scene3D extends DepthScene {
     this.ballMesh.rotation.z -= 0.15;
   }
 
+  // ---------- Singes farceurs : deux singes au bord du chemin, qui sautent et lancent de la mousse vers l'écran
+  updateMonkeys(now) {
+    const on = this.stepKind === 'foam';
+    if (!on) { if (this.monkeys) this.monkeys.forEach((m) => (m.mesh.group.visible = false)); return; }
+    if (!this.monkeys) {
+      const cr = creaturesByModel('pets/animal-monkey');
+      if (!cr || !(this.P.models && this.P.models.has(cr.model))) return;
+      this.monkeys = [-1, 1].map((side) => { const mesh = buildCreature3D(this, cr, false); mesh.group.scale.multiplyScalar(1.4); this.s3.add(mesh.group); return { side, mesh, throwT: 0 }; });
+    }
+    for (const m of this.monkeys) {
+      m.mesh.group.visible = true;
+      const throwing = now - m.throwT < 600;
+      m.mesh.group.position.set(m.side * (LANE * 1.5 + 1.6), throwing ? Math.sin((now - m.throwT) / 600 * Math.PI) * 0.6 : 0, -3.5);
+      m.mesh.group.rotation.y = m.side * -0.6;
+      m.mesh.animate(now, throwing ? 'happy' : 'idle');
+    }
+  }
+  // ---------- Carrefour : deux panneaux en bois de chaque côté du chemin (icône de l'épreuve + flèche)
+  updateForkSigns(now) {
+    const f = this.fork, T = this.T;
+    if (!f) { if (this.forkSigns) this.forkSigns.visible = false; return; }
+    if (!this.forkSigns || this.forkSigns.userData.key !== f.key) {
+      if (this.forkSigns) this.s3.remove(this.forkSigns);
+      const g = new T.Group(); g.userData.key = f.key;
+      const wood = this.lam('#9a6b3f'), dark = this.lam('#6b4426');
+      [-1, 1].forEach((side, i) => {
+        const p = new T.Group();
+        const post = new T.Mesh(new T.CylinderGeometry(0.12, 0.14, 2.6, 8), dark); post.position.y = 1.3; p.add(post);
+        const board = new T.Mesh(new T.BoxGeometry(1.7, 0.8, 0.14), this.lam(side < 0 ? '#3a86ff' : '#ff8c42')); board.position.y = 2.25; p.add(board);
+        const tip = new T.Mesh(new T.ConeGeometry(0.42, 0.5, 3), this.lam(side < 0 ? '#3a86ff' : '#ff8c42'));
+        tip.rotation.z = -side * Math.PI / 2; tip.rotation.y = Math.PI / 6; tip.position.set(side * 1.08, 2.25, 0); p.add(tip);
+        const plank = new T.Mesh(new T.BoxGeometry(1.5, 0.6, 0.16), wood); plank.position.y = 2.25; plank.scale.set(1, 1, 1); p.add(plank);
+        const icon = this.emojiSprite(f.opts[i].icon, 1.3); icon.position.set(0, 3.2, 0.1); p.add(icon);
+        p.position.set(side * (LANE * 1.5 + 0.6), 0, -5);
+        p.rotation.y = -side * 0.35;
+        p.userData = { side, icon };
+        g.add(p);
+      });
+      this.s3.add(g); this.forkSigns = g;
+    }
+    this.forkSigns.visible = true;
+    for (const p of this.forkSigns.children) {
+      const { side, icon } = p.userData, on = f.sel === side || f.chosen === side, lost = f.chosen && f.chosen !== side;
+      const sc = lost ? 0.6 : on ? 1.15 + Math.sin(now / 150) * 0.05 : 1;
+      p.scale.setScalar(p.scale.x + (sc - p.scale.x) * 0.2);
+      icon.position.y = 3.2 + Math.sin(now / 300 + side) * 0.12;
+    }
+  }
+  monkeyThrow(side) { const m = this.monkeys && this.monkeys.find((x) => x.side === side); if (m) m.throwT = performance.now(); Audio8.boing(); }
+
+  // ---------- À deux : tape dans la main (les dresseurs se rejoignent au milieu, joie, étincelles entre eux)
+  highFive() {
+    const now = performance.now();
+    this.highFiveT = now;
+    for (const h of this.heroes) h.happyUntil = now + 1100;
+    setTimeout(() => {
+      const a = this.anchor(0), b = this.anchor(1);
+      this.burst((a.x + b.x) / 2, Math.min(a.y, b.y) - a.u * 1.2, 40, ['#ffd166', '#ffffff', '#ff70a6', '#7bdff2']);
+      Audio8.hit();
+    }, 420);
+  }
+
+  // Repère « à toi ! » au-dessus de l'enfant dont c'est le tour (poses à tour de rôle)
+  drawTurn(now) {
+    if (this.turnHero == null || this.heroes.length < 2 || this.stepKind !== 'pose') return;
+    const A = this.anchor(this.turnHero), ctx = this.ctx, y = A.y - A.u * 3.4 + Math.sin(now * 0.008) * A.u * 0.2;
+    ctx.font = `${A.u * 1.4}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('👇', A.x, y);
+    ctx.font = `800 ${A.u * 0.7}px 'Baloo 2', sans-serif`; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = A.u * 0.12;
+    ctx.strokeText('À toi !', A.x, y - A.u * 1.1); ctx.fillText('À toi !', A.x, y - A.u * 1.1);
+    ctx.textBaseline = 'alphabetic';
+  }
+
   // ---------- Gardien de fin de monde : grande créature évoluée qui bloque le chemin et montre les poses
   setBoss(b) {
     if (this.bossM) { this.s3.remove(this.bossM.group); this.bossM = null; }
@@ -2018,6 +2099,8 @@ class Scene3D extends DepthScene {
     this.updateCart(now);
     this.updateBoss(now);
     this.updateBall3D(now);
+    this.updateMonkeys(now);
+    this.updateForkSigns(now);
     // Paysage suivant quand on avance dans la partie
     const fb = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage forcé
     const bi = Math.min(this.theme.biomes.length - 1, fb ? Number(fb) : Math.floor(this.progress * this.theme.biomes.length));
@@ -2160,6 +2243,9 @@ class Scene3D extends DepthScene {
     this.drawMoles(now);
     this.drawFruits(now);
     this.drawBubbles(now);
+    this.drawFoam(now);
+    this.drawFork(now);
+    this.drawTurn(now);
     this.drawRope(now);
     this.drawCue(now);
     this.drawFlashes(now);

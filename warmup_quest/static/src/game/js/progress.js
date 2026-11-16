@@ -2,7 +2,7 @@
 // Pensé pour donner envie de revenir, sans punition : rien ne se perd, rien ne s'achète.
 
 // Ordre des îles sur la carte (du plus simple au plus varié)
-const MAP_ORDER = ['ecole', 'jardin3d', 'turbo', 'island', 'forest', 'ferme', 'bonbons', 'supermarche', 'banquise', 'ocean', 'dinos', 'verger',
+const MAP_ORDER = ['ecole', 'jardin3d', 'turbo', 'island', 'forest', 'ferme', 'bonbons', 'supermarche', 'singes', 'banquise', 'ocean', 'dinos', 'verger',
   'espace', 'chateau', 'rythmo', 'disco', 'dojo'];
 const MAP_FREE = 4; // l'école et les 3 premières îles sont ouvertes d'office
 

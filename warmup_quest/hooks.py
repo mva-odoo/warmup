@@ -81,7 +81,7 @@ BOSS_POSES = [('star', 'airplane', 'armsUp'), ('armsUp', 'star', 'airplane'), ('
 
 
 # Ordre des mondes dans worlds.js (le gardien de chaque monde y est choisi par sa position)
-JS_WORLD_ORDER = ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'turbo', 'island', 'forest', 'banquise', 'ocean',
+JS_WORLD_ORDER = ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'singes', 'supermarche', 'turbo', 'island', 'forest', 'banquise', 'ocean',
                   'espace', 'bonbons', 'ferme', 'dinos', 'chateau']
 
 
@@ -96,6 +96,10 @@ def _with_boss(steps, world):
     steps = list(steps)
     steps.insert(len(steps) - 1, _boss_step(world))
     return steps
+
+
+def _MO(t, n):
+    return {'move': 'foam', 'duration': t, 'count': n}
 
 
 def _SH(t):
@@ -140,6 +144,10 @@ DEFAULT_SEQUENCES = [
     ('rythmo', 'Rythmes de Bip', [
         _Z(2.5, 'Prêt ? Musique !'), _CU(12, 1.6), _S(2), _CU(16, 1.4), _P('armsUp'),
         _CU(16, 1.3), _J(2), _CU(20, 1.2), _Z(3, 'Bravo ! Quel rythme…'),
+    ]),
+    ('singes', 'Les farces des singes', [
+        _Z(2.5, 'Chut… des singes farceurs se cachent dans la jungle !'), _MO(16, 6), _J(2), _R(6), _MO(18, 8), _P('armsUp'),
+        _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! Tout est propre… respire bien.'),
     ]),
     ('supermarche', 'Les courses de Panier', [
         _Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
@@ -201,7 +209,7 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes'}
 
 
 def _new_game(world):

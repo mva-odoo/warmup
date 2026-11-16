@@ -38,8 +38,16 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   et elle devient amie.
 - **Photo souvenir** 📸 à la fin de chaque partie, et **🏠 Ma chambre** : une pièce en 3D avec le dresseur, son compagnon,
   les créatures amies sur l'étagère, un trophée par monde réussi, les photos au mur et l'affiche de gommettes.
-- **À deux** : le rocher devient un gros rocher qu'on tape ensemble, et une **passe de ballon** (lever la main quand le ballon
-  arrive pour le renvoyer) est ajoutée au milieu de la partie.
+- **À deux (coopératif)** :
+  - **réussite d'équipe** : un défi est réussi dès qu'un des deux enfants le réussit (on s'entraide, personne n'attend l'autre) ;
+  - **jeux « ensemble »** : la corde, les couloirs gauche / droite et les combos sont remplacés par des jeux d'équipe
+    (mousse, étoiles, bulles, gros rocher à taper ensemble) ;
+  - **placement guidé** au départ : deux grands ronds de couleur sur la vidéo, au nom de chaque enfant, qui deviennent verts
+    quand il est bien placé ; en jeu, « ↔️ Écartez-vous ! » si les deux se rapprochent trop ;
+  - **poses à tour de rôle** : « À toi Léo ! », un repère 👇 et la silhouette guide sur son dresseur ;
+  - **tape dans la main** : à chaque réussite (une fois sur deux), les deux dresseurs se rejoignent et se tapent dans la main.
+- **Mode petit 🐣** (par enfant, dans « Mon dresseur » ou la fiche Odoo, coché d'office à 5 ans ou moins d'après l'année de
+  naissance) : sauts, flexions et poses reconnus plus facilement, bulles et taupes plus faciles à toucher.
 - **Parents** : objectif du jour (une partie), réglage « 🌙 parties par jour » (1, 2, 3 ou sans limite) : une fois atteint, le jeu
   félicite et dit « à demain ». Dans Odoo, la fiche de l'enfant montre ses parties du jour et des 7 derniers jours.
 - **Récompenses** : les étoiles gagnées (meilleure note de chaque monde) débloquent des objets pour le dresseur :
@@ -90,6 +98,13 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     trop faibles ; repli automatique sur le chemin 2D si la 3D ne se charge pas.
   - Épreuves rigolotes : **tunnel** (rester baissé), **taupes** qui sortent de petites îles volantes de chaque côté, **copie les poses**.
   - **Verger des Ninjas** : des fruits sautent en l'air, on les coupe en deux d'un geste vif de la main (traînée de sabre, jus).
+  - **Jungle des Singes Farceurs** 🐒 : les singes bombardent l'écran de mousse jusqu'à couvrir **toute la vitre** :
+    on ne voit plus le décor, seulement les deux **raclettes** (les mains de l'enfant). Chaque geste efface une bande,
+    comme sur une vraie fenêtre (gouttes qui coulent, reflets, cadre en bois). Vitre propre à 80 % (65 % en mode petit) :
+    elle brille… et les singes recommencent (1 à 3 vitres selon le nombre réglé : 5 = une vitre). Très bien à deux.
+  - **Carrefours** 🔀 : dans chaque parcours (sauf l'école), le chemin se sépare. Deux panneaux montrent deux épreuves
+    tirées au hasard (bulles, taupes, fruits, cubes, mousse, étoiles, corde, tunnel, statues) ; un grand pas à gauche
+    ou à droite, tenu un instant, choisit la suivante. Un carrefour au milieu, deux pour les longs parcours.
   - **Super Marché Rigolo** 🛒 : des produits arrivent dans les couloirs ; un pas à gauche ou à droite pour se mettre devant
     et ils tombent dans le caddie (poussé à côté du dresseur, il se remplit pour de vrai). De petits chapardeurs masqués
     foncent sur le dresseur : il faut les éviter (ou sauter par-dessus), sinon ils volent un produit !

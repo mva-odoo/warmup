@@ -6,7 +6,8 @@ if (DEV.get('errlog')) { // (mode test) erreurs JavaScript recopiées dans le ti
   const errs = [];
   addEventListener('error', (e) => { errs.push(e.message); document.title = 'ERR ' + errs.join(' | '); });
   addEventListener('unhandledrejection', (e) => { errs.push(String(e.reason)); document.title = 'ERR ' + errs.join(' | '); });
-  setInterval(() => { if (!errs.length) document.title = window.__audio ? 'AUDIO ' + JSON.stringify(window.__audio) : 'OK ' + JSON.stringify(Audio8.debug()); }, 500);
+  if (DEV.get('dbgturn')) setInterval(() => { document.title = 'T ' + [scene.stepKind, scene.turnHero, game && game.cur && game.cur.s.m, game && game.cur && game.cur.s.turn].join(' '); }, 300);
+  else setInterval(() => { if (!errs.length) document.title = window.__audio ? 'AUDIO ' + JSON.stringify(window.__audio) : 'OK ' + JSON.stringify(Audio8.debug()); }, 500);
   if (DEV.get('audiotest')) Promise.all(['adventure', 'fun', 'dance', 'karate', 'space', 'water', 'candy'].map((st) => Audio8.render(st)))
     .then((r) => { window.__audio = r; }).catch((e) => { errs.push(String(e)); document.title = 'ERR ' + e; });
 }
@@ -28,9 +29,10 @@ const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1
 // Produits du supermarché (Food Kit de Kenney)
 const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tomato', 'broccoli', 'carton', 'soda-bottle', 'can',
   'bottle-ketchup', 'pizza-box', 'croissant', 'corn', 'eggplant', 'orange', 'grapes', 'apple', 'watermelon', 'pineapple', 'cake-birthday', 'fish'];
+const FOAM_COLS = ['#ffffff', '#ffe3f6', '#e3f6ff', '#ffffff', '#ecffe3'];
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['learn', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['learn', 'foam', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -177,6 +179,9 @@ function isLowPower() {
   if (q) return q === 'low';
   return scene3d.ready ? scene3d.quality === 'low' : (navigator.hardwareConcurrency || 4) <= 2 || (navigator.deviceMemory || 8) <= 2;
 }
+
+// Réussite d'équipe : à deux, il suffit qu'un enfant réussisse (on s'entraide) ; seul, il faut réussir
+function teamOk(list) { return duo() ? list.some(Boolean) : list.every(Boolean); }
 
 function store(key, val) {
   try {
@@ -474,6 +479,7 @@ async function startWorld(w) {
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
   tracker.setPlayers(team.length);
+  tracker.bodies.forEach((b, i) => (b.easy = !!(team[i] && team[i].easy))); // (mode petit : par enfant)
   $('camBox').classList.toggle('duo', duo());
   $('camBox').classList.remove('camMenu'); // (pendant le jeu : petite vidéo en haut à droite, elle ne cache jamais le dresseur)
   Audio8.unlock();
@@ -581,6 +587,13 @@ function updateCalib(now) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
     setCalibStage('far', 'Mets-toi face à la caméra 👀', 'On doit voir au moins ta tête et tes hanches', 'Mets-toi face à la caméra, recule un peu !');
+  } else if (duo() && !(tracker.duoPlacement() || { ok: true }).ok) {
+    calibState.holdStart = 0;
+    $('calibBar').style.width = '0%';
+    const pl = tracker.duoPlacement();
+    setCalibStage(pl.apart ? 'spots' : 'apart', pl.apart ? 'Chacun dans son rond 🟢' : 'Écartez-vous un peu ↔️',
+      pl.apart ? 'Allez chacun dans le rond de votre couleur : il devient vert' : 'Il faut un grand pas entre vous deux',
+      pl.apart ? 'Allez chacun dans votre rond, il devient vert quand c\'est bon !' : 'Écartez-vous un peu, faites un grand pas chacun sur le côté !');
   } else if (duo() && !s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -717,7 +730,7 @@ class Game {
     this.world = w;
     this.steps = store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
-    if (team.length > 1 && !this.steps.some((st) => st.m === 'ball')) this.steps.splice(Math.round(this.steps.length / 2), 0, { m: 'ball', n: 8 });
+    if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps); // (carrefours : on choisit son épreuve)
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
     this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
@@ -759,7 +772,14 @@ class Game {
 
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
-    if (s.m === 'ball' && this.np < 2) s = { m: 'bubbles', t: 10, n: 6 };
+    if (s.m === 'ball') s = { m: 'bubbles', t: 10, n: 6 }; // (passe de ballon retirée : trop difficile à synchroniser)
+    // À deux : on garde les jeux où l'on vise le même but ensemble ; ceux qui demandent d'être parfaitement synchronisés
+    // (corde, couloirs gauche / droite, combos) sont remplacés par des jeux d'équipe
+    if (this.np > 1) {
+      const swap = { rope: { m: 'foam', t: 14, n: 6 }, left: { m: 'catch', t: 8 }, right: { m: 'bubbles', t: 8, n: 4 }, combo: { m: 'smash', n: 2 } }[s.m];
+      if (swap) s = swap;
+      if (s.m === 'pose') s = { ...s, turn: (this.turnN = ((this.turnN ?? -1) + 1)) % 2 }; // poses : chacun son tour
+    }
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
     if ((s.m === 'posemix' || s.m === 'boss') && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
     if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
@@ -795,7 +815,9 @@ class Game {
       fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
-    if (s.m !== 'learn') Audio8.say(s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s), { slow: !!this.world.tutorial });
+    // (à deux, pose : on annonce à qui c'est le tour)
+    const who = s.turn != null && team[s.turn] ? `À toi ${team[s.turn].name || (s.turn ? 'joueur deux' : 'joueur un')} ! ` : '';
+    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s)), { slow: !!this.world.tutorial });
     if (s.creature) Audio8.cry(s.creature.id);
     if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
       Audio8.say(tutoText(s.of), { slow: true });
@@ -803,6 +825,7 @@ class Game {
       if (mv) setTimeout(() => { if (this.cur && this.cur.s === s) scene.setCoach({ move: mv, style: 'dance', pal: MIMIC.dance.pal, t0: performance.now(), learn: true }); }, 50);
     }
     scene.onStep(s, dur);
+    if (s.turn != null) scene.turnHero = s.turn; // (à deux : repère « à toi ! »)
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
     if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
@@ -874,7 +897,7 @@ class Game {
         scene.flash(idx, true);
         Audio8.good();
         ui.setDetail(this.detail(c));
-        if (c.parts.every((n) => n >= s.parts.length)) { this.add(200, 'COMBO +200'); this.complete(now); }
+        if (teamOk(c.parts.map((n) => n >= s.parts.length))) { this.add(200, 'COMBO +200'); this.complete(now); }
       }
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
       this.sideDone(now);
@@ -893,6 +916,7 @@ class Game {
         return s.n === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
       case 'jump': case 'squat':
         return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
+      case 'foam': return `<div class="runCount">🧽 ${'⭐'.repeat(c.round || 0)}${'☆'.repeat(Math.max(0, (c.rounds || 1) - (c.round || 0)))} <b>${Math.round(Math.min(1, (c.clean || 0) / (c.target || 0.8)) * 100)} %</b></div>`;
       case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
       case 'pose': return holdBar(c.hold / (s.hold * 1000), s.creature);
@@ -921,9 +945,9 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn'].includes(s.m);
+    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam'].includes(s.m);
     // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
-    scene.hideHero = !!s && s.m === 'slice';
+    scene.hideHero = !!s && (s.m === 'slice' || s.m === 'foam'); // (fruits, mousse : on voit tout l'écran)
     if (scene.hideHero) scene.mirror = false;
     scene.faceCam = false;
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
@@ -1016,7 +1040,7 @@ class Game {
       const bb = c.bubbles[i];
       if (now - bb.born < 300) continue; // le temps de la voir apparaître
       const hs = hands[bb.hero];
-      if (this.touches(hs, bb.u, bb.v, bb.r + 0.45)) this.popBubble(c, i, now);
+      if (this.touches(hs, bb.u, bb.v, bb.r + 0.45 + (tracker.bodies[bb.hero] && tracker.bodies[bb.hero].easy ? 0.3 : 0))) this.popBubble(c, i, now);
     }
   }
 
@@ -1054,7 +1078,7 @@ class Game {
         if (hz.kind === 'thief') return this.laneOf(i) !== hz.lane || b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200; // (à côté, ou par-dessus !)
         return this.laneOf(i) !== hz.lane;
       });
-      const all = oks.every(Boolean);
+      const all = teamOk(oks);
       c.dodges.push(all);
       if (hz.kind === 'item' && all) c.inCart = (c.inCart || 0) + 1;
       if (hz.kind === 'thief' && !all && c.inCart) c.inCart--; // (le chapardeur a pris un produit dans le caddie !)
@@ -1090,7 +1114,7 @@ class Game {
         ? b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1100
         : b.state.squat || now - (this.lastEv.squat[i] || 0) < 1100));
       oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) { c.counts[i]++; c.count++; this.add(this.pts(100), '+' + this.pts(100), i); } });
-      const all = oks.every(Boolean);
+      const all = teamOk(oks);
       c.dodges.push(all);
       scene.resolveHazard(hz, all);
       all ? Audio8.good() : Audio8.soft();
@@ -1149,8 +1173,8 @@ class Game {
     // Réussi si on a sauté entre 0,65 s avant et 0,35 s après le passage de la corde sous les pieds
     const oks = tracker.bodies.map((b, i) => b.state.jumpUp || (this.lastEv.jump[i] || 0) >= pass - 650);
     oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), i); });
-    if (oks.every(Boolean)) c.ropeOk++;
-    oks.every(Boolean) ? Audio8.good() : Audio8.soft();
+    if (teamOk(oks)) c.ropeOk++;
+    teamOk(oks) ? Audio8.good() : Audio8.soft();
     ui.setDetail(this.detail(c));
     if (c.passes >= c.s.n) {
       scene.rope = null; scene.setCue(null);
@@ -1191,7 +1215,7 @@ class Game {
     for (const m of c.moles) {
       if (m.state !== 'up') continue;
       const hs = hands[m.hero];
-      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.2, 0.95)) {
+      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.2, 0.95 + (tracker.bodies[m.hero] && tracker.bodies[m.hero].easy ? 0.35 : 0))) {
         m.state = 'bonk'; m.t = now; c.bonked++;
         this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
         ui.setDetail(this.detail(c));
@@ -1304,6 +1328,114 @@ class Game {
     }
   }
 
+  // ---------- Singes farceurs : ils lancent de la mousse sur l'écran ; les mains de l'enfant sont des raclettes
+  // Mains en coordonnées d'écran (0..1) : épaules au milieu, bras tendu = bord de l'écran (comme le choix à la main)
+  screenHands(b, i = 0) {
+    if (DEV.get('fakelimbs')) { // (mode test) deux raclettes qui balaient l'écran
+      const t = performance.now() / 1000 + i;
+      return [{ x: 0.3 + Math.sin(t * 1.3) * 0.25, y: 0.45 + Math.cos(t * 1.7) * 0.3 }, { x: 0.7 + Math.sin(t * 1.1 + 2) * 0.25, y: 0.45 + Math.sin(t * 1.5) * 0.3 }];
+    }
+    if (!b.lm || !b.T || !b.state.present) return null;
+    const lm = b.lm, sh = mid(lm[11], lm[12]), T = b.T, out = [];
+    for (const k of [15, 16]) {
+      if ((lm[k].visibility ?? 1) < 0.35) continue;
+      const u = Math.max(-1, Math.min(1, -(lm[k].x - sh.x) / (T * 1.35))), v = Math.max(0, Math.min(1, (lm[k].y - (sh.y - T * 1.1)) / (T * 1.9)));
+      out.push({ x: 0.5 + u * 0.5, y: v });
+    }
+    return out;
+  }
+
+  // ---------- Singes farceurs : ils couvrent toute la vitre de mousse, on ne voit plus que les raclettes ;
+  // l'enfant lave la vitre (chaque geste efface une bande). Vitre propre à 80 % : les singes recommencent.
+  updateFoam(c, now) {
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy);
+    if (!c.rounds) {
+      c.rounds = Math.max(1, Math.min(3, Math.round(s.n / 5))); c.round = 0; c.clean = 0; c.foamProg = 0;
+      c.target = easy ? 0.65 : 0.8;
+      scene.foam = []; scene.foamOn = true; scene.foamFade = false;
+      c.phase = 'cover'; c.phaseT = now; c.thrown = 0;
+      Audio8.say('Oh non ! Les singes farceurs lancent de la mousse sur la vitre ! On ne voit plus rien ! Tes mains sont des raclettes : lave la vitre !');
+    }
+    const throwBall = (x, y, r) => {
+      const side = (c.throwSide = -(c.throwSide || 1));
+      scene.foam.push({ x, y, r, from: side, born: now, land: now + 550, seed: Math.random() * 1000, col: FOAM_COLS[c.thrown++ % FOAM_COLS.length] });
+      scene.monkeyThrow && scene.monkeyThrow(side);
+    };
+    // Les raclettes suivent les mains, même pendant que les singes lancent
+    const hands = tracker.bodies.flatMap((b, i) => this.screenHands(b, i) || []);
+    const prev = c.prevSq || [];
+    scene.squeegees = hands.map((h, k) => ({ ...h, vx: prev[k] ? h.x - prev[k].x : 0, vy: prev[k] ? h.y - prev[k].y : 0 }));
+    c.prevSq = hands;
+    if (c.phase !== 'wash') c.end += now - (c.lastNow || now); // (le chrono attend pendant que les singes lancent)
+    c.lastNow = now;
+
+    if (c.phase === 'cover') { // une pluie de grosses boules, puis toute la vitre est couverte
+      const k = now - c.phaseT;
+      if (k < 1400 && now - (c.lastThrow || 0) > 160) {
+        c.lastThrow = now;
+        throwBall(0.1 + Math.random() * 0.8, 0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.1);
+      }
+      if (k > 2000) { scene.foamCover(1); c.phase = 'wash'; c.phaseT = now; c.clean = 0; c.lastPrank = now; c.nextPts = 0.25; }
+    } else if (c.phase === 'wash') {
+      for (const sq of scene.squeegees) {
+        const d = Math.hypot(sq.vx, sq.vy);
+        if (d > 0.002 && d < 0.35) scene.foamWipe(sq.x - sq.vx, sq.y - sq.vy, sq.x, sq.y, 0.24 + (easy ? 0.06 : 0));
+      }
+      if (now - (c.measT || 0) > 250) {
+        c.measT = now;
+        const was = c.clean;
+        c.clean = scene.foamClean();
+        if (c.clean - was > 0.012 && now - (c.squeakT || 0) > 300) { c.squeakT = now; Audio8.squeak && Audio8.squeak(); }
+        const k = Math.min(1, c.clean / c.target);
+        c.foamProg = (c.round + k) / c.rounds;
+        if (k >= c.nextPts && k < 1) { c.nextPts += 0.25; this.add(this.pts(20), '+20'); }
+        if (k >= 1) {
+          c.round++; c.foamProg = c.round / c.rounds;
+          this.add(this.pts(100), '+100'); this.collect();
+          scene.burst(scene.W / 2, scene.H * 0.4, 50, ['#ffffff', '#7bdff2', '#ffd166']);
+          Audio8.perfect && Audio8.perfect();
+          scene.foamFade = true;
+          if (c.round >= c.rounds) { Audio8.say('Bravo ! La vitre brille ! Les singes sont tout étonnés !'); ui.setDetail(this.detail(c)); return this.complete(now); }
+          Audio8.say(c.round === 1 ? 'Bravo, ça brille ! Oh non… les singes recommencent !' : 'Super ! Attention, encore de la mousse !');
+          c.phase = 'shine'; c.phaseT = now;
+        }
+      }
+      // (de temps en temps, un singe relance une petite boule sur un coin déjà propre)
+      if (c.clean > 0.35 && now - c.lastPrank > 4000) { c.lastPrank = now; throwBall(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, 0.1); }
+    } else if (c.phase === 'shine' && now - c.phaseT > 1800) { // on admire la vitre propre, puis ça recommence
+      scene.foamFade = false; c.phase = 'cover'; c.phaseT = now;
+    }
+    ui.setDetail(this.detail(c));
+  }
+
+  // ---------- Carrefour : deux panneaux, un pas à gauche ou à droite (tenu un instant) choisit l'épreuve suivante
+  updateFork(c, now) {
+    const s = c.s, opts = s.opts || (s.opts = forkOptions());
+    if (!c.forkInit) {
+      c.forkInit = true; c.sel = 0; c.selT = now;
+      scene.fork = { key: now, opts: opts.map((o) => ({ icon: stepIcon(o), label: FORK_SHORT[o.m] || stepLabel(o) })), sel: 0, k: 0, chosen: 0 };
+    }
+    const f = scene.fork;
+    if (c.chosen) return;
+    // (à deux : le premier qui fait un pas choisit pour l'équipe)
+    const dev = Number(DEV.get('forkside') || 0);
+    const sides = tracker.bodies.map((b) => b.state.side);
+    const sel = dev || (sides[0] === 'left' || sides[0] === 'right' ? (sides[0] === 'left' ? -1 : 1) : sides.includes('left') ? -1 : sides.includes('right') ? 1 : 0);
+    if (sel !== c.sel) { c.sel = sel; c.selT = now; if (sel) Audio8.tick && Audio8.tick(); }
+    const ready = now - c.start > 1800; // (le temps d'écouter les deux choix)
+    f.sel = sel; f.k = sel && ready ? Math.min(1, (now - Math.max(c.selT, c.start + 1800)) / 900) : 0;
+    let pickSide = f.k >= 1 ? sel : 0;
+    if (!pickSide && now > c.end - 500 && !DEV.get('hold')) pickSide = Math.random() < 0.5 ? -1 : 1; // (personne ne choisit : au hasard)
+    if (!pickSide) return;
+    c.chosen = pickSide; f.chosen = pickSide; f.chosenT = now; c.end = Math.max(c.end, now + 2500);
+    const next = JSON.parse(JSON.stringify(opts[pickSide < 0 ? 0 : 1]));
+    this.steps.splice(this.i + 1, 0, next);
+    this.maxScore += maxPoints(next); this.scored++;
+    this.add(this.pts(100), '+100');
+    Audio8.say((pickSide < 0 ? 'À gauche : ' : 'À droite : ') + FORK_NAMES[next.m] + ' !');
+    if (!DEV.get('hold')) setTimeout(() => { if (this.cur === c && !c.done) this.complete(performance.now()); }, 1300);
+  }
+
   // ---------- Passe de ballon (à deux) : le ballon vole vers un joueur, qui lève la main au bon moment pour le renvoyer
   updateBall(c, now) {
     const s = c.s, fly = 1700 * Math.min(1.3, this.mul);
@@ -1328,7 +1460,7 @@ class Game {
   updatePosemix(c, now, dt) {
     const s = c.s, pose = s.poses[c.pi];
     tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[pose] ? pose : null, i));
-    c.hold = tracker.state[pose] ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
+    c.hold = teamOk(tracker.bodies.map((b) => b.state[pose])) ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
     if (c.hold >= s.hold * 1000) {
       c.pi++; c.hold = 0;
       this.add(this.pts(100) * this.np, '+100');
@@ -1398,7 +1530,7 @@ class Game {
     // (une pose compte si elle est tenue un petit quart du temps : on a le temps de passer d'un geste à l'autre)
     const oks = c.okF.map((f) => (event ? f > 0 : c.frames && f / c.frames >= 0.2));
     oks.forEach((ok, k) => { scene.flash(k, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), k); });
-    const all = oks.every(Boolean);
+    const all = teamOk(oks);
     c.mimicRes.push(all);
     all ? Audio8.good() : Audio8.soft();
     ui.setDetail(this.detail(c));
@@ -1434,7 +1566,7 @@ class Game {
     if (!c.frames) return;
     const oks = c.still.map((k) => k / c.frames >= 0.6);
     oks.forEach((ok, i) => scene.flash(i, ok));
-    if (oks.every(Boolean)) {
+    if (teamOk(oks)) {
       c.okRounds++;
       this.add(150, '+150');
       Audio8.perfect();
@@ -1453,6 +1585,11 @@ class Game {
   complete(now) {
     const c = this.cur;
     if (DEV.get('hold')) { c.end = now + 60000; return; } // (mode test) l'épreuve reste affichée
+    // À deux : les deux dresseurs se rejoignent et se tapent dans la main (une fois sur deux, pour que ça reste une fête)
+    if (this.np > 1 && (this.hiN = (this.hiN || 0) + 1) % 2 === 1 && scene.highFive) {
+      scene.highFive();
+      setTimeout(() => Audio8.say(pick(['Tope là !', 'Bravo l\'équipe !', 'Super équipe !'])), 350);
+    }
     c.done = true;
     const frac = Math.max(0, (c.end - now) / c.dur);
     if (c.s.m !== 'combo') {
@@ -1513,10 +1650,10 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
-        posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
+        posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
         slice: () => c.sliced / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
@@ -1551,9 +1688,11 @@ class Game {
     c.lastT = now;
     if ((s.m === 'left' || s.m === 'right') && st.side === s.m) return this.sideDone(now);
     if (s.m === 'pose') {
-      const ok = st[s.pose];
+      // À deux : c'est au tour d'un seul enfant (s.turn) ; seul lui compte, l'autre l'encourage
+      const turn = s.turn != null ? s.turn : null;
+      const ok = turn != null ? !!(tracker.bodies[turn] && tracker.bodies[turn].state[s.pose]) : st[s.pose];
       // Chaque héros s'entoure de vert quand SON joueur tient la pose
-      tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[s.pose] ? s.pose : null, i));
+      tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[s.pose] && (turn == null || turn === i) ? s.pose : null, i));
       c.hold = ok ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
       ui.setDetail(this.detail(c));
       if (scene.setHoldProgress) scene.setHoldProgress(Math.min(1, c.hold / (s.hold * 1000)));
@@ -1571,6 +1710,8 @@ class Game {
     if (s.m === 'slice') { this.updateSlice(c, now); if (c.done) return; }
     if (s.m === 'cubes') { this.updateCubes(c, now); if (c.done) return; }
     if (s.m === 'ball') { this.updateBall(c, now); if (c.done) return; }
+    if (s.m === 'foam') { this.updateFoam(c, now); if (c.done) return; }
+    if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
     if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
@@ -1961,13 +2102,25 @@ function updateCamStatus(now) {
 }
 
 // Logique du jeu (détection, épreuves, pause…)
+// À deux, pendant le jeu : si les enfants se rapprochent trop (ou changent de côté), petit rappel « Écartez-vous ! »
+let duoWarnT = 0, duoSayT = 0;
+function updateDuoSpacing(now) {
+  const pl = duo() && !tracker.sim ? tracker.duoPlacement() : null;
+  const bad = pl && pl.spots.every((sp) => sp.seen) && (!pl.apart || pl.spots.some((sp) => !sp.ok && Math.abs(sp.x - 0.5) < 0.06));
+  if (bad) { if (!duoWarnT) duoWarnT = now; } else duoWarnT = 0;
+  const show = !!duoWarnT && now - duoWarnT > 700;
+  $('duoWarn').classList.toggle('hidden', !show);
+  if (show && now - duoSayT > 7000) { duoSayT = now; Audio8.say('Écartez-vous un peu, chacun de son côté !'); }
+}
+
 function tick(now) {
   if (phase !== 'menu' || Gestures.on) tracker.update(video, now);
   // Choisir avec la main : partout sauf pendant le jeu
   if (Gestures.on && (phase === 'menu' || phase === 'results' || phase === 'paused')) Gestures.update(now);
   else if (Gestures.el) Gestures.el.classList.remove('show');
   if (phase === 'calib') updateCalib(now);
-  if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); }
+  if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); updateDuoSpacing(now); }
+  else if ($('duoWarn')) $('duoWarn').classList.add('hidden');
   if (phase === 'paused') updatePause(now);
   if (phase === 'results') updateResults(now);
   scene.setLive(phase === 'play' || phase === 'countdown' ? tracker.bodies.map((b) => b.state) : [{ side: 'center', squat: false }]);
@@ -1989,7 +2142,7 @@ function draw(now) {
   if (!$('camBox').classList.contains('hidden')) {
     const cur = phase === 'play' && game && game.cur;
     const posing = !!(cur && cur.s.m === 'pose' && !cur.done);
-    tracker.draw(camCtx, 640, 480, { colors, target: posing ? cur.s.pose : null });
+    tracker.draw(camCtx, 640, 480, { colors, target: posing ? cur.s.pose : null, names: team.map((p) => p.name), guide: phase === 'calib' && duo() });
     $('camBox').classList.toggle('pose', posing);
     updateCamStatus(now);
   }

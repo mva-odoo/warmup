@@ -321,8 +321,10 @@ class DepthScene {
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
+    this.foam = []; this.foamOn = false; this.squeegees = []; this.turnHero = null; this.foamDrips = []; this.foamFade = false; this.fork = null;
+    if (this.foamCx) this.foamCx.clearRect(0, 0, this.foamCv.width, this.foamCv.height);
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -517,6 +519,8 @@ class DepthScene {
     this.drawMoles(now);
     this.drawFruits(now);
     this.drawCubes(now);
+    this.drawFoam(now);
+    this.drawFork(now);
     this.drawBubbles(now);
     this.drawRope(now);
     this.drawCue(now);
@@ -718,6 +722,170 @@ class DepthScene {
     ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = w * 1.1;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - dx * A.u * 0.35, y - dy * A.u * 0.35); ctx.stroke();
     hd.tipU = (tx - A.x) / A.u; hd.tipV = (ty - A.y) / A.u; // (la lame coupe aussi : voir updateSlice)
+  }
+
+  // ---------- Carrefour : deux grandes cartes (gauche / droite) avec l'épreuve, une flèche, un anneau qui se remplit
+  drawFork(now) {
+    const f = this.fork;
+    if (!f) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H), cw = S * 0.34, ch = S * 0.42;
+    [-1, 1].forEach((side, i) => {
+      const o = f.opts[i], on = f.sel === side, picked = f.chosen === side, lost = f.chosen && !picked;
+      const ck = f.chosen ? Math.min(1, (now - f.chosenT) / 500) : 0;
+      const sc = picked ? 1.12 + ck * 0.08 : on ? 1.08 : 1, a = lost ? 1 - ck * 0.8 : 1;
+      const x = W / 2 + side * Math.min(W * 0.3, S * 0.62), y = H * 0.48 + Math.sin(now / 400 + i) * S * 0.008;
+      const col = side < 0 ? '#3a86ff' : '#ff8c42';
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(sc, sc);
+      ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = '#fffdf5'; ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.fill();
+      ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      ctx.lineWidth = S * 0.012; ctx.strokeStyle = col; ctx.stroke();
+      // anneau de choix : le bord se remplit pendant qu'on reste du bon côté
+      if ((on && f.k > 0) || picked) {
+        const k = picked ? 1 : f.k, per = 2 * (cw + ch);
+        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = S * 0.022; ctx.setLineDash([per * k, per]);
+        ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `${S * 0.15}px serif`; ctx.fillText(o.icon, 0, -ch * 0.12);
+      ctx.fillStyle = '#1e1b4b'; ctx.font = `800 ${S * 0.05}px Fredoka, Nunito, sans-serif`; ctx.fillText(o.label, 0, ch * 0.22);
+      // grosse flèche vers l'extérieur
+      ctx.fillStyle = col; ctx.save(); ctx.translate(side * (cw / 2 + S * 0.07), 0); ctx.scale(side, 1);
+      const u = S * 0.06; ctx.beginPath(); ctx.moveTo(-u, -u * 0.45); ctx.lineTo(0, -u * 0.45); ctx.lineTo(0, -u); ctx.lineTo(u * 1.1, 0); ctx.lineTo(0, u); ctx.lineTo(0, u * 0.45); ctx.lineTo(-u, u * 0.45); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      if (picked) { ctx.font = `${S * 0.08}px serif`; ctx.fillText('✅', cw * 0.38, -ch * 0.42); }
+      ctx.restore();
+    });
+  }
+
+  // ---------- La vitre pleine de mousse (singes farceurs)
+  // Un calque à part (1/3 de la taille de l'écran) garde la mousse : les singes le remplissent, chaque coup de
+  // raclette y efface une bande (comme sur une vraie vitre) ; on mesure ce qui est propre sur une mini copie.
+  foamLayer() {
+    const fw = Math.max(16, Math.ceil(this.W / 3)), fh = Math.max(16, Math.ceil(this.H / 3));
+    if (!this.foamCv || this.foamCv.width !== fw || this.foamCv.height !== fh) {
+      const old = this.foamCv;
+      this.foamCv = document.createElement('canvas'); this.foamCv.width = fw; this.foamCv.height = fh;
+      this.foamCx = this.foamCv.getContext('2d');
+      if (old) this.foamCx.drawImage(old, 0, 0, fw, fh); // (fenêtre redimensionnée : on garde la mousse)
+    }
+    return this.foamCx;
+  }
+  // Motif de mousse : blanc bleuté plein de bulles (dessiné une fois)
+  foamPattern(g) {
+    if (!this.foamTile) {
+      const t = document.createElement('canvas'); t.width = t.height = 96;
+      const c = t.getContext('2d');
+      c.fillStyle = '#f3f7ff'; c.fillRect(0, 0, 96, 96);
+      let sd = 7; const rnd = () => ((sd = (sd * 9301 + 49297) % 233280) / 233280);
+      for (let i = 0; i < 34; i++) {
+        const x = rnd() * 96, y = rnd() * 96, r = 2 + rnd() * 9;
+        for (const [dx, dy] of [[0, 0], [96, 0], [-96, 0], [0, 96], [0, -96]]) { // (motif sans couture)
+          c.fillStyle = 'rgba(205,222,245,.55)'; c.beginPath(); c.arc(x + dx, y + dy, r, 0, 6.29); c.fill();
+          c.strokeStyle = 'rgba(150,178,220,.55)'; c.lineWidth = 1; c.stroke();
+          c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath(); c.arc(x + dx - r * 0.35, y + dy - r * 0.35, r * 0.28, 0, 6.29); c.fill();
+        }
+      }
+      this.foamTile = t;
+    }
+    return g.createPattern(this.foamTile, 'repeat');
+  }
+  // Toute la vitre couverte (alpha < 1 : une couche de plus)
+  foamCover(alpha = 1) {
+    const g = this.foamLayer();
+    g.save(); g.globalAlpha = alpha; g.fillStyle = this.foamPattern(g); g.fillRect(0, 0, this.foamCv.width, this.foamCv.height); g.restore();
+  }
+  // Une grosse tache baveuse (x, y : 0..1 ; r : part de la hauteur), un peu colorée
+  foamSplat(x, y, r, col, seed = 1) {
+    const g = this.foamLayer(), fw = this.foamCv.width, fh = this.foamCv.height, R = r * fh, cx = x * fw, cy = y * fh;
+    let sd = Math.floor(seed * 1000) % 233280; const rnd = () => ((sd = (sd * 9301 + 49297) % 233280) / 233280);
+    g.save(); g.beginPath();
+    g.arc(cx, cy, R, 0, 6.29);
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * 6.29 + rnd(), d = R * (0.75 + rnd() * 0.45), rr = R * (0.28 + rnd() * 0.3);
+      g.moveTo(cx + Math.cos(a) * d + rr, cy + Math.sin(a) * d); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, rr, 0, 6.29);
+    }
+    for (let i = 0; i < 4; i++) { const dx = (rnd() - 0.5) * R * 1.4, len = R * (0.6 + rnd() * 1.1); g.moveTo(cx + dx, cy); g.roundRect(cx + dx - R * 0.1, cy, R * 0.2, len, R * 0.1); }
+    g.fillStyle = this.foamPattern(g); g.fill();
+    if (col) { g.globalAlpha = 0.28; g.fillStyle = col; g.fill(); }
+    g.restore();
+  }
+  // Coup de raclette de (x0, y0) à (x1, y1) : la lame (largeur w, part de la hauteur) balaie une bande
+  foamWipe(x0, y0, x1, y1, w) {
+    const g = this.foamLayer(), fw = this.foamCv.width, fh = this.foamCv.height, hw = w * fh / 2;
+    const ax = x0 * fw, ay = y0 * fh, bx = x1 * fw, by = y1 * fh;
+    g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = g.strokeStyle = '#000';
+    g.beginPath(); g.moveTo(ax - hw, ay); g.lineTo(ax + hw, ay); g.lineTo(bx + hw, by); g.lineTo(bx - hw, by); g.closePath(); g.fill();
+    g.lineCap = 'round'; g.lineWidth = hw * 1.1; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx + 0.01, by); g.stroke();
+    g.restore();
+    // (quelques gouttes d'eau qui coulent au bout de la lame)
+    if (Math.hypot(bx - ax, by - ay) > fh * 0.02 && Math.random() < 0.35 && this.foamDrips.length < 40) {
+      this.foamDrips.push({ x: x1 + (Math.random() < 0.5 ? -1 : 1) * w * 0.5 * this.H / this.W, y: y1, born: performance.now(), len: 0.05 + Math.random() * 0.12 });
+    }
+  }
+  // Part de la vitre propre (0..1), sur une copie de 48×27 points
+  foamClean() {
+    if (!this.foamCv) return 1;
+    if (!this.foamMini) { this.foamMini = document.createElement('canvas'); this.foamMini.width = 48; this.foamMini.height = 27; this.foamMiniCx = this.foamMini.getContext('2d', { willReadFrequently: true }); }
+    const m = this.foamMiniCx;
+    m.clearRect(0, 0, 48, 27); m.drawImage(this.foamCv, 0, 0, 48, 27);
+    const d = m.getImageData(0, 0, 48, 27).data;
+    let clean = 0; for (let i = 3; i < d.length; i += 4) if (d[i] < 70) clean++;
+    return clean / (48 * 27);
+  }
+
+  // Dessin : boules en vol, calque de mousse, reflets de la vitre, gouttes, cadre de la fenêtre, raclettes
+  drawFoam(now) {
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
+    if (!this.foamOn) return;
+    if (this.foamFade && this.foamCx) { // (fin : la mousse restante s'efface doucement)
+      const g = this.foamCx; g.save(); g.globalCompositeOperation = 'destination-out'; g.globalAlpha = 0.12; g.fillRect(0, 0, this.foamCv.width, this.foamCv.height); g.restore();
+    }
+    if (this.foamCv) ctx.drawImage(this.foamCv, 0, 0, W, H);
+    // reflets en biais : c'est une vitre
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const [o, wd] of [[0.18, 0.09], [0.31, 0.035], [0.7, 0.06]]) {
+      const x = o * W + Math.sin(now / 4000) * W * 0.02;
+      const gr = ctx.createLinearGradient(x, 0, x + wd * W, 0);
+      gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,.07)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + wd * W, 0); ctx.lineTo(x + wd * W - H * 0.45, H); ctx.lineTo(x - H * 0.45, H); ctx.fill();
+    }
+    ctx.restore();
+    // gouttes d'eau qui glissent
+    this.foamDrips = this.foamDrips.filter((d) => now - d.born < 1800);
+    for (const d of this.foamDrips) {
+      const k = (now - d.born) / 1800, x = d.x * W, y0 = d.y * H, y1 = y0 + Math.min(1, k * 2) * d.len * H;
+      ctx.strokeStyle = `rgba(190,225,255,${0.5 * (1 - k)})`; ctx.lineWidth = S * 0.006; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      ctx.fillStyle = `rgba(225,242,255,${0.8 * (1 - k)})`; ctx.beginPath(); ctx.arc(x, y1, S * 0.008, 0, 6.29); ctx.fill();
+    }
+    // boules lancées par les singes : elles volent, puis s'écrasent sur la vitre
+    this.foam = (this.foam || []).filter((f) => !f.gone);
+    for (const f of this.foam) {
+      if (now >= f.land) { this.foamSplat(f.x, f.y, f.r, f.col, f.seed); f.gone = now; Audio8.pop && Audio8.pop(); continue; }
+      const k = Math.max(0, (now - f.born) / (f.land - f.born)), sx = f.from < 0 ? -0.05 * W : 1.05 * W, sy = H * 0.6;
+      const x = f.x * W, y = f.y * H, bx = sx + (x - sx) * k, by = sy + (y - sy) * k - Math.sin(k * Math.PI) * H * 0.25, br = f.r * H * (0.25 + 0.5 * k);
+      ctx.fillStyle = this.foamPattern(ctx); ctx.strokeStyle = 'rgba(120,140,170,.6)'; ctx.lineWidth = 3;
+      ctx.save(); ctx.translate(bx, by); ctx.beginPath(); ctx.arc(0, 0, br, 0, 6.29); ctx.fill(); ctx.stroke();
+      if (f.col) { ctx.globalAlpha = 0.3; ctx.fillStyle = f.col; ctx.fill(); } ctx.restore();
+    }
+    // cadre de la fenêtre
+    const fr = S * 0.025;
+    ctx.save(); ctx.strokeStyle = '#7c5a3a'; ctx.lineWidth = fr * 2; ctx.strokeRect(0, 0, W, H);
+    ctx.strokeStyle = '#a47a50'; ctx.lineWidth = fr * 0.6; ctx.strokeRect(fr * 0.7, fr * 0.7, W - fr * 1.4, H - fr * 1.4);
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 2; ctx.strokeRect(fr, fr, W - fr * 2, H - fr * 2);
+    ctx.restore();
+    // Raclettes : manche, lame en caoutchouc (penchée dans le sens du geste)
+    for (const sq of this.squeegees || []) {
+      const x = sq.x * W, y = sq.y * H, w = S * 0.24, ang = Math.max(-0.5, Math.min(0.5, sq.vx * 8));
+      ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+      ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#ef476f'; ctx.beginPath(); ctx.roundRect(-w * 0.05, 0, w * 0.1, w * 0.8, w * 0.05); ctx.fill();   // manche
+      ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.roundRect(-w / 2, -w * 0.1, w, w * 0.16, w * 0.05); ctx.fill();    // support
+      ctx.fillStyle = '#1e1b4b'; ctx.beginPath(); ctx.roundRect(-w / 2 - 6, -w * 0.2, w + 12, w * 0.12, w * 0.04); ctx.fill(); // lame en caoutchouc
+      ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-w / 2, -w * 0.19, w, w * 0.03);
+      ctx.restore();
+    }
   }
 
   // Traînée lumineuse derrière la main (coup de sabre) : on voit son geste

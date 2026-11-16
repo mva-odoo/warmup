@@ -145,6 +145,25 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, lift: Math.sin(t * 0.004) * S * 0.01, ...f }, '#16a34a');
       break;
     }
+    case 'fork': { // deux flèches : un grand pas d'un côté ou de l'autre
+      const side = Math.floor(t / 1400) % 2 ? 1 : -1, k = Math.min(1, cyc(1400) * 2.5);
+      ctx.font = `${S * 0.2}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = side < 0 ? 1 : 0.35; ctx.fillText('⬅️', gx - S * 0.42, gy - S * 0.62);
+      ctx.globalAlpha = side > 0 ? 1 : 0.35; ctx.fillText('➡️', gx + S * 0.42, gy - S * 0.62); ctx.globalAlpha = 1;
+      stickFigure(ctx, { ...base, x: gx + side * k * S * 0.2 });
+      break;
+    }
+    case 'foam': { // une tache de mousse, la main-raclette passe dessus et elle disparaît
+      const k = cyc(1800), side = Math.floor(t / 1800) % 2 ? 1 : -1, fx = gx + side * S * 0.3, fy = gy - S * 0.72;
+      ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.35) * 1.6);
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#90a4c4'; ctx.lineWidth = 2;
+      for (const [dx, dy, r] of [[0, 0, 0.09], [0.07, 0.03, 0.06], [-0.07, 0.04, 0.06], [0.02, -0.06, 0.06]]) { ctx.beginPath(); ctx.arc(fx + dx * S, fy + dy * S, r * S, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      const hx = fx + Math.sin(k * Math.PI * 4) * S * 0.12, hy = fy;
+      ctx.fillStyle = '#1e1b4b'; ctx.fillRect(hx - S * 0.09, hy - S * 0.02, S * 0.18, S * 0.035);
+      stickFigure(ctx, { ...base, armL: side < 0 ? 2.5 : 0.4, armR: side > 0 ? 2.5 : 0.4 });
+      break;
+    }
     case 'shop': { // un produit arrive dans un couloir : un pas de côté, et il tombe dans le caddie
       const k = cyc(1600), side = Math.floor(t / 1600) % 2 ? 1 : -1, step = Math.min(1, k * 2.5);
       ctx.font = `${S * 0.2}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
