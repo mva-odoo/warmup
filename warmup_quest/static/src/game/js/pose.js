@@ -126,11 +126,13 @@ class Body {
     const kneeR = useKnees ? (lm[26].y - lm[24].y) / T : 1;
 
     // --- Saut : le haut du corps monte nettement
-    if (!s.jumpUp && dy < -0.2 * T) { s.jumpUp = true; emit('jump'); }
+    // (mode petit : mouvements reconnus plus tôt — un petit saut, une petite flexion suffisent)
+    const E = this.easy ? 0.7 : 1;
+    if (!s.jumpUp && dy < -0.2 * T * E) { s.jumpUp = true; emit('jump'); }
     else if (s.jumpUp && dy > -0.08 * T) s.jumpUp = false;
 
     // --- Accroupi : le haut du corps descend OU les deux cuisses « écrasées »
-    const squatNow = dy > 0.35 * T || (useKnees && kneeL < 0.45 && kneeR < 0.45);
+    const squatNow = dy > 0.35 * T * E || (useKnees && kneeL < 0.45 / E && kneeR < 0.45 / E);
     const standNow = dy < 0.18 * T && kneeL > 0.55 && kneeR > 0.55;
     if (!s.squat && squatNow) { s.squat = true; emit('squat'); }
     else if (s.squat && standNow) s.squat = false;
@@ -162,7 +164,7 @@ class Body {
     // --- Poses
     const nose = lm[0], lw = lm[15], rw = lm[16];
     const spread = Math.abs(lw.x - rw.x) / T;
-    const level = (w) => Math.abs(w.y - sh.y) < 0.35 * T;
+    const level = (w) => Math.abs(w.y - sh.y) < 0.35 * T / E;
     // Jambes écartées : chevilles si visibles, sinon genoux, sinon on ne regarde que les bras
     // (seuils généreux : un petit enfant écarte moins les jambes qu'un adulte)
     const legsApart = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T > 0.5
@@ -170,9 +172,9 @@ class Body {
     // Bras croisés devant la poitrine (geste de pause) : les poignets échangent leur côté
     const chest = (w) => w.y > sh.y - 0.3 * T && w.y < hip.y + 0.2 * T && Math.abs(w.x - sh.x) < 0.8 * T * 0.75;
     s.crossed = lw.x < rw.x - 0.03 && chest(lw) && chest(rw);
-    s.armsUp = lw.y < nose.y && rw.y < nose.y;
-    s.airplane = level(lw) && level(rw) && spread > 1.8;
-    s.starArms = lw.y < sh.y && rw.y < sh.y && spread > 1.05; // (bras de l'étoile, sans regarder les jambes)
+    s.armsUp = this.easy ? lw.y < sh.y - 0.25 * T && rw.y < sh.y - 0.25 * T : lw.y < nose.y && rw.y < nose.y;
+    s.airplane = level(lw) && level(rw) && spread > 1.8 * E;
+    s.starArms = lw.y < sh.y + (this.easy ? 0.15 * T : 0) && rw.y < sh.y + (this.easy ? 0.15 * T : 0) && spread > 1.05 * E; // (bras de l'étoile, sans regarder les jambes)
     s.star = s.starArms && legsApart;
     s.flamingo = !s.squat && useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
       (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8));
@@ -314,9 +316,35 @@ class Tracker {
 
   // Dessine les squelettes sur la vidéo (le canvas est retourné en miroir par le CSS).
   // Pendant une pose : silhouette jaune à imiter, et squelette vert quand c'est réussi.
-  draw(ctx, w, h, { colors = [], target = null } = {}) {
+  // À deux : chaque enfant est-il bien dans sa zone (son côté, bien écarté de l'autre) ?
+  duoPlacement() {
+    if (this.bodies.length !== 2) return null;
+    const spot = (b) => {
+      if (!b.lm || !b.state.upperBody || !b.center) return { ok: false, seen: false };
+      const want = b.idx === 0 ? 0.72 : 0.28; // (image non inversée : joueur 1 à gauche de l'écran = x élevé)
+      return { ok: Math.abs(b.center.x - want) < 0.17, seen: true, x: b.center.x };
+    };
+    const a = spot(this.bodies[0]), b = spot(this.bodies[1]);
+    const apart = a.seen && b.seen ? Math.abs(a.x - b.x) > 0.3 : true;
+    return { spots: [a, b], apart, ok: a.ok && b.ok && apart };
+  }
+
+  draw(ctx, w, h, { colors = [], target = null, names = [], guide = false } = {}) {
     ctx.clearRect(0, 0, w, h);
     if (this.sim) return;
+    // Placement guidé (à deux, au départ) : deux grands ronds « ici », verts quand l'enfant est bien placé
+    const pl = guide && this.duoPlacement();
+    if (pl) pl.spots.forEach((sp, i) => {
+      const x = (i === 0 ? 0.72 : 0.28) * w, y = h * 0.55, r = h * 0.3;
+      ctx.lineWidth = 10; ctx.setLineDash(sp.ok ? [] : [18, 12]);
+      ctx.strokeStyle = sp.ok ? '#4ade80' : colors[i] || '#ffffff';
+      ctx.fillStyle = sp.ok ? 'rgba(74,222,128,.18)' : 'rgba(255,255,255,.08)';
+      ctx.beginPath(); ctx.ellipse(x, y, r * 0.75, r, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+      ctx.save(); ctx.translate(x, y - r - 14); ctx.scale(-1, 1); // (la vidéo est retournée en miroir : on retourne le texte)
+      ctx.font = '800 34px "Baloo 2", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = 6;
+      const label = (sp.ok ? '✔ ' : '') + (names[i] || (i ? 'Joueur 2' : 'Joueur 1'));
+      ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0); ctx.restore();
+    });
     if (this.bodies.length === 2) {
       // Chacun sa moitié (joueur 1 à gauche de l'écran = x > 0.5 dans l'image non inversée)
       ctx.globalAlpha = 0.14;

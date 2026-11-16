@@ -38,10 +38,10 @@ const WUQStore = {
   // Joueurs de la partie : 1 ou 2 (coopératif) — { name, color, look }
   // look : apparence du dresseur { model, hat, glasses, color } (fenêtre « Mon dresseur »)
   players() {
-    const look = (i) => this._get('look_' + i) || undefined;
+    const look = (i) => this._get('look_' + i) || undefined, easy = (i) => !!(look(i) && look(i).easy);
     return this._get('duo')
-      ? [{ name: 'Joueur 1', color: '#ff6b35', look: look(0) }, { name: 'Joueur 2', color: '#4ea8ff', look: look(1) }]
-      : [{ name: '', color: null, look: look(0) }];
+      ? [{ name: 'Joueur 1', color: '#ff6b35', look: look(0), easy: easy(0) }, { name: 'Joueur 2', color: '#4ea8ff', look: look(1), easy: easy(1) }]
+      : [{ name: '', color: null, look: look(0), easy: easy(0) }];
   },
   setLook(i, look) { this._set('look_' + i, look); },
   // Bouton du menu pour passer en 2 joueurs (le module Odoo le remplace par le choix des profils)

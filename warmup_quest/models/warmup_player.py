@@ -40,6 +40,8 @@ class WarmupPlayer(models.Model):
     avatar_hat = fields.Selection(AVATAR_HATS, string='Chapeau', default='cap', required=True)
     avatar_glasses = fields.Boolean(string='Lunettes')
     avatar_back = fields.Selection(AVATAR_BACKS, string='Dans le dos', default='bag')
+    easy_mode = fields.Boolean(string='Mode petit (plus facile)',
+                               help='Mouvements reconnus plus facilement et cibles plus proches. Coché d\'office pour un enfant de 5 ans ou moins.')
     active = fields.Boolean(default=True)
     session_ids = fields.One2many('warmup.session', 'player_id', string='Parties')
     catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
@@ -164,7 +166,15 @@ class WarmupPlayer(models.Model):
         head = self.avatar_model or 'male-a'
         body = self.avatar_body or head
         return {'model': head, 'body': body, 'legs': self.avatar_legs or body,
-                'hat': self.avatar_hat or 'cap', 'glasses': bool(self.avatar_glasses), 'back': self.avatar_back or 'bag'}
+                'hat': self.avatar_hat or 'cap', 'glasses': bool(self.avatar_glasses), 'back': self.avatar_back or 'bag',
+                'easy': self._is_easy()}
+
+    def _is_easy(self):
+        self.ensure_one()
+        if self.easy_mode:
+            return True
+        year = fields.Date.context_today(self).year
+        return bool(self.birth_year and 0 < year - self.birth_year <= 5)
 
     def _set_look(self, look):
         """Apparence choisie dans le jeu (valeurs inconnues ignorées)."""
@@ -178,6 +188,8 @@ class WarmupPlayer(models.Model):
             vals['avatar_hat'] = look['hat']
         if look.get('back') in dict(AVATAR_BACKS):
             vals['avatar_back'] = look['back']
+        if 'easy' in look:
+            vals['easy_mode'] = bool(look['easy'])
         if 'glasses' in look:
             vals['avatar_glasses'] = bool(look['glasses'])
         if vals:

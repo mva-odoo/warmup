@@ -31,6 +31,7 @@ const Trainer = {
       back: ALL_BACKS.includes(l.back) ? l.back : 'bag',
       glasses: !!l.glasses,
       color: /^#[0-9a-f]{6}$/i.test(color || l.color || '') ? (color || l.color) : '#ff6b35',
+      easy: !!l.easy, // mode petit : mouvements reconnus plus facilement, cibles plus proches
     };
   },
 
@@ -62,7 +63,8 @@ const Trainer = {
         <div class="trainerTop">
           <div class="trainerHero"><canvas width="240" height="300"></canvas>
             <div class="trainerName">${String(opts.name || '').replace(/[&<>"]/g, '')}</div>
-            <button type="button" class="trDice" title="Au hasard">🎲</button></div>
+            <button type="button" class="trDice" title="Au hasard">🎲</button>
+            <button type="button" class="trEasy" title="Mode petit (plus facile)">🐣</button></div>
           <div class="trainerChoices">
             <div class="trTabs">${TABS.map(([k, ic]) => `<button type="button" class="trTab" data-tab="${k}">${ic}</button>`).join('')}</div>
             <div class="trGridRow"><button type="button" class="trPg" data-d="-1">◀</button><div class="trGrid"></div><button type="button" class="trPg" data-d="1">▶</button></div>
@@ -138,6 +140,10 @@ const Trainer = {
       bg.querySelector('.trStarsRow').innerHTML = tab === 'hat' || tab === 'back'
         ? `⭐ ${stars}${Trainer.nextReward(stars) ? ` · prochain cadeau à ⭐ ${Trainer.nextReward(stars).stars} ${Trainer.nextReward(stars).icon}` : ''}` : '';
     };
+    const easyBtn = bg.querySelector('.trEasy');
+    const paintEasy = () => easyBtn.classList.toggle('on', !!look.easy);
+    easyBtn.onclick = () => { look.easy = !look.easy; paintEasy(); Audio8.pop(); Audio8.say(look.easy ? 'Mode petit : tout est plus facile !' : 'Mode grand !'); };
+    paintEasy();
     bg.querySelectorAll('.trTab').forEach((t) => (t.onclick = () => { tab = t.dataset.tab; page = 0; Audio8.pop(); render(); }));
     bg.querySelectorAll('.trPg').forEach((p) => (p.onclick = () => { page += Number(p.dataset.d); Audio8.whoosh(); render(); }));
     // (page de la vignette choisie, pour la voir tout de suite)

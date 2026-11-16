@@ -47,6 +47,7 @@
                             <field name="avatar_hat"/>
                             <field name="avatar_glasses"/>
                             <field name="avatar_back"/>
+                            <field name="easy_mode"/>
                             <field name="companion_display"/>
                             <field name="birth_year"/>
                             <field name="user_id"/>

@@ -584,3 +584,8 @@ body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; b
 .dayBar { margin: 0; padding: 4px 12px; display: flex; gap: 10px; align-items: center; font-size: 30px; background: rgba(255,255,255,.14); }
 .dayBar small { font-size: 22px; } .dayTxt { font-size: 18px; }
 .worldCard.locked .wBest { display: none; }
+.duoWarn { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); background: #7c3aed; color: #fff; padding: 10px 26px;
+  border-radius: 99px; font-size: 30px; font-weight: 800; box-shadow: 0 6px 0 rgba(0,0,0,.25); animation: wobble 1s ease-in-out infinite; }
+.trainerHero .trEasy { position: absolute; left: -6px; top: 6px; width: 64px; height: 64px; font-size: 34px; border-radius: 20px; border: 4px solid #e2e8f0;
+  background: #fff; cursor: pointer; opacity: .55; }
+.trainerHero .trEasy.on { opacity: 1; border-color: #ffd166; background: #fff8dd; box-shadow: 0 0 0 4px rgba(255,209,102,.4); }
