@@ -45,7 +45,22 @@ false
 false
 ],
 [
+"Fin de l'étape ! ",
+"jeu",
+false
+],
+[
 "Oh ! ",
+"jeu",
+false
+],
+[
+"boss",
+"jeu",
+false
+],
+[
+"Le voilà ! Le Nuage Grognon en personne ! Copie ses poses : avec ta magie, il va redevenir gentil ! ",
 "jeu",
 false
 ],
@@ -140,6 +155,96 @@ true
 true
 ],
 [
+"Bravo, le nuage est parti !",
+"bravo",
+true
+],
+[
+"Abracadabra ! Encore une !",
+"jeu",
+false
+],
+[
+"Super, magicien !",
+"bravo",
+true
+],
+[
+"Arrêté !",
+"jeu",
+false
+],
+[
+"Quel gardien !",
+"jeu",
+false
+],
+[
+"Super arrêt !",
+"bravo",
+true
+],
+[
+"Bravo, il ne passe pas !",
+"bravo",
+true
+],
+[
+"Attrapé ! Maintenant, lève les bras pour tirer !",
+"jeu",
+false
+],
+[
+"Panier !",
+"jeu",
+false
+],
+[
+"Dedans !",
+"jeu",
+false
+],
+[
+"Trop fort !",
+"bravo",
+true
+],
+[
+"Quel tir !",
+"jeu",
+false
+],
+[
+"On joue au handball ! Lève le bras du côté du ballon, et lance fort !",
+"jeu",
+false
+],
+[
+"L'autre bras !",
+"jeu",
+false
+],
+[
+"L'autre jambe !",
+"jeu",
+false
+],
+[
+"Buuut !",
+"jeu",
+false
+],
+[
+"But !",
+"jeu",
+false
+],
+[
+"Dans le filet !",
+"jeu",
+false
+],
+[
 "Incroyable ! Tu as trouvé le trésor du chemin secret ! Une clé dorée pour ta carte !",
 "bravo",
 true
@@ -168,6 +273,11 @@ false
 "Lève la main quand le ballon arrive !",
 "jeu",
 false
+],
+[
+"Incroyable ! Le Nuage Grognon n'est plus grognon ! Il sourit, et le ciel redevient tout bleu !",
+"bravo",
+true
 ],
 [
 "Dansez !",
@@ -210,12 +320,17 @@ false
 false
 ],
 [
+"Tu as gagné ton diplôme de petit sorcier ! Toute l'Académie est fière de toi !",
+"jeu",
+false
+],
+[
 "Bravo ! Ton échauffement est fini pour aujourd'hui. À demain !",
 "bravo",
 true
 ],
 [
-"Waouh ! Tu as débloqué un nouvel objet pour ton dresseur !",
+"Waouh ! Tu as débloqué un nouvel objet pour ton sorcier !",
 "bravo",
 true
 ],
@@ -290,7 +405,7 @@ true
 false
 ],
 [
-"Génial ! Maintenant, tu sais tout choisir avec ta main : les mondes, ton dresseur, rejouer… Garde ta main sur ce que tu veux !",
+"Génial ! Maintenant, tu sais tout choisir avec ta main : les cours, ton sorcier, rejouer… Garde ta main sur ce que tu veux !",
 "bravo",
 true
 ],

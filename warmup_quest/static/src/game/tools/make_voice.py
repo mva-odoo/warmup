@@ -7,6 +7,7 @@
 
 Usage (serveur local lancé dans static/src/game : python3 -m http.server 8765) :
   python -I make_voice.py --model fr_FR-siwis-medium.onnx --chrome "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
+  (Linux : --chrome /usr/bin/chromium)
 Dépendances : pip install piper-tts soundfile numpy ; voix : https://huggingface.co/rhasspy/piper-voices (fr_FR siwis, CC-BY 4.0).
 """
 import argparse
@@ -14,6 +15,7 @@ import html
 import json
 import re
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -92,8 +94,9 @@ def scan():
 
 def phrase_list(chrome, url):
     stamp = int(time.time() * 1000)
-    win_dir = r'C:\Users\Public\wuq_voicelist_' + str(stamp)
-    res = subprocess.run([chrome, '--headless=new', f'--user-data-dir={win_dir}', '--virtual-time-budget=8000', '--dump-dom',
+    # (Chrome de Windows lancé depuis WSL : profil dans un dossier Windows ; sinon un dossier temporaire)
+    prof = r'C:\Users\Public\wuq_voicelist_' + str(stamp) if chrome.lower().endswith('.exe') else tempfile.mkdtemp(prefix='wuq_voicelist_')
+    res = subprocess.run([chrome, '--headless=new', '--no-sandbox', f'--user-data-dir={prof}', '--virtual-time-budget=8000', '--dump-dom',
                           f'{url}/tools/voicelist.html?n={stamp}'], capture_output=True, text=True, encoding='utf-8', timeout=120)
     m = re.search(r'<pre id="out">(.*?)</pre>', res.stdout, re.S)
     if not m or m.group(1).startswith('ERREUR') or m.group(1) == '…':
