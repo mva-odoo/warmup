@@ -150,10 +150,12 @@ class Body {
       }
     }
 
+    // (écarts horizontaux ramenés à une image 4:3, celle avec laquelle les seuils ont été réglés)
+    const XS = camXS();
     // --- Gauche / droite (par rapport à la position de départ)
     // Image non inversée : quand le joueur va à SA gauche, x augmente.
     if (this.calib) {
-      const dx = sh.x - this.calib.cx;
+      const dx = (sh.x - this.calib.cx) * XS;
       let side = s.side;
       if (dx > 0.5 * T) side = 'left';
       else if (dx < -0.5 * T) side = 'right';
@@ -163,24 +165,30 @@ class Body {
 
     // --- Poses
     const nose = lm[0], lw = lm[15], rw = lm[16];
-    const spread = Math.abs(lw.x - rw.x) / T;
+    const spread = Math.abs(lw.x - rw.x) * XS / T;
     const level = (w) => Math.abs(w.y - sh.y) < 0.35 * T / E;
     // Jambes écartées : chevilles si visibles, sinon genoux, sinon on ne regarde que les bras
     // (seuils généreux : un petit enfant écarte moins les jambes qu'un adulte)
-    const legs = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) / T : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) / T * 1.25 : null;
+    const legs = s.anklesOK ? Math.abs(lm[27].x - lm[28].x) * XS / T : s.kneesOK ? Math.abs(lm[25].x - lm[26].x) * XS / T * 1.25 : null;
     const legsApart = legs == null || legs > 0.5;
     s.legsApart = legsApart;
     // (mesures gardées pour le rapport de l'enregistreur : pourquoi un geste est reconnu ou pas)
-    this.diag = { dy: dy / T, spread, legs, dx: this.calib ? (sh.x - this.calib.cx) / T : null, kneeL, kneeR };
+    this.diag = { dy: dy / T, spread, legs, dx: this.calib ? (sh.x - this.calib.cx) * XS / T : null, kneeL, kneeR };
     // Bras croisés devant la poitrine (geste de pause) : les poignets échangent leur côté
-    const chest = (w) => w.y > sh.y - 0.3 * T && w.y < hip.y + 0.2 * T && Math.abs(w.x - sh.x) < 0.8 * T * 0.75;
+    const chest = (w) => w.y > sh.y - 0.3 * T && w.y < hip.y + 0.2 * T && Math.abs(w.x - sh.x) * XS < 0.8 * T * 0.75;
     s.crossed = lw.x < rw.x - 0.03 && chest(lw) && chest(rw);
     s.armsUp = this.easy ? lw.y < sh.y - 0.25 * T && rw.y < sh.y - 0.25 * T : lw.y < nose.y && rw.y < nose.y;
     s.airplane = level(lw) && level(rw) && spread > 1.8 * E;
     s.starArms = lw.y < sh.y + (this.easy ? 0.15 * T : 0) && rw.y < sh.y + (this.easy ? 0.15 * T : 0) && spread > 1.05 * E; // (bras de l'étoile, sans regarder les jambes)
     s.star = s.starArms && legsApart;
-    s.flamingo = !s.squat && useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
-      (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8));
+    // Flamant rose : sur une webcam de portable, les genoux sont souvent hors de l'image… mais le genou levé y
+    // remonte ! On accepte donc un genou bien haut (vu) quand l'autre est bas ou hors de l'image.
+    const kneeSeen = (i) => vis(i) > 0.5 && inFrame(i);
+    const kneeUp = (i, h) => kneeSeen(i) && (lm[i].y - lm[h].y) / T < 0.6;
+    const kneeDown = (i, h) => !kneeSeen(i) || (lm[i].y - lm[h].y) / T > 0.8;
+    s.flamingo = !s.squat && ((useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
+      (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8))) ||
+      (hipOK && ((kneeUp(25, 23) && kneeDown(26, 24)) || (kneeUp(26, 24) && kneeDown(25, 23)))));
 
     // --- Smash : main au-dessus de la tête puis descente rapide
     for (const [k, w] of [['L', lw], ['R', rw]]) {
@@ -471,3 +479,38 @@ function cleanSide(lm, midX, side) {
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+// Forme de l'image de la caméra (largeur / hauteur). Les points du squelette sont en part de largeur (x) et de
+// hauteur (y) : pour comparer une distance horizontale au torse (mesuré en hauteur), il faut la multiplier par ce
+// rapport. Le jeu a été réglé avec une caméra 4:3 ; une webcam de portable en 16:9 écrasait les distances
+// horizontales (bras de l'avion, jambes de l'étoile, raclettes…) d'un quart.
+function camAspect() {
+  const v = (typeof Rec !== 'undefined' && Rec.playing && Rec.data && Rec.data.video) || null;
+  if (v && v.w && v.h) return v.w / v.h;
+  const el = typeof video !== 'undefined' ? video : null;
+  return el && el.videoWidth && el.videoHeight ? el.videoWidth / el.videoHeight : 4 / 3;
+}
+// Facteur à appliquer aux écarts horizontaux réglés pour du 4:3 (1 en 4:3, 1,33 en 16:9)
+const camXS = () => camAspect() / (4 / 3);
+
+// Main du joueur → point de l'écran (0..1), en miroir : épaules au milieu de l'écran, bras tendu sur le côté = bord
+// de l'écran, bras levé = haut de l'écran. k : 15 (poignet gauche) ou 16 (droit).
+// Réglé sur la longueur de bras d'un enfant (poignet à ~1,3 torse du milieu des épaules) : on atteint les bords
+// et les coins sans avoir à tendre le bras à fond. Poignet sorti de l'image (webcam de portable) : on le
+// prolonge depuis le coude.
+const ARM_REACH_X = 1.05, ARM_TOP = 1.0, ARM_SPAN_Y = 1.75;
+function armPoint(b, k, minVis = 0.35) {
+  const lm = b.lm, T = b.T;
+  if (!lm || !T) return null;
+  const vis = (i) => lm[i].visibility ?? 1;
+  const si = k === 15 ? 11 : 12, ei = k === 15 ? 13 : 14, sh = mid(lm[11], lm[12]), s = lm[si], e = lm[ei];
+  let w = lm[k];
+  if (vis(k) < minVis) {
+    if (vis(ei) < 0.5 || vis(si) < 0.5) return null;
+    w = { x: e.x + (e.x - s.x) * 0.9, y: e.y + (e.y - s.y) * 0.9 };
+  }
+  const A = camAspect();
+  const u = -(w.x - sh.x) * A / (T * ARM_REACH_X);
+  const v = (w.y - (sh.y - T * ARM_TOP)) / (T * ARM_SPAN_Y);
+  return { x: 0.5 + Math.max(-1.08, Math.min(1.08, u)) * 0.5, y: Math.max(-0.04, Math.min(1.04, v)), wy: w.y };
+}

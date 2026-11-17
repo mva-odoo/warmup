@@ -62,13 +62,10 @@ const Gestures = {
     const b = tracker.bodies[0];
     if (!b || !b.lm || !b.T || !b.state.present) return null;
     const lm = b.lm, sh = mid(lm[11], lm[12]), T = b.T;
-    const vis = (i) => (lm[i].visibility ?? 1) > 0.4;
-    const hands = [15, 16].filter(vis).map((i) => lm[i]).filter((w) => w.y < sh.y + T * 0.75);
+    const hands = [15, 16].map((k) => armPoint(b, k, 0.4)).filter((p) => p && p.wy < sh.y + T * 0.75);
     if (!hands.length) return null;
-    const w = hands.reduce((a, h) => (h.y < a.y ? h : a));
-    const u = Math.max(-1, Math.min(1, -(w.x - sh.x) / (T * 1.35)));
-    const v = Math.max(0, Math.min(1, (w.y - (sh.y - T * 1.1)) / (T * 1.6)));
-    return { x: innerWidth / 2 + u * innerWidth * 0.5, y: v * innerHeight };
+    const p = hands.reduce((a, h) => (h.wy < a.wy ? h : a));
+    return { x: Math.max(0, Math.min(1, p.x)) * innerWidth, y: Math.max(0, Math.min(1, p.y)) * innerHeight };
   },
 
   // Grand geste de la main vers la gauche ou la droite (comme pour tourner une page) : appelle onSwipe(-1 | 1)

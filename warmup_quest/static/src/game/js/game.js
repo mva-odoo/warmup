@@ -612,7 +612,7 @@ function updateCalib(now) {
     // (seul : d'abord, on essaie de voir les pieds — après quelques secondes, on joue quand même avec le haut du corps)
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
-    setCalibStage('back', 'Recule un peu 👣', 'Remplis la silhouette : on doit voir tes pieds', 'Recule un peu, pour que je voie tes pieds ! Remplis bien la silhouette.');
+    setCalibStage('back', 'Recule un peu 👣', 'Remplis la silhouette : on doit voir tes pieds · Les grands : posez l\'ordi plus bas (sur une chaise) et penchez l\'écran en arrière', 'Recule un peu, pour que je voie tes pieds ! Remplis bien la silhouette.');
   } else if (!s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -989,10 +989,10 @@ class Game {
     if (DEV.get('fakelimbs')) return fakeLimbs(i);
     if (!b.lm || !b.state.present) return null;
     // (poignet hors de l'image, bras tendu sur le côté ou en l'air : on suit le coude ; cheville cachée : le genou)
-    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.3;
+    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.3, A = camAspect();
     const dir = (a, z, z2) => {
       const e = vis(z) ? z : vis(z2) ? z2 : null;
-      return vis(a) && e != null ? [-(lm[e].x - lm[a].x) / 0.75, -(lm[e].y - lm[a].y)] : null;
+      return vis(a) && e != null ? [-(lm[e].x - lm[a].x) * A, -(lm[e].y - lm[a].y)] : null;
     };
     const legs = tracker.mode !== 'upper';
     return { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14), 'leg-left': legs ? dir(23, 27, 25) : null, 'leg-right': legs ? dir(24, 28, 26) : null };
@@ -1013,7 +1013,7 @@ class Game {
     const out = [];
     for (const [w, f] of [[15, 19], [16, 20]]) {
       const i = (b.lm[f].visibility ?? 1) > (b.lm[w].visibility ?? 1) ? f : w;
-      if ((b.lm[i].visibility ?? 1) > 0.35) out.push({ u: -(b.lm[i].x - sh.x) / (b.T * 0.75), v: (b.lm[i].y - sh.y) / b.T });
+      if ((b.lm[i].visibility ?? 1) > 0.35) out.push({ u: -(b.lm[i].x - sh.x) * camAspect() / b.T, v: (b.lm[i].y - sh.y) / b.T });
     }
     return out;
   }
@@ -1356,20 +1356,14 @@ class Game {
   }
 
   // ---------- Singes farceurs : ils lancent de la mousse sur l'écran ; les mains de l'enfant sont des raclettes
-  // Mains en coordonnées d'écran (0..1) : épaules au milieu, bras tendu = bord de l'écran (comme le choix à la main)
+  // Mains en coordonnées d'écran (0..1) : épaules au milieu, bras tendu = bord de l'écran (voir armPoint)
   screenHands(b, i = 0) {
     if (DEV.get('fakelimbs')) { // (mode test) deux raclettes qui balaient l'écran
       const t = performance.now() / 1000 + i;
-      return [{ x: 0.3 + Math.sin(t * 1.3) * 0.25, y: 0.45 + Math.cos(t * 1.7) * 0.3 }, { x: 0.7 + Math.sin(t * 1.1 + 2) * 0.25, y: 0.45 + Math.sin(t * 1.5) * 0.3 }];
+      return [{ id: i * 2, x: 0.3 + Math.sin(t * 1.3) * 0.25, y: 0.45 + Math.cos(t * 1.7) * 0.3 }, { id: i * 2 + 1, x: 0.7 + Math.sin(t * 1.1 + 2) * 0.25, y: 0.45 + Math.sin(t * 1.5) * 0.3 }];
     }
     if (!b.lm || !b.T || !b.state.present) return null;
-    const lm = b.lm, sh = mid(lm[11], lm[12]), T = b.T, out = [];
-    for (const k of [15, 16]) {
-      if ((lm[k].visibility ?? 1) < 0.35) continue;
-      const u = Math.max(-1, Math.min(1, -(lm[k].x - sh.x) / (T * 1.35))), v = Math.max(0, Math.min(1, (lm[k].y - (sh.y - T * 1.1)) / (T * 1.9)));
-      out.push({ x: 0.5 + u * 0.5, y: v });
-    }
-    return out;
+    return [15, 16].map((k, j) => { const p = armPoint(b, k); return p && { ...p, id: i * 2 + j }; }).filter(Boolean);
   }
 
   // ---------- Singes farceurs : ils couvrent toute la vitre de mousse, on ne voit plus que les raclettes ;
@@ -1390,8 +1384,8 @@ class Game {
     };
     // Les raclettes suivent les mains, même pendant que les singes lancent
     const hands = tracker.bodies.flatMap((b, i) => this.screenHands(b, i) || []);
-    const prev = c.prevSq || [];
-    scene.squeegees = hands.map((h, k) => ({ ...h, vx: prev[k] ? h.x - prev[k].x : 0, vy: prev[k] ? h.y - prev[k].y : 0 }));
+    const prev = c.prevSq || []; // (chaque raclette garde sa main, même si l'autre disparaît un instant)
+    scene.squeegees = hands.map((h) => { const o = prev.find((q) => q.id === h.id); return { ...h, vx: o ? h.x - o.x : 0, vy: o ? h.y - o.y : 0 }; });
     c.prevSq = hands;
     if (c.phase !== 'wash') c.end += now - (c.lastNow || now); // (le chrono attend pendant que les singes lancent)
     c.lastNow = now;
