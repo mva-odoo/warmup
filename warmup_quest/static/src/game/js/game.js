@@ -2560,7 +2560,7 @@ if (store('storySeen')) Tale.markSeen('prologue', 0);
 if (DEV.get('gems')) { WUQStore._set('gems_0', GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set('tale_0', { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
 if (DEV.get('taleend')) WUQStore._set('diploma_0', true); // (mode test) fin de l'histoire
 if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
-if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0)), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
+if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0), () => {}, Number(DEV.get('talepage')) || 0), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
 $('storyBtn').onclick = () => openTaleBook();
 $('hubBtn').onclick = () => startWorld(HUB_WORLD);
 $('hubExit').onclick = goMenu;

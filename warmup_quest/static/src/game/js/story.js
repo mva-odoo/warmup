@@ -102,8 +102,9 @@ const Tale = {
 
 // ---------- Lecteur de l'histoire : grande image, texte, voix ; avance tout seul à la fin de la phrase
 // (ou avec le bouton, au clic ou la main posée dessus). pages : [{ art, text }]
-function playTale(ch, onDone = () => {}) {
-  let k = 0, timer = 0;
+function playTale(ch, onDone = () => {}, start = 0) {
+  let k = Math.min(start, ch.pages.length - 1), timer = 0;
+  const still = typeof DEV !== 'undefined' && DEV.get('taleshot'); // (mode test : la page reste affichée, pour la capture)
   const bg = document.createElement('div');
   bg.className = 'trainerBg storyBg';
   const end = () => { clearTimeout(timer); bg.remove(); Audio8.stopSpeech(); onDone(); };
@@ -115,7 +116,7 @@ function playTale(ch, onDone = () => {}) {
       <button class="btn">${last ? 'C\'est parti ! ✨' : 'Suivant ▶'}</button></div>`;
     bg.querySelector('button').onclick = next;
     if (ch.gem && k === 0) Audio8.perfect();
-    Audio8.say(st.text, { slow: true, onend: () => { if (k === kk) timer = setTimeout(() => { if (k === kk) next(); }, last ? 3500 : 1600); } }); // (dernière page : se ferme toute seule aussi)
+    Audio8.say(st.text, { slow: true, onend: () => { if (k === kk && !still) timer = setTimeout(() => { if (k === kk) next(); }, last ? 3500 : 1600); } }); // (dernière page : se ferme toute seule aussi)
   };
   document.body.appendChild(bg);
   page();
