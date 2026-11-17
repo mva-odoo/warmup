@@ -309,18 +309,17 @@ const WORLDS = [
         deco: ['🌳', '🌼', '🏫', '🌷', '🌳', '🌼'], ambient: ['butterflies'] },
     ],
     endText: 'Bravo ! Ton premier jour à l\'Académie est réussi !',
-    sequence: [
-      Z(4, 'Bienvenue à l\'Académie des Petits Mages ! C\'est ton premier jour : on va tout apprendre, doucement.'),
-      LN(J()), J(2), LN(S()), S(2), LN(L()), L(), LN(D()), D(), LN(X()), X(2),
-      LN(P('armsUp')), P('armsUp', 2), LN(P('star')), P('star', 2), LN(P('airplane')), P('airplane', 2),
-      LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2),
-      LN(B(14, 4)), B(14, 4), LN(M(14, 4)), M(14, 4), LN(SL(16, 4)), SL(16, 4), LN(CU(6, 2.0)), CU(6, 2.0),
-      LN(F(14)), F(14),
-      LN(U(4)), U(4), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10), LN(WA(18, 2)), WA(18, 2), LN(GO(3)), GO(3), LN(BK(2)), BK(2), LN(KI(2)), KI(2),
-      LN({ m: 'fork', opts: [B(10, 3), M(10, 3)] }), { m: 'fork', opts: [B(10, 3), M(10, 3)] },
-      LN(BS('armsUp', 'star')), BS('armsUp', 'star'),
-      Z(4, 'Tu connais tous les sorts ! Respire bien… Bravo, petit sorcier !'),
+    // Le premier jour en 5 leçons courtes (une par partie, comme les étapes des autres lieux) : un enfant de 4 ans
+    // ne tient pas 15 minutes de tuto d'affilée. Le parcours complet (sequence) sert quand les étapes sont coupées.
+    lessons: [
+      { name: 'Les premiers sorts', steps: [LN(J()), J(2), LN(S()), S(2), LN(L()), L(), LN(D()), D(), LN(X()), X(2), LN(P('armsUp')), P('armsUp', 2)] },
+      { name: 'Les poses magiques', steps: [LN(P('star')), P('star', 2), LN(P('airplane')), P('airplane', 2), LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2), LN(F(14)), F(14)] },
+      { name: 'Les ateliers', steps: [LN(B(14, 4)), B(14, 4), LN(M(14, 4)), M(14, 4), LN(SL(16, 4)), SL(16, 4), LN(U(4)), U(4)] },
+      { name: 'Les farces des singes', steps: [LN(CU(6, 2.0)), CU(6, 2.0), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10),
+        LN({ m: 'fork', opts: [B(10, 3), M(10, 3)] }), { m: 'fork', opts: [B(10, 3), M(10, 3)] }] },
+      { name: 'La baguette et la récré', steps: [LN(WA(18, 2)), WA(18, 2), LN(GO(3)), GO(3), LN(BK(2)), BK(2), LN(KI(2)), KI(2), LN(BS('armsUp', 'star')), BS('armsUp', 'star')] },
     ],
+    sequence: [],
   },
   {
     id: 'jardin3d',
@@ -855,6 +854,12 @@ const SPEEDS = [
   { id: 'fast', label: 'Rapide', mul: 0.75 },
 ];
 
+// Premier jour : le parcours complet = intro + les 5 leçons + respiration
+WORLDS.forEach((w) => {
+  if (!w.lessons) return;
+  w.sequence = [Z(4, 'Bienvenue à l\'Académie des Petits Mages ! C\'est ton premier jour : on va tout apprendre, doucement.'),
+    ...w.lessons.flatMap((l) => l.steps), Z(4, 'Tu connais tous les sorts ! Respire bien… Bravo, petit sorcier !')];
+});
 // Paysage 3D (« kit » de décor, voir props3d.js) de chaque partie de chaque monde
 const WORLD_KITS = {
   jardin3d: ['flowers'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],

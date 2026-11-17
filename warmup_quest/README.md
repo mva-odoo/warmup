@@ -56,6 +56,14 @@ Le portail du parc mène au **village** du pays d'aventure en cours (même princ
 - Des portails mènent au **pays d'avant / d'après** (s'il est ouvert) et à l'**Académie**. Après une étape, 🏠 ramène au village.
 - Mode test : `?village=banquise&hubauto=1` (`hubret=1` : finit l'étape tout de suite et revient au village).
 
+## Pensé pour les 4–8 ans
+- Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en
+  5 leçons : Les premiers sorts, Les poses magiques, Les ateliers, Les farces des singes, La baguette et la récré.
+- Dans le parc et les villages, chaque panneau a une grosse icône (🌸 💃 🥋 🧪 ⚽ 🐒 🛒, 1️⃣ 2️⃣ 3️⃣ 👑) et le prochain lieu à
+  faire est entouré d'un halo doré : pas besoin de savoir lire. Les panneaux du fond grossissent pour rester lisibles.
+- Si l'enfant ne lève pas le bras, la voix rappelle comment viser ; au retour d'un cours, une phrase courte (pas tout l'accueil).
+- Pour les plus grands : vitesse « Rapide » dans les réglages parents, et les étapes s'enchaînent vite.
+
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).
   On peut aussi le faire dans **Warm-Up Quest › Joueurs** (photo, année de naissance…).

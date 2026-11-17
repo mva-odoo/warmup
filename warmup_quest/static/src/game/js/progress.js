@@ -107,7 +107,9 @@ const Photos = {
 // (réglage parent « 🧩 Îles en étapes » ; gardé dans ce navigateur)
 const Stages = {
   count(w) { // nombre d'étapes de l'île (0 : elle se joue d'une traite)
-    if (store('stages') === false || w.tutorial || !w.biomes || w.biomes.length < 2) return 0;
+    if (store('stages') === false) return 0;
+    if (w.lessons) return w.lessons.length; // (premier jour : ses leçons)
+    if (w.tutorial || !w.biomes || w.biomes.length < 2) return 0;
     const n = Math.min(3, w.biomes.length);
     return w.sequence.length >= n * 4 + 2 ? n : 0;
   },
@@ -122,6 +124,12 @@ const Stages = {
   // (ou le gardien à la dernière), respiration finale
   split(w, steps, k) {
     const n = this.count(w), bs = w.biomes;
+    if (w.lessons) { // (premier jour : chaque leçon a son programme ; une créature à la fin, sauf la dernière qui finit par le gardien)
+      const L = w.lessons[k], hello = k === 0 ? steps[0].text + ' ' : '';
+      const end = k === n - 1 ? [] : [{ m: 'pose', pose: ['armsUp', 'star', 'airplane'][k % 3], hold: 1.5, capture: true }];
+      return [{ m: 'rest', t: hello ? 7 : 4, text: `${hello}Leçon ${k + 1} sur ${n} : ${L.name} !` }, ...L.steps, ...end,
+        k === n - 1 ? steps[steps.length - 1] : { m: 'rest', t: 3, text: `Bravo ! La leçon ${k + 1} est finie… respire bien.` }];
+    }
     const boss = steps.find((st) => st.m === 'boss'), last = steps[steps.length - 1];
     const mid = steps.slice(1, -1).filter((st) => st !== boss);
     const a = Math.round((mid.length * k) / n), b = Math.round((mid.length * (k + 1)) / n);

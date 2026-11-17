@@ -5,7 +5,7 @@
 false
 ],
 [
-"Surprise ! Continue de jouer pour découvrir cette île !",
+"Surprise ! Continue de jouer pour la découvrir !",
 "jeu",
 false
 ],
@@ -425,6 +425,11 @@ true
 true
 ],
 [
+"back",
+"jeu",
+false
+],
+[
 "village",
 "jeu",
 false
@@ -461,6 +466,11 @@ false
 ],
 [
 "stage",
+"jeu",
+false
+],
+[
+"aim",
 "jeu",
 false
 ],
@@ -536,6 +546,16 @@ false
 ],
 [
 "En route par le portail magique !",
+"jeu",
+false
+],
+[
+"Bravo ! Avec ta baguette, choisis où tu veux aller maintenant !",
+"bravo",
+true
+],
+[
+"Lève bien ton bras, comme une baguette magique, et montre un bâtiment !",
 "jeu",
 false
 ],

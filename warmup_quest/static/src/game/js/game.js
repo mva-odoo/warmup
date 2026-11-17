@@ -311,7 +311,7 @@ function buildMenu() {
     const go1 = () => {
       if (wrap.classList.contains('resting')) { Audio8.say("C'est fini pour aujourd'hui, à demain !"); return; }
       if (open) return startWorld(w);
-      Audio8.soft(); Audio8.say(mystery ? 'Surprise ! Continue de jouer pour découvrir cette île !' : `Gagne une étoile dans ${Progress.ordered()[k - 1].name} pour ouvrir cette île !`);
+      Audio8.soft(); Audio8.say(mystery ? 'Surprise ! Continue de jouer pour la découvrir !' : `Réussis d'abord : ${Progress.ordered()[k - 1].name} !`);
       card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
     };
     card.onclick = go1;
@@ -325,7 +325,7 @@ function buildMenu() {
   if (!onPage.includes('surprise')) sur.style.display = 'none';
   sur.setAttribute('role', 'button'); sur.tabIndex = 0;
   sur.className = 'worldCard surprise';
-  sur.innerHTML = '<div class="surpriseIcon">🎲</div><div class="wName">Surprise !</div><div class="wBest">Un monde au hasard</div>';
+  sur.innerHTML = '<div class="surpriseIcon">🎲</div><div class="wName">Surprise !</div><div class="wBest">Au hasard !</div>';
   sur.style.order = 999;
   wrap.classList.remove('slideL', 'slideR'); void wrap.offsetWidth;
   if (menuSlide) wrap.classList.add(menuSlide > 0 ? 'slideL' : 'slideR');
@@ -860,7 +860,7 @@ class Game {
   // Paysage en cours (étape de l'île, sinon l'avancée dans le parcours)
   biomeNow(i = this.i) {
     const bs = this.world.biomes;
-    return this.stage ? bs[this.stage.k] : bs[Math.min(bs.length - 1, Math.floor(((i + 1) / this.steps.length) * bs.length))];
+    return this.stage ? bs[Math.min(bs.length - 1, this.stage.k)] : bs[Math.min(bs.length - 1, Math.floor(((i + 1) / this.steps.length) * bs.length))];
   }
   progressAt(i) { return this.stage ? (this.stage.k + i / this.steps.length) / this.stage.n : i / this.steps.length; }
 
@@ -2249,7 +2249,8 @@ function showResults(g, stars) {
   show('hud', false); show('camBox', false);
   show('results');
   const st = g.stage, bsN = g.world.biomes;
-  $('resTitle').textContent = !st ? g.world.endText : st.k === st.n - 1 ? `${g.world.endText} (île terminée !)`
+  $('resTitle').textContent = !st ? g.world.endText : st.k === st.n - 1 ? `${g.world.endText} 🎉`
+    : g.world.lessons ? `Leçon ${st.k + 1} sur ${st.n} réussie ! Prochaine leçon : ${g.world.lessons[st.k + 1].name}`
     : `Étape ${st.k + 1} sur ${st.n} réussie ! Prochaine étape : ${bsN[st.k + 1].name}`;
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;

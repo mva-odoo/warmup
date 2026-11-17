@@ -25,6 +25,8 @@ function villageWorld(w) {
   if (!VILLAGES.has(w.id)) VILLAGES.set(w.id, { ...HUB_WORLD, id: 'village', village: w, name: w.name, hero: w.hero, sky: w.sky, biomes: w.biomes });
   return VILLAGES.get(w.id);
 }
+// Grosse icône de chaque lieu sur son panneau (les petits ne lisent pas encore)
+const HUB_ICONS = { ecole: '🏰', jardin3d: '🌸', disco: '💃', dojo: '🥋', verger: '🧪', stade: '⚽', singes: '🐒', supermarche: '🛒' };
 const HUB_SAY = {
   hello: "Bienvenue dans le parc de l'Académie ! Lève le bras et vise un bâtiment avec ta baguette pour choisir ton cours.",
   go: "C'est parti ! Cours sur place pour y aller !",
@@ -38,6 +40,8 @@ const HUB_SAY = {
   stageLocked: "Cette étape s'ouvrira quand tu auras réussi celle d'avant !",
   countryLocked: "Ce pays est encore fermé. Termine d'abord celui-ci !",
   travel: 'En route par le portail magique !',
+  back: 'Bravo ! Avec ta baguette, choisis où tu veux aller maintenant !',
+  aim: 'Lève bien ton bras, comme une baguette magique, et montre un bâtiment !',
 };
 
 class AcademyHub {
@@ -336,8 +340,12 @@ class AcademyHub {
     const old = this.labels[d.id];
     if (old && old.key === key) return old.sp;
     if (old) { this.scene.remove(old.sp); old.sp.material.map.dispose(); old.sp.material.dispose(); }
-    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+    // (canevas : la grosse icône en haut, le panneau en dessous)
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 400;
     const x = cv.getContext('2d');
+    const icon = !d.open ? '' : d.kind === 'world' ? HUB_ICONS[d.id] || '⭐' : d.kind === 'stage' ? (d.boss ? '👑' : ['1️⃣', '2️⃣', '3️⃣'][d.k] || '⭐') : '';
+    if (icon) { x.font = '120px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(icon, 256, 76); }
+    x.translate(0, 144);
     x.fillStyle = d.open ? (d.next ? '#ffd166' : 'rgba(255,255,255,.95)') : 'rgba(60,50,110,.85)';
     x.beginPath(); x.roundRect(8, 8, 496, 240, 44); x.fill();
     x.lineWidth = 10; x.strokeStyle = d.kind === 'world' || d.kind === 'stage' ? '#7b2cbf' : '#9d4edd'; x.stroke();
@@ -361,7 +369,9 @@ class AcademyHub {
     }
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthWrite: false }));
-    sp.scale.set(7, 3.5, 1);
+    sp.center.set(0.5, 0.32); // (le point d'accroche reste au milieu du panneau)
+    sp.userData.base = d.kind === 'academy' ? 0.6 : 1; // (portail du retour, tout près de la caméra : panneau plus petit)
+    sp.scale.set(7 * sp.userData.base, 5.47 * sp.userData.base, 1);
     const b = this.buildings[d.id];
     sp.position.set(d.pos.x, d.id === 'ecole' ? 9 : d.kind === 'academy' ? 3.2 : (b ? b.h : 5) + 2.4, d.pos.z + (d.id === 'ecole' ? 4 : d.kind === 'academy' ? 1.5 : 0)); // (château : devant la porte ; portail du retour, tout près de la caméra : panneau bas)
     this.scene.add(sp);
@@ -387,7 +397,7 @@ class AcademyHub {
     this.block = null; this.trips = this.trips || 0; this.slowT = 0; this.moveK = 0; this.t0 = performance.now();
     this.enterT = 0; this.lastSay = {};
     S.mirror = false;
-    this.say(this.kind === 'village' ? 'village' : 'hello', 0);
+    this.say(from ? 'back' : this.kind === 'village' ? 'village' : 'hello', 0); // (au retour d'un cours : une phrase courte)
     this.hint(this.kind === 'village' ? '🪄 Vise une étape avec ta baguette' : '🪄 Lève le bras et vise un bâtiment avec ta baguette');
   }
   say(k, cool = 9000) { const now = performance.now(); if (now - (this.lastSay[k] || -1e9) < cool) return; this.lastSay[k] = now; Audio8.say(HUB_SAY[k]); }
@@ -413,7 +423,7 @@ class AcademyHub {
     const T = this.S.T, q = new T.Vector3(v.x, v.y + dy, v.z).project(this.cam);
     return { x: (q.x + 1) / 2, y: (1 - q.y) / 2, behind: q.z > 1 };
   }
-  screenOf(d) { const b = this.buildings[d.id]; return this.screenOfObj({ x: d.pos.x, y: 0, z: d.pos.z + (d.id === 'ecole' ? 4 : 0) }, d.id === 'ecole' ? 6 : (b ? b.h : 5) * 0.55); }
+  screenOf(d) { const b = this.buildings[d.id]; return this.screenOfObj({ x: d.pos.x, y: 0, z: d.pos.z + (d.id === 'ecole' ? 4 : 0) }, d.id === 'ecole' ? 2.5 : (b ? b.h : 5) * 0.55); } // (château : vise sa porte, sous le panneau)
 
   // Énergie du joueur (course sur place) : 0..1
   energy() {
@@ -454,6 +464,8 @@ class AcademyHub {
         if (now - (this.hum || 0) > 200) { this.hum = now; Audio8.sparkle(this.charge); }
         if (this.charge >= 1 || this.keyGo) { this.keyGo = false; this.choose(best, now); }
       } else this.charge = Math.max(0, this.charge - dt);
+      // (pas de bras levé depuis un moment : la voix rappelle comment faire)
+      if (p) this.noPtr = 0; else if ((this.noPtr = (this.noPtr || 0) + dt) > 10) { this.noPtr = 0; this.say('aim', 20000); }
     } else if (this.mode === 'walk') {
       const e = this.energy();
       this.moveK += (e - this.moveK) * Math.min(1, dt * 3);
@@ -547,6 +559,11 @@ class AcademyHub {
     const k = Math.min(1, dt * (follow ? 2.4 : 1.6));
     this.camPos.lerp(wantP, k); this.camLook.lerp(wantL, k);
     this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
+    // Panneaux lointains agrandis : ils restent lisibles au fond du parc (et l'icône se voit de loin)
+    for (const lb of Object.values(this.labels || {})) {
+      const k2 = lb.sp.userData.base * Math.max(1, Math.min(2.2, lb.sp.position.distanceTo(this.camPos) / 38));
+      lb.sp.scale.set(7 * k2, 5.47 * k2, 1);
+    }
     if (typeof DEV !== 'undefined' && DEV.get('hubdbg')) document.title = `HUB ${this.mode} dt=${dt.toFixed(3)} k=${k.toFixed(3)} cam=${this.camPos.toArray().map((v) => v.toFixed(1))} want=${wantP.toArray().map((v) => v.toFixed(1))}`;
     const W = S.W, H = S.H;
     if (Math.abs(this.cam.aspect - W / H) > 0.001) { this.cam.aspect = W / H; this.cam.updateProjectionMatrix(); }
@@ -565,15 +582,16 @@ class AcademyHub {
       ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + k * 6.29); ctx.stroke();
     };
     if (this.mode === 'choose' && this.places) {
-      for (const d of this.places) if (d.next) { // (la prochaine île à gagner : une flèche qui sautille)
-        const lb = this.labels[d.id], s = lb ? this.screenOfObj(lb.sp.position, 0) : this.screenOf(d);
-        ctx.font = `${M * 0.06}px serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-        ctx.fillText('👉', s.x * W - M * 0.1 - Math.abs(Math.sin(now / 260)) * M * 0.02, s.y * H);
+      for (const d of this.places) if (d.next) { // (le prochain cours / la prochaine étape : un halo doré qui pulse autour du bâtiment)
+        const s = this.screenOf(d), r = M * (0.075 + 0.012 * Math.sin(now / 220));
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (const [lw, al] of [[M * 0.03, 0.25], [M * 0.012, 0.7]]) { ctx.strokeStyle = '#ffd166'; ctx.globalAlpha = al; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, r, 0, 6.29); ctx.stroke(); }
+        ctx.restore();
       }
       if (this.hover) { const s = this.screenOf(this.hover); ring(s.x * W, s.y * H, M * 0.085, this.charge, this.hover.open ? '#ffd166' : '#adb5bd'); }
     }
     if (this.guardian && !this.guardian.friend) { // le gardien du pays est encore ensorcelé : petit nuage d'orage
-      const v = this.guardian.c.group.getWorldPosition(new S.T.Vector3()), s0 = this.screenOfObj(v, 4.2), cs = M * 0.045;
+      const v = this.guardian.c.group.getWorldPosition(new S.T.Vector3()), s0 = this.screenOfObj(v, 3.3), cs = M * 0.04;
       if (!s0.behind) { ctx.fillStyle = '#4a4e69'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = 3; ctx.beginPath();
         for (const [dx, dy, rr] of [[-0.45, 0.05, 0.38], [0, -0.15, 0.48], [0.45, 0.05, 0.38], [0, 0.15, 0.4]]) { ctx.moveTo(s0.x * W + dx * cs + rr * cs, s0.y * H + dy * cs); ctx.arc(s0.x * W + dx * cs, s0.y * H + dy * cs, rr * cs, 0, 6.29); }
         ctx.fill(); ctx.stroke(); }
