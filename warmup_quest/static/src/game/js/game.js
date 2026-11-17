@@ -76,8 +76,8 @@ function chooseStarter(i, name) {
   return new Promise((resolve) => {
     const bg = document.createElement('div');
     bg.className = 'trainerBg';
-    bg.innerHTML = `<div class="starterPanel"><h2>🐾 ${name ? name + ', choisis' : 'Choisis'} ton compagnon !</h2>
-      <p>Il courra avec toi et grandira à chaque échauffement.</p><div class="starterRow"></div></div>`;
+    bg.innerHTML = `<div class="starterPanel"><h2>🐾 ${name ? name + ', choisis' : 'Choisis'} ton familier !</h2>
+      <p>Tous les petits sorciers ont un familier : une créature magique qui court avec toi et grandit à chaque cours.</p><div class="starterRow"></div></div>`;
     document.body.appendChild(bg);
     const row = bg.querySelector('.starterRow');
     const draw = () => {
@@ -101,7 +101,7 @@ function chooseStarter(i, name) {
       }
     };
     draw();
-    Audio8.say(`Choisis ton compagnon : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`);
+    Audio8.say(`Chaque petit sorcier a un familier, une créature magique. Choisis le tien : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`);
     if (store('3d') !== false) scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES.filter((c) => STARTERS.includes(c.id))))).then(() => { if (bg.isConnected) draw(); }).catch(() => {});
   });
 }
@@ -275,6 +275,9 @@ function buildMenu() {
       ${Stages.count(w) ? `<div class="wStages">${Array.from({ length: Stages.count(w) }, (_, i) => `<b class="${i < Stages.dots(w) ? 'on' : ''}"></b>`).join('')}</div>` : ''}`;
     card.title = w.tagline;
     if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
+    // Début d'un chapitre de l'histoire : petit ruban (« 📚 À l'Académie », « 🌀 Les aventures »)
+    const chap = chapterOf(w);
+    if (chap && chap.worlds[0] === w.id && !mystery) card.insertAdjacentHTML('beforeend', `<div class="chapterTag">${chap.icon} ${chap.name}</div>`);
     // Chemins pris aux carrefours la dernière fois, et clé dorée si on a trouvé le chemin secret de cette île
     const paths = Paths.get(0), trail = (paths.last[w.id] || []).map((m) => MOVE_ICONS[m] || '').join(''), keys = paths.secrets[w.id] ? '🗝️' : '';
     if (open && !mystery && (trail || keys)) card.insertAdjacentHTML('beforeend', `<div class="wTrail">${trail ? '🔀' + trail : ''}${keys}</div>`);
@@ -324,7 +327,7 @@ function buildMenu() {
   wrap.classList.remove('slideL', 'slideR'); void wrap.offsetWidth;
   if (menuSlide) wrap.classList.add(menuSlide > 0 ? 'slideL' : 'slideR');
   menuSlide = 0;
-  const go = () => { const open = WORLDS.filter((x) => Progress.unlocked(x)); startWorld(open[Math.floor(Math.random() * open.length)]); };
+  const go = () => { const open = Progress.ordered().filter((x) => Progress.unlocked(x)); startWorld(open[Math.floor(Math.random() * open.length)]); };
   sur.onclick = go;
   sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   wrap.appendChild(sur);
@@ -821,6 +824,7 @@ class Game {
 
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
+    if (s.m === 'boss' && this.world.finalBoss) s = { ...s, final: true }; // (dernière île : le Nuage Grognon en personne)
     if (s.m === 'ball') s = { m: 'bubbles', t: 10, n: 6 }; // (passe de ballon retirée : trop difficile à synchroniser)
     // À deux : on garde les jeux où l'on vise le même but ensemble ; ceux qui demandent d'être parfaitement synchronisés
     // (corde, couloirs gauche / droite, combos) sont remplacés par des jeux d'équipe
@@ -867,7 +871,7 @@ class Game {
     ui.setDetail(this.detail(this.cur));
     // (à deux, pose : on annonce à qui c'est le tour)
     const who = s.turn != null && team[s.turn] ? `À toi ${team[s.turn].name || (s.turn ? 'joueur deux' : 'joueur un')} ! ` : '';
-    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s)), { slow: !!this.world.tutorial });
+    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : s.m === 'boss' && this.world.finalBoss ? 'Le voilà ! Le Nuage Grognon en personne ! Copie ses poses : avec ta magie, il va redevenir gentil ! ' + POSES[s.poses[0]].say : stepSpeech(s)), { slow: !!this.world.tutorial });
     if (s.creature) Audio8.cry(s.creature.id);
     if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
       Audio8.say(tutoText(s.of), { slow: true });
@@ -881,7 +885,7 @@ class Game {
     if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
       const kit = this.world.biomes[this.world.biomes.length - 1].kit || 'meadow';
       const pool = creaturesOf(kit).filter((c) => !c.still); // (un ami animé, pour qu'il montre bien sa joie)
-      const cr = pool[(this.world.id.length + this.world.name.length) % Math.max(1, pool.length)] || CREATURES[0];
+      const cr = this.world.finalBoss ? GROGNON : pool[(this.world.id.length + this.world.name.length) % Math.max(1, pool.length)] || CREATURES[0];
       this.cur.boss = cr;
       scene.setBoss && scene.setBoss({ cr, pose: s.poses[0] });
       Audio8.cry(cr.id);
@@ -1729,9 +1733,12 @@ class Game {
       scene.flash(null, true);
       if (s.m === 'boss') { scene.bossHit && scene.bossHit(c.pi >= s.poses.length, s.poses[c.pi]); if (c.boss) Audio8.cry(c.boss.id, c.pi >= s.poses.length); }
       if (c.pi >= s.poses.length) {
-        if (s.m === 'boss' && c.boss) { // le gardien devient ami
+        if (s.m === 'boss' && c.boss === GROGNON) { // fin de l'histoire : le Nuage Grognon devient gentil
+          this.grognonWon = true;
+          setTimeout(() => Audio8.say('Incroyable ! Le Nuage Grognon n\'est plus grognon ! Il sourit, et le ciel redevient tout bleu !'), 600);
+        } else if (s.m === 'boss' && c.boss) { // le gardien devient ami
           Carnet.add(c.boss.id); this.team.push(c.boss);
-          setTimeout(() => Audio8.say(`Bravo ! ${c.boss.name}, le gardien du monde, devient ton ami !`), 600);
+          setTimeout(() => Audio8.say(`Bravo ! ${c.boss.name}, le gardien de ce pays, devient ton ami !`), 600);
         }
         this.complete(now); return;
       }
@@ -2022,6 +2029,9 @@ class Game {
       else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
       return { name: p.name, isBest, prev: best.score };
     });
+    // Fin de l'histoire : diplôme de petit sorcier (gardé pour chaque joueur)
+    this.diploma = !!this.grognonWon;
+    if (this.diploma) team.forEach((p, i) => WUQStore._set('diploma_' + i, true));
     // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
     if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i));
     // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
@@ -2212,7 +2222,8 @@ function showResults(g, stars) {
     if (n % 2) Audio8.coin();
     if (n >= g.collected) clearInterval(showResults.countT);
   }, Math.max(40, 1200 / Math.max(1, g.collected)));
-  $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
+  if (g.diploma) setTimeout(() => { Audio8.win(); Audio8.say('Tu as gagné ton diplôme de petit sorcier ! Toute l\'Académie est fière de toi !'); }, 2500);
+  $('resDetail').innerHTML = (g.diploma ? `<div class="diploma">🎓 <b>Diplôme de petit sorcier</b><br><small>${SCHOOL}</small></div>` : '') + `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
   $('resBest').textContent = g.records.map((r, i) => (duo() ? (r.name || 'Joueur ' + (i + 1)) + ' : ' : '') +
     (r.isBest ? '🏆 nouveau record !' : `record ${r.prev} pts`)).join(' · ');
   const friends = $('resTeam');
@@ -2252,7 +2263,7 @@ function showResults(g, stars) {
   $('resUnlock').innerHTML = got.length
     ? `<div class="unlockBox"><span class="unlockNew">Nouveau !</span>${got.map((r) => `<span class="unlockItem">${r.icon}</span>`).join('')}<span class="unlockHint">👕</span></div>`
     : nx && nx.next ? `<div class="nextReward">${nx.next.icon} <b>⭐ ${nx.have} / ${nx.next.stars}</b><span class="nrBar"><span style="width:${Math.round(nx.have / nx.next.stars * 100)}%"></span></span></div>` : '';
-  if (got.length) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as débloqué un nouvel objet pour ton dresseur !`); }, 4200);
+  if (got.length) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as débloqué un nouvel objet pour ton sorcier !`); }, 4200);
   // Gommette de chaque joueur (choisie dans finish)
   $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
@@ -2315,11 +2326,11 @@ function openCarnet() {
       const b = document.createElement('button');
       b.className = 'compBtn' + (isComp ? ' on' : '');
       b.innerHTML = isComp ? `🐾 Niveau ${Progress.companionLevel(comp)}` : '🐾';
-      b.title = 'Compagnon';
+      b.title = 'Familier';
       b.onclick = () => {
         if (isComp) return;
         WUQStore.setCompanion(0, { id: cr.id, xp: 0 }); Audio8.cry(cr.id, true);
-        Audio8.say(`${cr.name} est ton nouveau compagnon !`); openCarnet();
+        Audio8.say(`${cr.name} est ton nouveau familier !`); openCarnet();
       };
       card.appendChild(b);
       if (isComp) card.classList.add('isComp');
@@ -2327,7 +2338,7 @@ function openCarnet() {
     grid.appendChild(card);
   }
   const met = CREATURES.filter((c) => data[c.id]).length;
-  $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures rencontrées · deviens ${EVOLVE_AT} fois ami avec une créature pour la faire évoluer !`;
+  $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures dans ton grimoire · retrouve ${EVOLVE_AT} fois une créature (ou joue avec elle à la récré) pour la faire évoluer !`;
   const players = WUQStore.players();
   $('stickerAlbum').innerHTML = players.map((p, i) => {
     const own = WUQStore.getStickers(i);
@@ -2485,7 +2496,35 @@ if (DEV.get('replay')) {
   }).catch((e) => { console.error(e); document.title = 'replay: ' + e.message; });
 }
 
+// ---------------- L'histoire (intro racontée) ----------------
+// Au tout premier lancement (et avec le bouton « 📜 L'histoire ») : 4 grandes images, la voix raconte.
+// On avance avec « Suivant » (au clic ou en gardant la main dessus), ou tout seul après la phrase.
+const STORY = [
+  { art: '🏰✨', text: `Bienvenue à l'${SCHOOL} ! Ici, les enfants apprennent la magie… en bougeant !` },
+  { art: '🧙🪄', text: 'Tu es un petit sorcier. Chaque cours t\'apprend un nouveau sort : sauter, danser, viser avec ta baguette…' },
+  { art: '🐾💖', text: 'Les créatures magiques deviennent tes amies. Ton familier t\'accompagne partout et grandit avec toi.' },
+  { art: '🌩️😠', text: 'Mais le Nuage Grognon rend tout le monde grognon ! Après les cours, pars à l\'aventure par le portail magique… et rends-le gentil !' },
+];
+function showStory(onDone = () => {}) {
+  let k = 0;
+  const bg = document.createElement('div');
+  bg.className = 'trainerBg storyBg';
+  const next = () => { if (++k >= STORY.length) { bg.remove(); Audio8.stopSpeech(); store('storySeen', true); onDone(); } else page(); };
+  const page = () => {
+    const st = STORY[k], lastP = k === STORY.length - 1;
+    bg.innerHTML = `<div class="storyPanel"><div class="storyArt">${st.art}</div><p>${st.text}</p>
+      <div class="storyDots">${STORY.map((_, i) => `<span class="${i === k ? 'on' : ''}"></span>`).join('')}</div>
+      <button class="btn">${lastP ? 'C\'est parti ! ✨' : 'Suivant ▶'}</button></div>`;
+    bg.querySelector('button').onclick = next;
+    Audio8.say(st.text, { slow: true });
+  };
+  document.body.appendChild(bg);
+  page();
+}
+$('storyBtn').onclick = () => showStory();
+
 buildMenu();
+if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !DEV.get('nostory')) showStory(); // (premier lancement)
 // Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
 if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)

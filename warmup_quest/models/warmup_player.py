@@ -33,7 +33,7 @@ class WarmupPlayer(models.Model):
                               help='Optionnel : utilisateur Odoo associé à ce joueur.')
     birth_year = fields.Integer(string='Année de naissance')
     avatar_model = fields.Selection(AVATAR_MODELS, string='Tête', default='male-a', required=True,
-                                    help='Petit dresseur qui représente l\'enfant dans le jeu : tête, corps et jambes '
+                                    help='Petit sorcier qui représente l\'enfant dans le jeu : tête, corps et jambes '
                                          'peuvent venir de personnages différents.')
     avatar_body = fields.Selection(AVATAR_MODELS, string='Corps', help='Vide : celui de la tête.')
     avatar_legs = fields.Selection(AVATAR_MODELS, string='Jambes', help='Vide : celles du corps.')
@@ -44,11 +44,11 @@ class WarmupPlayer(models.Model):
                                help='Mouvements reconnus plus facilement et cibles plus proches. Coché d\'office pour un enfant de 5 ans ou moins.')
     active = fields.Boolean(default=True)
     session_ids = fields.One2many('warmup.session', 'player_id', string='Parties')
-    catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Carnet')
+    catch_ids = fields.One2many('warmup.creature.catch', 'player_id', string='Grimoire')
 
     stickers = fields.Json(string='Gommettes', default=list, help='Gommettes gagnées (émojis), dans l\'ordre.')
-    companion = fields.Json(string='Compagnon', help='Créature qui accompagne l\'enfant dans le jeu : {"id": code, "xp": parties}.')
-    companion_display = fields.Char(string='Créature compagnon', compute='_compute_companion')
+    companion = fields.Json(string='Familier', help='Créature qui accompagne l\'enfant dans le jeu : {"id": code, "xp": parties}.')
+    companion_display = fields.Char(string='Familier (créature)', compute='_compute_companion')
     paths = fields.Json(string='Chemins aux carrefours', help='Épreuves choisies aux carrefours, derniers chemins de chaque île, clés des chemins secrets.')
     week_sessions = fields.Integer(string='Parties (7 derniers jours)', compute='_compute_week')
     week_minutes = fields.Float(string="Minutes d'échauffement (7 derniers jours)", compute='_compute_week', digits=(6, 1))

@@ -57,7 +57,7 @@ const COACH_LOOKS = {
   dance: { model: 'kk-mage', hat: 'none', glasses: false, back: 'none', color: '#ff70a6' },
   karate: { model: 'kk-barbarian', hat: 'headband', glasses: false, back: 'none', color: '#e63946' },
 };
-const DEFAULT_LOOK = { model: 'male-a', hat: 'cap', glasses: false, color: '#ff6b35' };
+const DEFAULT_LOOK = { model: 'male-a', hat: 'wizard', glasses: false, color: '#ff6b35' }; // (petit sorcier)
 // Aventuriers KayKit (style « jouet » arrondi) : un personnage entier, avec son chapeau et sa cape
 const KAY_MODELS = { 'kk-knight': 'Knight', 'kk-mage': 'Mage', 'kk-barbarian': 'Barbarian', 'kk-rogue': 'Rogue', 'kk-hood': 'Rogue_Hooded' };
 const isKay = (model) => !!KAY_MODELS[model];
@@ -809,9 +809,18 @@ class Scene3D extends DepthScene {
       }
     }
     this.shadow(hat); this.shadow(bag);
+    // Baguette de petit sorcier dans la main droite (toujours là : c'est le fil de l'histoire), étoile au bout
+    const wand = new T.Group(), WL = 0.24;
+    const stick = new T.Mesh(new T.CylinderGeometry(0.014, 0.02, WL, 8), this.lam('#4a2c1a')); stick.position.y = WL / 2; wand.add(stick);
+    const tipW = new T.Mesh(new T.CylinderGeometry(0.016, 0.016, 0.05, 8), this.lam('#fff8e1')); tipW.position.y = WL - 0.02; wand.add(tipW);
+    const star = new T.Mesh(new T.OctahedronGeometry(0.035, 0), new T.MeshBasicMaterial({ color: '#ffd60a' })); star.position.y = WL + 0.03; wand.add(star);
+    if (kay && bones.handR) { bones.handR.add(wand); wand.position.set(0, 0.05, 0.02); }
+    else if (bones['arm-right']) { bones['arm-right'].add(wand); wand.position.set(-HUMAN_HAND * 0.92, 0, 0.02); wand.rotation.z = Math.PI / 2; } // (le long du bras, au bout de la main)
+    else inner.add(wand);
+    this.shadow(wand);
     const scale = small ? 0.85 : 1;
     group.scale.setScalar(scale);
-    return { group, inner, ring, scale, anims: [], human: { mixer, actions, bones, hat, bag, glasses, look, obj, kay, child, cur: null, last: 0 } };
+    return { group, inner, ring, scale, anims: [(t) => { star.rotation.y = t * 0.004; }], wandTip: star, human: { mixer, actions, bones, hat, bag, glasses, look, obj, kay, child, cur: null, last: 0 } };
   }
 
   // Mesure (une fois par personnage) la tête et le torse dans le repère de leur os : largeur, profondeur, sommet, avant / arrière
@@ -1724,7 +1733,12 @@ class Scene3D extends DepthScene {
     const sc = h.m3.scale || 1, ax = h.m3.group.position.x, ay = h.m3.group.position.y + 1.15 * sc;
     const side = p.x * this.W > this.project(ax, ay, 0).x ? 1 : -1;
     const hd = hs.reduce((a, q) => (q.u * side > a.u * side ? q : a));
-    return this.project(ax + hd.u * 0.5 * sc, ay - hd.v * 0.5 * sc, h.m3.group.position.z);
+    const hand = this.project(ax + hd.u * 0.5 * sc, ay - hd.v * 0.5 * sc, h.m3.group.position.z);
+    if (h.m3.wandTip) { // (le rayon part du bout de la vraie baguette si elle est du côté visé)
+      const v = h.m3.wandTip.getWorldPosition(new this.T.Vector3()), tip = this.project(v.x, v.y, v.z);
+      if (Math.sign(tip.x - this.project(ax, ay, 0).x) === side || hs.length < 2) return { ...tip, real: true };
+    }
+    return hand;
   }
 
   // ---------- Île du Stade (3D) : but avec filet et gardien (penalty), panier de basket, copain créature qui passe / tire

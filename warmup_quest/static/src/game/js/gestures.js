@@ -143,7 +143,7 @@ const Gestures = {
         if (i >= STEPS.length) {
           say.textContent = 'Tu sais tout choisir avec ta main ! 🎉';
           Audio8.perfect();
-          Audio8.say('Génial ! Maintenant, tu sais tout choisir avec ta main : les mondes, ton dresseur, rejouer… Garde ta main sur ce que tu veux !', { slow: true });
+          Audio8.say('Génial ! Maintenant, tu sais tout choisir avec ta main : les cours, ton sorcier, rejouer… Garde ta main sur ce que tu veux !', { slow: true });
           setTimeout(close, 6500);
           return;
         }

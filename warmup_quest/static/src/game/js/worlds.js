@@ -150,7 +150,7 @@ function stepLabel(s) {
     case 'tunnel': return 'Reste baissé dans le tunnel !';
     case 'moles': return 'Tape les taupes !';
     case 'posemix': return 'Copie les poses !';
-    case 'boss': return 'Le gardien du monde !';
+    case 'boss': return s.final ? 'Le Nuage Grognon !' : 'Le gardien ensorcelé !';
     case 'learn': return 'On apprend : ' + stepLabel(s.of);
     case 'ball': return 'Passe-toi le ballon !';
     case 'dance': return 'Danse comme Tempo !';
@@ -179,14 +179,14 @@ function stepSpeech(s) {
     case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
     case 'foam': return 'Les singes farceurs couvrent la vitre de mousse ! Tes mains sont des raclettes : lave toute la vitre !';
-    case 'goal': return 'Tu es le gardien de but ! Ton copain va tirer : arrête le ballon avec tes mains !';
-    case 'basket': return 'Basket ! Ton copain te passe le ballon : attrape-le avec les deux mains, puis lève les bras pour tirer dans le panier !';
+    case 'goal': return 'Tu es le gardien de but ! Ton ami va tirer : arrête le ballon avec tes mains !';
+    case 'basket': return 'Basket ! Ton ami te passe le ballon : attrape-le avec les deux mains, puis lève les bras pour tirer dans le panier !';
     case 'kick': return 'Penalty ! Regarde de quel côté est le ballon, et lève le genou de ce côté pour tirer !';
     case 'wand': return 'Oh non ! Le Nuage Grognon a ensorcelé des créatures ! Pointe ta baguette vers elles avec ton bras, et garde le rayon dessus pour chasser le nuage !';
     case 'fork': return `Un carrefour ! À gauche : ${forkName(s.opts[0])}. À droite : ${forkName(s.opts[1])}. Fais un grand pas du côté que tu veux !`;
     case 'shop': return 'Au supermarché ! Va dans le couloir du produit pour le mettre dans ton caddie. Attention aux chapardeurs : évite-les, ou saute par-dessus !';
-    case 'ball': return 'Passe de ballon ! Quand le ballon arrive vers toi, lève la main pour le renvoyer à ton copain !';
-    case 'boss': return 'Oh ! Le gardien du monde bloque le chemin ! Copie ses poses pour devenir son ami ! ' + POSES[s.poses[0]].say;
+    case 'ball': return 'Passe de ballon ! Quand le ballon arrive vers toi, lève la main pour le renvoyer à ton ami !';
+    case 'boss': return 'Oh ! Un gardien ensorcelé bloque le chemin ! Copie ses poses pour devenir son ami ! ' + POSES[s.poses[0]].say;
     case 'dance': return 'Danse avec Tempo ! Fais comme lui, comme dans un miroir !';
     case 'karate': return 'Le maître karatéka te montre les gestes. Imite-le ! Kiaï !';
     case 'slice': return 'Des fruits sautent en l\'air ! Coupe-les en deux avec ta main, comme un ninja !';
@@ -201,7 +201,7 @@ function stepSpeech(s) {
 // Tuto (École des dresseurs) : explication lente de chaque épreuve, avec ce qu'il faut regarder à l'écran
 function tutoText(s) {
   if (s.m === 'pose') return {
-    armsUp: 'Lève les deux bras tout en haut, vers le ciel, et ne bouge plus. Quand ton dresseur a un rond vert, c\'est gagné !',
+    armsUp: 'Lève les deux bras tout en haut, vers le ciel, et ne bouge plus. Quand ton sorcier a un rond vert, c\'est gagné !',
     airplane: 'Écarte les bras sur les côtés, bien droits, comme les ailes d\'un avion. Et ne bouge plus !',
     star: 'Pour faire l\'étoile : lève les bras en l\'air, bien écartés, et écarte aussi les jambes. Tiens la pose, comme une grande étoile !',
     flamingo: 'Lève un genou et tiens-toi sur un seul pied, comme un flamant rose. Ouvre les bras pour ne pas tomber !',
@@ -209,15 +209,15 @@ function tutoText(s) {
   return {
     jump: 'Pour sauter, plie un peu les genoux, puis saute bien haut, les deux pieds en même temps ! Quand un tronc arrive sur le chemin, saute par-dessus.',
     squat: 'Pour te baisser, plie les genoux comme une petite grenouille, puis relève-toi. Quand une branche arrive, passe dessous !',
-    left: 'Fais un grand pas sur le côté, vers la gauche. Ton dresseur change de couloir avec toi, pour attraper l\'étoile.',
-    right: 'Fais un grand pas sur le côté, vers la droite. Ton dresseur change de couloir avec toi.',
+    left: 'Fais un grand pas sur le côté, vers la gauche. Ton sorcier change de couloir avec toi, pour attraper l\'étoile.',
+    right: 'Fais un grand pas sur le côté, vers la droite. Ton sorcier change de couloir avec toi.',
     smash: 'Pour casser le rocher : lève les deux bras tout en haut, puis descends-les très fort, d\'un coup. Boum !',
-    run: 'Sur le chemin, regarde le grand signe au-dessus de ton dresseur : un rocher, fais un pas de côté ; un tronc, saute ; une branche, baisse-toi !',
-    bubbles: 'Des bulles vont apparaître autour de ton dresseur. Tes mains sont des gants lumineux : touche les bulles pour les éclater !',
+    run: 'Sur le chemin, regarde le grand signe au-dessus de ton sorcier : un rocher, fais un pas de côté ; un tronc, saute ; une branche, baisse-toi !',
+    bubbles: 'Des bulles vont apparaître autour de ton sorcier. Tes mains sont des gants lumineux : touche les bulles pour les éclater !',
     moles: 'Des taupes vont sortir de petites îles, à gauche et à droite. Tape-les avec ta main quand elles sortent la tête !',
     foam: 'Les singes vont couvrir la vitre de mousse : on ne verra plus rien ! Lève les mains : ce sont des raclettes. Passe-les de haut en bas, de gauche à droite, comme pour laver une fenêtre, jusqu\'à ce que la vitre brille.',
-    goal: 'Tu es le gardien du but. Ton copain va tirer le ballon vers toi : un rond blanc montre où il arrive. Mets tes mains dessus pour l\'arrêter !',
-    basket: 'Ton copain va te lancer le ballon. Pour l\'attraper, rapproche tes deux mains devant ton ventre. Ensuite, lève les deux bras tout en haut : le ballon part dans le panier !',
+    goal: 'Tu es le gardien du but. Ton ami va tirer le ballon vers toi : un rond blanc montre où il arrive. Mets tes mains dessus pour l\'arrêter !',
+    basket: 'Ton ami va te lancer le ballon. Pour l\'attraper, rapproche tes deux mains devant ton ventre. Ensuite, lève les deux bras tout en haut : le ballon part dans le panier !',
     kick: 'Le ballon est posé devant un de tes pieds : une petite jambe te montre lequel. Lève bien le genou de ce côté, comme pour shooter, et le ballon part dans le but !',
     wand: 'Le Nuage Grognon a rendu des créatures toutes grognonnes : regarde le petit nuage noir sur leur tête ! Lève le bras et pointe ta baguette vers une créature. Garde le rayon dessus, sans bouger, jusqu\'à ce que le rond doré soit plein : pouf, le nuage s\'en va et elle redevient gentille !',
     fork: 'Au carrefour, deux panneaux montrent deux épreuves. Fais un grand pas à gauche ou à droite, et reste un peu : tu choisis ton chemin !',
@@ -228,8 +228,8 @@ function tutoText(s) {
     rope: 'La corde va tourner. Écoute bien le décompte : trois, deux, un… et saute quand la corde passe sous tes pieds !',
     tunnel: 'Un tunnel arrive. Baisse-toi tout en bas, et reste baissé jusqu\'à la sortie du tunnel !',
     freeze: 'Danse quand la musique joue ! Quand elle s\'arrête : statue ! Ne bouge plus du tout, même pas un doigt.',
-    posemix: 'Ton dresseur va faire des poses, l\'une après l\'autre. Copie-les, comme dans un miroir !',
-    boss: 'À la fin de chaque monde, un gardien bloque le chemin. Il te montre des poses : copie-les, une après l\'autre, et il deviendra ton ami !',
+    posemix: 'Ton sorcier va faire des poses, l\'une après l\'autre. Copie-les, comme dans un miroir !',
+    boss: 'À la fin de chaque pays, un gardien ensorcelé par le Nuage Grognon bloque le chemin. Il te montre des poses : copie-les, une après l\'autre, et il deviendra ton ami !',
   }[s.m] || stepSpeech(s);
 }
 // Geste que Tempo montre pendant l'explication (quand il y en a un)
@@ -296,21 +296,21 @@ function maxPoints(s) {
 const WORLDS = [
   {
     id: 'ecole',
-    name: 'École des dresseurs',
-    tagline: 'On apprend tout, doucement !',
+    name: 'Premier jour à l\'Académie',
+    tagline: 'On apprend tous les sorts, doucement !',
     heroName: 'Tempo',
     tutorial: true, // tout plus lent, chaque épreuve expliquée avant
     hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166', extra: 'headphones' },
     collectible: '⭐',
     sky: ['#8ecae6', '#e8f6ff'],
     biomes: [
-      { name: 'Cour de l\'école', sky0: '#8ecae6', sky1: '#e8f6ff', sun: '#fff6c2', mount0: '#a7c957', mount1: '#6a994e',
+      { name: 'Cour de l\'Académie', sky0: '#8ecae6', sky1: '#e8f6ff', sun: '#fff6c2', mount0: '#a7c957', mount1: '#6a994e',
         grass: '#8fd16a', grass2: '#84c75f', path: '#e6c28f', path2: '#dbb47e', fog: '#f4fbff',
         deco: ['🌳', '🌼', '🏫', '🌷', '🌳', '🌼'], ambient: ['butterflies'] },
     ],
-    endText: 'Bravo ! Tu as fini l\'École des dresseurs !',
+    endText: 'Bravo ! Ton premier jour à l\'Académie est réussi !',
     sequence: [
-      Z(4, 'Bienvenue à l\'École des dresseurs ! On va tout apprendre, doucement.'),
+      Z(4, 'Bienvenue à l\'Académie des Petits Mages ! C\'est ton premier jour : on va tout apprendre, doucement.'),
       LN(J()), J(2), LN(S()), S(2), LN(L()), L(), LN(D()), D(), LN(X()), X(2),
       LN(P('armsUp')), P('armsUp', 2), LN(P('star')), P('star', 2), LN(P('airplane')), P('airplane', 2),
       LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2),
@@ -319,74 +319,74 @@ const WORLDS = [
       LN(U(4)), U(4), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10), LN(WA(18, 2)), WA(18, 2), LN(GO(3)), GO(3), LN(BK(2)), BK(2), LN(KI(2)), KI(2),
       LN({ m: 'fork', opts: [B(10, 3), M(10, 3)] }), { m: 'fork', opts: [B(10, 3), M(10, 3)] },
       LN(BS('armsUp', 'star')), BS('armsUp', 'star'),
-      Z(4, 'Tu sais tout faire ! Respire bien… Bravo, champion !'),
+      Z(4, 'Tu connais tous les sorts ! Respire bien… Bravo, petit sorcier !'),
     ],
   },
   {
     id: 'jardin3d',
-    name: 'Jardin Fleuri',
-    tagline: 'Un jardin plein de fleurs et de surprises !',
+    name: 'Le Jardin de l\'Académie',
+    tagline: 'Cours de botanique : un jardin plein de surprises !',
     heroName: 'Bouton',
     hero: { body: '#ff8fab', belly: '#ffe5ec', limb: '#e05780', accent: '#ffd166', extra: 'flower' },
     collectible: '🍓',
     sky: ['#6ec6ff', '#dff3ff'],
     biomes: [
-      { name: 'Jardin', sky0: '#6ec6ff', sky1: '#dff3ff', sun: '#fff4b8', mount0: '#a8d5ba', mount1: '#6fbf73',
+      { name: 'Jardin magique', sky0: '#6ec6ff', sky1: '#dff3ff', sun: '#fff4b8', mount0: '#a8d5ba', mount1: '#6fbf73',
         grass: '#7ccf6a', grass2: '#72c460', path: '#e6c28f', path2: '#dbb47e', fog: '#e8f6ff',
         deco: ['🌳', '🌷', '🍄', '🌼', '🌳', '🌷'], ambient: ['butterflies'] },
     ],
-    endText: 'Bouton a traversé tout le jardin !',
+    endText: 'Bouton te félicite : cours de botanique réussi !',
     sequence: [
-      Z(2.5, 'Prêt ? On découvre le jardin !'),
+      Z(4, 'Cours de botanique ! Bouton, le jardinier, te fait visiter le jardin magique de l\'Académie.'),
       R(6), J(), K(10), S(), P('armsUp'),
       L(), D(), Q(3), X(2), B(10, 6),
       C('jump', 'squat'), P('star'), F(14), R(6),
-      Z(3, 'Bravo ! Respire bien…'),
+      Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ],
   },
   {
     id: 'disco',
-    name: 'Piste de Danse',
-    tagline: 'Danse comme Tempo !',
+    name: 'Cours de danse magique',
+    tagline: 'Danse avec Tempo pour lancer des sorts !',
     heroName: 'Tempo',
     hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166', extra: 'headphones' },
     collectible: '🎵',
     sky: ['#1a0b3a', '#5a189a'],
     biomes: [
-      { name: 'Scène', night: true, sky0: '#1a0b3a', sky1: '#5a189a', sun: '#fff0ff', mount0: '#3c096c', mount1: '#240046',
+      { name: 'Salle de danse', night: true, sky0: '#1a0b3a', sky1: '#5a189a', sun: '#fff0ff', mount0: '#3c096c', mount1: '#240046',
         grass: '#2d1b4e', grass2: '#26173f', path: '#ff70a6', path2: '#70d6ff', fog: '#5a189a',
         deco: ['🎵', '🪩', '🎤', '🎶', '✨', '🎵'], ambient: ['fireflies'] },
     ],
-    endText: 'Tempo dit : quel danseur !',
+    endText: 'Tempo dit : quel danseur… et quel sorcier !',
     sequence: [
-      Z(2.5, 'Prêt ? Musique !'),
+      Z(4, 'Cours de danse ! Chez les petits sorciers, on danse pour lancer des sorts. Musique !'),
       DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'),
       DN('star', 'jump', 'star', 'jump', 'airplane', 'armsUp'),
       F(14),
       DN('left', 'armsUp', 'right', 'armsUp', 'squat', 'jump', 'star', 'airplane'),
       DN('flamingo', 'armsUp', 'squat', 'jump', 'left', 'right'),
-      Z(3, 'Bravo ! Salue le public…'),
+      Z(3, 'Bravo ! Salue la classe…'),
     ],
   },
   {
     id: 'dojo',
-    name: 'Dojo des Petits Tigres',
-    tagline: 'Imite le maître karatéka !',
+    name: 'Cours de défense',
+    tagline: 'Maître Bambou t\'apprend à arrêter les mauvais sorts !',
     heroName: 'Maître Bambou',
     hero: { body: '#ffb703', belly: '#fff3c4', limb: '#fb8500', accent: '#1e1b4b', extra: 'headband' },
     collectible: '🏅',
     sky: ['#ffcdb2', '#fff1e6'],
     biomes: [
-      { name: 'Jardin du dojo', sky0: '#ffcdb2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
+      { name: 'Dojo de l\'Académie', sky0: '#ffcdb2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
         grass: '#8ab17d', grass2: '#7fa672', path: '#d4a373', path2: '#c8955f', fog: '#fff1e6',
         deco: ['🎋', '🌸', '🏯', '🌸', '🎋', '🪨'], ambient: ['petals'] },
       { name: 'Dojo du soir', night: true, sky0: '#22223b', sky1: '#9a8c98', sun: '#fefae0', mount0: '#4a4e69', mount1: '#22223b',
         grass: '#52796f', grass2: '#4a6d63', path: '#bc8a5f', path2: '#a9784f', fog: '#c9ada7',
         deco: ['🎋', '🏮', '🌸', '🏯', '🏮', '🎋'], ambient: ['fireflies'] },
     ],
-    endText: 'Le maître te salue : bravo, petit tigre !',
+    endText: 'Le maître te salue : bravo, petit sorcier !',
     sequence: [
-      Z(2.5, 'Salue le maître… Prêt ? Kiaï !'),
+      Z(4, 'Cours de défense avec Maître Bambou : on apprend à arrêter les mauvais sorts. Salue le maître… Kiaï !'),
       KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
       KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'),
       P('airplane'),
@@ -398,30 +398,31 @@ const WORLDS = [
   },
   {
     id: 'verger',
-    name: 'Verger des Ninjas',
-    tagline: 'Coupe les fruits en deux !',
+    name: 'Atelier des potions',
+    tagline: 'Coupe les fruits magiques pour la potion !',
     heroName: 'Kiwi',
     hero: { body: '#8ac926', belly: '#f1ffd6', limb: '#4f772d', accent: '#e63946', extra: 'headband' },
     collectible: '🍉',
     sky: ['#ffb4a2', '#fff1e6'],
     biomes: [
-      { name: 'Verger', sky0: '#7cc6fe', sky1: '#f0f9ff', sun: '#fff6c2', mount0: '#90be6d', mount1: '#43aa8b',
+      { name: 'Verger magique', sky0: '#7cc6fe', sky1: '#f0f9ff', sun: '#fff6c2', mount0: '#90be6d', mount1: '#43aa8b',
         grass: '#6a994e', grass2: '#618f45', path: '#d4a373', path2: '#c8955f', fog: '#f4fbff',
         deco: ['🍎', '🌳', '🍐', '🍊', '🌳', '🍑'], ambient: ['butterflies', 'birds'] },
-      { name: 'Jardin des ninjas', sky0: '#ffb4a2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
+      { name: 'Atelier de Kiwi', sky0: '#ffb4a2', sky1: '#fff1e6', sun: '#fff3b0', mount0: '#b5838d', mount1: '#6d6875',
         grass: '#8ab17d', grass2: '#7fa672', path: '#d4a373', path2: '#c8955f', fog: '#fff1e6',
         deco: ['🎋', '🌸', '🏯', '🌸', '🎋', '🪨'], ambient: ['petals'] },
     ],
-    endText: 'Kiwi te salue : tu es un vrai ninja des fruits !',
+    endText: 'La potion est prête ! Kiwi te félicite, petit sorcier !',
     sequence: [
-      Z(2.5, 'Prêt, petit ninja ? Les fruits arrivent !'),
+      Z(4, 'Atelier des potions ! Kiwi a besoin de fruits magiques coupés en deux pour sa potion. Prêt ?'),
       SL(14, 8), J(2), SL(14, 10), P('star'),
       S(2), SL(16, 12), P('airplane'), SL(14, 10),
-      Z(3, 'Bravo ninja ! Respire bien…'),
+      Z(3, 'La potion bouillonne… Bravo ! Respire bien.'),
     ],
   },
   {
     id: 'rythmo',
+    retired: true, // (ancienne île, retirée de la carte de l'Académie : ses parties restent dans l'historique)
     name: 'Planète Rythmo',
     tagline: 'Tape les cubes en musique !',
     heroName: 'Bip',
@@ -443,31 +444,31 @@ const WORLDS = [
   },
   {
     id: 'singes',
-    name: 'Jungle des Singes Farceurs',
-    tagline: 'Nettoie la mousse des singes !',
+    name: 'La Tour des Singes farceurs',
+    tagline: 'Nettoie la mousse sur les vitres de la tour !',
     heroName: 'Coco',
     hero: { body: '#a47148', belly: '#f1e3c8', limb: '#7f5539', accent: '#ffd166', extra: 'headband' },
     collectible: '🍌',
     sky: ['#90e0ef', '#e9fbff'],
     biomes: [
-      { name: 'Jungle', sky0: '#48cae4', sky1: '#e9fbff', sun: '#fff6c2', mount0: '#52b788', mount1: '#2d6a4f',
+      { name: 'Pied de la tour', sky0: '#48cae4', sky1: '#e9fbff', sun: '#fff6c2', mount0: '#52b788', mount1: '#2d6a4f',
         grass: '#52b788', grass2: '#4aa87d', path: '#d4a373', path2: '#c8955f', fog: '#e9fbff',
         deco: ['🌴', '🐒', '🍌', '🌺', '🌴', '🐒'], ambient: ['butterflies'] },
-      { name: 'Clairière', sky0: '#90e0ef', sky1: '#fdffef', sun: '#fff6c2', mount0: '#95d5b2', mount1: '#52b788',
+      { name: 'Haut de la tour', sky0: '#90e0ef', sky1: '#fdffef', sun: '#fff6c2', mount0: '#95d5b2', mount1: '#52b788',
         grass: '#74c69d', grass2: '#6abf93', path: '#e6c28f', path2: '#dbb47e', fog: '#fdffef',
         deco: ['🌴', '🍌', '🦜', '🌺', '🐒', '🍍'], ambient: ['butterflies'] },
     ],
-    endText: 'Tout est propre ! Les singes rigolent avec toi !',
+    endText: 'Les vitres brillent, et les singes ne sont plus ensorcelés !',
     sequence: [
-      Z(2.5, 'Chut… des singes farceurs se cachent dans la jungle !'),
+      Z(4, 'Oh non ! Le Nuage Grognon a ensorcelé les singes de l\'Académie : ils couvrent les vitres de la tour de mousse !'),
       MO(16, 6), J(2), R(6), MO(18, 8), P('armsUp'), S(2), MO(18, 8), K(10), MO(20, 10),
-      Z(3, 'Bravo ! Tout est propre… respire bien.'),
+      Z(3, 'Bravo ! La tour brille… respire bien.'),
     ],
   },
   {
     id: 'supermarche',
-    name: 'Super Marché Rigolo',
-    tagline: 'Remplis ton caddie !',
+    name: 'Le Marché aux ingrédients',
+    tagline: 'Remplis ton panier pour l\'atelier des potions !',
     heroName: 'Panier',
     hero: { body: '#ef476f', belly: '#ffe5ec', limb: '#c9184a', accent: '#ffd166', extra: 'headband' },
     collectible: '🛒',
@@ -480,15 +481,16 @@ const WORLDS = [
         grass: '#e9f5db', grass2: '#dcedc8', path: '#fff8e7', path2: '#f1e3c8', fog: '#fdffef',
         deco: ['🍎', '🍐', '🍍', '🍉', '🍇', '🥕'], ambient: [] },
     ],
-    endText: 'Ton caddie est plein ! Bravo !',
+    endText: 'Le caddie est plein : de quoi faire plein de potions !',
     sequence: [
-      Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'),
+      Z(4, 'Au marché aux ingrédients ! Remplis ton caddie pour l\'atelier des potions… et attention aux chapardeurs !'),
       SH(12), J(2), SH(14), P('armsUp'), S(2), SH(16), X(2), SH(14),
       Z(3, 'Les courses sont faites ! Respire bien…'),
     ],
   },
   {
     id: 'turbo',
+    retired: true, // (ancienne île, retirée de la carte de l'Académie : ses parties restent dans l'historique)
     name: 'Vallée Turbo',
     tagline: 'Cours plus vite que le vent !',
     heroName: 'Zéphyr',
@@ -530,6 +532,7 @@ const WORLDS = [
   },
   {
     id: 'island',
+    retired: true, // (ancienne île, retirée de la carte de l'Académie : ses parties restent dans l'historique)
     name: 'Île Bondissante',
     tagline: 'Saute partout et casse les caisses !',
     heroName: 'Pip',
@@ -571,8 +574,8 @@ const WORLDS = [
   },
   {
     id: 'forest',
-    name: 'Monde des Créatures',
-    tagline: 'Imite les créatures pour devenir leur ami !',
+    name: 'La Vallée des Créatures',
+    tagline: 'Imite les créatures pour qu\'elles deviennent tes amies !',
     heroName: 'Lumi',
     biomes: [
       { name: 'Forêt', sky0: '#5aa9e6', sky1: '#cdeffd', sun: '#fff6c2', mount0: '#86aecb', mount1: '#4f8a6b',
@@ -589,9 +592,9 @@ const WORLDS = [
     collectible: '🫐',
     sky: ['#232661', '#7b5ea7'],
     creatures: true, // les poses font apparaître des créatures à apprivoiser
-    endText: 'Lumi et ses nouveaux amis te disent bravo !',
+    endText: 'Lumi et tes nouveaux amis te disent bravo !',
     sequence: [
-      Z(2.5, 'Prêt ? On imite Lumi !'),
+      Z(4, 'Le portail magique t\'emmène dans la Vallée des Créatures. Le Nuage Grognon les a effrayées : imite-les pour devenir leur ami !'),
       R(5),
       P('armsUp'), P('star'),
       S(), J(),
@@ -616,8 +619,8 @@ const WORLDS = [
   },
   {
     id: 'banquise',
-    name: 'Banquise Glacée',
-    tagline: 'Glisse sur la glace et attrape les flocons !',
+    name: 'La Banquise Glacée',
+    tagline: 'Le Nuage Grognon a tout gelé : réchauffe la banquise !',
     heroName: 'Flocon',
     hero: { body: '#9ad7ff', belly: '#f0faff', limb: '#4f9fd1', accent: '#ff7eb6', extra: 'beanie' },
     collectible: '❄️',
@@ -630,9 +633,9 @@ const WORLDS = [
         grass: '#dcecf5', grass2: '#cfe2ee', path: '#a9cbe0', path2: '#9cc0d8', fog: '#7ff0c8',
         deco: ['🌲', '🧊', '⛄', '🌲', '✨', '🧊'], ambient: ['snow', 'fireflies'] },
     ],
-    endText: 'Flocon a glissé jusqu\'au bout de la banquise !',
+    endText: 'Flocon te dit merci : la banquise est sauvée !',
     sequence: [
-      Z(2.5, 'Prêt ? On glisse !'),
+      Z(4, 'Brrr ! Le Nuage Grognon a soufflé un vent glacé sur la banquise. Bouge bien pour la réchauffer !'),
       R(6), J(), K(10), S(), L(), D(),
       P('armsUp'), Q(3), B(10, 6), X(2),
       C('jump', 'squat'), F(14), P('star'), R(6), K(8),
@@ -641,8 +644,8 @@ const WORLDS = [
   },
   {
     id: 'ocean',
-    name: 'Fond de l\'Océan',
-    tagline: 'Nage entre les coraux et éclate les bulles !',
+    name: 'Le Fond de l\'Océan',
+    tagline: 'Plonge aider les créatures de la mer !',
     heroName: 'Plouf',
     hero: { body: '#2ec4b6', belly: '#d9fbf7', limb: '#168f84', accent: '#ffbe0b', extra: 'goggles' },
     collectible: '🐚',
@@ -658,9 +661,9 @@ const WORLDS = [
         grass: '#023e8a', grass2: '#03357a', path: '#48cae4', path2: '#3fb8d0', fog: '#90e0ef',
         deco: ['🐙', '🪸', '🐚', '🦑', '🪸', '✨'], ambient: ['rising', 'fireflies'] },
     ],
-    endText: 'Plouf a exploré tout l\'océan !',
+    endText: 'Plouf te dit merci : l\'océan est sauvé !',
     sequence: [
-      Z(2.5, 'Prêt ? On plonge !'),
+      Z(4, 'Le portail magique s\'ouvre… sous la mer ! Le Nuage Grognon a fait peur aux créatures de l\'océan. On plonge !'),
       B(12, 8), R(6), S(), J(), K(10),
       P('airplane'), L(), D(), X(2), B(10, 6),
       C('squat', 'jump'), F(14), P('star'), Q(3), R(6),
@@ -670,7 +673,7 @@ const WORLDS = [
   {
     id: 'espace',
     name: 'Voyage dans l\'Espace',
-    tagline: 'Saute de planète en planète !',
+    tagline: 'Le Nuage Grognon a éteint les étoiles : rallume-les !',
     heroName: 'Comète',
     hero: { body: '#9b5de5', belly: '#efe3ff', limb: '#6a2fbf', accent: '#00f5d4', extra: 'helmet' },
     collectible: '⭐',
@@ -686,9 +689,9 @@ const WORLDS = [
         grass: '#5a189a', grass2: '#521590', path: '#c77dff', path2: '#b96ff2', fog: '#e0aaff',
         deco: ['✨', '🪐', '🌟', '☄️', '✨', '🛸'], ambient: ['fireflies'] },
     ],
-    endText: 'Comète a fait le tour de la galaxie !',
+    endText: 'Comète te dit merci : les étoiles brillent à nouveau !',
     sequence: [
-      Z(2.5, 'Prêt pour le décollage ? 3, 2, 1…'),
+      Z(4, 'Le portail magique t\'envoie dans l\'espace ! Le Nuage Grognon a éteint les étoiles. 3, 2, 1… décollage !'),
       J(), K(12), R(6), S(), P('star'),
       L(), D(), Q(4), X(2), B(10, 6),
       C('jump', 'smash'), F(14), P('airplane'), K(10), J(2),
@@ -697,6 +700,7 @@ const WORLDS = [
   },
   {
     id: 'bonbons',
+    retired: true, // (ancienne île, retirée de la carte de l'Académie : ses parties restent dans l'historique)
     name: 'Pays des Bonbons',
     tagline: 'Un chemin tout en sucre !',
     heroName: 'Praline',
@@ -722,6 +726,7 @@ const WORLDS = [
   },
   {
     id: 'ferme',
+    retired: true, // (ancienne île, retirée de la carte de l'Académie : ses parties restent dans l'historique)
     name: 'La Ferme Joyeuse',
     tagline: 'Aide les animaux de la ferme !',
     heroName: 'Grain',
@@ -747,8 +752,8 @@ const WORLDS = [
   },
   {
     id: 'dinos',
-    name: 'Vallée des Dinos',
-    tagline: 'Saute par-dessus les fougères géantes !',
+    name: 'La Vallée des Dinos',
+    tagline: 'Retrouve les œufs volés par le Nuage Grognon !',
     heroName: 'Croc',
     hero: { body: '#70c16f', belly: '#e8f8df', limb: '#3f8f3e', accent: '#ff9f1c', extra: 'spikes' },
     collectible: '🥚',
@@ -761,9 +766,9 @@ const WORLDS = [
         grass: '#8a5a44', grass2: '#7e513d', path: '#5e3023', path2: '#53291d', fog: '#ffd8b8',
         deco: ['🌋', '🦕', '🪨', '🌋', '🦖', '🌴'], ambient: [] },
     ],
-    endText: 'Croc a retrouvé tous les œufs de la vallée !',
+    endText: 'Croc te dit merci : tous les œufs sont retrouvés !',
     sequence: [
-      Z(2.5, 'Prêt ? Les dinos t\'attendent !'),
+      Z(4, 'Le Nuage Grognon a caché les œufs de la Vallée des Dinos ! Aide Croc à les retrouver.'),
       J(), R(6), J(2), S(), X(2),
       P('star'), K(10), L(), D(), Q(4),
       C('jump', 'smash'), F(14), P('airplane'), B(10, 6), R(6),
@@ -772,33 +777,34 @@ const WORLDS = [
   },
   {
     id: 'chateau',
-    name: 'Château Enchanté',
-    tagline: 'Traverse le jardin magique du château !',
+    finalBoss: true, // (le gardien de la dernière île : le Nuage Grognon lui-même)
+    name: 'Le Château du Nuage Grognon',
+    tagline: 'La dernière aventure : rends le Nuage Grognon gentil !',
     heroName: 'Étincelle',
     hero: { body: '#c77dff', belly: '#f6e8ff', limb: '#9d4edd', accent: '#ffd60a', extra: 'crown' },
     collectible: '💎',
     sky: ['#cdb4db', '#fdf0ff'],
     biomes: [
-      { name: 'Jardin royal', sky0: '#a0c4ff', sky1: '#fdf0ff', sun: '#fff6c2', mount0: '#cdb4db', mount1: '#80b918',
+      { name: 'Jardin du château', sky0: '#a0c4ff', sky1: '#fdf0ff', sun: '#fff6c2', mount0: '#cdb4db', mount1: '#80b918',
         grass: '#80b918', grass2: '#76ad15', path: '#d6ccc2', path2: '#cbc0b5', fog: '#fbf5ff',
         deco: ['🏰', '🌹', '🌳', '🌷', '🏰', '🌳'], ambient: ['butterflies', 'petals'] },
-      { name: 'Forêt magique', night: true, sky0: '#240046', sky1: '#5a189a', sun: '#fff6d5', mount0: '#3c096c', mount1: '#10002b',
+      { name: 'Tour du Nuage Grognon', night: true, sky0: '#240046', sky1: '#5a189a', sun: '#fff6d5', mount0: '#3c096c', mount1: '#10002b',
         grass: '#3c096c', grass2: '#360862', path: '#e0aaff', path2: '#d49af5', fog: '#c77dff',
         deco: ['🌳', '✨', '🍄', '💎', '🌳', '🦄'], ambient: ['fireflies'] },
     ],
-    endText: 'Étincelle est arrivée au château !',
+    endText: 'Le Nuage Grognon est devenu gentil ! Tu es un vrai petit sorcier !',
     sequence: [
-      Z(2.5, 'Prêt ? Abracadabra !'),
+      Z(4, 'Voici le château du Nuage Grognon ! C\'est la dernière aventure. Courage, petit sorcier !'),
       R(6), P('star'), J(), S(), K(10),
       L(), D(), B(10, 6), X(2), P('armsUp'),
       C('squat', 'jump'), Q(3), F(14), P('flamingo', 2), R(6),
-      Z(3, 'Magnifique ! Fais une révérence…'),
+      Z(3, 'Le ciel est tout bleu… Magnifique ! Fais une révérence.'),
     ],
   },
   {
     id: 'sortileges',
-    name: 'Bois des Sortilèges',
-    tagline: 'Ta baguette rend les créatures gentilles !',
+    name: 'Le Bois des Sortilèges',
+    tagline: 'Première aventure : le Nuage Grognon est là !',
     heroName: 'Plume',
     hero: { body: '#7b2cbf', belly: '#f3e8ff', limb: '#5a189a', accent: '#ffd60a', extra: 'crown' },
     collectible: '✨',
@@ -811,34 +817,34 @@ const WORLDS = [
         grass: '#3c096c', grass2: '#360862', path: '#e0aaff', path2: '#d49af5', fog: '#c77dff',
         deco: ['🌳', '✨', '🍄', '💎', '🌳', '🔮'], ambient: ['fireflies'] },
     ],
-    endText: 'Le Nuage Grognon est parti : toutes les créatures sont gentilles !',
+    endText: 'Le Nuage Grognon s\'est enfui vers son château… mais les créatures du bois sont libres !',
     sequence: [
-      Z(2.5, 'Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'),
+      Z(4, 'Ta première aventure hors de l\'Académie ! Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'),
       WA(16, 3), R(6), J(2), P('armsUp'), WA(18, 4), S(2), B(10, 6), WA(20, 5), K(10),
-      Z(3, 'Bravo, magicien ! Respire bien…'),
+      Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ],
   },
   {
     id: 'stade',
-    name: 'Stade des Créatures',
-    tagline: 'Foot, basket : joue avec les créatures !',
+    name: 'La Récré',
+    tagline: 'Foot et basket avec les créatures de l\'Académie !',
     heroName: 'Tilt',
     hero: { body: '#06d6a0', belly: '#e6fff7', limb: '#049f76', accent: '#ef476f', extra: 'headband' },
     collectible: '🏆',
     sky: ['#4cc9f0', '#e0fbff'],
     biomes: [
-      { name: 'Le stade', sky0: '#4cc9f0', sky1: '#e0fbff', sun: '#fff6c2', mount0: '#90e0ef', mount1: '#52b788',
+      { name: 'Terrain de l\'Académie', sky0: '#4cc9f0', sky1: '#e0fbff', sun: '#fff6c2', mount0: '#90e0ef', mount1: '#52b788',
         grass: '#57cc99', grass2: '#4fbf8e', path: '#f8f9fa', path2: '#e9ecef', fog: '#e9fbff',
         deco: ['🏟️', '🚩', '🎈', '⚽', '🏀', '🚩'], ambient: ['birds'] },
-      { name: 'Le parc', sky0: '#5aa9e6', sky1: '#fdffef', sun: '#fff6c2', mount0: '#a8d5ba', mount1: '#6fbf73',
+      { name: 'Parc de l\'Académie', sky0: '#5aa9e6', sky1: '#fdffef', sun: '#fff6c2', mount0: '#a8d5ba', mount1: '#6fbf73',
         grass: '#7ccf6a', grass2: '#72c460', path: '#e6c28f', path2: '#dbb47e', fog: '#f4fbff',
         deco: ['🌳', '🌼', '🎈', '🌳', '🌷', '⚽'], ambient: ['butterflies'] },
     ],
-    endText: 'Quel match ! Les créatures t\'applaudissent !',
+    endText: 'Dring ! Fin de la récré… quel match !',
     sequence: [
-      Z(2.5, 'Bienvenue au stade ! Échauffe-toi avec les créatures…'),
+      Z(4, 'Dring ! C\'est la récré ! On joue au ballon avec les créatures de l\'Académie.'),
       R(6), GO(5), J(2), BK(3), S(2), KI(4), P('star'), GO(6), L(), D(), BK(3), KI(4),
-      Z(3, 'Fin du match ! Respire bien, champion…'),
+      Z(3, 'Dring ! La récré est finie. Respire bien, champion…'),
     ],
   }
 ];

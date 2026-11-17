@@ -632,3 +632,21 @@ body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; b
 .worldCard .wStages b { width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,.3); }
 .worldCard .wStages b.on { background: #06d6a0; box-shadow: 0 0 6px rgba(6,214,160,.9); }
 .worldCard.locked .wStages, .worldCard.mystery .wStages { display: none; }
+
+/* Histoire : ruban de début de chapitre sur la carte, diplôme de fin */
+.worldCard .chapterTag { position: absolute; left: 8px; top: 8px; z-index: 3; white-space: nowrap;
+  background: #7b2cbf; color: #fff; font-weight: 800; font-size: 12px; padding: 2px 10px; border-radius: 99px;
+  border: 2px solid #ffd166; box-shadow: 0 3px 8px rgba(0,0,0,.3); }
+.diploma { margin: 6px auto 10px; padding: 10px 18px; max-width: 360px; border-radius: 14px; font-size: 22px; color: #3c096c;
+  background: linear-gradient(#fff8e1, #ffe8a3); border: 3px solid #c9a227; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.diploma small { font-size: 14px; color: #6a4c93; }
+.storyPanel { background: linear-gradient(#fff8e1, #f3e8ff); color: #1e1b4b; border-radius: 28px; padding: 26px 34px; text-align: center;
+  max-width: min(720px, 90vw); box-shadow: 0 12px 40px rgba(0,0,0,.4); border: 4px solid #c9a227; }
+.storyArt { font-size: min(160px, 22vh); line-height: 1.1; animation: storyBob 2.4s ease-in-out infinite; }
+.storyPanel p { font-size: 26px; font-weight: 700; margin: 10px 0 14px; }
+.storyDots { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
+.storyDots span { width: 12px; height: 12px; border-radius: 50%; background: #d8c8f0; }
+.storyDots span.on { background: #7b2cbf; }
+@keyframes storyBob { 50% { transform: translateY(-10px) rotate(-3deg); } }
+
+.worldCard .dailyBadge ~ .chapterTag { top: 52px; }

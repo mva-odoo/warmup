@@ -73,9 +73,9 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <filter name="turbo" string="Vallée Turbo" domain="[('world', '=', 'turbo')]"/>
-                <filter name="island" string="Île Bondissante" domain="[('world', '=', 'island')]"/>
-                <filter name="forest" string="Monde des Créatures" domain="[('world', '=', 'forest')]"/>
+                <filter name="cours" string="Les cours de l'Académie" domain="[('world', 'in', ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'stade', 'singes', 'supermarche'])]"/>
+                <filter name="aventures" string="Les aventures" domain="[('world', 'in', ['sortileges', 'forest', 'banquise', 'ocean', 'dinos', 'espace', 'chateau'])]"/>
+                <filter name="anciennes" string="Anciennes îles" domain="[('world', 'in', ['turbo', 'island', 'bonbons', 'ferme', 'rythmo'])]"/>
                 <separator/>
                 <filter name="archived" string="Archivées" domain="[('active', '=', False)]"/>
                 <filter name="group_world" string="Monde" context="{'group_by': 'world'}"/>

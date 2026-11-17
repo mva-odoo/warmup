@@ -136,45 +136,45 @@ FUN_STEPS = [_U(4), _M(12, 6), _PM('armsUp', 'star', 'airplane')]
 
 DEFAULT_SEQUENCES = [
     ('jardin3d', 'Échauffement du Jardin', [
-        _Z(2.5, 'Prêt ? On découvre le jardin !'), _R(6), _J(), _CA(10), _S(), _P('armsUp'), _L(), _D(),
+        _Z(4, "Cours de botanique ! Bouton, le jardinier, te fait visiter le jardin magique de l'Académie."), _R(6), _J(), _CA(10), _S(), _P('armsUp'), _L(), _D(),
         _RO(3), _X(2), _B(10, 6), _C('jump', 'squat'), _P('star'), _F(14), _R(6),
-        _Z(3, 'Bravo ! Respire bien…'),
+        _Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ]),
     ('disco', 'Chorégraphies de Tempo', [
-        _Z(2.5, 'Prêt ? Musique !'),
+        _Z(4, 'Cours de danse ! Chez les petits sorciers, on danse pour lancer des sorts. Musique !'),
         _DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'),
         _DN('star', 'jump', 'star', 'jump', 'airplane', 'armsUp'), _F(14),
         _DN('left', 'armsUp', 'right', 'armsUp', 'squat', 'jump', 'star', 'airplane'),
-        _DN('flamingo', 'armsUp', 'squat', 'jump', 'left', 'right'), _Z(3, 'Bravo ! Salue le public…'),
+        _DN('flamingo', 'armsUp', 'squat', 'jump', 'left', 'right'), _Z(3, 'Bravo ! Salue la classe…'),
     ]),
     ('dojo', 'Leçon de Maître Bambou', [
-        _Z(2.5, 'Salue le maître… Prêt ? Kiaï !'), _KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
+        _Z(4, 'Cours de défense avec Maître Bambou : on apprend à arrêter les mauvais sorts. Salue le maître… Kiaï !'), _KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
         _KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'), _P('airplane'),
         _KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'), _M(12, 6),
         _KA('left', 'smash', 'right', 'smash', 'squat', 'jump'), _Z(3, 'Salue le maître… et respire.'),
     ]),
     ('verger', 'Entraînement des Ninjas', [
-        _Z(2.5, 'Prêt, petit ninja ? Les fruits arrivent !'), _SL(14, 8), _J(2), _SL(14, 10), _P('star'),
-        _S(2), _SL(16, 12), _P('airplane'), _SL(14, 10), _Z(3, 'Bravo ninja ! Respire bien…'),
+        _Z(4, 'Atelier des potions ! Kiwi a besoin de fruits magiques coupés en deux pour sa potion. Prêt ?'), _SL(14, 8), _J(2), _SL(14, 10), _P('star'),
+        _S(2), _SL(16, 12), _P('airplane'), _SL(14, 10), _Z(3, 'La potion bouillonne… Bravo ! Respire bien.'),
     ]),
     ('rythmo', 'Rythmes de Bip', [
         _Z(2.5, 'Prêt ? Musique !'), _CU(12, 1.6), _S(2), _CU(16, 1.4), _P('armsUp'),
         _CU(16, 1.3), _J(2), _CU(20, 1.2), _Z(3, 'Bravo ! Quel rythme…'),
     ]),
     ('singes', 'Les farces des singes', [
-        _Z(2.5, 'Chut… des singes farceurs se cachent dans la jungle !'), _MO(16, 6), _J(2), _R(6), _MO(18, 8), _P('armsUp'),
-        _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! Tout est propre… respire bien.'),
+        _Z(4, "Oh non ! Le Nuage Grognon a ensorcelé les singes de l'Académie : ils couvrent les vitres de la tour de mousse !"), _MO(16, 6), _J(2), _R(6), _MO(18, 8), _P('armsUp'),
+        _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! La tour brille… respire bien.'),
     ]),
     ('sortileges', 'Les sortilèges du Nuage Grognon', [
-        _Z(2.5, 'Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
-        _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, magicien ! Respire bien…'),
+        _Z(4, "Ta première aventure hors de l'Académie ! Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !"), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
+        _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ]),
     ('stade', 'Le match des créatures', [
-        _Z(2.5, 'Bienvenue au stade ! Échauffe-toi avec les créatures…'), _R(6), _GO(5), _J(2), _BK(3), _S(2), _KI(4),
-        _P('star'), _GO(6), _L(), _D(), _BK(3), _KI(4), _Z(3, 'Fin du match ! Respire bien, champion…'),
+        _Z(4, "Dring ! C'est la récré ! On joue au ballon avec les créatures de l'Académie."), _R(6), _GO(5), _J(2), _BK(3), _S(2), _KI(4),
+        _P('star'), _GO(6), _L(), _D(), _BK(3), _KI(4), _Z(3, 'Dring ! La récré est finie. Respire bien, champion…'),
     ]),
     ('supermarche', 'Les courses de Panier', [
-        _Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
+        _Z(4, "Au marché aux ingrédients ! Remplis ton caddie pour l'atelier des potions… et attention aux chapardeurs !"), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
         _SH(16), _X(2), _SH(14), _Z(3, 'Les courses sont faites ! Respire bien…'),
     ]),
     ('turbo', 'Échauffement Turbo', [
@@ -190,23 +190,23 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Super ! Souffle un peu…'),
     ]),
     ('forest', 'Échauffement des Créatures', [
-        _Z(2.5, 'Prêt ? On imite Lumi !'), _R(5), _P('armsUp'), _P('star'), _S(), _J(), _P('airplane'), _L(),
+        _Z(4, "Le portail magique t'emmène dans la Vallée des Créatures. Le Nuage Grognon les a effrayées : imite-les pour devenir leur ami !"), _R(5), _P('armsUp'), _P('star'), _S(), _J(), _P('airplane'), _L(),
         _D(), _P('flamingo', 2), _B(10, 6), _R(6), _CA(10), _F(14), _C('squat', 'jump'), _P('star'), _X(2),
         _C('left', 'right', 'jump'), _P('airplane', 2), _R(6), _S(2), _J(2), _P('armsUp', 2),
         _C('jump', 'squat', 'smash'), _Z(3, 'Magnifique… respire comme Lumi.'),
     ]),
     ('banquise', 'Échauffement Glacé', [
-        _Z(2.5, 'Prêt ? On glisse !'), _R(6), _J(), _CA(10), _S(), _L(), _D(), _P('armsUp'), _RO(3), _B(10, 6),
+        _Z(4, 'Brrr ! Le Nuage Grognon a soufflé un vent glacé sur la banquise. Bouge bien pour la réchauffer !'), _R(6), _J(), _CA(10), _S(), _L(), _D(), _P('armsUp'), _RO(3), _B(10, 6),
         _X(2), _C('jump', 'squat'), _F(14), _P('star'), _R(6), _CA(8),
         _Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ]),
     ('ocean', 'Échauffement Plongée', [
-        _Z(2.5, 'Prêt ? On plonge !'), _B(12, 8), _R(6), _S(), _J(), _CA(10), _P('airplane'), _L(), _D(),
+        _Z(4, "Le portail magique s'ouvre… sous la mer ! Le Nuage Grognon a fait peur aux créatures de l'océan. On plonge !"), _B(12, 8), _R(6), _S(), _J(), _CA(10), _P('airplane'), _L(), _D(),
         _X(2), _B(10, 6), _C('squat', 'jump'), _F(14), _P('star'), _RO(3), _R(6),
         _Z(3, 'Super ! Respire comme une baleine…'),
     ]),
     ('espace', 'Échauffement Spatial', [
-        _Z(2.5, 'Prêt pour le décollage ? 3, 2, 1…'), _J(), _CA(12), _R(6), _S(), _P('star'), _L(), _D(),
+        _Z(4, "Le portail magique t'envoie dans l'espace ! Le Nuage Grognon a éteint les étoiles. 3, 2, 1… décollage !"), _J(), _CA(12), _R(6), _S(), _P('star'), _L(), _D(),
         _RO(4), _X(2), _B(10, 6), _C('jump', 'smash'), _F(14), _P('airplane'), _CA(10), _J(2),
         _Z(3, 'Atterrissage en douceur… respire.'),
     ]),
@@ -221,14 +221,14 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Bravo ! Les animaux te disent merci…'),
     ]),
     ('dinos', 'Échauffement des Dinos', [
-        _Z(2.5, "Prêt ? Les dinos t'attendent !"), _J(), _R(6), _J(2), _S(), _X(2), _P('star'), _CA(10), _L(),
+        _Z(4, 'Le Nuage Grognon a caché les œufs de la Vallée des Dinos ! Aide Croc à les retrouver.'), _J(), _R(6), _J(2), _S(), _X(2), _P('star'), _CA(10), _L(),
         _D(), _RO(4), _C('jump', 'smash'), _F(14), _P('airplane'), _B(10, 6), _R(6),
         _Z(3, 'Bravo ! Respire comme un grand dino…'),
     ]),
     ('chateau', 'Échauffement Enchanté', [
-        _Z(2.5, 'Prêt ? Abracadabra !'), _R(6), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _X(2),
+        _Z(4, "Voici le château du Nuage Grognon ! C'est la dernière aventure. Courage, petit sorcier !"), _R(6), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _X(2),
         _P('armsUp'), _C('squat', 'jump'), _RO(3), _F(14), _P('flamingo', 2), _R(6),
-        _Z(3, 'Magnifique ! Fais une révérence…'),
+        _Z(3, 'Le ciel est tout bleu… Magnifique ! Fais une révérence.'),
     ]),
 ]
 

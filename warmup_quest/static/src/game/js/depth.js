@@ -947,7 +947,7 @@ class DepthScene {
     (w.ptrs || []).forEach((p, i) => {
       if (!p) return;
       const o = this.wandOrigin(i, p), tx = p.x * W, ty = p.y * H, a = Math.atan2(ty - o.y, tx - o.x), L = S * 0.09;
-      const tip = { x: o.x + Math.cos(a) * L, y: o.y + Math.sin(a) * L }, col = cols[i % 2], on = !!p.hit;
+      const tip = o.real ? o : { x: o.x + Math.cos(a) * L, y: o.y + Math.sin(a) * L }, col = cols[i % 2], on = !!p.hit;
       // rayon : ondulé, plus épais et plus brillant quand il touche une créature
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
       const d = Math.hypot(tx - tip.x, ty - tip.y), nx = -(ty - tip.y) / (d || 1), ny = (tx - tip.x) / (d || 1);
@@ -958,11 +958,13 @@ class DepthScene {
       }
       ctx.restore();
       if (on && Math.random() < 0.5) this.burst(tx, ty, 1, [col, '#ffffff']);
-      // la baguette (manche foncé, bout blanc, étoile)
+      // la baguette (manche foncé, bout blanc, étoile) ; en 3D, le petit sorcier tient déjà la vraie
+      if (!o.real) {
       ctx.lineCap = 'round'; ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = Math.max(4, S * 0.014);
       ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
       ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(o.x + Math.cos(a) * L * 0.75, o.y + Math.sin(a) * L * 0.75); ctx.lineTo(tip.x, tip.y); ctx.stroke();
       ctx.font = `${S * 0.045}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⭐', tip.x, tip.y);
+      }
       // pointeur : étoile qui tourne
       ctx.save(); ctx.translate(tx, ty); ctx.rotate(now / 400); ctx.font = `${S * (on ? 0.07 : 0.05)}px serif`; ctx.fillText('✨', 0, 0); ctx.restore();
       ctx.textBaseline = 'alphabetic';

@@ -15,7 +15,7 @@
               action="action_warmup_session" sequence="10"/>
     <menuitem id="menu_warmup_player" name="Joueurs" parent="menu_warmup_root"
               action="action_warmup_player" sequence="20"/>
-    <menuitem id="menu_warmup_catch" name="Carnets" parent="menu_warmup_root"
+    <menuitem id="menu_warmup_catch" name="Grimoires" parent="menu_warmup_root"
               action="action_warmup_catch" sequence="30"/>
 
     <menuitem id="menu_warmup_config" name="Configuration" parent="menu_warmup_root" sequence="90"/>

@@ -1,13 +1,20 @@
 // Progression : carte des mondes (îles à ouvrir), surprise du jour, compagnon, parties du jour.
 // Pensé pour donner envie de revenir, sans punition : rien ne se perd, rien ne s'achète.
 
-// Ordre des îles sur la carte (du plus simple au plus varié)
-const MAP_ORDER = ['ecole', 'jardin3d', 'turbo', 'island', 'stade', 'forest', 'sortileges', 'ferme', 'bonbons', 'supermarche', 'singes', 'banquise', 'ocean', 'dinos', 'verger',
-  'espace', 'chateau', 'rythmo', 'disco', 'dojo'];
-const MAP_FREE = 4; // l'école et les 3 premières îles sont ouvertes d'office
-// Îles ajoutées après coup au milieu du chemin : elles s'ouvrent comme les autres, mais ne ferment pas la suite
-// à un enfant qui l'avait déjà ouverte (l'île d'après regarde aussi celle d'avant la nouvelle)
-const MAP_LATE = ['sortileges', 'stade'];
+// L'histoire : l'enfant est un petit sorcier en première année à l'Académie des Petits Mages.
+// Chapitre 1 « À l'Académie » : les cours (chaque épreuve est une leçon). Chapitre 2 « Les aventures » : par le
+// portail magique, on aide les pays que le Nuage Grognon a rendus grognons, jusqu'à son château (dernière île).
+const SCHOOL = 'Académie des Petits Mages';
+const CHAPTERS = [
+  { id: 'cours', icon: '📚', name: "À l'Académie", worlds: ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'stade', 'singes', 'supermarche'] },
+  { id: 'aventures', icon: '🌀', name: 'Les aventures', worlds: ['sortileges', 'forest', 'banquise', 'ocean', 'dinos', 'espace', 'chateau'] },
+];
+// Ordre des îles sur la carte (les anciennes îles « retired » n'y sont plus)
+const MAP_ORDER = CHAPTERS.flatMap((c) => c.worlds);
+const MAP_FREE = 4; // le premier jour et les 3 premiers cours sont ouverts d'office
+const chapterOf = (w) => CHAPTERS.find((c) => c.worlds.includes(w.id)) || null;
+// Le Nuage Grognon : gardien de la dernière île (une créature à part, qui ne va pas dans le grimoire)
+const GROGNON = { id: 'grognon', name: 'Nuage Grognon', element: 'Orage', color: '#6c6f93', belly: '#e9e9f5', shape: 'cloud', feature: 'none' };
 
 // Créatures proposées comme premier compagnon
 const STARTERS = ['flammeche', 'gouttin', 'feuillou'];
@@ -18,21 +25,19 @@ const Progress = {
   ordered() {
     const byId = new Map(WORLDS.map((w) => [w.id, w]));
     const list = MAP_ORDER.map((id) => byId.get(id)).filter(Boolean);
-    return [...list, ...WORLDS.filter((w) => !MAP_ORDER.includes(w.id))];
+    return [...list, ...WORLDS.filter((w) => !MAP_ORDER.includes(w.id) && !w.retired)];
   },
   stars(w, i = 0) { return WUQStore.getBest(w.id, i).stars || 0; },
-  // Une île est ouverte si elle fait partie des premières, si on y a déjà joué, ou si la précédente est réussie
+  // Une île est ouverte si elle fait partie des premières, si on y a déjà joué, si la précédente est réussie,
+  // ou si l'enfant est déjà allé plus loin sur la carte (la carte a été réorganisée : rien ne se referme)
   unlocked(w, i = 0) {
     if (typeof store === 'function' && store('allOpen')) return true;
     const list = this.ordered(), k = list.indexOf(w);
     if (k < MAP_FREE || this.stars(w, i) > 0) return true;
-    for (let j = k - 1; j >= 0; j--) {
-      if (this.stars(list[j], i) > 0) return true;
-      if (!MAP_LATE.includes(list[j].id)) return false;
-    }
-    return false;
+    if (k > 0 && this.stars(list[k - 1], i) > 0) return true;
+    return list.slice(k + 1).some((x) => this.stars(x, i) > 0);
   },
-  // Île où se trouve le dresseur : la première ouverte pas encore réussie (sinon la dernière ouverte)
+  // Île où se trouve le petit sorcier : la première ouverte pas encore réussie (sinon la dernière ouverte)
   current(i = 0) {
     const open = this.ordered().filter((w) => this.unlocked(w, i));
     return open.find((w) => this.stars(w, i) === 0) || open[open.length - 1];
@@ -113,7 +118,8 @@ const Stages = {
     const boss = steps.find((st) => st.m === 'boss'), last = steps[steps.length - 1];
     const mid = steps.slice(1, -1).filter((st) => st !== boss);
     const a = Math.round((mid.length * k) / n), b = Math.round((mid.length * (k + 1)) / n);
-    const intro = { m: 'rest', t: 3.5, text: `Étape ${k + 1} sur ${n} : ${bs[k].name} !` };
+    const story = k === 0 && steps[0] && steps[0].m === 'rest' ? steps[0].text + ' ' : ''; // (l'histoire de l'île, au début de la 1re étape)
+    const intro = { m: 'rest', t: story ? 6 : 3.5, text: `${story}Étape ${k + 1} sur ${n} : ${bs[k].name} !` };
     const end = k === n - 1 ? (boss ? [boss] : []) : [{ m: 'pose', pose: ['star', 'airplane', 'armsUp'][k % 3], hold: 1.5, capture: true }];
     return [intro, ...mid.slice(a, b), ...end, last.m === 'rest' ? last : { m: 'rest', t: 3, text: 'Bravo ! Respire bien…' }];
   },

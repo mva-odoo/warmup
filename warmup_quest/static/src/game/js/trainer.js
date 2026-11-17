@@ -1,15 +1,15 @@
-// Fenêtre « Mon dresseur » : l'enfant compose son petit personnage (tête, corps, jambes avec des flèches),
+// Fenêtre « Mon sorcier » : l'enfant compose son petit personnage (tête, corps, jambes avec des flèches),
 // son chapeau, ses lunettes et sa couleur préférée, uniquement avec des images (pas besoin de savoir lire).
 // (d'abord les 5 aventuriers KayKit, entiers ; puis les 13 petits personnages qu'on compose tête / corps / jambes)
 const TRAINER_KAY = ['kk-knight', 'kk-mage', 'kk-barbarian', 'kk-rogue', 'kk-hood'];
 const TRAINER_MODELS = [...TRAINER_KAY, 'male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
 const TRAINER_SMALL = TRAINER_MODELS.filter((m) => !TRAINER_KAY.includes(m));
-const TRAINER_HATS = ['cap', 'beanie', 'headband', 'none'];
+const TRAINER_HATS = ['wizard', 'cap', 'beanie', 'headband', 'none']; // (chapeau de sorcier d'office : on est à l'Académie)
 // Récompenses : chapeaux et dos à débloquer avec les étoiles gagnées (total de tous les mondes)
 const TRAINER_REWARDS = [
   { kind: 'hat', id: 'crown', stars: 3, icon: '👑' }, { kind: 'hat', id: 'flowers', stars: 5, icon: '🌸' },
-  { kind: 'back', id: 'cape', stars: 7, icon: '🦸' }, { kind: 'hat', id: 'wizard', stars: 10, icon: '🧙' },
+  { kind: 'back', id: 'cape', stars: 7, icon: '🦸' },
   { kind: 'hat', id: 'cat', stars: 13, icon: '🐱' }, { kind: 'back', id: 'wings', stars: 16, icon: '🪽' },
   { kind: 'hat', id: 'pirate', stars: 20, icon: '🏴‍☠️' }, { kind: 'hat', id: 'viking', stars: 25, icon: '⚔️' },
   { kind: 'hat', id: 'astro', stars: 30, icon: '🚀' },
@@ -27,7 +27,7 @@ const Trainer = {
       // (corps et jambes : seulement les petits personnages ; un aventurier KayKit est entier)
       body: TRAINER_SMALL.includes(l.body) ? l.body : TRAINER_SMALL.includes(l.model) ? l.model : 'male-a',
       legs: TRAINER_SMALL.includes(l.legs) ? l.legs : TRAINER_SMALL.includes(l.body) ? l.body : TRAINER_SMALL.includes(l.model) ? l.model : 'male-a',
-      hat: ALL_HATS.includes(l.hat) ? l.hat : 'cap',
+      hat: ALL_HATS.includes(l.hat) ? l.hat : 'wizard',
       back: ALL_BACKS.includes(l.back) ? l.back : 'bag',
       glasses: !!l.glasses,
       color: /^#[0-9a-f]{6}$/i.test(color || l.color || '') ? (color || l.color) : '#ff6b35',
