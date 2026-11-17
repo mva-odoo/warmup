@@ -425,6 +425,76 @@ true
 true
 ],
 [
+"hello",
+"jeu",
+false
+],
+[
+"portalLocked",
+"jeu",
+false
+],
+[
+"locked",
+"jeu",
+false
+],
+[
+"faster",
+"jeu",
+false
+],
+[
+"freed",
+"jeu",
+false
+],
+[
+"block",
+"jeu",
+false
+],
+[
+"Bienvenue dans le parc de l'Académie ! Lève le bras et vise un bâtiment avec ta baguette pour choisir ton cours.",
+"jeu",
+false
+],
+[
+"C'est parti ! Cours sur place pour y aller !",
+"jeu",
+false
+],
+[
+"Cours sur place, ton petit sorcier ira plus vite !",
+"jeu",
+false
+],
+[
+"Cette porte est encore fermée. Réussis d'abord le cours d'avant !",
+"jeu",
+false
+],
+[
+"Le portail magique s'ouvrira quand tu auras fini les premiers cours !",
+"jeu",
+false
+],
+[
+"Oh ! Une créature ensorcelée bloque le chemin ! Vise-la avec ta baguette !",
+"jeu",
+false
+],
+[
+"Bravo ! Elle n'est plus ensorcelée !",
+"bravo",
+true
+],
+[
+"On entre !",
+"jeu",
+false
+],
+[
 "Mode petit : tout est plus facile !",
 "jeu",
 false

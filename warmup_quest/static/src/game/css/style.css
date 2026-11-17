@@ -650,3 +650,12 @@ body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; b
 @keyframes storyBob { 50% { transform: translateY(-10px) rotate(-3deg); } }
 
 .worldCard .dailyBadge ~ .chapterTag { top: 52px; }
+
+/* Parc de l'Académie */
+.hubBtn { display: block; margin: 0 auto 6px; padding: 6px 22px; font-size: 20px; background: linear-gradient(#9d4edd, #7b2cbf); color: #fff; border: 3px solid #ffd166; }
+#hubHud { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px;
+  background: rgba(15,12,50,.6); color: #fff; padding: 8px 14px 8px 20px; border-radius: 99px; box-shadow: var(--shadow); max-width: 80vw; }
+#hubHud.hidden { display: none; }
+.hubTitle { font-weight: 800; font-size: 18px; white-space: nowrap; color: #ffd166; }
+.hubHint { font-weight: 700; font-size: 20px; }
+.hubExit { padding: 4px 12px; }

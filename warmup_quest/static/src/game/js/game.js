@@ -17,6 +17,9 @@ const tracker = new Tracker();
 const sceneFlat = new DepthScene($('scene'));
 const scene3d = new Scene3D($('scene'));
 let scene = sceneFlat;
+// Parc de l'Académie (petit monde ouvert entre les cours) ; fromHub : la partie vient du parc, on y revient après
+const hub = new AcademyHub(scene3d);
+let fromHub = false, hubLast = null;
 const video = $('video');
 const camCtx = $('camOverlay').getContext('2d');
 const pictoCtx = $('cardPicto').getContext('2d');
@@ -347,6 +350,7 @@ function buildMenu() {
         if (pin) pin.getContext('2d').drawImage(scene3d.trainerThumb(menuLooks[0], 80), 0, 0, 80, 100);
       }).catch(() => {});
   }
+  show('hubBtn', store('3d') !== false); // (le parc n'existe qu'en 3D)
   const sp = $('speeds');
   sp.innerHTML = '';
   const saved = store('speed');
@@ -472,9 +476,9 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   if (phase === 'play' || phase === 'calib' || phase === 'countdown') Rec.end(null); // (partie abandonnée : on garde quand même les mouvements)
-  phase = 'menu'; game = null; frozen = false;
+  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose();
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
-  ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
+  ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
   showMenuCam();
   show('menu');
   scene.setWorld(null);
@@ -486,13 +490,15 @@ async function startWorld(w) {
   const ok = WUQStore.canStart();
   if (ok !== true) { if (typeof ok === 'string') alert(ok); return; }
   world = w;
+  if (w.hub) fromHub = true;
+  show('hubHud', false);
   if (store('fullscreen') !== false && !document.fullscreenElement && document.documentElement.requestFullscreen) {
     document.documentElement.requestFullscreen().catch(() => {});
   }
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
   // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
-  if (!DEV.get('world') && !Rec.playing) {
+  if (!DEV.get('world') && !DEV.get('hub') && !Rec.playing) {
     for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
@@ -508,7 +514,7 @@ async function startWorld(w) {
   // Créatures compagnons (une par joueur) : elles courent à côté de leur dresseur
   const comps = team.map((p, i) => { const c = WUQStore.getCompanion(i); const cr = Progress.companionCreature(c); return cr ? { cr, level: Progress.companionLevel(c) } : null; });
   scene3d.setCompanions(comps);
-  const next = store('3d') !== false ? scene3d : sceneFlat;
+  const next = store('3d') !== false || w.hub ? scene3d : sceneFlat; // (le parc n'existe qu'en 3D)
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
   if (scene.load) {
@@ -517,14 +523,17 @@ async function startWorld(w) {
     try {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
-      await scene.preloadWorld(w, looks, creatureModels(comps.filter(Boolean).map((c) => c.cr)));
+      const friends = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
+      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends) : [])]);
+      if (w.hub && (!hub.scene || hub.lookKey !== JSON.stringify(looks[0]))) { hub.build(looks[0], comps[0], friends); hub.lookKey = JSON.stringify(looks[0]); }
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
+      if (w.hub) { show('loading', false); goMenu(); return; }
     }
     show('loading', false);
   }
-  scene.setWorld(w, pals, looks);
+  if (!w.hub) scene.setWorld(w, pals, looks);
   { const n = Stages.count(w); if (n) scene.setProgress((DEV.get('stage') ? Number(DEV.get('stage')) % n : Stages.next(w)) / n); } // (île en étapes : le paysage de l'étape dès le départ)
   if ($('simToggle').checked) {
     tracker.enableSim();
@@ -546,8 +555,24 @@ async function startWorld(w) {
     }
     show('loading', false);
   }
+  // Déjà calibré (on vient du parc, ou on y retourne) : pas besoin de recommencer « Mets-toi bien »
+  if (tracker.calibrated && (w.hub || fromHub)) { tracker.calibrate(); afterCalib(); return; }
   startCalib();
 }
+
+// Après le calibrage : le parc de l'Académie, ou le 3, 2, 1 d'une partie
+function afterCalib() { if (world && world.hub) enterHub(); else startCountdown(); }
+function enterHub() {
+  phase = 'hub'; game = null; frozen = false;
+  ['calib', 'hud', 'results', 'countdown', 'pause'].forEach((id) => show(id, false));
+  show('camBox'); $('camBox').classList.remove('big');
+  show('hubHud');
+  Audio8.music(false); Audio8.themeMute(false); Audio8.theme('ecole');
+  hub.enter(hubLast);
+}
+// Fin d'un cours lancé depuis le parc : on y revient, devant la porte du bâtiment
+function backToHub() { world = HUB_WORLD; startWorld(HUB_WORLD); }
+hub.onGo = (w, id) => { hubLast = id === 'portal' ? w.id : id; startWorld(w); };
 
 function cameraHelp(e) {
   const name = e && e.name;
@@ -591,7 +616,7 @@ function setCalibStage(stage, text, sub, speak) {
 
 function updateCalib(now) {
   const s = tracker.state;
-  if (tracker.sim && DEV.get('world')) { tracker.calibrate(); startCountdown(); return; }
+  if (tracker.sim && (DEV.get('world') || DEV.get('hub'))) { tracker.calibrate(); afterCalib(); return; }
   if (tracker.sim) {
     setCalibStage('sim', `Monde : ${world.name}`, "Appuie sur Entrée (ou 1 pour lever les bras) pour commencer", null);
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
@@ -640,11 +665,17 @@ function holdCalib(now) {
   if (!calibState.holdStart) calibState.holdStart = now;
   const p = Math.min(1, (now - calibState.holdStart) / 1000);
   $('calibBar').style.width = p * 100 + '%';
-  if (p >= 1) { tracker.calibrate(); startCountdown(); }
+  if (p >= 1) { tracker.calibrate(); afterCalib(); }
 }
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
+  if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); afterCalib(); }
+  if (phase === 'hub') { // (mode clavier dans le parc : ← → choisir, Entrée valider, Espace courir, Échap sortir)
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { const n = hub.places ? hub.places.length : 1; hub.keyPick = ((hub.keyPick ?? -1) + (e.key === 'ArrowLeft' ? n - 1 : 1)) % n; }
+    if (e.key === 'Enter') hub.keyGo = true;
+    if (e.key === ' ') hub.keyRun = performance.now() + 700;
+    if (e.key === 'Escape') goMenu();
+  }
   if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'moles' && !game.cur.done) {
     const c = game.cur; c.bonked++; game.add(50, '+50'); Audio8.boing(); ui.setDetail(game.detail(c));
@@ -2376,7 +2407,7 @@ function openRoom() {
 $('carnetBack').onclick = () => { show('carnet', false); show('menu'); };
 
 $('againBtn').onclick = () => { show('results', false); startWorld(world); };
-$('menuBtn').onclick = goMenu;
+$('menuBtn').onclick = () => (fromHub ? backToHub() : goMenu()); // (venu du parc : on y retourne)
 
 // ---------------- Boucle ----------------
 // Pause par geste : bras croisés pendant 1,2 s (le bouton pause se remplit en vert)
@@ -2430,6 +2461,7 @@ function tick(now) {
   if (Gestures.on && (phase === 'menu' || phase === 'results' || phase === 'paused')) Gestures.update(now);
   else if (Gestures.el) Gestures.el.classList.remove('show');
   if (phase === 'calib') updateCalib(now);
+  if (phase === 'hub') hub.update(now);
   if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); updateDuoSpacing(now); }
   else if ($('duoWarn')) $('duoWarn').classList.add('hidden');
   if (phase === 'paused') updatePause(now);
@@ -2439,7 +2471,8 @@ function tick(now) {
 
 // Dessin (décor, pictogramme, caméra)
 function draw(now) {
-  if (!frozen) scene.render(now);
+  if (phase === 'hub' || (world && world.hub && (phase === 'calib' || phase === 'loading'))) hub.render(now);
+  else if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
     if (c.s.m === 'posemix' || c.s.m === 'boss') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
@@ -2461,8 +2494,8 @@ function draw(now) {
 
 // Mode test (développement) : ?world=ferme&step=rope lance directement un monde en mode clavier,
 // à partir de la première étape du type demandé (sert à vérifier le rendu sans caméra).
-if (DEV.get('world') || DEV.get('carnet')) {
-  const w = WORLDS.find((x) => x.id === DEV.get('world'));
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('hub')) {
+  const w = DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc)
   if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
   if (DEV.get('duo')) WUQStore._set('duo', true); // (mode test) partie à deux
   if (DEV.get('comp')) { const [id, xp] = DEV.get('comp').split(':'); WUQStore.setCompanion(0, { id, xp: Number(xp) || 0 }); } // (mode test) compagnon
@@ -2473,6 +2506,10 @@ if (DEV.get('world') || DEV.get('carnet')) {
     WUQStore.getCarnet = () => all;
     scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES))).then(() => openCarnet());
   }
+  if (DEV.get('hubret')) setInterval(() => { // (mode test) partie lancée du parc finie tout de suite, puis 🏠 : retour au parc
+    if (phase === 'play' && game && fromHub && !game.over && performance.now() - game.startedAt > 3000) game.finish();
+    if (phase === 'results' && fromHub && performance.now() - resultsAt > 1500) $('menuBtn').click();
+  }, 500);
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
@@ -2522,9 +2559,11 @@ function showStory(onDone = () => {}) {
   page();
 }
 $('storyBtn').onclick = () => showStory();
+$('hubBtn').onclick = () => startWorld(HUB_WORLD);
+$('hubExit').onclick = goMenu;
 
 buildMenu();
-if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !DEV.get('nostory')) showStory(); // (premier lancement)
+if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !DEV.get('hub') && !DEV.get('nostory')) showStory(); // (premier lancement)
 // Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
 if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
@@ -2553,7 +2592,7 @@ if (DEV.get('room')) { // (mode test) chambre remplie
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay')) {
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || DEV.get('hub')) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   requestAnimationFrame(drawLoop);

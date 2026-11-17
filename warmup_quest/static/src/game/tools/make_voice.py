@@ -82,6 +82,10 @@ def scan():
                 found += literals(a[3])
         if f.name == 'gestures.js':
             found += [s for s in re.findall(r"text: '((?:\\.|[^'\\])*)'", src)]
+        if f.name == 'hub.js':  # phrases du parc de l'Académie (tableau HUB_SAY)
+            m = re.search(r'const HUB_SAY = \{(.*?)\n\};', src, re.S)
+            if m:
+                found += literals(m.group(1))
     found = [s.replace("\\'", "'") for s in found]
     seen, out = set(), []
     for s in found:

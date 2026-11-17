@@ -16,6 +16,7 @@
     <h1>Warm-Up <span>Quest</span></h1>
     <p class="subtitle">🪄 Académie des Petits Mages : bouge pour apprendre la magie !</p>
     <div id="menuExtra"></div>
+    <button class="btn hubBtn" id="hubBtn">🏰 Entrer dans le parc de l'Académie</button>
     <div id="worlds" class="worlds"></div>
     <div class="menuBottom">
       <button class="btn small ghost" id="storyBtn">📜 L'histoire</button>
@@ -131,6 +132,13 @@
     <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span> <button class="btn small ghost hidden" id="recDl">💾 Mouvements</button></p>
   </section>
 
+  <!-- Parc de l'Académie : consigne en haut, bouton pour sortir -->
+  <div id="hubHud" class="hidden">
+    <div class="hubTitle">🏰 Parc de l'Académie</div>
+    <div id="hubHint" class="hubHint"></div>
+    <button class="btn small ghost hubExit" id="hubExit" title="Retour au menu">✖</button>
+  </div>
+
   <!-- Caméra -->
   <div id="camBox" class="hidden">
     <video id="video" playsinline muted></video>
@@ -160,6 +168,7 @@
   <script src="js/scene3d.js"></script>
   <script src="js/trainer.js"></script>
   <script src="js/progress.js"></script>
+  <script src="js/hub.js"></script>
   <script src="js/gestures.js"></script>
   <!-- WUQ_BACKEND -->
   <script src="js/game.js"></script>
