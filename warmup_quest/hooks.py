@@ -130,14 +130,19 @@ def _CU(n, beat=1.4):
     return {'move': 'cubes', 'count': n, 'hold': beat}
 
 
+def _AC(game, n):
+    """Jeu sur place d'un pays (fleurs, pingouins, dauphins, fusée, dinos, animaux)."""
+    return {'move': 'act_' + game, 'count': n}
+
+
 # Épreuves rigolotes ajoutées à chaque séquence par défaut (aussi utilisé par la migration 20.0.2.0.0)
 FUN_STEPS = [_U(4), _M(12, 6), _PM('armsUp', 'star', 'airplane')]
 
 
 DEFAULT_SEQUENCES = [
     ('jardin3d', 'Échauffement du Jardin', [
-        _Z(4, "Cours de botanique ! Bouton, le jardinier, te fait visiter le jardin magique de l'Académie."), _R(6), _J(), _CA(10), _S(), _P('armsUp'), _L(), _D(),
-        _RO(3), _X(2), _B(10, 6), _C('jump', 'squat'), _P('star'), _F(14), _R(6),
+        _Z(4, 'Cours de botanique ! Bouton, le jardinier, te confie des graines magiques. On les fait pousser ?'),
+        _AC('grow', 3), _CA(10), _B(10, 6), _AC('grow', 3), _P('star'), _M(12, 6), _F(14), _AC('grow', 4),
         _Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ]),
     ('disco', 'Chorégraphies de Tempo', [
@@ -190,24 +195,30 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Super ! Souffle un peu…'),
     ]),
     ('forest', 'Échauffement des Créatures', [
-        _Z(4, "Le portail t'emmène dans la Vallée des Créatures. L'Étoile verte est cachée ici : imite les créatures, elles t'aideront à la trouver !"), _R(5), _P('armsUp'), _P('star'), _S(), _J(), _P('airplane'), _L(),
-        _D(), _P('flamingo', 2), _B(10, 6), _R(6), _CA(10), _F(14), _C('squat', 'jump'), _P('star'), _X(2),
-        _C('left', 'right', 'jump'), _P('airplane', 2), _R(6), _S(2), _J(2), _P('armsUp', 2),
-        _C('jump', 'squat', 'smash'), _Z(3, 'Magnifique… respire comme Lumi.'),
+        _Z(4, "Le portail t'emmène dans la Vallée des Créatures. L'Étoile verte est cachée ici : imite les animaux, ils t'aideront à la trouver !"),
+        _AC('animals', 4), _B(10, 6), _P('flamingo', 2), _C('squat', 'jump'),
+        _AC('animals', 5), _CA(10), _M(12, 6), _P('star'),
+        _AC('animals', 5), _F(14), _PM('armsUp', 'star', 'airplane'), _J(2),
+        _Z(3, 'Magnifique… respire comme Lumi.'),
     ]),
     ('banquise', 'Échauffement Glacé', [
-        _Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Bouge bien pour réchauffer la banquise !"), _R(6), _J(), _CA(10), _S(), _L(), _D(), _P('armsUp'), _RO(3), _B(10, 6),
-        _X(2), _C('jump', 'squat'), _F(14), _P('star'), _R(6), _CA(8),
+        _Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Les bébés pingouins ont besoin de toi !"),
+        _AC('clap', 3), _U(4), _CA(10), _RO(3), _AC('clap', 4),
+        _X(2), _B(10, 6), _F(14), _PM('airplane', 'armsUp', 'star'), _AC('clap', 4),
         _Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ]),
     ('ocean', 'Échauffement Plongée', [
-        _Z(4, "Le portail s'ouvre… sous la mer ! L'Étoile bleue brille quelque part au fond de l'océan. On plonge !"), _B(12, 8), _R(6), _S(), _J(), _CA(10), _P('airplane'), _L(), _D(),
-        _X(2), _B(10, 6), _C('squat', 'jump'), _F(14), _P('star'), _RO(3), _R(6),
+        _Z(4, "Le portail s'ouvre… sous la mer ! L'Étoile bleue brille au fond de l'océan. Les dauphins vont nager avec toi !"),
+        _AC('swim', 12), _B(12, 8), _U(4), _P('airplane'),
+        _AC('swim', 14), _CA(10), _M(12, 6), _S(2),
+        _AC('swim', 16), _CU(10, 1.5), _F(14), _P('star'),
         _Z(3, 'Super ! Respire comme une baleine…'),
     ]),
     ('espace', 'Échauffement Spatial', [
-        _Z(4, "Le Nuage Grognon a emporté l'Étoile jaune tout là-haut, dans l'espace ! 3, 2, 1… décollage !"), _J(), _CA(12), _R(6), _S(), _P('star'), _L(), _D(),
-        _RO(4), _X(2), _B(10, 6), _C('jump', 'smash'), _F(14), _P('airplane'), _CA(10), _J(2),
+        _Z(4, "Le Nuage Grognon a emporté l'Étoile jaune tout là-haut, dans l'espace ! Prépare ta fusée…"),
+        _AC('launch', 2), _CA(12), _P('star'), _J(2),
+        _AC('launch', 3), _F(14), _B(10, 6), _C('left', 'right', 'jump'),
+        _AC('launch', 3), _SL(12, 6), _PM('star', 'airplane', 'armsUp'), _P('airplane'),
         _Z(3, 'Atterrissage en douceur… respire.'),
     ]),
     ('bonbons', 'Échauffement Sucré', [
@@ -221,8 +232,9 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Bravo ! Les animaux te disent merci…'),
     ]),
     ('dinos', 'Échauffement des Dinos', [
-        _Z(4, "Dans la Vallée des Dinos, le Nuage Grognon a caché l'Étoile rouge au milieu des œufs ! Aide Croc à la retrouver."), _J(), _R(6), _J(2), _S(), _X(2), _P('star'), _CA(10), _L(),
-        _D(), _RO(4), _C('jump', 'smash'), _F(14), _P('airplane'), _B(10, 6), _R(6),
+        _Z(4, "Dans la Vallée des Dinos, le Nuage Grognon a caché l'Étoile rouge au milieu des œufs ! Marche comme un dino pour les faire éclore."),
+        _AC('stomp', 3), _X(2), _J(2), _M(12, 6), _AC('stomp', 4),
+        _RO(4), _CU(10, 1.5), _P('flamingo', 2), _AC('stomp', 4), _F(14),
         _Z(3, 'Bravo ! Respire comme un grand dino…'),
     ]),
     ('chateau', 'Échauffement Enchanté', [
@@ -233,7 +245,8 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges', 'stade'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges', 'stade',
+          'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos'}  # (ces pays ont leur jeu sur place)
 
 
 def _new_game(world):

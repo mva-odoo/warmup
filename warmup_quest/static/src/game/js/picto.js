@@ -263,6 +263,17 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       }
       break;
     }
+    case 'act': { // jeux sur place : le geste à faire, et ce qu'il fait (fleur, clap, nage, fusée, pas de dino, animal)
+      const k = cyc(1800), half = k > 0.5;
+      const emo = (ch, x, y, sz) => { ctx.font = `${sz}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, x, y); ctx.textBaseline = 'alphabetic'; };
+      if (s.game === 'grow') { stickFigure(ctx, { ...base, crouch: half ? 0 : 1, armL: half ? 2.9 : 0.5, armR: half ? 2.9 : 0.5 }); emo(half ? '🌷' : '🌱', gx + S * 0.36, gy - S * (half ? 0.25 : 0.1), S * 0.16); }
+      else if (s.game === 'clap') { const tog = cyc(700) > 0.5; stickFigure(ctx, { ...base, armL: tog ? 1.25 : 0.9, armR: tog ? 1.25 : 0.9 }); if (tog) emo('👏', gx, gy - S * 0.62, S * 0.14); emo('🐧', gx + S * 0.38, gy - S * 0.1, S * 0.16); }
+      else if (s.game === 'swim') { stickFigure(ctx, { ...base, armL: half ? 2.9 : 0.4, armR: half ? 0.4 : 2.9 }); emo('🐬', gx + S * 0.38, gy - S * (0.15 + Math.sin(k * 6.28) * 0.06), S * 0.16); }
+      else if (s.game === 'launch') { const up = k > 0.65; stickFigure(ctx, { ...base, crouch: up ? 0 : 1, lift: up ? S * 0.12 : 0, armL: up ? 2.9 : 0.6, armR: up ? 2.9 : 0.6 }); emo('🚀', gx + S * 0.36, gy - S * (0.15 + (up ? (k - 0.65) * 1.6 : 0)), S * 0.16); }
+      else if (s.game === 'stomp') { stickFigure(ctx, { ...base, kneeUp: cyc(900) < 0.5 ? 'L' : 'R', armL: 0.8, armR: 0.8 }); emo(half ? '🐣' : '🥚', gx + S * 0.38, gy - S * 0.1, S * 0.15); }
+      else { const i = Math.floor(t / 1800) % 4, an = ['🐸', '🐢', '🐦', '🦒'][i], fig = [{ lift: Math.sin(k * Math.PI) * S * 0.15 }, { crouch: 1 }, POSE_FIGURES.airplane, POSE_FIGURES.armsUp][i]; stickFigure(ctx, { ...base, ...fig }); emo(an, gx + S * 0.38, gy - S * 0.2, S * 0.16); }
+      break;
+    }
     case 'rest': {
       const k = (Math.sin(t * 0.0025) + 1) / 2; // on respire : bras qui montent et descendent doucement
       stickFigure(ctx, { ...base, armL: 0.4 + k * 2.4, armR: 0.4 + k * 2.4 }, '#7c3aed');

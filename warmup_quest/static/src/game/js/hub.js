@@ -1,6 +1,9 @@
 // Le château de l'Académie : un petit monde ouvert pour aller d'un cours à l'autre.
 // Une grande cour fermée par les remparts, une fontaine au milieu ; au fond le donjon (le premier jour), sur les côtés
-// une tour par cours (danse, dojo, atelier des potions, récré…), à l'entrée la grande porte du portail des aventures. L'enfant VISE un bâtiment avec sa baguette (bras levé,
+// une tour par cours (danse, dojo, atelier des potions, récré…), à l'entrée la grande porte du portail des aventures.
+// Commandes (pas de visée au doigt, trop imprécise pour les petits) : le prochain cours est déjà choisi ; un PAS DE CÔTÉ
+// passe au lieu voisin (à gauche ou à droite à l'écran), les DEUX BRAS LEVÉS lancent le sort et le petit sorcier y va
+// tout seul, vite. L'enfant VISE un bâtiment avec sa baguette (bras levé,
 // comme l'épreuve de la baguette), puis COURT SUR PLACE : son petit sorcier suit le chemin tout seul, plus vite quand
 // il court (c'est déjà l'échauffement). En route, parfois, une créature ensorcelée bloque le passage : un coup de
 // baguette et elle redevient gentille. Jamais d'échec, jamais perdu : on ne peut que suivre les chemins.
@@ -13,8 +16,8 @@
 // chapitre : à gauche de l'entrée vers le fond, puis à droite du fond vers l'entrée (comme une ronde dans la cour).
 // Les allées sont droites : l'allée centrale (de la porte au donjon) et trois allées en travers, une par paire de tours.
 const CASTLE = {
-  ecole: [0, -27, 'n'], jardin3d: [-19, 9, 'o'], disco: [-19, 0, 'o'], dojo: [-19, -9, 'o'], verger: [-10, -17, 'n'],
-  stade: [19, -9, 'e'], singes: [19, 0, 'e'], supermarche: [19, 9, 'e'], portal: [0, 17, 's'],
+  ecole: [0, -27, 'n'], jardin3d: [-19, 11, 'o'], disco: [-19, 0, 'o'], dojo: [-19, -11, 'o'], verger: [-10, -17, 'n'],
+  stade: [19, -11, 'e'], singes: [19, 0, 'e'], supermarche: [19, 11, 'e'], portal: [0, 17, 's'],
 };
 const CASTLE_SIDE = { o: { x: -1, z: 0 }, e: { x: 1, z: 0 }, n: { x: 0, z: -1 }, s: { x: 0, z: 1 } };
 const CASTLE_ROOF = { jardin3d: '#52b788', disco: '#f15bb5', verger: '#7b2cbf', stade: '#4cc9f0', supermarche: '#ff9f1c' }; // (toit de la tour de chaque cours)
@@ -33,20 +36,20 @@ function villageWorld(w) {
 // Grosse icône de chaque lieu sur son panneau (les petits ne lisent pas encore)
 const HUB_ICONS = { ecole: '🏰', jardin3d: '🌸', disco: '💃', dojo: '🥋', verger: '🧪', stade: '⚽', singes: '🐒', supermarche: '🛒' };
 const HUB_SAY = {
-  hello: "Bienvenue au château de l'Académie ! Lève le bras et vise une tour avec ta baguette pour choisir ton cours.",
-  go: "C'est parti ! Cours sur place pour y aller !",
-  faster: 'Cours sur place, ton petit sorcier ira plus vite !',
+  hello: "Bienvenue au château de l'Académie ! Lève les deux bras pour aller au cours qui brille. Pour en choisir un autre, fais un pas de côté !",
+  go: "C'est parti !",
   locked: "Cette porte est encore fermée. Réussis d'abord le cours d'avant !",
   portalLocked: "Le portail magique s'ouvrira quand tu auras fini les premiers cours !",
-  block: 'Oh ! Une créature ensorcelée bloque le chemin ! Vise-la avec ta baguette !',
+  block: 'Oh ! Une créature ensorcelée bloque le chemin ! Lève le bras pour lui lancer un sort !',
   freed: "Bravo ! Elle n'est plus ensorcelée !",
   enter: 'On entre !',
-  village: "Bienvenue au village ! L'Étoile de ce pays est cachée par ici. Vise une étape avec ta baguette pour partir à sa recherche !",
+  village: "Bienvenue au village ! L'Étoile de ce pays est cachée par ici. En route pour l'étape qui brille !",
+  villageBack: "Bravo ! On continue l'aventure… Fais un pas de côté si tu veux choisir autre chose !",
   stageLocked: "Cette étape s'ouvrira quand tu auras réussi celle d'avant !",
   countryLocked: "Ce pays est encore fermé. Termine d'abord celui-ci !",
   travel: 'En route par le portail magique !',
-  back: 'Bravo ! Avec ta baguette, choisis où tu veux aller maintenant !',
-  aim: 'Lève bien ton bras, comme une baguette magique, et montre une tour !',
+  back: 'Bravo ! Lève les deux bras pour aller au suivant, ou fais un pas de côté pour choisir !',
+  aim: 'Fais un grand pas de côté pour changer, et lève les deux bras pour y aller !',
 };
 
 class AcademyHub {
@@ -66,7 +69,7 @@ class AcademyHub {
     for (const d of list) {
       if (d.side) { // château : tour dans un rempart, porte au bout de son allée
         d.dir = { ...CASTLE_SIDE[d.side] }; d.pos = { x: d.x, z: d.z };
-        const off = d.id === 'ecole' ? 13 : d.id === 'portal' ? 4 : d.side === 'n' ? 8 : 7.5;
+        const off = d.id === 'ecole' ? 13 : d.id === 'portal' ? 4 : d.side === 'n' ? 6 : 7.5;
         d.door = { x: d.x - d.dir.x * off, z: d.z - d.dir.z * off };
         d.route = d.door.x && d.door.z ? [c0, { x: 0, z: d.door.z }, d.door] : [c0, d.door]; // (allée centrale, puis allée en travers)
         continue;
@@ -104,7 +107,7 @@ class AcademyHub {
     list.push({ id: 'academy', kind: 'academy', a: 180, r: 14, open: true, name: '🏰 Académie' });
     const adv = CHAPTERS[1].worlds.map((id) => WORLDS.find((x) => x.id === id)).filter(Boolean), i = adv.indexOf(w);
     if (adv[i - 1]) list.push({ id: 'prev', kind: 'country', w: adv[i - 1], a: -130, r: 18, open: Progress.unlocked(adv[i - 1]), name: '⬅️ ' + adv[i - 1].name });
-    if (adv[i + 1]) list.push({ id: 'next', kind: 'country', w: adv[i + 1], a: 130, r: 18, open: Progress.unlocked(adv[i + 1]), name: '➡️ ' + adv[i + 1].name });
+    if (adv[i + 1]) list.push({ id: 'next', kind: 'country', w: adv[i + 1], a: 130, r: 18, open: Progress.unlocked(adv[i + 1]), next: full, name: '➡️ ' + adv[i + 1].name }); // (pays fini : on file au suivant)
     return list;
   }
 
@@ -173,7 +176,7 @@ class AcademyHub {
     // (tous passent par la fontaine : impossible de se perdre)
     const spots = this.dests();
     const paths = this.kind === 'academy'
-      ? [[{ x: 0, z: -14 }, { x: 0, z: 16.5 }, 3.2], ...[9, 0, -9].map((z) => [{ x: -11.5, z }, { x: 11.5, z }, 2.4])]
+      ? [[{ x: 0, z: -14 }, { x: 0, z: 16.5 }, 3.2], ...[11, 0, -11].map((z) => [{ x: -11.5, z }, { x: 11.5, z }, 2.4])]
       : spots.map((d) => [{ x: d.dir.x * 3.2, z: d.dir.z * 3.2 }, d.door, 2.4]);
     const onPath = (x, z, pad) => Math.hypot(x, z) < (this.kind === 'academy' ? 4.4 : 6.5) + pad || paths.some(([a, b, w]) => {
       const L = Math.hypot(b.x - a.x, b.z - a.z) || 1, ux = (b.x - a.x) / L, uz = (b.z - a.z) / L, t = (x - a.x) * ux + (z - a.z) * uz;
@@ -227,6 +230,7 @@ class AcademyHub {
     this.cam = new T.PerspectiveCamera(50, 1, 0.1, 200);
     this.overview = this.kind === 'academy' ? [new T.Vector3(0, 50, 44), new T.Vector3(0, 0, -1)] : [new T.Vector3(0, 30, 40), new T.Vector3(0, 1, -7)];
     this.camPos = this.overview[0].clone(); this.camLook = this.overview[1].clone();
+    this.navCam = new T.PerspectiveCamera(50, 16 / 9, 0.1, 200); this.navCam.position.copy(this.overview[0]); this.navCam.lookAt(this.overview[1]); this.navCam.updateMatrixWorld(); // (ordre des lieux à l'écran, vue d'ensemble)
     this.cam.position.copy(this.camPos);
     this.labels = {};
     this.pos = { x: 0, z: 4.5 }; this.yaw = Math.PI; this.mode = 'choose'; this.lastSay = {}; this.moveK = 0; // (dessiné dès le calibrage, avant enter)
@@ -237,7 +241,7 @@ class AcademyHub {
     const { mesh, box, cyl, cone, ball } = k, S = this.S, T = S.T, scene = this.scene, anims = (this.anims = this.anims || []);
     const stone = '#e4ddf0', stone2 = '#c3b8de', roof = '#7b2cbf', lawn = shade(this.colors.grass, 0.1);
     mesh(box, '#ddd3c2', 0, 0.02, -0.5, 37, 0.04, 33); // (pavés de la cour)
-    for (const sx of [-1, 1]) for (const [z0, z1] of [[-15.5, -10.4], [-7.6, -1.4], [1.4, 7.6], [10.4, 15.5]]) { // pelouses entre les allées
+    for (const sx of [-1, 1]) for (const [z0, z1] of [[-15.6, -12.4], [-9.6, -1.4], [1.4, 9.6], [12.4, 15.6]]) { // pelouses entre les allées
       mesh(box, lawn, sx * 6.6, 0.05, (z0 + z1) / 2, 8.8, 0.06, z1 - z0);
       for (let n = 0; n < 2; n++) mesh(ball, n ? '#ff8fab' : '#ffd166', sx * (3.4 + n * 6.4), 0.25, (z0 + z1) / 2 + (n ? 1 : -1) * 1.2, 0.3, 0.3, 0.3); // (petites fleurs)
     }
@@ -516,6 +520,7 @@ class AcademyHub {
     this.places = this.dests();
     const cur = Progress.current();
     for (const d of this.places) { if (d.kind === 'world') d.next = d.open && d.w === cur && d.stars === 0; this.label(d); }
+    if (this.kind === 'academy' && !this.places.some((d) => d.next)) { const pt = this.places.find((d) => d.id === 'portal' && d.open); if (pt) pt.next = true; } // (tous les cours faits : le portail brille)
     // (d'où l'on arrive : la porte de ce lieu ; un autre pays : son portail ; sinon le milieu de la place)
     const from = this.places.find((d) => d.id === fromId || (d.kind === 'country' && d.w.id === fromId));
     this.pos = from ? { ...from.door } : { x: 0, z: 4.5 }; this.at = from || null;
@@ -531,38 +536,52 @@ class AcademyHub {
     const title = document.querySelector('#hubHud .hubTitle');
     if (title) title.textContent = this.kind === 'village' ? `🌀 ${this.w.name}` : "🏰 Château de l'Académie";
     if (this.guardian) { const n = Stages.count(this.w) || 1; this.guardian.friend = n > 1 ? Stages.dots(this.w) === n : Progress.stars(this.w) > 0; }
-    this.mode = 'choose'; this.target = null; this.route = null; this.hover = null; this.charge = 0; this.ptr = null;
-    this.block = null; this.trips = this.trips || 0; this.slowT = 0; this.moveK = 0; this.t0 = performance.now();
+    this.mode = 'choose'; this.target = null; this.route = null; this.charge = 0; this.ptr = null;
+    this.block = null; this.trips = this.trips || 0; this.moveK = 0; this.t0 = performance.now();
+    this.hover = this.defaultHover(from); this.sideWas = 'center'; this.idle = 0;
     this.enterT = 0; this.lastSay = {};
     S.mirror = false;
-    this.say(from ? 'back' : this.kind === 'village' ? 'village' : 'hello', 0); // (au retour d'un cours : une phrase courte)
-    this.hint(this.kind === 'village' ? '🪄 Vise une étape avec ta baguette' : '🪄 Lève le bras et vise une tour avec ta baguette');
+    // Au village, pas besoin de choisir : le petit sorcier part tout seul vers l'étape suivante (ou le pays suivant) après
+    // quelques secondes ; un pas de côté annule, pour choisir autre chose. (Arrivée par le portail : on ne choisit qu'une fois)
+    const fromCourse = from && (from.kind === 'stage' || from.kind === 'world');
+    this.autoGo = this.kind === 'village' && this.hover && this.hover.next ? this.hover : null;
+    this.autoT = performance.now() + (fromCourse ? 2000 : 3500); this.autoDur = 2.5;
+    this.say(this.kind === 'village' ? (fromCourse ? 'villageBack' : 'village') : from ? 'back' : 'hello', 0); // (au retour d'un cours : une phrase courte)
+    this.hint(this.autoGo ? '✨ On y va tout seul… · 👣 Pas de côté : choisir autre chose' : '🙌 Bras levés : on y va · 👣 Pas de côté : changer');
   }
   say(k, cool = 9000) { const now = performance.now(); if (now - (this.lastSay[k] || -1e9) < cool) return; this.lastSay[k] = now; Audio8.say(HUB_SAY[k]); }
   hint(t) { const el = document.getElementById('hubHint'); if (el && el.textContent !== t) el.textContent = t; }
 
-  // Pointeur de la baguette : le bras levé le plus tendu (comme l'épreuve de la baguette), lissé
-  pointer() {
-    const auto = typeof DEV !== 'undefined' && DEV.get('hubauto');
-    let p = null;
-    if (auto && this.mode === 'choose') { const d = this.places.find((x) => x.next) || this.places.find((x) => x.open && (x.kind === 'world' || x.kind === 'stage')); if (d) p = this.screenOf(d); }
-    else if (auto && auto !== '2' && this.block) p = this.screenOfObj(this.block.c.group.position, 0.8); // (hubauto=2 : ne vise pas la créature)
-    else for (const b of tracker.bodies) {
-      if (!b.lm || !b.T || !b.state.present) continue;
-      const sh = mid(b.lm[11], b.lm[12]);
-      const ps = [15, 16].map((k) => armPoint(b, k)).filter((q) => q && q.wy < sh.y + b.T * 0.6);
-      if (ps.length) { p = ps.reduce((a, q) => (Math.hypot(q.x - 0.5, q.y - 0.62) > Math.hypot(a.x - 0.5, a.y - 0.62) ? q : a)); break; }
-    }
-    if (!p) return (this.ptr = null);
-    const o = this.ptr;
-    return (this.ptr = o ? { x: o.x + (p.x - o.x) * 0.4, y: o.y + (p.y - o.y) * 0.4 } : { x: p.x, y: p.y });
+  // ---------- Commandes : pas de côté (changer de lieu), bras levés (y aller)
+  defaultHover(from = null) { // le prochain cours / la prochaine étape, sinon le lieu d'où l'on vient, sinon le premier ouvert
+    const L = this.navList();
+    return L.find((d) => d.next) || (from && from.open && L.includes(from) ? from : null) || L.find((d) => d.kind === 'world' || d.kind === 'stage') || L[0] || null;
+  }
+  navList() { // lieux ouverts, de gauche à droite à l'écran (vue d'ensemble), puis de haut en bas
+    const key = (d) => { const q = new this.S.T.Vector3(...['x', 'y', 'z'].map((k) => this.spotOf(d, false)[k])).project(this.navCam); return [q.x, -q.y]; };
+    return this.places.filter((d) => d.open).map((d) => ({ d, k: key(d) })).sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1]).map((o) => o.d);
+  }
+  move(dir) {
+    const L = this.navList(); if (!L.length) return;
+    const i = L.indexOf(this.hover);
+    this.hover = L[i < 0 ? 0 : (i + dir + L.length) % L.length]; this.charge = 0; this.hoverT = performance.now();
+    Audio8.sparkle(0.5);
+  }
+  sideNow() { for (const b of tracker.bodies) if (b.state.present || tracker.sim) return b.state.side || 'center'; return 'center'; }
+  armsUp() { return tracker.bodies.some((b) => (b.state.present || tracker.sim) && b.state.armsUp); }
+  armUp() { // un bras levé suffit (sort lancé à la créature du chemin)
+    return tracker.bodies.some((b) => {
+      if (tracker.sim) return b.state.armsUp;
+      if (!b.lm || !b.state.present) return false;
+      const ny = b.lm[0].y; return b.state.armsUp || b.lm[15].y < ny || b.lm[16].y < ny;
+    });
   }
   screenOfObj(v, dy = 0) {
     const T = this.S.T, q = new T.Vector3(v.x, v.y + dy, v.z).project(this.cam);
     return { x: (q.x + 1) / 2, y: (1 - q.y) / 2, behind: q.z > 1 };
   }
   screenOf(d) { return this.screenOfObj(this.spotOf(d, false)); }
-  // Point visé avec la baguette (lab = false) ou point d'accroche du panneau (lab = true) d'un lieu
+  // Point du lieu (anneau, rayon : lab = false) ou point d'accroche de son panneau (lab = true)
   spotOf(d, lab) {
     const b = this.buildings[d.id], h = b ? b.h : 5;
     if (d.id === 'ecole') return lab ? { x: 0, y: 9.5, z: -16 } : { x: 0, y: 4.5, z: -18 }; // (donjon : au-dessus de la grande porte)
@@ -570,13 +589,6 @@ class AcademyHub {
     if (d.side && d.kind === 'world') return lab ? { x: d.pos.x - d.dir.x * 1.2, y: h + 1.6, z: d.pos.z - d.dir.z * 1.2 } : { x: d.pos.x - d.dir.x * 2.5, y: 3.6, z: d.pos.z - d.dir.z * 2.5 };
     if (d.kind === 'academy') return lab ? { x: d.pos.x, y: 3.2, z: d.pos.z + 1.5 } : { x: d.pos.x, y: h * 0.55, z: d.pos.z }; // (portail du retour, tout près de la caméra : panneau bas)
     return { x: d.pos.x, y: lab ? h + 2.4 : h * 0.55, z: d.pos.z };
-  }
-
-  // Énergie du joueur (course sur place) : 0..1
-  energy() {
-    if (tracker.sim) return typeof DEV !== 'undefined' && DEV.get('hubslow') ? 0 : typeof DEV !== 'undefined' && DEV.get('hubauto') ? 1 : (this.keyRun || 0) > performance.now() ? 1 : 0.35;
-    const m = Math.max(0, ...tracker.bodies.map((b) => (b.state.present ? b.motion || 0 : 0)));
-    return Math.max(0, Math.min(1, (m - 0.015) / 0.05));
   }
 
   choose(d, now) {
@@ -588,13 +600,13 @@ class AcademyHub {
     this.route = route.filter((q, i) => !i || Math.hypot(q.x - route[i - 1].x, q.z - route[i - 1].z) > 0.01);
     this.seg = 0; this.walked = 0;
     this.blockAt = (typeof DEV !== 'undefined' && DEV.get('hubblock')) || (this.trips > 1 && Math.random() < 0.45) ? 0.55 : null; // (une créature ensorcelée sur le chemin, une fois sur deux à peu près)
-    Audio8.spell(); this.S.burst(this.ptr ? this.ptr.x * this.S.W : this.S.W / 2, this.ptr ? this.ptr.y * this.S.H : this.S.H / 2, 30, ['#ffd166', '#ff70a6', '#ffffff', '#c77dff']);
+    { const q = this.screenOf(d); Audio8.spell(); this.S.burst(q.x * this.S.W, q.y * this.S.H, 30, ['#ffd166', '#ff70a6', '#ffffff', '#c77dff']); }
     Audio8.say(d.kind === 'world' || d.kind === 'stage' ? HUB_SAY.go : HUB_SAY.travel);
     this.hint(this.goHint());
   }
   goHint() {
     const d = this.target;
-    return '🏃 Cours sur place pour aller ' + ({ world: () => 'à : ' + d.w.name, stage: () => `à l'étape ${d.k + 1}`, portal: () => 'au portail des aventures',
+    return '✨ En route ' + ({ world: () => 'à : ' + d.w.name, stage: () => `à l'étape ${d.k + 1}`, portal: () => 'au portail des aventures',
       academy: () => "à l'Académie", country: () => 'vers : ' + d.w.name }[d.kind] || (() => ''))() + ' !';
   }
 
@@ -602,25 +614,28 @@ class AcademyHub {
   update(now) {
     if (!this.scene || !this.places) return;
     const dt = Math.min(0.1, Math.max(0, (now - (this.lastT || now)) / 1000)); this.lastT = now;
-    const p = this.pointer(), W = this.S.W, H = this.S.H, A = W / Math.max(1, H);
+    const W = this.S.W, H = this.S.H, auto = typeof DEV !== 'undefined' && DEV.get('hubauto');
     if (this.mode === 'choose') {
-      let best = null, bd = 0.13;
-      if (p) for (const d of this.places) { const s = this.screenOf(d); const dd = Math.hypot((s.x - p.x) * A, s.y - p.y); if (dd < bd) { bd = dd; best = d; } }
-      if (this.keyPick != null) best = this.places[this.keyPick] || null;
-      if (best !== this.hover) { this.hover = best; this.charge = 0; }
-      if (best) {
-        this.charge = Math.min(1, this.charge + dt / (tracker.bodies.some((b) => b.easy) ? 0.9 : 1.2));
+      if (!this.hover || !this.hover.open) this.hover = this.defaultHover();
+      // (un pas de côté : le lieu voisin ; on revient au milieu pour recommencer, ou on reste sur le côté : ça continue)
+      const side = this.sideNow();
+      if (side !== this.sideWas) {
+        this.sideWas = side; this.sideT = now;
+        if (side !== 'center') { this.move(side === 'left' ? -1 : 1); if (this.autoGo) { this.autoGo = null; this.hint('🙌 Bras levés : on y va · 👣 Pas de côté : changer'); } } // (on choisit soi-même)
+      }
+      else if (side !== 'center' && now - this.sideT > 1300) { this.sideT = now; this.move(side === 'left' ? -1 : 1); }
+      const up = this.armsUp() || (auto && now - this.t0 > 1500);
+      if (up && this.hover) {
+        this.charge = Math.min(1, this.charge + dt / (tracker.bodies.some((b) => b.easy) ? 0.6 : 0.8));
         if (now - (this.hum || 0) > 200) { this.hum = now; Audio8.sparkle(this.charge); }
-        if (this.charge >= 1 || this.keyGo) { this.keyGo = false; this.choose(best, now); }
-      } else this.charge = Math.max(0, this.charge - dt);
-      // (pas de bras levé depuis un moment : la voix rappelle comment faire)
-      if (p) this.noPtr = 0; else if ((this.noPtr = (this.noPtr || 0) + dt) > 10) { this.noPtr = 0; this.say('aim', 20000); }
+      } else if (this.autoGo && this.hover === this.autoGo && now > this.autoT) this.charge = Math.min(1, this.charge + dt / this.autoDur); // (départ tout seul)
+      else this.charge = Math.max(0, this.charge - dt * 1.5);
+      if (this.hover && (this.charge >= 1 || this.keyGo)) { this.keyGo = false; this.choose(this.hover, now); }
+      // (rien ne se passe depuis un moment : la voix rappelle comment faire)
+      if (up || side !== 'center' || this.autoGo) this.idle = 0; else if ((this.idle += dt) > 12) { this.idle = 0; this.say('aim', 20000); }
     } else if (this.mode === 'walk') {
-      const e = this.energy();
-      this.moveK += (e - this.moveK) * Math.min(1, dt * 3);
-      const speed = 1.3 + 4.5 * this.moveK;
-      if (e < 0.15) { this.slowT += dt; if (this.slowT > 3) { this.say('faster', 12000); this.slowT = 0; } } else this.slowT = 0;
-      let step = speed * dt;
+      this.moveK = Math.min(1, this.moveK + dt * 2.5); // (le petit sorcier y va tout seul : il accélère, puis file)
+      let step = (2 + 8 * this.moveK) * dt;
       while (step > 0 && this.seg < this.route.length - 1) {
         const a = this.route[this.seg], b = this.route[this.seg + 1], L = Math.hypot(b.x - a.x, b.z - a.z) || 0.001;
         const done = Math.hypot(this.pos.x - a.x, this.pos.z - a.z), left = L - done;
@@ -634,9 +649,9 @@ class AcademyHub {
       if (this.seg >= this.route.length - 1) { this.at = this.target; this.mode = 'enter'; this.enterT = now; Audio8.say(HUB_SAY.enter); Audio8.perfect(); }
     } else if (this.mode === 'block') {
       const bk = this.block, s = this.screenOfObj(bk.c.group.position, 0.8);
-      bk.aimed = !!p && Math.hypot((s.x - p.x) * A, s.y - p.y) < 0.14;
+      bk.aimed = this.armUp() || (!!auto && auto !== '2'); // (hubauto=2 : ne lance pas le sort)
       if (bk.aimed || (tracker.sim && (this.keyGo || now - bk.t0 > 2500))) {
-        bk.charge = Math.min(1, bk.charge + dt / 1.2); this.keyGo = false;
+        bk.charge = Math.min(1, bk.charge + dt / 0.9); this.keyGo = false;
         if (now - (this.hum || 0) > 200) { this.hum = now; Audio8.sparkle(bk.charge); }
       } else bk.charge = Math.max(0, bk.charge - dt / 2.5);
       if (bk.charge >= 1 || (tracker.sim && now - bk.t0 > 2500)) {
@@ -653,12 +668,12 @@ class AcademyHub {
     const pool = creaturesOf('meadow'), cr = pool[Math.floor(Math.random() * pool.length)] || CREATURES[0];
     let c; try { c = buildCreature3D(this.S, cr, false); } catch (e) { return; }
     const fw = { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
-    c.group.position.set(this.pos.x + fw.x * 3, 0, this.pos.z + fw.z * 3);
+    c.group.scale.multiplyScalar(1.3); c.group.position.set(this.pos.x + fw.x * 4.5, 0, this.pos.z + fw.z * 4.5);
     c.group.rotation.y = this.yaw + Math.PI;
     this.scene.add(c.group);
     this.block = { c, cr, t0: performance.now(), charge: 0, free: 0 };
     this.mode = 'block'; Audio8.cry(cr.id); this.say('block', 0);
-    this.hint('🪄 Vise la créature avec ta baguette pour la libérer !');
+    this.hint('🪄 Lève le bras pour lancer un sort à la créature !');
   }
 
   // ---------- Dessin
@@ -671,7 +686,7 @@ class AcademyHub {
     const h = this.hero, fake = { lane: 0, y: 0, holdPose: null };
     const pose = this.mode === 'walk' ? 'run' : this.mode === 'enter' ? 'happy' : 'idle';
     if (h.human) { const save = S.heroY3; S.heroY3 = () => 0; try { S.applyHumanPose(fake, h, pose, now); } finally { S.heroY3 = save; } }
-    if (h.human && h.human.cur && pose === 'run') h.human.cur.timeScale = this.mode === 'walk' ? 0.55 + this.moveK * 0.8 : 1;
+    if (h.human && h.human.cur && pose === 'run') h.human.cur.timeScale = this.mode === 'walk' ? 0.8 + this.moveK * 0.9 : 1;
     const fade = this.mode === 'enter' || this.mode === 'gone' ? Math.max(0, 1 - (now - this.enterT) / 1100) : 1;
     let px = this.pos.x, pz = this.pos.z;
     if (this.mode === 'enter' || this.mode === 'gone') { const d = this.target, k = 1 - fade; px = d.door.x + d.dir.x * 2.2 * k; pz = d.door.z + d.dir.z * 2.2 * k; }
@@ -704,8 +719,11 @@ class AcademyHub {
     // Caméra : vue d'ensemble pour choisir ; derrière le petit sorcier quand il marche
     const follow = this.mode !== 'choose';
     const fw = { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
-    const wantP = follow ? new T.Vector3(px - fw.x * 8, 4.6, pz - fw.z * 8) : this.overview[0];
-    const wantL = follow ? new T.Vector3(px + fw.x * 5, 1.5, pz + fw.z * 5) : this.overview[1];
+    // (plus haut que le petit sorcier, pour voir devant lui ; face à une créature : encore plus haut, cadrée sur elle)
+    const bk = this.block && !this.block.free ? this.block.c.group.position : null;
+    let wantP = follow ? new T.Vector3(px - fw.x * (bk ? 5 : 7), bk ? 8.5 : 6.5, pz - fw.z * (bk ? 5 : 7)) : this.overview[0];
+    const wantL = !follow ? this.overview[1] : bk ? new T.Vector3(bk.x, 1, bk.z) : new T.Vector3(px + fw.x * 6, 1, pz + fw.z * 6);
+    if (follow && this.kind === 'academy') wantP = new T.Vector3(Math.max(-15, Math.min(15, wantP.x)), wantP.y, Math.max(-14.5, Math.min(30, wantP.z))); // (jamais dans un rempart ou une tour)
     const k = Math.min(1, dt * (follow ? 2.4 : 1.6));
     this.camPos.lerp(wantP, k); this.camLook.lerp(wantL, k);
     this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
@@ -738,7 +756,14 @@ class AcademyHub {
         for (const [lw, al] of [[M * 0.03, 0.25], [M * 0.012, 0.7]]) { ctx.strokeStyle = '#ffd166'; ctx.globalAlpha = al; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, r, 0, 6.29); ctx.stroke(); }
         ctx.restore();
       }
-      if (this.hover) { const s = this.screenOf(this.hover); ring(s.x * W, s.y * H, M * 0.085, this.charge, this.hover.open ? '#ffd166' : '#adb5bd'); }
+      if (this.hover) { // le lieu choisi : grand anneau qui se remplit (bras levés), petits pas de chaque côté
+        const s = this.screenOf(this.hover), pop = Math.max(0, 1 - (now - (this.hoverT || 0)) / 300), r = M * (0.085 + pop * 0.03);
+        ctx.fillStyle = 'rgba(255,209,102,.18)'; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, r, 0, 6.29); ctx.fill();
+        ring(s.x * W, s.y * H, r, this.charge);
+        ctx.fillStyle = '#ffffff'; ctx.font = `${M * 0.045}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('👣', s.x * W - r - M * 0.04, s.y * H); ctx.fillText('👣', s.x * W + r + M * 0.04, s.y * H);
+        if (this.charge === 0) { ctx.font = `${M * 0.05 * (1 + 0.1 * Math.sin(now / 180))}px serif`; ctx.fillText('🙌', s.x * W, s.y * H + r + M * 0.04); }
+      }
     }
     if (this.guardian && !this.guardian.friend) { // le gardien du pays est encore ensorcelé : petit nuage d'orage
       const v = this.guardian.c.group.getWorldPosition(new S.T.Vector3()), s0 = this.screenOfObj(v, 3.3), cs = M * 0.04;
@@ -753,28 +778,21 @@ class AcademyHub {
       ctx.fill(); ctx.stroke();
       const c = this.screenOfObj(this.block.c.group.position, 0.8); if (this.block.charge > 0) ring(c.x * W, c.y * H, M * 0.08, this.block.charge);
     }
-    // Baguette du petit sorcier -> pointeur (rayon ondulé, plus fort quand il vise quelque chose)
-    const p = this.ptr;
-    if (p && (this.mode === 'choose' || this.mode === 'block') && fade > 0.5) {
+    // Baguette du petit sorcier -> le lieu choisi (pendant que l'anneau se remplit) ou la créature (sort lancé)
+    const tgt = this.mode === 'choose' && this.hover && this.charge > 0 ? this.screenOf(this.hover)
+      : this.mode === 'block' && this.block && this.block.aimed && !this.block.free ? this.screenOfObj(this.block.c.group.position, 0.8) : null;
+    if (tgt && fade > 0.5) {
       const tipObj = this.hero.wandTip, v = tipObj ? tipObj.getWorldPosition(new S.T.Vector3()) : this.hero.group.position;
-      const o = this.screenOfObj(v, tipObj ? 0 : 1.4), ox = o.x * W, oy = o.y * H, tx = p.x * W, ty = p.y * H;
-      const on = this.mode === 'choose' ? !!this.hover : !!(this.block && this.block.aimed);
+      const o = this.screenOfObj(v, tipObj ? 0 : 1.4), ox = o.x * W, oy = o.y * H, tx = tgt.x * W, ty = tgt.y * H;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
       const d = Math.hypot(tx - ox, ty - oy) || 1, nx = -(ty - oy) / d, ny = (tx - ox) / d;
-      for (const [lw, al] of on ? [[M * 0.04, 0.25], [M * 0.016, 0.6], [M * 0.006, 1]] : [[M * 0.01, 0.25], [M * 0.004, 0.6]]) {
+      for (const [lw, al] of [[M * 0.04, 0.25], [M * 0.016, 0.6], [M * 0.006, 1]]) {
         ctx.strokeStyle = '#ffd166'; ctx.globalAlpha = al; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(ox, oy);
-        for (let j = 1; j <= 16; j++) { const q = j / 16, wv = Math.sin(q * 12 - now * 0.02) * M * (on ? 0.01 : 0.005) * Math.sin(q * Math.PI); ctx.lineTo(ox + (tx - ox) * q + nx * wv, oy + (ty - oy) * q + ny * wv); }
+        for (let j = 1; j <= 16; j++) { const q = j / 16, wv = Math.sin(q * 12 - now * 0.02) * M * 0.01 * Math.sin(q * Math.PI); ctx.lineTo(ox + (tx - ox) * q + nx * wv, oy + (ty - oy) * q + ny * wv); }
         ctx.stroke();
       }
       ctx.restore();
-      ctx.save(); ctx.translate(tx, ty); ctx.rotate(now / 400); ctx.font = `${M * (on ? 0.065 : 0.05)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✨', 0, 0); ctx.restore();
-    }
-    // Course sur place : jauge d'énergie (plus elle est pleine, plus le petit sorcier va vite)
-    if (this.mode === 'walk') {
-      const bw = M * 0.32, bx = W / 2 - bw / 2, by = H - M * 0.12;
-      ctx.fillStyle = 'rgba(15,12,50,.55)'; ctx.beginPath(); ctx.roundRect(bx - 8, by - 8, bw + 16, M * 0.05 + 16, 20); ctx.fill();
-      ctx.fillStyle = '#06d6a0'; ctx.beginPath(); ctx.roundRect(bx, by, Math.max(8, bw * this.moveK), M * 0.05, 14); ctx.fill();
-      ctx.font = `${M * 0.045}px serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('🏃', bx - 14, by + M * 0.025);
+      ctx.save(); ctx.translate(tx, ty); ctx.rotate(now / 400); ctx.font = `${M * 0.065}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✨', 0, 0); ctx.restore();
     }
     S.drawFx(dt);
   }

@@ -46,8 +46,8 @@
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
                                     <field name="move"/>
-                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash', 'bubbles', 'rope', 'moles', 'slice', 'cubes', 'ball', 'foam')"/>
-                                    <field name="duration" invisible="move not in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles', 'slice', 'foam')"/>
+                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash', 'bubbles', 'rope', 'moles', 'slice', 'cubes', 'ball', 'foam', 'wand', 'goal', 'basket', 'kick', 'act_grow', 'act_clap', 'act_swim', 'act_launch', 'act_stomp', 'act_animals')"/>
+                                    <field name="duration" invisible="move not in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles', 'slice', 'foam', 'wand')"/>
                                     <field name="pose" invisible="move != 'pose'"/>
                                     <field name="hold" invisible="move not in ('pose', 'posemix', 'boss', 'dance', 'karate', 'cubes')"/>
                                     <field name="combo" invisible="move not in ('combo', 'posemix', 'boss', 'dance', 'karate')" placeholder="jump,squat,smash  —  poses : armsUp,star,airplane  —  danse / karaté : armsUp,squat,left,right,jump,smash"/>

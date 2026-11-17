@@ -35,7 +35,7 @@ const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tom
 const FOAM_COLS = ['#ffffff', '#ffe3f6', '#e3f6ff', '#ffffff', '#ecffe3'];
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['learn', 'foam', 'wand', 'goal', 'basket', 'kick', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['act', 'learn', 'foam', 'wand', 'goal', 'basket', 'kick', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -491,6 +491,7 @@ async function startWorld(w) {
   const ok = WUQStore.canStart();
   if (ok !== true) { if (typeof ok === 'string') alert(ok); return; }
   world = w;
+  const chain = fromHub; // (on vient déjà du château ou d'un cours lancé depuis le château)
   if (w.hub) fromHub = true;
   show('hubHud', false);
   if (store('fullscreen') !== false && !document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -558,7 +559,7 @@ async function startWorld(w) {
     show('loading', false);
   }
   // Déjà calibré (on vient du parc, ou on y retourne) : pas besoin de recommencer « Mets-toi bien »
-  if (tracker.calibrated && (w.hub || fromHub)) { tracker.calibrate(); afterCalib(); return; }
+  if (tracker.calibrated && chain) { if (tracker.state.upperBody) tracker.calibrate(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
   startCalib();
 }
 
@@ -680,10 +681,8 @@ function holdCalib(now) {
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); afterCalib(); }
-  if (phase === 'hub') { // (mode clavier dans le parc : ← → choisir, Entrée valider, Espace courir, Échap sortir)
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { const n = hub.places ? hub.places.length : 1; hub.keyPick = ((hub.keyPick ?? -1) + (e.key === 'ArrowLeft' ? n - 1 : 1)) % n; }
+  if (phase === 'hub') { // (mode clavier au château : ← → = pas de côté (changer), 1 = bras levés ou Entrée (y aller), Échap sortir)
     if (e.key === 'Enter') hub.keyGo = true;
-    if (e.key === ' ') hub.keyRun = performance.now() + 700;
     if (e.key === 'Escape') goMenu();
   }
   if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
@@ -797,7 +796,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
+  const special = ['act', 'bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -854,6 +853,7 @@ class Game {
       for (const b of c.shots || []) { b.born += d; b.arrive += d; if (b.t) b.t += d; }
       if (c.ball) { c.ball.t0 += d; } if (c.kickAt) c.kickAt += d;
       if (c.lastFoe) c.lastFoe += d;
+      if (c.act) { c.act.t += d; c.act.pop += d; c.act.subPop += d; if (c.act.shake) c.act.shake += d; }
     }
     if (this.gapUntil) this.gapUntil += d;
     this.pausedTotal += d;
@@ -1003,6 +1003,8 @@ class Game {
         ui.setDetail(this.detail(c));
         if (teamOk(c.parts.map((n) => n >= s.parts.length))) { this.add(200, 'COMBO +200'); this.complete(now); }
       }
+    } else if (s.m === 'act') {
+      if (c.act) c.act.ev.push(type); // (traité dans updateAct)
     } else if (s.m === 'kick' && /^(kick|throw)[LR]$/.test(type)) {
       c.kickEv = { side: type.endsWith('L') ? -1 : 1, hand: type.startsWith('throw'), idx, t: now }; // (traité dans updateKick)
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
@@ -1026,6 +1028,7 @@ class Game {
       case 'goal': return `<div class="runCount">🧤 <b>${c.saved || 0}</b> / ${s.n}</div>`;
       case 'basket': return `<div class="runCount">🏀 <b>${c.baskets || 0}</b> / ${s.n}</div>`;
       case 'kick': return `<div class="runCount">⚽ <b>${c.goals || 0}</b> / ${s.n}</div>`;
+      case 'act': { const a = c.act, per = ACTS[s.game].per || 1; return `<div class="runCount">${ACTS[s.game].icon} <b>${a ? a.reps : 0}</b> / ${s.n}</div>` + (per > 1 && a ? dots(a.sub, per) : ''); }
       case 'wand': return `<div class="runCount">🪄 <b>${c.calmed || 0}</b> / ${s.n}</div>`;
       case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
@@ -1055,7 +1058,7 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand', 'basket', 'kick'].includes(s.m);
+    scene.closeUp = live && !['act', 'cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand', 'basket', 'kick'].includes(s.m); // (jeux sur place : plan large, le décor du jeu tout autour)
     // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
     scene.hideHero = !!s && (s.m === 'slice' || s.m === 'foam'); // (fruits, mousse : on voit tout l'écran)
     if (scene.hideHero) scene.mirror = false;
@@ -1563,11 +1566,15 @@ class Game {
     c.ptr.forEach((p, i) => {
       if (!p) return;
       p.hit = null;
-      let best = null, bd = R;
+      // (aimantée : la créature dans la DIRECTION du bras, vue depuis le petit sorcier, même si le point n'est pas
+      // exactement dessus ; sinon la plus proche du point. La visée au millimètre est trop dure pour les petits)
+      let best = null, bd = R, ba = easy ? 0.75 : 0.6;
+      const ox = 0.5, oy = 0.78, pa = Math.atan2(p.y - oy, (p.x - ox) * A);
       for (const f of c.foes) {
         if (f.state !== 'grumpy' || now - f.born < 500) continue;
         const d = Math.hypot((p.x - f.x) * A, p.y - f.y);
-        if (d < bd) { bd = d; best = f; }
+        const da = Math.abs(Math.atan2(Math.sin(Math.atan2(f.y - oy, (f.x - ox) * A) - pa), Math.cos(Math.atan2(f.y - oy, (f.x - ox) * A) - pa)));
+        if (d < bd) { bd = d; best = f; ba = -1; } else if (ba >= 0 && da < ba) { ba = da; best = f; }
       }
       if (best) { p.hit = best; best.aimed = true; best.charge = Math.min(1, best.charge + dt / fill); }
     });
@@ -1586,7 +1593,7 @@ class Game {
       }
     }
     c.foes = c.foes.filter((f) => f.state === 'grumpy' || now - f.t < 1500);
-    scene.wand = { foes: c.foes, ptrs: c.ptr };
+    scene.wand = { foes: c.foes, ptrs: c.ptr.map((p) => (p && p.hit ? { ...p, x: p.hit.x, y: p.hit.y } : p)) }; // (le rayon file droit sur la créature visée)
   }
 
 
@@ -1893,6 +1900,72 @@ class Game {
     this.complete(now);
   }
 
+  // ---------- Jeux sur place (un par pays : fleurs, pingouins, dauphins, fusée, œufs de dino, animaux). On ne court
+  // pas : le petit sorcier imite l'enfant, le décor du jeu se dessine autour de lui (depth.js : drawAct). Les gestes
+  // viennent de la détection habituelle (accroupi, saut, genou levé, mains jointes, bras levés, poses)
+  updateAct(c, now, dt) {
+    const s = c.s, G = ACTS[s.game], st = tracker.state, per = G.per || 1;
+    const auto = tracker.sim && (DEV.get('fakelimbs') || DEV.get('sportauto')); // (mode test : un enfant imaginaire fait les gestes)
+    if (!c.act) {
+      c.act = { reps: 0, sub: 0, phase: 0, hold: 0, t: now, pop: 0, subPop: 0, shake: 0, ev: [], tog: false, last: null,
+        seq: s.game === 'animals' ? animalSeq(s.n, tracker.mode === 'upper') : null };
+      scene.act = { game: s.game, a: c.act, n: s.n, per };
+      if (c.act.seq) setTimeout(() => { if (this.cur === c && !c.done) Audio8.say(c.act.seq[0].say); }, 4200);
+    }
+    const a = c.act, evs = a.ev.splice(0), has = (...k) => evs.some((e) => k.includes(e));
+    if (a.reps >= s.n) return; // (mode test « hold » : l'épreuve finie reste affichée)
+    const fake = auto && now - a.t > (s.game === 'swim' ? 700 : 1300);
+    const rep = () => { // une réussite : une fleur, un pingouin réchauffé, une fusée partie, un œuf éclos…
+      a.reps++; a.pop = now; a.sub = 0; a.phase = 0; a.hold = 0; a.t = now;
+      this.add(this.pts(G.pts), '+' + this.pts(G.pts)); scene.flash(0, true); Audio8.good();
+      ui.setDetail(this.detail(c));
+      if (a.reps >= s.n) { this.add(100, 'BRAVO +100'); this.complete(now); return; }
+      if (a.seq) Audio8.say(a.seq[a.reps].say); else if (G.cheer.length) Audio8.say(pick(G.cheer));
+    };
+    const tick = () => { a.sub++; a.t = now; a.subPop = now; if (a.sub >= per) rep(); else { Audio8.soft(); ui.setDetail(this.detail(c)); } };
+    switch (s.game) {
+      case 'grow': // se baisser (planter la graine), puis lever les bras (la fleur pousse)
+        if (a.phase === 0) { if (st.squat || has('squat') || fake) { a.phase = 1; a.t = now; a.subPop = now; Audio8.soft(); } }
+        else { a.hold = st.armsUp || (auto && now - a.t > 700) ? a.hold + dt : Math.max(0, a.hold - dt * 0.5); if (a.hold > 450) rep(); }
+        scene.setCue({ icon: a.phase ? '🙌' : '⬇️', k: 1, now: true });
+        break;
+      case 'clap': { // taper dans les mains : les mains se rejoignent devant soi
+        const tog = !!st.handsTogether;
+        if ((tog && !a.tog && now - a.t > 220) || fake) tick();
+        a.tog = tog; scene.setCue({ icon: '👏', k: 1, now: true });
+        break;
+      }
+      case 'swim': { // un bras en haut, puis l'autre (comme un nageur)
+        let side = null;
+        const b = tracker.bodies[0];
+        if (b && b.lm && b.state.present) { const ny = b.lm[0].y, up = (i) => b.lm[i].y < ny; if (up(15) && !up(16)) side = 'L'; else if (up(16) && !up(15)) side = 'R'; }
+        const e = evs.find((x) => /^(kick|throw)[LR]$/.test(x)); if (e) side = e.slice(-1); // (mode clavier : G / D)
+        if (fake) side = a.last === 'L' ? 'R' : 'L';
+        if (side && side !== a.last && now - a.t > 250) { a.last = side; tick(); }
+        scene.setCue({ icon: '🏊', k: 1, now: true });
+        break;
+      }
+      case 'launch': // rester baissé (le carburant se remplit), puis sauter : décollage !
+        if (a.phase === 0) {
+          a.hold = st.squat || (auto && now - a.t > 500) ? a.hold + dt : Math.max(0, a.hold - dt * 0.3);
+          if (a.hold >= 1300) { a.phase = 1; a.t = now; Audio8.say('Saute !'); }
+        } else if (has('jump') || (auto && now - a.t > 700)) rep();
+        scene.setCue({ icon: a.phase ? '⬆️' : '⬇️', k: a.phase ? 1 : Math.min(1, a.hold / 1300), now: a.phase === 1 });
+        break;
+      case 'stomp': // lever les genoux (ou petits sauts quand on ne voit pas les jambes) : boum !
+        if ((has('kickL', 'kickR', 'jump') && now - a.t > 200) || fake) { a.shake = now; tick(); }
+        scene.setCue({ icon: '🦶', k: 1, now: true });
+        break;
+      case 'animals': { // la carte de l'animal : un geste (saut, frappe) ou une pose à tenir un moment
+        const an = a.seq[a.reps];
+        if (an.need === 'jump' || an.need === 'smash') { if (has(an.need) || fake) rep(); }
+        else { a.hold = st[an.need] || (auto && now - a.t > 900) ? a.hold + dt : Math.max(0, a.hold - dt * 0.5); if (a.hold >= 800) rep(); }
+        if (!c.done) scene.setCue({ icon: a.seq[Math.min(a.reps, s.n - 1)].icon, k: 1, now: true });
+        break;
+      }
+    }
+  }
+
   complete(now) {
     const c = this.cur;
     if (DEV.get('hold')) { c.end = now + 60000; return; } // (mode test) l'épreuve reste affichée
@@ -1980,11 +2053,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
+    } else if (['act', 'catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
         posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
-        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
+        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, act: () => (c.act ? c.act.reps + c.act.sub / (ACTS[s.game].per || 1) : 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -2048,6 +2121,7 @@ class Game {
     if (s.m === 'goal') { this.updateGoal(c, now); if (c.done) return; }
     if (s.m === 'basket') { this.updateBasket(c, now); if (c.done) return; }
     if (s.m === 'kick') { this.updateKick(c, now); if (c.done) return; }
+    if (s.m === 'act') { this.updateAct(c, now, dt); if (c.done) return; }
     if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
     if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
@@ -2209,13 +2283,13 @@ function celebrate() {
 let resultsAt = 0, againHold = 0, againSaid = false;
 function updateResults(now) {
   if (now - resultsAt < 4000 || now < (resultsCeremonyEnd || 0)) return; // on laisse le temps de fêter (les bras en l'air !)
-  if (!againSaid) { againSaid = true; Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
+  if (!againSaid) { againSaid = true; Audio8.say(fromHub ? (duo() ? 'Levez les bras pour continuer !' : 'Lève les bras pour continuer !') : duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
   const s = tracker.state;
   if (s.present && s.armsUp) {
     if (!againHold) againHold = now;
     const p = Math.min(1, (now - againHold) / 2000);
     $('againBar').style.width = p * 100 + '%';
-    if (p >= 1) $('againBtn').click();
+    if (p >= 1) $(fromHub ? 'menuBtn' : 'againBtn').click(); // (venu du château ou d'un village : bras levés = on continue l'aventure)
   } else { againHold = 0; $('againBar').style.width = '0%'; }
 }
 
@@ -2319,6 +2393,11 @@ function showResults(g, stars) {
   $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
   Audio8.win();
+  // Venu du château ou d'un village : le gros bouton (et les bras levés) CONTINUE l'aventure ; « Encore » passe en petit
+  { const vil = !!(hubWorld && hubWorld.village);
+    $('menuBtn').textContent = fromHub ? (vil ? '🌀 On continue !' : '🏰 Au château !') : '🏠';
+    $('menuBtn').classList.toggle('ghost', !fromHub); $('againBtn').classList.toggle('ghost', fromHub);
+    $('againHint').textContent = fromHub ? '🙌 Lève les bras pour continuer' : '🙌 Lève les bras pour rejouer'; }
   resultsCeremony();
   const names = team.map((p) => p.name).filter(Boolean);
   const bravo = names.length ? `Bravo ${names.join(' et ')} !` : 'Bravo !';
@@ -2327,7 +2406,7 @@ function showResults(g, stars) {
   const endMsg = Voice.pickMessage('end', team);
   if (endMsg) {
     againSaid = true; // (« Lève les bras pour rejouer » vient après le message)
-    setTimeout(() => { if (phase === 'results') Voice.sayMessage(endMsg, () => setTimeout(() => { if (phase === 'results') Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }, 800)); }, 6500);
+    setTimeout(() => { if (phase === 'results') Voice.sayMessage(endMsg, () => setTimeout(() => { if (phase === 'results') Audio8.say(fromHub ? (duo() ? 'Levez les bras pour continuer !' : 'Lève les bras pour continuer !') : duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }, 800)); }, 6500);
   }
   scene.targetSpeed = 0.2;
   scene.obs = null;

@@ -310,6 +310,16 @@ true
 true
 ],
 [
+"Levez les bras pour continuer !",
+"jeu",
+false
+],
+[
+"Lève les bras pour continuer !",
+"jeu",
+false
+],
+[
 "Levez les bras pour rejouer !",
 "jeu",
 false
@@ -425,12 +435,17 @@ true
 true
 ],
 [
-"back",
+"village",
 "jeu",
 false
 ],
 [
-"village",
+"villageBack",
+"jeu",
+false
+],
+[
+"back",
 "jeu",
 false
 ],
@@ -475,11 +490,6 @@ false
 false
 ],
 [
-"faster",
-"jeu",
-false
-],
-[
 "freed",
 "jeu",
 false
@@ -490,17 +500,7 @@ false
 false
 ],
 [
-"Bienvenue au château de l'Académie ! Lève le bras et vise une tour avec ta baguette pour choisir ton cours.",
-"jeu",
-false
-],
-[
-"C'est parti ! Cours sur place pour y aller !",
-"jeu",
-false
-],
-[
-"Cours sur place, ton petit sorcier ira plus vite !",
+"Bienvenue au château de l'Académie ! Lève les deux bras pour aller au cours qui brille. Pour en choisir un autre, fais un pas de côté !",
 "jeu",
 false
 ],
@@ -515,7 +515,7 @@ false
 false
 ],
 [
-"Oh ! Une créature ensorcelée bloque le chemin ! Vise-la avec ta baguette !",
+"Oh ! Une créature ensorcelée bloque le chemin ! Lève le bras pour lui lancer un sort !",
 "jeu",
 false
 ],
@@ -530,9 +530,14 @@ true
 false
 ],
 [
-"Bienvenue au village ! L'Étoile de ce pays est cachée par ici. Vise une étape avec ta baguette pour partir à sa recherche !",
+"Bienvenue au village ! L'Étoile de ce pays est cachée par ici. En route pour l'étape qui brille !",
 "jeu",
 false
+],
+[
+"Bravo ! On continue l'aventure… Fais un pas de côté si tu veux choisir autre chose !",
+"bravo",
+true
 ],
 [
 "Cette étape s'ouvrira quand tu auras réussi celle d'avant !",
@@ -550,12 +555,12 @@ false
 false
 ],
 [
-"Bravo ! Avec ta baguette, choisis où tu veux aller maintenant !",
+"Bravo ! Lève les deux bras pour aller au suivant, ou fais un pas de côté pour choisir !",
 "bravo",
 true
 ],
 [
-"Lève bien ton bras, comme une baguette magique, et montre une tour !",
+"Fais un grand pas de côté pour changer, et lève les deux bras pour y aller !",
 "jeu",
 false
 ],

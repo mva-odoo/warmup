@@ -321,11 +321,11 @@ class DepthScene {
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
-    this.wand = null; this.sport = null; this.sportT = {}; this.sportCr = null;
+    this.wand = null; this.sport = null; this.sportT = {}; this.sportCr = null; this.act = null; this.actSeen = 0;
     this.foam = []; this.foamOn = false; this.squeegees = []; this.turnHero = null; this.foamDrips = []; this.foamFade = false; this.fork = null;
     if (this.foamCx) this.foamCx.clearRect(0, 0, this.foamCv.width, this.foamCv.height);
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' || s.m === 'wand' ? 0.35 : s.m === 'goal' || s.m === 'basket' || s.m === 'kick' ? 0 : 1;
+    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' || s.m === 'wand' ? 0.35 : s.m === 'goal' || s.m === 'basket' || s.m === 'kick' || s.m === 'act' ? 0 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -523,6 +523,7 @@ class DepthScene {
     this.drawFoam(now);
     this.drawWand(now);
     this.drawSport(now);
+    this.drawAct(now);
     this.drawFork(now);
     this.drawBubbles(now);
     this.drawRope(now);
@@ -973,6 +974,144 @@ class DepthScene {
 
   // ---------- Île du Stade (calque 2D commun) : ballons, gardien, panier, but. En 3D, le terrain et les créatures
   // sont de vrais modèles (voir updateSport3D) et sportPts() donne leur place à l'écran.
+  // ---------- Jeux sur place (game.js : updateAct) : le décor du jeu autour du petit sorcier, qui reste au centre
+  // (les objets à gauche, à droite et en bas de l'écran ; emojis : lisibles par les petits, légers à dessiner)
+  drawAct(now) {
+    const A = this.act;
+    if (!A) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H), a = A.a, n = A.n, game = A.game;
+    const emo = (ch, x, y, sz, rot = 0, alpha = 1) => {
+      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); if (rot) ctx.rotate(rot);
+      ctx.font = `${sz}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, 0, 0); ctx.restore();
+    };
+    const txt = (t, x, y, sz, col = '#ffffff') => {
+      ctx.font = `800 ${sz}px 'Baloo 2', system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = sz * 0.18; ctx.strokeStyle = '#1e1b4b'; ctx.strokeText(t, x, y); ctx.fillStyle = col; ctx.fillText(t, x, y);
+    };
+    // (emplacements : à gauche et à droite du petit sorcier, en alternance, au bas de l'écran)
+    const slot = (i, y = H * 0.84) => { const side = i % 2 ? 1 : -1, col = Math.floor(i / 2); return { x: W / 2 + side * (W * 0.36 - col * W * 0.1), y }; };
+    const since = now - a.pop, subSince = now - a.subPop, popped = a.pop && a.pop !== this.actSeen;
+    if (popped) this.actSeen = a.pop;
+    const burstAt = (x, y) => this.burst(x, y, 34, ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2', '#b8f2a1']);
+    ctx.save();
+    if (game === 'stomp' && now - a.shake < 180) ctx.translate((Math.random() - 0.5) * S * 0.02, (Math.random() - 0.5) * S * 0.015); // (boum : tout tremble)
+    switch (game) {
+      case 'grow': { // des pots : on plante la graine (accroupi), la fleur pousse (bras levés)
+        const flowers = ['🌷', '🌻', '🌸', '🌼', '🌺'];
+        for (let i = 0; i < n; i++) {
+          const p = slot(i), pw = S * 0.075;
+          ctx.fillStyle = '#c8553d'; ctx.beginPath(); ctx.moveTo(p.x - pw, p.y - pw * 0.9); ctx.lineTo(p.x + pw, p.y - pw * 0.9); ctx.lineTo(p.x + pw * 0.75, p.y + pw * 0.4); ctx.lineTo(p.x - pw * 0.75, p.y + pw * 0.4); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#a4402c'; ctx.fillRect(p.x - pw * 1.1, p.y - pw * 1.05, pw * 2.2, pw * 0.3);
+          ctx.fillStyle = '#5a3e2b'; ctx.beginPath(); ctx.ellipse(p.x, p.y - pw * 0.95, pw * 0.95, pw * 0.18, 0, 0, 6.29); ctx.fill();
+          const stem = (h) => { ctx.strokeStyle = '#2d6a4f'; ctx.lineWidth = Math.max(3, S * 0.008); ctx.beginPath(); ctx.moveTo(p.x, p.y - pw); ctx.quadraticCurveTo(p.x + Math.sin(now / 500 + i) * pw * 0.3, p.y - pw - h / 2, p.x, p.y - pw - h); ctx.stroke(); };
+          if (i < a.reps) { // fleur ouverte
+            const g = i === a.reps - 1 ? Math.min(1, since / 400) : 1, h = S * 0.13 * g;
+            stem(h); emo(flowers[i % flowers.length], p.x, p.y - pw - h, S * 0.1 * (0.6 + 0.4 * g) * (1 + 0.05 * Math.sin(now / 300 + i)));
+            if (i === a.reps - 1 && popped) burstAt(p.x, p.y - pw - h);
+          } else if (i === a.reps) { // le pot du moment
+            if (a.phase === 0) { emo('🌰', p.x, p.y - pw * 1.6 - Math.abs(Math.sin(now / 250)) * pw * 0.6, S * 0.045); emo('⬇️', p.x, p.y - pw * 2.8, S * 0.05); }
+            else { const h = S * 0.13 * Math.min(1, a.hold / 450); stem(h); emo('🌱', p.x, p.y - pw - h, S * 0.06); emo('🙌', p.x, p.y - pw * 3.2 - h, S * 0.05); }
+          }
+        }
+        break;
+      }
+      case 'clap': { // des bébés pingouins dans des glaçons : chaque clap fait fondre la glace
+        for (let i = 0; i < n; i++) {
+          const p = slot(i, H * 0.8), sz = S * 0.12, warm = i < a.reps, cur = i === a.reps, k = cur ? a.sub / A.per : warm ? 1 : 0;
+          const hop = warm ? Math.abs(Math.sin(now / 260 + i)) * S * 0.03 : 0, shiver = !warm ? Math.sin(now / 35 + i) * S * 0.004 : 0;
+          emo('🐧', p.x + shiver, p.y - hop, sz);
+          if (!warm) { // le glaçon, de plus en plus fondu
+            ctx.fillStyle = `rgba(190,233,255,${0.75 * (1 - k)})`; ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.roundRect(p.x - sz * 0.55, p.y - sz * 0.6, sz * 1.1, sz * 1.15, sz * 0.15); ctx.fill(); ctx.stroke();
+            if (cur) for (let d = 0; d < A.per; d++) emo(d < a.sub ? '🔥' : '·', p.x - sz * 0.35 + d * sz * 0.35, p.y + sz * 0.75, S * 0.035);
+          } else { emo('🧣', p.x + sz * 0.05, p.y + sz * 0.18 - hop, sz * 0.45); emo('💛', p.x + sz * 0.45, p.y - sz * 0.6 - hop - (now / 20) % (sz * 0.4), sz * 0.25, 0, 0.8); }
+          if (warm && i === a.reps - 1 && popped) burstAt(p.x, p.y);
+        }
+        if (subSince < 450 && a.subPop) emo('👏', W / 2, H * 0.3 - subSince * 0.05, S * 0.12 * (1 + subSince / 900), 0, 1 - subSince / 450);
+        break;
+      }
+      case 'swim': { // nage vers le trésor : une perle par mouvement de bras, le dauphin avance
+        for (let i = 0; i < 9; i++) { const q = ((now / 4000 + i * 0.37) % 1), x = (i % 2 ? W * 0.06 : W * 0.94) + Math.sin(now / 600 + i) * S * 0.02; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, H * (1 - q), S * (0.008 + (i % 3) * 0.006), 0, 6.29); ctx.stroke(); }
+        const y0 = H * 0.84, x0 = W * 0.1, x1 = W * 0.86, step = (x1 - x0) / n;
+        ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = S * 0.012; ctx.setLineDash([S * 0.012, S * 0.02]); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.stroke(); ctx.setLineDash([]);
+        for (let i = 0; i < n; i++) { const x = x0 + step * (i + 1); ctx.fillStyle = i < a.reps ? '#fdfcdc' : 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(x, y0, S * (i < a.reps ? 0.013 : 0.009), 0, 6.29); ctx.fill(); }
+        emo('💎', x1 + S * 0.05, y0 - S * 0.01, S * 0.07 * (1 + 0.08 * Math.sin(now / 200)));
+        const k = Math.min(1, since / 350), from = x0 + step * Math.max(0, a.reps - 1), to = x0 + step * a.reps, dx = a.reps ? from + (to - from) * k : x0;
+        emo('🐬', dx, y0 - S * 0.05 - Math.sin(k * Math.PI) * S * 0.07, S * 0.09, -0.25 + k * 0.25);
+        emo('🐬', W * 0.12 + ((now / 30) % (W * 0.2)), H * 0.62 + Math.sin(now / 400) * S * 0.03, S * 0.06, 0, 0.6); // (un ami dauphin qui joue)
+        if (popped) burstAt(to, y0);
+        break;
+      }
+      case 'launch': { // la fusée sur son pas de tir : jauge de carburant (accroupi), puis décollage (saut)
+        const px = W * 0.83, py = H * 0.84, rs = S * 0.2;
+        ctx.fillStyle = '#6c757d'; ctx.fillRect(px - rs * 0.6, py, rs * 1.2, S * 0.025);
+        ctx.strokeStyle = '#adb5bd'; ctx.lineWidth = S * 0.01; ctx.beginPath(); ctx.moveTo(px + rs * 0.55, py); ctx.lineTo(px + rs * 0.55, py - rs * 1.1); ctx.stroke();
+        const flying = a.pop && since < 1400, ready = a.phase === 1;
+        if (flying) { // la fusée qui vient de partir
+          const q = since / 1400, fy = py - rs * 0.5 - q * q * H * 1.2;
+          for (let f = 0; f < 4; f++) emo('🔥', px + (Math.random() - 0.5) * rs * 0.15, fy + rs * (0.45 + f * 0.18), rs * (0.35 - f * 0.06), Math.PI);
+          emo('🚀', px, fy, rs, -Math.PI / 4);
+          if (popped) burstAt(px, py);
+        }
+        if (!flying || since > 900) { // (la fusée suivante arrive sur le pas de tir)
+          const shake = ready ? Math.sin(now / 30) * S * 0.004 : 0;
+          if (ready) for (let f = 0; f < 2; f++) emo('🔥', px + shake, py - rs * 0.02 + f * rs * 0.12, rs * 0.28 * (1 + 0.2 * Math.sin(now / 60 + f)), Math.PI);
+          if (a.reps < n) emo('🚀', px + shake, py - rs * 0.5, rs, -Math.PI / 4, flying ? (since - 900) / 500 : 1);
+        }
+        // jauge de carburant
+        const gx = px - rs * 0.95, gh = rs * 1.1, k = ready ? 1 : Math.min(1, a.hold / 1300);
+        ctx.fillStyle = 'rgba(15,12,50,.55)'; ctx.beginPath(); ctx.roundRect(gx - S * 0.02, py - gh - S * 0.01, S * 0.04, gh + S * 0.02, S * 0.015); ctx.fill();
+        ctx.fillStyle = ready && Math.floor(now / 200) % 2 ? '#ffd166' : '#06d6a0'; ctx.beginPath(); ctx.roundRect(gx - S * 0.012, py - gh * k, S * 0.024, gh * k, S * 0.01); ctx.fill();
+        emo('⛽', gx, py + S * 0.04, S * 0.04);
+        if (ready && !flying) txt('SAUTE !', px, py - rs * 1.35, S * 0.06, Math.floor(now / 200) % 2 ? '#ffd166' : '#ffffff');
+        // les planètes à visiter (une par décollage)
+        const planets = ['🌙', '🪐', '🔴', '🌍', '⭐'];
+        for (let i = 0; i < n; i++) { const y = H * (0.78 - i * 0.14), on = i < a.reps; emo(planets[i % planets.length], W * 0.09, y, S * (on ? 0.075 : 0.055), 0, on ? 1 : 0.35); if (on) emo('✨', W * 0.09 + S * 0.045, y - S * 0.035, S * 0.03); }
+        break;
+      }
+      case 'stomp': { // des œufs de dino : chaque pas de dino les fait craquer, au bout de 4 ils éclosent
+        for (let i = 0; i < n; i++) {
+          const p = slot(i, H * 0.84), r = S * 0.055, done = i < a.reps, cur = i === a.reps;
+          ctx.fillStyle = '#8d6e4c'; ctx.beginPath(); ctx.ellipse(p.x, p.y + r * 0.9, r * 1.5, r * 0.4, 0, 0, 6.29); ctx.fill(); // (nid)
+          if (done) {
+            const b = Math.abs(Math.sin(now / 240 + i)) * r * 0.5;
+            emo(i % 2 ? '🦖' : '🦕', p.x, p.y - b, S * 0.1);
+            ctx.fillStyle = '#fff3d6'; for (const sx of [-1, 1]) { ctx.beginPath(); ctx.ellipse(p.x + sx * r * 0.9, p.y + r * 0.55, r * 0.45, r * 0.3, sx * 0.4, 0, 6.29); ctx.fill(); }
+            if (i === a.reps - 1 && popped) burstAt(p.x, p.y);
+          } else {
+            const wob = cur && subSince < 300 ? Math.sin(subSince / 25) * 0.15 : 0;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(wob);
+            ctx.fillStyle = '#fff3d6'; ctx.strokeStyle = '#5a3e2b'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, r, 0, 0, 6.29); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = ['#95d5b2', '#ffafcc', '#a2d2ff'][i % 3]; for (const [dx, dy] of [[-0.3, -0.4], [0.35, 0.1], [-0.15, 0.5]]) { ctx.beginPath(); ctx.arc(dx * r, dy * r, r * 0.16, 0, 6.29); ctx.fill(); }
+            if (cur) { ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = 3; for (let c2 = 0; c2 < a.sub; c2++) { const y = -r * 0.5 + c2 * r * 0.35; ctx.beginPath(); ctx.moveTo(-r * 0.7, y); ctx.lineTo(-r * 0.3, y + r * 0.15); ctx.lineTo(0, y - r * 0.08); ctx.lineTo(r * 0.35, y + r * 0.12); ctx.lineTo(r * 0.7, y); ctx.stroke(); } }
+            ctx.restore();
+          }
+        }
+        if (now - a.shake < 400 && a.shake) { const q = (now - a.shake) / 400; txt('BOUM !', W / 2, H * 0.88 - q * S * 0.05, S * 0.07 * (1 + q * 0.3), '#ffd166'); for (const sx of [-1, 1]) { ctx.fillStyle = `rgba(222,203,164,${0.7 * (1 - q)})`; ctx.beginPath(); ctx.arc(W / 2 + sx * S * (0.08 + q * 0.12), H * 0.95, S * (0.03 + q * 0.04), 0, 6.29); ctx.fill(); } }
+        break;
+      }
+      case 'animals': { // la grande carte de l'animal à imiter, et ceux déjà imités
+        const an = a.seq[Math.min(a.reps, n - 1)], cw = S * 0.34, ch = S * 0.44, cx = W - cw / 2 - W * 0.04, cy = H * 0.55;
+        const flip = a.pop && since < 350 ? Math.abs(Math.cos((since / 350) * Math.PI)) : 1;
+        if (a.reps < n) {
+          ctx.save(); ctx.translate(cx, cy); ctx.scale(Math.max(0.05, flip), 1);
+          ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = S * 0.012; ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.fill(); ctx.stroke();
+          emo(an.icon, 0, -ch * 0.1 + Math.sin(now / 250) * S * 0.01, S * 0.19);
+          ctx.font = `800 ${S * 0.042}px 'Baloo 2', system-ui, sans-serif`; ctx.fillStyle = '#1e1b4b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(an.name, 0, ch * 0.32, cw * 0.9);
+          if (an.need !== 'jump' && an.need !== 'smash') { // (pose à tenir : l'anneau se remplit)
+            ctx.strokeStyle = '#e9ecef'; ctx.lineWidth = S * 0.012; ctx.beginPath(); ctx.arc(0, -ch * 0.1, S * 0.13, 0, 6.29); ctx.stroke();
+            ctx.strokeStyle = '#06d6a0'; ctx.beginPath(); ctx.arc(0, -ch * 0.1, S * 0.13, -Math.PI / 2, -Math.PI / 2 + Math.min(1, a.hold / 800) * 6.29); ctx.stroke();
+          }
+          ctx.restore();
+        }
+        for (let i = 0; i < n; i++) { const y = H * (0.3 + i * 0.12); emo(a.seq[i].icon, W * 0.07, y, S * (i < a.reps ? 0.065 : 0.045), 0, i < a.reps ? 1 : 0.3); if (i < a.reps) emo('✅', W * 0.07 + S * 0.045, y + S * 0.025, S * 0.03); }
+        if (popped) burstAt(cx, cy);
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
   sportKick() { this.sportT.kick = performance.now(); }
   sportScore() { this.sportT.score = performance.now(); }
   sportMate() { // copain qui passe / tire, et gardien du penalty : des créatures du paysage

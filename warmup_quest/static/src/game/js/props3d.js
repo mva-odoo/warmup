@@ -535,9 +535,11 @@ class Props3D {
   // Rayon de supermarché : étagères blanches et produits du Food Kit (s'ils sont chargés), petit fronton coloré
   shelf(g) {
     const cols = ['#ef476f', '#118ab2', '#06d6a0', '#ffd166'], col = cols[Math.floor(Math.random() * cols.length)];
-    const bx = [['#f8f9fa', 0, 1.3, -0.25, 2.6, 2.6, 0.12], ['#e9ecef', 0, 0.15, 0.1, 2.6, 0.08, 0.75], ['#e9ecef', 0, 0.95, 0.1, 2.6, 0.08, 0.75],
-      ['#e9ecef', 0, 1.75, 0.1, 2.6, 0.08, 0.75], ['#e9ecef', 0, 2.55, 0.1, 2.6, 0.08, 0.75], ['#dee2e6', -1.3, 1.3, 0.1, 0.08, 2.6, 0.75],
-      ['#dee2e6', 1.3, 1.3, 0.1, 0.08, 2.6, 0.75], [col, 0, 2.85, 0.15, 2.7, 0.35, 0.1]];
+    // (vrai rayon de magasin : fond sombre, tablettes en métal, montants et fronton à la couleur du rayon, étiquettes de prix)
+    const bx = [['#2f3e46', 0, 1.3, -0.25, 2.6, 2.6, 0.12], ['#adb5bd', 0, 0.15, 0.1, 2.6, 0.08, 0.75], ['#adb5bd', 0, 0.95, 0.1, 2.6, 0.08, 0.75],
+      ['#adb5bd', 0, 1.75, 0.1, 2.6, 0.08, 0.75], ['#adb5bd', 0, 2.55, 0.1, 2.6, 0.08, 0.75], [col, -1.3, 1.3, 0.1, 0.1, 2.7, 0.78],
+      [col, 1.3, 1.3, 0.1, 0.1, 2.7, 0.78], [col, 0, 2.85, 0.15, 2.7, 0.35, 0.1], ['#495057', 0, 0.05, 0.1, 2.6, 0.1, 0.8]];
+    for (const y of [0.15, 0.95, 1.75]) bx.push(['#ffe066', -0.7, y + 0.02, 0.48, 0.3, 0.1, 0.02], ['#ffffff', 0.6, y + 0.02, 0.48, 0.3, 0.1, 0.02]);
     const goods = SHOP_GOODS.filter((n) => this.models && this.models.has('food/' + n));
     // (vrais produits 3D en nombre limité selon la qualité ; les autres places : boîtes colorées, très légères)
     let real = (typeof scene3d !== 'undefined' && scene3d.Q ? scene3d.Q.shelfItems : 12);
@@ -642,14 +644,14 @@ class Props3D {
       case 'mall': { // Supermarché : grande façade au bout de l'allée, hauts rayons de chaque côté, panneaux suspendus
         const lift = (z) => { const d = Math.max(0, 7 - z - BEND_START); return d * d * BEND_K * 0.7; };
         const list = [], z0 = -64, y0 = lift(z0);
-        list.push([pal.mount0 || '#ffd6a5', 0, y0 + 8, z0, 72, 16, 3], ['#e9ecef', 0, y0 + 1.2, z0 + 1.6, 72, 2.4, 0.4]);
+        list.push([pal.mount0 || '#ffd6a5', 0, y0 + 8, z0, 72, 16, 3], ['#8d6e63', 0, y0 + 1.2, z0 + 1.6, 72, 2.4, 0.4]);
         for (let i = 0; i < 18; i++) list.push([i % 2 ? '#ffffff' : '#ef476f', -34 + i * 4, y0 + 10.6, z0 + 2.2, 4, 1.2, 1.6]); // auvent rayé
         for (const x of [-26, -14, 14, 26]) list.push(['#bde0fe', x, y0 + 5, z0 + 1.6, 7, 5, 0.3]); // vitrines
         list.push(['#adb5bd', 0, y0 + 3.5, z0 + 1.6, 8, 7, 0.3]); // portes
         const shelfCols = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93', '#ff924c'];
         for (const side of [-1, 1]) for (let k = 0; k < 6; k++) { // rayons lointains, rangées de produits colorés
           const z = -28 - k * 7, x = side * (16 + (k % 2) * 3), y = lift(z);
-          list.push(['#dee2e6', x, y + 3, z, 2.2, 6, 5.5]);
+          list.push(['#3d4f58', x, y + 3, z, 2.2, 6, 5.5]);
           for (let r = 0; r < 4; r++) list.push([shelfCols[(k + r) % 6], x - side * 1.15, y + 1 + r * 1.4, z, 0.3, 0.9, 5]);
         }
         this.boxes(g, list);

@@ -52,7 +52,17 @@ MOVES = [
     ('goal', 'Gardien de but (arrêter les tirs)'),
     ('basket', 'Basket (attraper puis tirer)'),
     ('kick', 'Penalty (genou levé, ou lancer à la main)'),
+    # Jeux sur place : un par pays (le code « act_… » devient { m: 'act', game: … } dans le jeu)
+    ('act_grow', 'Faire pousser les fleurs (accroupi, puis bras levés)'),
+    ('act_clap', 'Réchauffer les pingouins (taper dans les mains)'),
+    ('act_swim', "Nager avec les dauphins (un bras puis l'autre)"),
+    ('act_launch', 'Faire décoller la fusée (rester accroupi, puis sauter)'),
+    ('act_stomp', 'Marcher comme un dino (genoux levés)'),
+    ('act_animals', 'Imiter les animaux'),
 ]
+
+# Jeux sur place : secondes par réussite (même valeur que ACTS dans worlds.js)
+ACT_SECONDS = {'grow': 5, 'clap': 4.5, 'swim': 1.5, 'launch': 6.5, 'stomp': 5, 'animals': 5}
 
 # Gestes que le coach (danse / karaté) peut demander
 MIMIC_MOVES = {

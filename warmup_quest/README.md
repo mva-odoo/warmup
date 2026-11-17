@@ -52,20 +52,26 @@ Bouton « 🏰 Entrer dans le château de l'Académie » du menu : au lieu de ch
   le terrain de la récré, la tour des singes, le marché. À l'entrée, le **portail magique** des aventures (il mène au
   village de la prochaine aventure à gagner). Chaque tour a son panneau (icône, nom et étoiles, ou 🔒 ? s'il est encore
   fermé) ; un halo doré entoure le prochain cours à réussir.
-- **Choisir** : lever le bras et viser une tour avec sa baguette (rayon et anneau doré qui se remplit, ~1,2 s).
-- **Y aller** : courir sur place. Le petit sorcier suit le chemin tout seul, plus vite quand l'enfant court (jauge 🏃) ;
-  s'il s'arrête, il avance doucement et la voix l'encourage. Les allées sont droites (l'allée centrale de la porte au donjon,
-  et une allée en travers par paire de tours) et passent toutes par la fontaine : impossible de se perdre.
-- En route (à peu près un trajet sur deux, pas le premier), une **créature ensorcelée** bloque le chemin : un coup de
-  baguette et elle redevient gentille. Le familier suit l'enfant, et les amis du grimoire se promènent dans la cour.
+- **Choisir** : le prochain cours est déjà choisi (grand anneau doré). Pour un autre lieu, un **pas de côté** passe au
+  lieu voisin à gauche ou à droite de l'écran (rester sur le côté continue de défiler ; les lieux fermés sont sautés).
+  Pas de visée au doigt : elle dépendait trop de la taille de l'enfant et de sa distance à la caméra.
+- **Y aller** : **lever les deux bras** (l'anneau se remplit en ~0,8 s, la baguette lance un rayon) ; le petit sorcier y
+  va tout seul, vite, par les allées droites (l'allée centrale de la porte au donjon, et une allée en travers par paire de
+  tours), qui passent toutes par la fontaine. Tous les cours faits : c'est le portail qui brille.
+- En route (à peu près un trajet sur deux, pas le premier), une **créature ensorcelée** bloque le chemin : lever un bras
+  lui lance un sort et elle redevient gentille. Le familier suit l'enfant, et les amis du grimoire se promènent dans la cour.
 - Arrivé à la porte, le petit sorcier entre et le cours commence directement (pas besoin de se recalibrer) ; à la fin,
   🏠 ramène au château, devant cette tour. ✖ (en haut) ou Échap : retour au menu.
-- 3D seulement (bouton caché avec « Graphismes 2D »). Mode clavier : ← → choisir, Entrée valider, Espace courir.
-  Mode test : `?hub=1&hubauto=1` (choisit et court tout seul ; `hubslow=1` sans courir, `hubblock=1` créature forcée,
+- 3D seulement (bouton caché avec « Graphismes 2D »). Mode clavier : ← → (pas de côté), 1 (bras levés) ou Entrée.
+  Mode test : `?hub=1&hubauto=1` (choisit tout seul ; `hubblock=1` créature forcée, `hubauto=2` sans lancer le sort,
   `hubret=1` finit le cours tout de suite et revient au château).
 
 ## Les villages des aventures
-Le portail du château mène au **village** du pays d'aventure en cours (même principe : viser avec la baguette, courir sur place).
+Le portail du château mène au **village** du pays d'aventure en cours (même principe : pas de côté pour choisir, bras levés pour y aller).
+- **On ne choisit qu'une fois** : au village, le petit sorcier part tout seul vers l'étape qui brille après quelques
+  secondes (l'anneau doré se remplit) ; un pas de côté annule, pour choisir autre chose. Pays fini : il file au pays suivant.
+- Fin d'une étape (ou d'un cours lancé du château) : le gros bouton est « 🌀 On continue ! » (« 🏰 Au château ! ») et lever
+  les bras continue l'aventure au lieu de rejouer ; « Encore » reste là, en petit.
 - Ciel, sol, chemins, décor et petites maisons aux couleurs du pays ; les villageois sont les créatures du pays ; au centre,
   une pierre magique aux couleurs du pays.
 - **Une porte par étape** du pays (portique dans le paysage de l'étape : « Étape 2 : Récif »), avec « À faire » ou « ✅ Réussie ».
@@ -75,12 +81,31 @@ Le portail du château mène au **village** du pays d'aventure en cours (même p
 - Des portails mènent au **pays d'avant / d'après** (s'il est ouvert) et à l'**Académie**. Après une étape, 🏠 ramène au village.
 - Mode test : `?village=banquise&hubauto=1` (`hubret=1` : finit l'étape tout de suite et revient au village).
 
+## Un jeu sur place par pays
+Chaque pays d'aventure (et le Jardin) a son jeu à lui, où l'on ne court pas : le petit sorcier s'arrête et imite l'enfant
+(plan large), le décor du jeu se dessine autour de lui. Il revient une fois par étape, mélangé à quelques épreuves du
+thème (moins de course qu'avant). Étape `act` dans le jeu, `act_…` dans les séquences Odoo (nombre de réussites).
+- 🌷 **Jardin** : faire pousser les fleurs (s'accroupir pour planter la graine, puis lever les bras : la fleur s'ouvre).
+- 🐸 **Vallée des Créatures** : imiter les animaux d'une grande carte (grenouille = saut, tortue = accroupi, oiseau =
+  avion, girafe = bras levés, flamant = sur un pied, ours = frappe).
+- 🐧 **Banquise** : réchauffer les bébés pingouins pris dans la glace (3 claps dans les mains par pingouin).
+- 🐬 **Océan** : nager avec les dauphins jusqu'au trésor (un bras en haut, puis l'autre ; une perle par mouvement).
+- 🚀 **Espace** : faire décoller la fusée (rester accroupi : la jauge de carburant se remplit ; puis sauter).
+- 🦕 **Dinos** : marcher comme un dino, genoux levés (ou petits sauts si la caméra ne voit pas les jambes) : chaque pas
+  fait craquer l'œuf, au 4e le bébé dino sort.
+- Mode test : `?world=ocean&step=act&fakelimbs=1` (l'enfant imaginaire fait les gestes ; `hold=1` garde l'épreuve).
+- Odoo : les séquences par défaut de ces pays sont remplacées par la migration 20.0.17 seulement si elles n'ont pas été
+  modifiées (mêmes épreuves, nombres et durées qu'à l'origine).
+
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en
   5 leçons : Les premiers sorts, Les poses magiques, Les ateliers, Les farces des singes, La baguette et la récré.
 - Au château et dans les villages, chaque panneau a une grosse icône (🌸 💃 🥋 🧪 ⚽ 🐒 🛒, 1️⃣ 2️⃣ 3️⃣ 👑) et le prochain lieu à
   faire est entouré d'un halo doré : pas besoin de savoir lire. Les panneaux du fond grossissent pour rester lisibles.
-- Si l'enfant ne lève pas le bras, la voix rappelle comment viser ; au retour d'un cours, une phrase courte (pas tout l'accueil).
+- Si rien ne se passe, la voix rappelle comment choisir ; au retour d'un cours, une phrase courte (pas tout l'accueil).
+  Au retour d'un cours, pas de nouveau calibrage : on reprend directement au château.
+- Baguette du Bois des Sortilèges : la visée est aimantée (la créature dans la direction du bras, même si le point n'est
+  pas exactement dessus), et le rayon file droit sur elle.
 - Pour les plus grands : vitesse « Rapide » dans les réglages parents, et les étapes s'enchaînent vite.
 
 ## Utilisation

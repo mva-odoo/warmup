@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .warmup_constants import COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
+from .warmup_constants import ACT_SECONDS, COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
 
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
@@ -14,6 +14,8 @@ def _step_seconds(step):
         return 3 + 7 * max(1, step.count)
     if m == 'kick':
         return 2 + 4.5 * max(1, step.count)
+    if m and m.startswith('act_'):
+        return 4 + ACT_SECONDS.get(m[4:], 5) * max(1, step.count)
     if m == 'cubes':
         return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
     if m == 'tunnel':
@@ -121,6 +123,8 @@ class WarmupStep(models.Model):
                 s.summary = f"Marquer {max(1, s.count)} paniers (attraper puis tirer)"
             elif s.move == 'kick':
                 s.summary = f"Marquer {max(1, s.count)} buts (penalty)"
+            elif s.move and s.move.startswith('act_'):
+                s.summary = f"{moves.get(s.move, '')} ×{max(1, s.count)}"
             elif s.move == 'shop':
                 s.summary = f"Remplir le caddie pendant {s.duration:g} s"
             elif s.move in ('jump', 'squat', 'smash'):
@@ -215,6 +219,8 @@ class WarmupStep(models.Model):
                 raise ValidationError('Le nombre de cubes doit être entre 2 et 40.')
             if s.move == 'cubes' and not 0.8 <= s.hold <= 3:
                 raise ValidationError('Le temps entre deux cubes doit être entre 0,8 et 3 secondes.')
+            if s.move and s.move.startswith('act_') and not 1 <= s.count <= 30:
+                raise ValidationError('Le nombre de réussites doit être entre 1 et 30.')
             if s.move in ('goal', 'basket', 'kick') and not 1 <= s.count <= 20:
                 raise ValidationError('Le nombre de ballons doit être entre 1 et 20.')
             if s.move == 'ball' and not 1 <= s.count <= 30:
@@ -233,6 +239,8 @@ class WarmupStep(models.Model):
             return {'m': 'wand', 't': self.duration or 16, 'n': max(1, self.count)}
         if m in ('goal', 'basket', 'kick'):
             return {'m': m, 'n': max(1, self.count)}
+        if m and m.startswith('act_') and m[4:] in ACT_SECONDS:
+            return {'m': 'act', 'game': m[4:], 'n': max(1, self.count)}
         if m == 'shop':
             return {'m': 'shop', 't': self.duration or 12}
         if m in ('jump', 'squat', 'smash'):

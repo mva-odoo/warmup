@@ -41,6 +41,50 @@ const WA = (t, n) => ({ m: 'wand', t, n });   // baguette magique : libérer n c
 const GO = (n) => ({ m: 'goal', n });          // gardien de but : arrêter n tirs avec les mains
 const BK = (n) => ({ m: 'basket', n });        // basket : attraper (mains jointes) puis tirer (bras levés), n paniers
 const KI = (n) => ({ m: 'kick', n });          // penalty : lever le genou du côté du ballon (ou lancer à la main), n buts
+const AC = (game, n) => ({ m: 'act', game, n }); // jeu sur place propre à un pays (voir ACTS), n fois
+
+// Jeux sur place : un par pays, on ne court pas. Le petit sorcier imite l'enfant, le décor du jeu se dessine autour
+// (depth.js : drawAct) ; la partie compte les gestes (game.js : updateAct). per : gestes pour une réussite (n réussites)
+const ACTS = {
+  grow: { icon: '🌷', label: 'Fais pousser les fleurs !', sec: 5, pts: 100, coach: 'squat',
+    say: 'Des graines magiques ! Baisse-toi pour planter la graine, puis lève les bras tout en haut pour faire pousser la fleur !',
+    tuto: 'Baisse-toi tout en bas pour planter une graine dans le pot. Puis relève-toi et lève les deux bras vers le ciel, comme une fleur qui pousse : la fleur magique s\'ouvre !',
+    cheer: ['Une fleur magique !', 'Elle a poussé !', 'Quelle belle fleur !'] },
+  clap: { icon: '🐧', label: 'Réchauffe les pingouins !', sec: 4.5, pts: 100, per: 3, coach: null,
+    say: 'Les bébés pingouins ont froid ! Tape dans tes mains trois fois pour réchauffer chaque pingouin !',
+    tuto: 'Les bébés pingouins grelottent. Tape dans tes mains, bien devant toi : clap, clap, clap ! À chaque fois, le pingouin se réchauffe un peu. Trois claps, et il a bien chaud !',
+    cheer: ['Il a bien chaud !', 'Merci pour le pingouin !', 'Tout chaud !'] },
+  swim: { icon: '🐬', label: 'Nage avec les dauphins !', sec: 1.5, pts: 40, coach: null,
+    say: 'Nage avec les dauphins jusqu\'au trésor ! Lève un bras, puis l\'autre, comme un nageur !',
+    tuto: 'Pour nager, fais de grands mouvements de bras, l\'un après l\'autre : le bras gauche en haut, puis le bras droit, comme un vrai nageur. À chaque mouvement, tu avances vers le trésor !',
+    cheer: [] },
+  launch: { icon: '🚀', label: 'Fais décoller la fusée !', sec: 6.5, pts: 120, coach: 'squat',
+    say: 'Décollage ! Baisse-toi et reste en bas pour remplir la fusée de carburant… puis saute très haut pour la faire décoller !',
+    tuto: 'Baisse-toi tout en bas et ne bouge plus : la jauge de carburant se remplit. Quand la fusée clignote, saute le plus haut possible : décollage !',
+    cheer: ['Décollage !', 'Elle file dans les étoiles !', 'Vers une nouvelle planète !'] },
+  stomp: { icon: '🦕', label: 'Marche comme un dino !', sec: 5, pts: 100, per: 4, coach: 'flamingo',
+    say: 'Des œufs de dinosaure ! Marche sur place comme un gros dino, en levant bien les genoux : boum, boum ! Les œufs vont éclore !',
+    tuto: 'Marche sur place comme un énorme dinosaure : lève un genou, puis l\'autre, bien haut, et pose ton pied fort par terre. Boum, boum ! À chaque pas, l\'œuf craque un peu plus.',
+    cheer: ['Un bébé dino !', 'Coucou petit dino !', 'Il est né !'] },
+  animals: { icon: '🐸', label: 'Imite les animaux !', sec: 5, pts: 100, coach: null,
+    say: 'Les animaux de la vallée veulent jouer avec toi ! Imite chaque animal qui apparaît !',
+    tuto: 'Un animal va apparaître sur une grande carte. Fais comme lui : la grenouille saute, la tortue se cache tout en bas, l\'oiseau ouvre ses ailes, la girafe lève les bras tout en haut !',
+    cheer: [] },
+};
+// Imite les animaux : chaque carte demande un geste (un événement, ou une pose à tenir un moment)
+const ANIMALS = [
+  { id: 'frog', icon: '🐸', name: 'La grenouille', need: 'jump', say: 'La grenouille ! Saute comme elle !' },
+  { id: 'turtle', icon: '🐢', name: 'La tortue', need: 'squat', say: 'La tortue ! Baisse-toi et cache-toi dans ta carapace !' },
+  { id: 'bird', icon: '🐦', name: "L'oiseau", need: 'airplane', say: "L'oiseau ! Ouvre grand tes ailes !" },
+  { id: 'giraffe', icon: '🦒', name: 'La girafe', need: 'armsUp', say: 'La girafe ! Lève les bras tout en haut, très très haut !' },
+  { id: 'flamingo', icon: '🦩', name: 'Le flamant rose', need: 'flamingo', say: 'Le flamant rose ! Tiens-toi sur un pied !' },
+  { id: 'bear', icon: '🐻', name: "L'ours", need: 'smash', say: "L'ours ! Lève les bras et tape fort, comme un gros ours !" },
+];
+function animalSeq(n, upper = false) { // (jamais deux fois le même animal de suite ; sans les jambes visibles, pas de flamant)
+  const pool = ANIMALS.filter((a) => !(upper && a.need === 'flamingo')), out = [];
+  while (out.length < n) { const l = pool.filter((a) => a !== out[out.length - 1]); out.push(l[Math.floor(Math.random() * l.length)]); }
+  return out;
+}
 
 // Carrefours : le chemin se sépare, un pas à gauche ou à droite choisit l'épreuve suivante
 const FORK_POOL = [B(12, 5), M(12, 6), SL(12, 6), CU(8, 1.5), MO(16, 5), K(10), Q(4), U(4), F(14), WA(14, 3), GO(5)];
@@ -125,6 +169,7 @@ function stepIcon(s) {
   if (s.m === 'learn') return stepIcon(s.of);
   if (s.m === 'pose') return POSES[s.pose].icon;
   if (s.m === 'combo') return '🔥';
+  if (s.m === 'act') return ACTS[s.game].icon;
   return MOVE_ICONS[s.m];
 }
 
@@ -137,6 +182,7 @@ function stepLabel(s) {
     case 'goal': return 'Arrête les tirs !';
     case 'basket': return 'Marque des paniers !';
     case 'kick': return 'Tire au but !';
+    case 'act': return ACTS[s.game].label;
     case 'fork': return 'Un carrefour : choisis !';
     case 'jump': return s.n > 1 ? `Saute ${s.n} fois !` : 'Saute !';
     case 'squat': return s.n > 1 ? `Baisse-toi ${s.n} fois !` : 'Baisse-toi !';
@@ -182,6 +228,7 @@ function stepSpeech(s) {
     case 'goal': return 'Tu es le gardien de but ! Ton ami va tirer : arrête le ballon avec tes mains !';
     case 'basket': return 'Basket ! Ton ami te passe le ballon : attrape-le avec les deux mains, puis lève les bras pour tirer dans le panier !';
     case 'kick': return 'Penalty ! Regarde de quel côté est le ballon, et lève le genou de ce côté pour tirer !';
+    case 'act': return ACTS[s.game].say;
     case 'wand': return 'Oh non ! Le Nuage Grognon a ensorcelé des créatures ! Pointe ta baguette vers elles avec ton bras, et garde le rayon dessus pour chasser le nuage !';
     case 'fork': return `Un carrefour ! À gauche : ${forkName(s.opts[0])}. À droite : ${forkName(s.opts[1])}. Fais un grand pas du côté que tu veux !`;
     case 'shop': return 'Au supermarché ! Va dans le couloir du produit pour le mettre dans ton caddie. Attention aux chapardeurs : évite-les, ou saute par-dessus !';
@@ -206,6 +253,7 @@ function tutoText(s) {
     star: 'Pour faire l\'étoile : lève les bras en l\'air, bien écartés, et écarte aussi les jambes. Tiens la pose, comme une grande étoile !',
     flamingo: 'Lève un genou et tiens-toi sur un seul pied, comme un flamant rose. Ouvre les bras pour ne pas tomber !',
   }[s.pose];
+  if (s.m === 'act') return ACTS[s.game].tuto;
   return {
     jump: 'Pour sauter, plie un peu les genoux, puis saute bien haut, les deux pieds en même temps ! Quand un tronc arrive sur le chemin, saute par-dessus.',
     squat: 'Pour te baisser, plie les genoux comme une petite grenouille, puis relève-toi. Quand une branche arrive, passe dessous !',
@@ -233,7 +281,7 @@ function tutoText(s) {
   }[s.m] || stepSpeech(s);
 }
 // Geste que Tempo montre pendant l'explication (quand il y en a un)
-const tutoCoachMove = (s) => (s.m === 'pose' ? s.pose : ['jump', 'squat', 'left', 'right', 'smash'].includes(s.m) ? s.m
+const tutoCoachMove = (s) => (s.m === 'pose' ? s.pose : s.m === 'act' ? ACTS[s.game].coach : ['jump', 'squat', 'left', 'right', 'smash'].includes(s.m) ? s.m
   : s.m === 'rope' ? 'jump' : s.m === 'wand' ? 'airplane' : s.m === 'basket' ? 'armsUp' : s.m === 'kick' ? 'flamingo' : s.m === 'tunnel' ? 'squat' : s.m === 'fork' ? 'left' : null);
 
 // Évitements : nombre d'obstacles pendant l'étape
@@ -246,6 +294,7 @@ function stepDuration(s) {
     case 'goal': return 2.5 + s.n * 3.0;
     case 'basket': return 3 + s.n * 7;
     case 'kick': return 2 + s.n * 4.5;
+    case 'act': return 4 + s.n * ACTS[s.game].sec;
     case 'fork': return 9;
     case 'jump': return 1.8 + 1.0 * s.n;
     case 'squat': return 2.0 + 1.6 * s.n;
@@ -289,6 +338,7 @@ function maxPoints(s) {
     case 'wand': return s.n * 100 + 50;
     case 'goal': return s.n * 80;
     case 'basket': case 'kick': return s.n * 120;
+    case 'act': return s.n * ACTS[s.game].pts + 100;
     default: return 0;
   }
 }
@@ -336,10 +386,8 @@ const WORLDS = [
     ],
     endText: 'Bouton te félicite : cours de botanique réussi !',
     sequence: [
-      Z(4, 'Cours de botanique ! Bouton, le jardinier, te fait visiter le jardin magique de l\'Académie.'),
-      R(6), J(), K(10), S(), P('armsUp'),
-      L(), D(), Q(3), X(2), B(10, 6),
-      C('jump', 'squat'), P('star'), F(14), R(6),
+      Z(4, 'Cours de botanique ! Bouton, le jardinier, te confie des graines magiques. On les fait pousser ?'),
+      AC('grow', 3), K(10), B(10, 6), AC('grow', 3), P('star'), M(12, 6), F(14), AC('grow', 4),
       Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ],
   },
@@ -473,11 +521,11 @@ const WORLDS = [
     collectible: '🛒',
     sky: ['#ffd6a5', '#fff7e6'],
     biomes: [
-      { name: 'Les rayons', sky0: '#bde0fe', sky1: '#fff7e6', sun: '#fff6c2', mount0: '#ffd6a5', mount1: '#ffadad',
-        grass: '#f1f3f5', grass2: '#e9ecef', path: '#ffffff', path2: '#dee2e6', fog: '#fff7e6',
+      { name: 'Les rayons', sky0: '#e9d8bd', sky1: '#fbeedd', sun: '#ffe8c2', mount0: '#e76f51', mount1: '#f4a261',
+        grass: '#d9b98f', grass2: '#c49a6c', path: '#8fa3b5', path2: '#7d93a6', fog: '#f3e3cb',
         deco: ['🛒', '🍞', '🧀', '🥕', '🍌', '🥛'], ambient: [] },
-      { name: 'Le rayon des fruits', sky0: '#caffbf', sky1: '#fdffb6', sun: '#fff6c2', mount0: '#caffbf', mount1: '#9bf6ff',
-        grass: '#e9f5db', grass2: '#dcedc8', path: '#fff8e7', path2: '#f1e3c8', fog: '#fdffef',
+      { name: 'Le rayon des fruits', sky0: '#dfe8c8', sky1: '#f6f1dc', sun: '#ffe8c2', mount0: '#6a994e', mount1: '#a7c957',
+        grass: '#b98b5e', grass2: '#a3774d', path: '#8aa37b', path2: '#79926a', fog: '#efe9d2',
         deco: ['🍎', '🍐', '🍍', '🍉', '🍇', '🥕'], ambient: [] },
     ],
     endText: 'Le caddie est plein : de quoi faire plein de potions !',
@@ -593,26 +641,10 @@ const WORLDS = [
     creatures: true, // les poses font apparaître des créatures à apprivoiser
     endText: 'Lumi te donne l\'Étoile verte ! Tes nouveaux amis te disent bravo !',
     sequence: [
-      Z(4, 'Le portail t\'emmène dans la Vallée des Créatures. L\'Étoile verte est cachée ici : imite les créatures, elles t\'aideront à la trouver !'),
-      R(5),
-      P('armsUp'), P('star'),
-      S(), J(),
-      P('airplane'),
-      L(), D(),
-      P('flamingo', 2),
-      B(10, 6),
-      R(6),
-      K(10),
-      F(14),
-      C('squat', 'jump'),
-      P('star'),
-      X(2),
-      C('left', 'right', 'jump'),
-      P('airplane', 2),
-      R(6),
-      S(2), J(2),
-      P('armsUp', 2),
-      C('jump', 'squat', 'smash'),
+      Z(4, "Le portail t'emmène dans la Vallée des Créatures. L'Étoile verte est cachée ici : imite les animaux, ils t'aideront à la trouver !"),
+      AC('animals', 4), B(10, 6), P('flamingo', 2), C('squat', 'jump'),
+      AC('animals', 5), K(10), M(12, 6), P('star'),
+      AC('animals', 5), F(14), PM('armsUp', 'star', 'airplane'), J(2),
       Z(3, 'Magnifique… respire comme Lumi.'),
     ],
   },
@@ -634,10 +666,9 @@ const WORLDS = [
     ],
     endText: 'Flocon te rend l\'Étoile orange : la banquise est sauvée !',
     sequence: [
-      Z(4, 'Brrr ! Le Nuage Grognon a tout gelé, et il a caché l\'Étoile orange sous la glace. Bouge bien pour réchauffer la banquise !'),
-      R(6), J(), K(10), S(), L(), D(),
-      P('armsUp'), Q(3), B(10, 6), X(2),
-      C('jump', 'squat'), F(14), P('star'), R(6), K(8),
+      Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Les bébés pingouins ont besoin de toi !"),
+      AC('clap', 3), U(4), K(10), Q(3), AC('clap', 4),
+      X(2), B(10, 6), F(14), PM('airplane', 'armsUp', 'star'), AC('clap', 4),
       Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ],
   },
@@ -662,10 +693,10 @@ const WORLDS = [
     ],
     endText: 'Plouf te rend l\'Étoile bleue : l\'océan est sauvé !',
     sequence: [
-      Z(4, 'Le portail s\'ouvre… sous la mer ! L\'Étoile bleue brille quelque part au fond de l\'océan. On plonge !'),
-      B(12, 8), R(6), S(), J(), K(10),
-      P('airplane'), L(), D(), X(2), B(10, 6),
-      C('squat', 'jump'), F(14), P('star'), Q(3), R(6),
+      Z(4, "Le portail s'ouvre… sous la mer ! L'Étoile bleue brille au fond de l'océan. Les dauphins vont nager avec toi !"),
+      AC('swim', 12), B(12, 8), U(4), P('airplane'),
+      AC('swim', 14), K(10), M(12, 6), S(2),
+      AC('swim', 16), CU(10, 1.5), F(14), P('star'),
       Z(3, 'Super ! Respire comme une baleine…'),
     ],
   },
@@ -690,10 +721,10 @@ const WORLDS = [
     ],
     endText: 'Comète te rend l\'Étoile jaune : le ciel brille à nouveau !',
     sequence: [
-      Z(4, 'Le Nuage Grognon a emporté l\'Étoile jaune tout là-haut, dans l\'espace ! 3, 2, 1… décollage !'),
-      J(), K(12), R(6), S(), P('star'),
-      L(), D(), Q(4), X(2), B(10, 6),
-      C('jump', 'smash'), F(14), P('airplane'), K(10), J(2),
+      Z(4, "Le Nuage Grognon a emporté l'Étoile jaune tout là-haut, dans l'espace ! Prépare ta fusée…"),
+      AC('launch', 2), K(12), P('star'), J(2),
+      AC('launch', 3), F(14), B(10, 6), C('left', 'right', 'jump'),
+      AC('launch', 3), SL(12, 6), PM('star', 'airplane', 'armsUp'), P('airplane'),
       Z(3, 'Atterrissage en douceur… respire.'),
     ],
   },
@@ -767,10 +798,9 @@ const WORLDS = [
     ],
     endText: 'Croc te rend l\'Étoile rouge, et tous les œufs sont retrouvés !',
     sequence: [
-      Z(4, 'Dans la Vallée des Dinos, le Nuage Grognon a caché l\'Étoile rouge au milieu des œufs ! Aide Croc à la retrouver.'),
-      J(), R(6), J(2), S(), X(2),
-      P('star'), K(10), L(), D(), Q(4),
-      C('jump', 'smash'), F(14), P('airplane'), B(10, 6), R(6),
+      Z(4, "Dans la Vallée des Dinos, le Nuage Grognon a caché l'Étoile rouge au milieu des œufs ! Marche comme un dino pour les faire éclore."),
+      AC('stomp', 3), X(2), J(2), M(12, 6), AC('stomp', 4),
+      Q(4), CU(10, 1.5), P('flamingo', 2), AC('stomp', 4), F(14),
       Z(3, 'Bravo ! Respire comme un grand dino…'),
     ],
   },
@@ -873,7 +903,7 @@ const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'
 let classicN = 0; // rang parmi les mondes « classiques » (même règle que hooks.py)
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
-  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges', 'stade'].includes(w.id)) return; // ces mondes ont leur propre programme
+  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges', 'stade', 'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos'].includes(w.id)) return; // ces mondes ont leur propre programme (leur jeu sur place)
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.62), 0, classicN++ % 2 ? CU(10, 1.5) : SL(12, 6)); // fruits ou cubes, un monde sur deux

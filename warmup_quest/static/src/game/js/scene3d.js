@@ -2385,6 +2385,7 @@ class Scene3D extends DepthScene {
     this.drawFoam(now);
     this.drawWand(now);
     this.drawSport(now);
+    this.drawAct(now);
     this.drawFork(now);
     this.drawTurn(now);
     this.drawRope(now);

@@ -240,8 +240,8 @@ class Tracker {
       this.players = n;
       this.bodies = Array.from({ length: n }, (_, i) => new Body(i));
       if (this.landmarker) this.landmarker.setOptions({ numPoses: n }).catch((e) => console.warn(e));
+      this.calibrated = false; // (même nombre de joueurs : le calibrage reste valable, ex. aller-retour château / cours)
     }
-    this.calibrated = false;
     if (this.sim) for (const b of this.bodies) this.simBody(b);
   }
 
