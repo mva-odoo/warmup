@@ -32,7 +32,7 @@ const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tom
 const FOAM_COLS = ['#ffffff', '#ffe3f6', '#e3f6ff', '#ffffff', '#ecffe3'];
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['learn', 'foam', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['learn', 'foam', 'wand', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -745,7 +745,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes'];
+  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -791,6 +791,8 @@ class Game {
       for (const cb of c.cubes) { cb.born += d; cb.arrive += d; if (cb.hit) cb.hit += d; }
       if (c.lastFruit) c.lastFruit += d;
       if (c.prevT) c.prevT += d;
+      for (const f of c.foes || []) { f.born += d; if (f.t) f.t += d; }
+      if (c.lastFoe) c.lastFoe += d;
     }
     if (this.gapUntil) this.gapUntil += d;
     this.pausedTotal += d;
@@ -944,6 +946,7 @@ class Game {
       case 'jump': case 'squat':
         return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
       case 'foam': return `<div class="runCount">🧽 ${'⭐'.repeat(c.round || 0)}${'☆'.repeat(Math.max(0, (c.rounds || 1) - (c.round || 0)))} <b>${Math.round(Math.min(1, (c.clean || 0) / (c.target || 0.8)) * 100)} %</b></div>`;
+      case 'wand': return `<div class="runCount">🪄 <b>${c.calmed || 0}</b> / ${s.n}</div>`;
       case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
       case 'pose': return holdBar(c.hold / (s.hold * 1000), s.creature);
@@ -972,7 +975,7 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam'].includes(s.m);
+    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand'].includes(s.m);
     // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
     scene.hideHero = !!s && (s.m === 'slice' || s.m === 'foam'); // (fruits, mousse : on voit tout l'écran)
     if (scene.hideHero) scene.mirror = false;
@@ -1429,6 +1432,83 @@ class Game {
     ui.setDetail(this.detail(c));
   }
 
+
+  // ---------- Baguette magique : le Nuage Grognon a ensorcelé des créatures (petit nuage d'orage sur la tête).
+  // L'enfant pointe le bras vers l'une d'elles : un rayon part de la baguette de son dresseur ; tenu sur la créature,
+  // il chasse le nuage et elle redevient gentille. La dernière libérée devient son amie (carnet).
+  // Pointeur : le bras levé le plus tendu (voir armPoint), lissé ; pas besoin de calibrer la place de la caméra.
+  wandPointers(c) {
+    return tracker.bodies.map((b, i) => {
+      let p = null;
+      const aim = DEV.get('wandaim') && (c.foes || []).find((f) => f.state === 'grumpy'); // (mode test) vise tout seul
+      if (aim) p = { x: aim.x, y: aim.y };
+      else if (DEV.get('fakelimbs')) { const t = performance.now() / 1000 + i * 2; p = { x: 0.5 + Math.sin(t * 0.6) * 0.42, y: 0.38 + Math.sin(t * 1.3) * 0.18 }; }
+      else if (b.lm && b.T && b.state.present) {
+        const sh = mid(b.lm[11], b.lm[12]);
+        const ps = [15, 16].map((k) => armPoint(b, k)).filter((q) => q && q.wy < sh.y + b.T * 0.6); // (bras levé, au-dessus du ventre)
+        if (ps.length) p = ps.reduce((a, q) => (Math.hypot(q.x - 0.5, q.y - 0.62) > Math.hypot(a.x - 0.5, a.y - 0.62) ? q : a));
+      }
+      const o = c.ptr[i];
+      if (!p) return null;
+      if (!o) return { x: p.x, y: p.y };
+      return { x: o.x + (p.x - o.x) * 0.4, y: o.y + (p.y - o.y) * 0.4 }; // (lissé : le rayon ne tremble pas)
+    });
+  }
+
+  updateWand(c, now, dt) {
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy), A = scene.W / Math.max(1, scene.H);
+    if (!c.foes) {
+      c.foes = []; c.calmed = 0; c.ptr = []; c.lastSlot = -1;
+      const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 0.5) / this.steps.length) * bs.length))].kit || 'meadow';
+      c.pool = creaturesOf(kit).filter((cr) => !cr.still);
+      if (!c.pool.length) c.pool = CREATURES.slice();
+    }
+    // Places des créatures (part de l'écran) : autour du dresseur, en haut et sur les côtés, jamais sous la vignette caméra
+    const SLOTS = [[0.14, 0.33], [0.86, 0.46], [0.3, 0.38], [0.7, 0.36], [0.12, 0.62], [0.88, 0.66]]; // (sous la consigne)
+    const alive = c.foes.filter((f) => f.state === 'grumpy');
+    const left = s.n - c.calmed - alive.length;
+    if (left > 0 && alive.length < Math.min(2, this.np + 1) && now - (c.lastFoe || 0) > 900 && (!tracker.sim || DEV.get('fakelimbs'))) {
+      const used = new Set(alive.map((f) => f.slot));
+      const free = SLOTS.map((_, k) => k).filter((k) => !used.has(k) && k !== c.lastSlot);
+      const slot = free[Math.floor(Math.random() * free.length)];
+      const cr = c.pool[Math.floor(Math.random() * c.pool.length)];
+      c.foes.push({ cr, slot, x: SLOTS[slot][0], y: SLOTS[slot][1], born: now, state: 'grumpy', charge: 0, evolved: Carnet.evolved(cr.id), seed: Math.random() * 6 });
+      c.lastFoe = now; c.lastSlot = slot;
+      Audio8.cry(cr.id);
+    }
+    // Rayons : chaque pointeur charge la créature qu'il vise
+    c.ptr = this.wandPointers(c);
+    const R = easy ? 0.15 : 0.12, fill = easy ? 900 : 1300;
+    for (const f of c.foes) f.aimed = false;
+    c.ptr.forEach((p, i) => {
+      if (!p) return;
+      p.hit = null;
+      let best = null, bd = R;
+      for (const f of c.foes) {
+        if (f.state !== 'grumpy' || now - f.born < 500) continue;
+        const d = Math.hypot((p.x - f.x) * A, p.y - f.y);
+        if (d < bd) { bd = d; best = f; }
+      }
+      if (best) { p.hit = best; best.aimed = true; best.charge = Math.min(1, best.charge + dt / fill); }
+    });
+    for (const f of c.foes) {
+      if (f.state !== 'grumpy') continue;
+      if (!f.aimed) f.charge = Math.max(0, f.charge - dt / 2600);
+      else if (now - (f.hum || 0) > 200) { f.hum = now; Audio8.sparkle(f.charge); }
+      if (f.charge >= 1) {
+        f.state = 'calm'; f.t = now; c.calmed++; c.friend = f.cr;
+        this.add(this.pts(100), '+100 ✨'); this.collect();
+        scene.burst(f.x * scene.W, f.y * scene.H, 40, ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2', '#c77dff']);
+        Audio8.spell(); setTimeout(() => Audio8.cry(f.cr.id, true), 250);
+        if (c.calmed < s.n) Audio8.say(pick([`${f.cr.name} est redevenu gentil !`, 'Bravo, le nuage est parti !', 'Abracadabra ! Encore une !', 'Super, magicien !']));
+        ui.setDetail(this.detail(c));
+        if (c.calmed >= s.n) { scene.wand = { foes: c.foes, ptrs: [] }; return this.complete(now); }
+      }
+    }
+    c.foes = c.foes.filter((f) => f.state === 'grumpy' || now - f.t < 1500);
+    scene.wand = { foes: c.foes, ptrs: c.ptr };
+  }
+
   // Fin du chemin secret : un coffre au trésor (gros bonus) et une clé dorée sur la carte des îles
   secretTreasure(now) {
     this.add(this.pts(300), '+300 🗝️'); this.collect(5);
@@ -1640,8 +1720,9 @@ class Game {
     Rec.stepEnd(this.i, rating);
     if (c.s.secret) this.secretTreasure(now);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
-    if (c.s.creature) {
-      const cr = c.s.creature;
+    const friend = c.s.creature || c.friend; // (baguette : la dernière créature libérée devient ton amie)
+    if (friend) {
+      const cr = friend;
       Audio8.cry(cr.id, true);
       const n = Carnet.add(cr.id);
       this.team.push(cr);
@@ -1659,7 +1740,7 @@ class Game {
     scene.setHoldPose(null);
     scene.bubbles = []; scene.hands = []; scene.moles = [];
     this.endTargets(c);
-    if (!c.s.creature) this.gapUntil = now + 1100;
+    if (!friend) this.gapUntil = now + 1100;
     this.personalMessage('success', now);
   }
 
@@ -1700,11 +1781,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes'].includes(s.m)) {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
         posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
-        slice: () => c.sliced / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
+        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -1764,6 +1845,7 @@ class Game {
     if (s.m === 'cubes') { this.updateCubes(c, now); if (c.done) return; }
     if (s.m === 'ball') { this.updateBall(c, now); if (c.done) return; }
     if (s.m === 'foam') { this.updateFoam(c, now); if (c.done) return; }
+    if (s.m === 'wand') { this.updateWand(c, now, dt); if (c.done) return; }
     if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
     if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }

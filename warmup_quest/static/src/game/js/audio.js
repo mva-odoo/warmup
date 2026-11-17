@@ -141,7 +141,7 @@ const Audio8 = (() => {
     candy: { bpm: 132, key: 65, scale: [0, 2, 4, 7, 9], chords: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]], lead: 'marimba', arp: 'bell',
       kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'xxx.xxx.xxx.xxx.' },
   };
-  const WORLD_STYLE = { disco: 'dance', rythmo: 'dance', dojo: 'karate', verger: 'karate', espace: 'space', ocean: 'water', bonbons: 'candy', island: 'fun', jardin3d: 'fun' };
+  const WORLD_STYLE = { disco: 'dance', rythmo: 'dance', dojo: 'karate', verger: 'karate', espace: 'space', ocean: 'water', bonbons: 'candy', island: 'fun', jardin3d: 'fun', sortileges: 'space' };
 
   function compose(style, seed) {
     let x = 0; for (const ch of String(seed)) x = (x * 31 + ch.charCodeAt(0)) % 2147483647;
@@ -372,6 +372,9 @@ const Audio8 = (() => {
     setMusicEnabled(on) { enabled = on; try { localStorage.setItem('wuq_music', on ? 'true' : 'false'); } catch {} refresh(); },
     // Raclette qui couine sur la vitre
     squeak() { play('bell', deg(7, 2), 0, 0.08, 0.08); play('bell', deg(9, 2), 0.06, 0.12, 0.07); play('noise', 2500, 0, 0.12, 0.06); },
+    // Baguette magique : petit scintillement qui monte avec la charge (k : 0..1), puis le sort qui part
+    sparkle(k = 0) { play('bell', deg(4 + Math.round(k * 5), 3), 0, 0.08, 0.05); },
+    spell() { [0, 2, 4, 7, 9].forEach((d, i) => play('bell', deg(d + 2, 3), i * 0.04, 0.35, 0.07)); play('noise', 7000, 0, 0.5, 0.05); },
     // Photo : déclic d'appareil
     photo() { play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
     // Combo : petite montée de notes, et la musique s'emballe (charleston rapide, arpèges doublés) quelques mesures

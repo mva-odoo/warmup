@@ -321,10 +321,11 @@ class DepthScene {
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
+    this.wand = null;
     this.foam = []; this.foamOn = false; this.squeegees = []; this.turnHero = null; this.foamDrips = []; this.foamFade = false; this.fork = null;
     if (this.foamCx) this.foamCx.clearRect(0, 0, this.foamCv.width, this.foamCv.height);
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' ? 0.35 : 1;
+    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' || s.m === 'wand' ? 0.35 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -520,6 +521,7 @@ class DepthScene {
     this.drawFruits(now);
     this.drawCubes(now);
     this.drawFoam(now);
+    this.drawWand(now);
     this.drawFork(now);
     this.drawBubbles(now);
     this.drawRope(now);
@@ -887,6 +889,83 @@ class DepthScene {
       ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-w / 2, -w * 0.19, w, w * 0.03);
       ctx.restore();
     }
+  }
+
+  // ---------- Baguette magique (calque 2D, commun aux rendus 2D et 3D)
+  // Créatures ensorcelées (petit nuage d'orage au-dessus de la tête), anneau qui se remplit quand le rayon les vise,
+  // baguette dans la main du dresseur et rayon jusqu'au pointeur.
+  wandOrigin(i, p) { const h = this.heroPx(i), S = Math.min(this.W, this.H); return { x: h.x + (p.x * this.W > h.x ? 1 : -1) * S * 0.08, y: h.y - S * 0.28 }; }
+  // Où est la créature à l'écran (px) : elle apparaît en grandissant ; libérée, elle s'envole vers le dresseur
+  wandFoePos(f, now) {
+    const S = Math.min(this.W, this.H), x = f.x * this.W, y = f.y * this.H;
+    if (f.state !== 'calm') return { x, y, k: Math.min(1, (now - f.born) / 500), a: 1 };
+    const q = Math.min(1, (now - f.t) / 1500), h = this.heroPx(0);
+    return { x: x + (h.x - x) * q * q, y: y + (h.y - S * 0.2 - y) * q * q - Math.sin(q * Math.PI) * S * 0.12, k: 1 - q * 0.6, a: 1 - q * q };
+  }
+  drawWandFoe(f, P, r, now) { // (rendu 2D : la créature dessinée ; en 3D, c'est un vrai modèle, voir updateWand3D)
+    this.ctx.globalAlpha = P.a;
+    drawCreature(this.ctx, P.x, P.y + r * 0.95 * P.k, r * 1.9 * P.k, f.cr, f.state === 'calm' ? 'happy' : null, now, f.evolved);
+    this.ctx.globalAlpha = 1;
+  }
+  drawWand(now) {
+    const w = this.wand;
+    if (!w) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H), r = S * 0.1;
+    for (const f of w.foes) {
+      const P = this.wandFoePos(f, now), x = P.x, y = P.y, k = P.k;
+      this.drawWandFoe(f, P, r, now);
+      if (f.state === 'calm') { // elle s'envole vers le dresseur en laissant des étoiles et des cœurs
+        ctx.globalAlpha = P.a; ctx.font = `${r * 0.5}px serif`; ctx.textAlign = 'center';
+        for (let j = 0; j < 4; j++) ctx.fillText(['✨', '💖', '⭐', '✨'][j], x + Math.cos(now / 300 + j * 1.6) * r * 1.1, y + Math.sin(now / 300 + j * 1.6) * r * 0.9);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      // nuage d'orage (il rétrécit quand la charge monte)
+      const cy = y - r * 1.25 * k, cs = r * (1 - f.charge * 0.55) * k, shake = f.aimed ? Math.sin(now * 0.06) * r * 0.05 : 0;
+      ctx.save(); ctx.translate(x + shake, cy);
+      ctx.fillStyle = '#4a4e69'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = Math.max(2, r * 0.05);
+      ctx.beginPath();
+      for (const [dx, dy, rr] of [[-0.45, 0.05, 0.38], [0, -0.15, 0.48], [0.45, 0.05, 0.38], [0, 0.15, 0.4]]) { ctx.moveTo(dx * cs + rr * cs, dy * cs); ctx.arc(dx * cs, dy * cs, rr * cs, 0, 6.29); }
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffffff'; // petits yeux grognons
+      for (const sg of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sg * cs * 0.2, -cs * 0.05, cs * 0.09, cs * 0.06, sg * 0.4, 0, 6.29); ctx.fill(); }
+      if (Math.sin(now * 0.004 + f.seed * 7) > 0.85) { // éclair
+        ctx.strokeStyle = '#ffd60a'; ctx.lineWidth = Math.max(2, r * 0.07); ctx.beginPath();
+        ctx.moveTo(0, cs * 0.45); ctx.lineTo(-cs * 0.15, cs * 0.8); ctx.lineTo(cs * 0.08, cs * 0.8); ctx.lineTo(-cs * 0.1, cs * 1.2); ctx.stroke();
+      }
+      ctx.restore();
+      // anneau de charge
+      if (f.charge > 0) {
+        ctx.lineCap = 'round'; ctx.lineWidth = Math.max(5, r * 0.14);
+        ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(x, y, r * 1.15, 0, 6.29); ctx.stroke();
+        ctx.strokeStyle = '#ffd166'; ctx.beginPath(); ctx.arc(x, y, r * 1.15, -Math.PI / 2, -Math.PI / 2 + f.charge * 6.29); ctx.stroke();
+      }
+    }
+    // Baguettes et rayons
+    const cols = ['#ffd166', '#7bdff2'];
+    (w.ptrs || []).forEach((p, i) => {
+      if (!p) return;
+      const o = this.wandOrigin(i, p), tx = p.x * W, ty = p.y * H, a = Math.atan2(ty - o.y, tx - o.x), L = S * 0.09;
+      const tip = { x: o.x + Math.cos(a) * L, y: o.y + Math.sin(a) * L }, col = cols[i % 2], on = !!p.hit;
+      // rayon : ondulé, plus épais et plus brillant quand il touche une créature
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      const d = Math.hypot(tx - tip.x, ty - tip.y), nx = -(ty - tip.y) / (d || 1), ny = (tx - tip.x) / (d || 1);
+      for (const [lw, al] of on ? [[S * 0.05, 0.25], [S * 0.022, 0.6], [S * 0.008, 1]] : [[S * 0.012, 0.25], [S * 0.004, 0.6]]) {
+        ctx.strokeStyle = col; ctx.globalAlpha = al; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(tip.x, tip.y);
+        for (let j = 1; j <= 16; j++) { const q = j / 16, wv = Math.sin(q * 12 - now * 0.02) * S * (on ? 0.012 : 0.006) * Math.sin(q * Math.PI); ctx.lineTo(tip.x + (tx - tip.x) * q + nx * wv, tip.y + (ty - tip.y) * q + ny * wv); }
+        ctx.stroke();
+      }
+      ctx.restore();
+      if (on && Math.random() < 0.5) this.burst(tx, ty, 1, [col, '#ffffff']);
+      // la baguette (manche foncé, bout blanc, étoile)
+      ctx.lineCap = 'round'; ctx.strokeStyle = '#3d2b1f'; ctx.lineWidth = Math.max(4, S * 0.014);
+      ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(o.x + Math.cos(a) * L * 0.75, o.y + Math.sin(a) * L * 0.75); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+      ctx.font = `${S * 0.045}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⭐', tip.x, tip.y);
+      // pointeur : étoile qui tourne
+      ctx.save(); ctx.translate(tx, ty); ctx.rotate(now / 400); ctx.font = `${S * (on ? 0.07 : 0.05)}px serif`; ctx.fillText('✨', 0, 0); ctx.restore();
+      ctx.textBaseline = 'alphabetic';
+    });
   }
 
   // Traînée lumineuse derrière la main (coup de sabre) : on voit son geste

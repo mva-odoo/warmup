@@ -164,6 +164,18 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, armL: side < 0 ? 2.5 : 0.4, armR: side > 0 ? 2.5 : 0.4 });
       break;
     }
+    case 'wand': { // le bras pointe une créature grognonne : un rayon, le nuage noir disparaît, un cœur apparaît
+      const k = cyc(2000), side = Math.floor(t / 2000) % 2 ? 1 : -1, cx = gx + side * S * 0.36, cy = gy - S * 0.78;
+      stickFigure(ctx, { ...base, armL: side < 0 ? 2.2 : 0.3, armR: side > 0 ? 2.2 : 0.3 });
+      const hx = gx + side * S * 0.2, hy = gy - S * 0.62;
+      if (k > 0.2 && k < 0.7) { ctx.strokeStyle = '#ffd166'; ctx.lineWidth = Math.max(3, S * 0.025); ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(cx, cy); ctx.stroke(); }
+      ctx.font = `${S * 0.17}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(k < 0.7 ? '😠' : '😊', cx, cy);
+      if (k < 0.7) { ctx.globalAlpha = 1 - Math.max(0, k - 0.45) * 4; ctx.font = `${S * 0.13}px serif`; ctx.fillText('🌩️', cx, cy - S * 0.14); ctx.globalAlpha = 1; }
+      else { ctx.font = `${S * 0.1}px serif`; ctx.fillText('💖', cx + S * 0.1, cy - S * 0.12 - (k - 0.7) * S * 0.3); }
+      ctx.textBaseline = 'alphabetic';
+      break;
+    }
     case 'shop': { // un produit arrive dans un couloir : un pas de côté, et il tombe dans le caddie
       const k = cyc(1600), side = Math.floor(t / 1600) % 2 ? 1 : -1, step = Math.min(1, k * 2.5);
       ctx.font = `${S * 0.2}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

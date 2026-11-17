@@ -1677,6 +1677,55 @@ class Scene3D extends DepthScene {
       m.mesh.animate(now, throwing ? 'happy' : 'idle');
     }
   }
+  // ---------- Baguette magique (3D) : les créatures ensorcelées sont de vrais modèles, placés devant la caméra à
+  // l'endroit de l'écran choisi par la partie (le calque 2D ajoute le nuage d'orage, l'anneau et le rayon)
+  screenTo3D(sx, sy, dist) {
+    const T = this.T, cam = this.camera, o = cam.getWorldPosition(new T.Vector3());
+    const v = new T.Vector3(sx * 2 - 1, 1 - sy * 2, 0.5).unproject(cam).sub(o).normalize();
+    return o.addScaledVector(v, dist);
+  }
+  drawWandFoe() {} // (le modèle 3D est déjà dessiné)
+  updateWand3D(now) {
+    // (le décor tout près de la caméra rapetisse le temps de l'épreuve : aucun sapin ne cache une créature)
+    const clear = this.stepKind === 'wand';
+    for (const d of this.decor) {
+      const u = d.userData, want = clear && d.position.z > -6 ? 0 : 1;
+      if (u.wk == null && want === 1) continue;
+      if (!u.s0) u.s0 = d.scale.clone();
+      u.wk = (u.wk ?? 1) + (want - (u.wk ?? 1)) * 0.12;
+      if (want === 1 && u.wk > 0.99) { d.scale.copy(u.s0); d.visible = true; u.wk = null; continue; }
+      d.scale.copy(u.s0).multiplyScalar(Math.max(0.001, u.wk)); d.visible = u.wk > 0.02;
+    }
+    this.wandMeshes = this.wandMeshes || new Map();
+    const foes = (this.wand && this.wand.foes) || [], alive = new Set(foes);
+    for (const [f, m] of this.wandMeshes) if (!alive.has(f)) { this.s3.remove(m.group); this.wandMeshes.delete(f); }
+    for (const f of foes) {
+      let m = this.wandMeshes.get(f);
+      if (!m) { m = buildCreature3D(this, f.cr, f.evolved); this.s3.add(m.group); this.wandMeshes.set(f, m); m.base = m.group.scale.x; }
+      // (tout près de la caméra, devant les arbres du bord du chemin ; toutes à la même taille à l'écran,
+      // environ un cinquième de la hauteur, comme le dessin 2D)
+      const P = this.wandFoePos(f, now), D = 4, hh = m.height || 1.4;
+      const sz = (1.0 / hh) * P.k * (f.evolved ? 1.15 : 1) * Math.sqrt(P.a);
+      const p = this.screenTo3D(P.x / this.W, P.y / this.H, D);
+      m.group.position.set(p.x, p.y - hh * sz * 0.5, p.z);
+      m.group.scale.setScalar(Math.max(0.01, m.base * sz));
+      const cam = this.camera.getWorldPosition(new this.T.Vector3());
+      m.group.rotation.y = Math.atan2(cam.x - p.x, cam.z - p.z);
+      if (f.state === 'grumpy') m.group.rotation.z = Math.sin(now * (f.aimed ? 0.03 : 0.004) + f.seed) * (f.aimed ? 0.12 : 0.06); // (boude, et gigote sous le rayon)
+      else m.group.rotation.z = 0;
+      m.animate(now, f.state === 'calm' ? 'happy' : f.aimed ? 'no' : 'idle');
+    }
+  }
+  // Baguette dans la main du dresseur qui pointe (celle du côté du pointeur)
+  wandOrigin(i, p) {
+    const h = this.heroes[i], hs = this.avatarHands && this.avatarHands[i];
+    if (!h || !h.m3 || !hs || !hs.length) return super.wandOrigin(i, p);
+    const sc = h.m3.scale || 1, ax = h.m3.group.position.x, ay = h.m3.group.position.y + 1.15 * sc;
+    const side = p.x * this.W > this.project(ax, ay, 0).x ? 1 : -1;
+    const hd = hs.reduce((a, q) => (q.u * side > a.u * side ? q : a));
+    return this.project(ax + hd.u * 0.5 * sc, ay - hd.v * 0.5 * sc, h.m3.group.position.z);
+  }
+
   // ---------- Carrefour : deux panneaux en bois de chaque côté du chemin (icône de l'épreuve + flèche)
   updateForkSigns(now) {
     const f = this.fork, T = this.T;
@@ -1873,6 +1922,7 @@ class Scene3D extends DepthScene {
     else if (k === 'rope') Object.assign(shot, { x: 2.6, y: -0.9, z: -0.8, lx: -0.3, lz: 6.5, fov: 50 }); // de trois quarts, bas : on voit la corde passer sous les pieds
     else if (k === 'cubes') Object.assign(shot, { y: 0.5, z: 1.3, ly: 0.2, fov: 60 });           // plus large : on voit les cubes arriver
     else if (k === 'tunnel') Object.assign(shot, { y: -1.1, z: -1.4, ly: -0.2, fov: 62 });       // au ras du sol, dans le tunnel
+    else if (k === 'wand') Object.assign(shot, { y: 0.5, z: 1.1, ly: 0.7, fov: 58 });              // baguette : plus large, on voit les créatures autour
     else if (k === 'catch') Object.assign(shot, { y: 0.9, z: 1.0, ly: 0.9, fov: 58 });           // lève les yeux vers les étoiles qui tombent
     else if (k === 'smash') Object.assign(shot, { y: -0.4, z: -0.9, fov: 52 });                  // serré sur le rocher
     else if (k === 'rest') Object.assign(shot, { x: Math.sin(t * 0.45) * 2.4, y: 0.4, z: 0.6, fov: 52 }); // respiration : lent travelling
@@ -2102,6 +2152,7 @@ class Scene3D extends DepthScene {
     this.updateBoss(now);
     this.updateBall3D(now);
     this.updateMonkeys(now);
+    this.updateWand3D(now);
     this.updateForkSigns(now);
     // Paysage suivant quand on avance dans la partie
     const fb = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage forcé
@@ -2246,6 +2297,7 @@ class Scene3D extends DepthScene {
     this.drawFruits(now);
     this.drawBubbles(now);
     this.drawFoam(now);
+    this.drawWand(now);
     this.drawFork(now);
     this.drawTurn(now);
     this.drawRope(now);

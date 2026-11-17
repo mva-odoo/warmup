@@ -103,6 +103,12 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     on ne voit plus le décor, seulement les deux **raclettes** (les mains de l'enfant). Chaque geste efface une bande,
     comme sur une vraie fenêtre (gouttes qui coulent, reflets, cadre en bois). Vitre propre à 80 % (65 % en mode petit) :
     elle brille… et les singes recommencent (1 à 3 vitres selon le nombre réglé : 5 = une vitre). Très bien à deux.
+  - **Bois des Sortilèges** 🪄 (après le Monde des Créatures sur la carte) : le Nuage Grognon a ensorcelé des créatures
+    (petit nuage d'orage sur la tête). L'enfant lève le bras et **pointe sa baguette** : un rayon part de la main de son
+    dresseur jusqu'à la créature visée ; tenu dessus (anneau doré qui se remplit, ~1,3 s, 0,9 s en mode petit), le nuage
+    éclate et elle redevient gentille. La dernière libérée devient son **amie** (carnet). On vise avec tout le bras
+    (pas le doigt, trop petit pour la caméra à 2–3 m) : aucun calibrage selon la place de la caméra. L'épreuve est aussi
+    dans l'École des dresseurs et aux carrefours. Mode test : `&step=wand&fakelimbs=1&wandaim=1`.
   - **Carrefours** 🔀 : dans chaque parcours (sauf l'école), le chemin se sépare. Deux panneaux montrent deux épreuves
     tirées au hasard (bulles, taupes, fruits, cubes, mousse, étoiles, corde, tunnel, statues) ; un grand pas à gauche
     ou à droite, tenu un instant, choisit la suivante. Un carrefour au milieu, deux pour les longs parcours.
@@ -139,6 +145,14 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 - **Configuration › Séquences d'échauffement** : créer / modifier les séquences
   (mouvement, répétitions, durées, poses, combos `jump,squat,smash`…). S'il y a plusieurs
   séquences pour un monde, le jeu propose de choisir.
+
+## Webcam de portable
+- Les mains sont placées à l'écran d'après la longueur de bras d'un enfant : raclettes, baguette et curseur atteignent les
+  bords et les coins sans tendre le bras à fond ; si le poignet sort de l'image, le jeu prolonge le bras depuis le coude.
+- Le format réel de la caméra (4:3 ou 16:9) est pris en compte pour l'avion, l'étoile, les jambes écartées et les pas de côté.
+- Le flamant rose est reconnu au genou levé, même quand les pieds (et l'autre genou) sont hors de l'image.
+- Pour voir les pieds : poser l'ordinateur plus bas (sur une chaise) et pencher l'écran en arrière, ou utiliser une webcam USB
+  grand angle posée bas (sous la télé).
 
 ## Petits ordinateurs
 Le jeu choisit tout seul sa **qualité** (Haute, Moyenne, Basse) d'après la machine (cœurs, mémoire, carte graphique), puis

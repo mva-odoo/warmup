@@ -2,9 +2,12 @@
 // Pensé pour donner envie de revenir, sans punition : rien ne se perd, rien ne s'achète.
 
 // Ordre des îles sur la carte (du plus simple au plus varié)
-const MAP_ORDER = ['ecole', 'jardin3d', 'turbo', 'island', 'forest', 'ferme', 'bonbons', 'supermarche', 'singes', 'banquise', 'ocean', 'dinos', 'verger',
+const MAP_ORDER = ['ecole', 'jardin3d', 'turbo', 'island', 'forest', 'sortileges', 'ferme', 'bonbons', 'supermarche', 'singes', 'banquise', 'ocean', 'dinos', 'verger',
   'espace', 'chateau', 'rythmo', 'disco', 'dojo'];
 const MAP_FREE = 4; // l'école et les 3 premières îles sont ouvertes d'office
+// Îles ajoutées après coup au milieu du chemin : elles s'ouvrent comme les autres, mais ne ferment pas la suite
+// à un enfant qui l'avait déjà ouverte (l'île d'après regarde aussi celle d'avant la nouvelle)
+const MAP_LATE = ['sortileges'];
 
 // Créatures proposées comme premier compagnon
 const STARTERS = ['flammeche', 'gouttin', 'feuillou'];
@@ -23,7 +26,11 @@ const Progress = {
     if (typeof store === 'function' && store('allOpen')) return true;
     const list = this.ordered(), k = list.indexOf(w);
     if (k < MAP_FREE || this.stars(w, i) > 0) return true;
-    return this.stars(list[k - 1], i) > 0;
+    for (let j = k - 1; j >= 0; j--) {
+      if (this.stars(list[j], i) > 0) return true;
+      if (!MAP_LATE.includes(list[j].id)) return false;
+    }
+    return false;
   },
   // Île où se trouve le dresseur : la première ouverte pas encore réussie (sinon la dernière ouverte)
   current(i = 0) {

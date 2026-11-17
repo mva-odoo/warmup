@@ -82,7 +82,7 @@ BOSS_POSES = [('star', 'airplane', 'armsUp'), ('armsUp', 'star', 'airplane'), ('
 
 # Ordre des mondes dans worlds.js (le gardien de chaque monde y est choisi par sa position)
 JS_WORLD_ORDER = ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'singes', 'supermarche', 'turbo', 'island', 'forest', 'banquise', 'ocean',
-                  'espace', 'bonbons', 'ferme', 'dinos', 'chateau']
+                  'espace', 'bonbons', 'ferme', 'dinos', 'chateau', 'sortileges']
 
 
 def _boss_step(world):
@@ -108,6 +108,10 @@ def _SH(t):
 
 def _SL(t, n):
     return {'move': 'slice', 'duration': t, 'count': n}
+
+
+def _WA(t, n):
+    return {'move': 'wand', 'duration': t, 'count': n}
 
 
 def _CU(n, beat=1.4):
@@ -148,6 +152,10 @@ DEFAULT_SEQUENCES = [
     ('singes', 'Les farces des singes', [
         _Z(2.5, 'Chut… des singes farceurs se cachent dans la jungle !'), _MO(16, 6), _J(2), _R(6), _MO(18, 8), _P('armsUp'),
         _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! Tout est propre… respire bien.'),
+    ]),
+    ('sortileges', 'Les sortilèges du Nuage Grognon', [
+        _Z(2.5, 'Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
+        _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, magicien ! Respire bien…'),
     ]),
     ('supermarche', 'Les courses de Panier', [
         _Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
@@ -209,7 +217,7 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges'}
 
 
 def _new_game(world):

@@ -17,6 +17,7 @@ WORLDS = [
     ('rythmo', 'Planète Rythmo'),
     ('supermarche', 'Super Marché Rigolo'),
     ('singes', 'Jungle des Singes Farceurs'),
+    ('sortileges', 'Bois des Sortilèges'),
 ]
 
 MOVES = [
@@ -44,6 +45,7 @@ MOVES = [
     ('ball', 'Passe de ballon (à deux)'),
     ('shop', 'Remplir le caddie (supermarché)'),
     ('foam', 'Laver la vitre (mousse des singes)'),
+    ('wand', 'Baguette magique (libérer les créatures ensorcelées)'),
 ]
 
 # Gestes que le coach (danse / karaté) peut demander
