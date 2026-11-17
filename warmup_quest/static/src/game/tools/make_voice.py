@@ -82,6 +82,9 @@ def scan():
                 found += literals(a[3])
         if f.name == 'gestures.js':
             found += [s for s in re.findall(r"text: '((?:\\.|[^'\\])*)'", src)]
+        if f.name == 'story.js':  # l'histoire : textes des chapitres (« text: '…' » et gabarits sans variable)
+            found += [s for s in re.findall(r"text: '((?:\\.|[^'\\])*)'", src)]
+            found += [s for s in re.findall(r"text: `([^`$]*)`", src)]
         if f.name == 'hub.js':  # phrases du parc de l'Académie (tableau HUB_SAY)
             m = re.search(r'const HUB_SAY = \{(.*?)\n\};', src, re.S)
             if m:

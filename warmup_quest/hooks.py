@@ -166,7 +166,7 @@ DEFAULT_SEQUENCES = [
         _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! La tour brille… respire bien.'),
     ]),
     ('sortileges', 'Les sortilèges du Nuage Grognon', [
-        _Z(4, "Ta première aventure hors de l'Académie ! Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !"), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
+        _Z(4, "Ta première aventure ! Le Nuage Grognon a caché l'Étoile violette dans le Bois des Sortilèges. Chut… prépare ta baguette !"), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
         _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ]),
     ('stade', 'Le match des créatures', [
@@ -190,23 +190,23 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Super ! Souffle un peu…'),
     ]),
     ('forest', 'Échauffement des Créatures', [
-        _Z(4, "Le portail magique t'emmène dans la Vallée des Créatures. Le Nuage Grognon les a effrayées : imite-les pour devenir leur ami !"), _R(5), _P('armsUp'), _P('star'), _S(), _J(), _P('airplane'), _L(),
+        _Z(4, "Le portail t'emmène dans la Vallée des Créatures. L'Étoile verte est cachée ici : imite les créatures, elles t'aideront à la trouver !"), _R(5), _P('armsUp'), _P('star'), _S(), _J(), _P('airplane'), _L(),
         _D(), _P('flamingo', 2), _B(10, 6), _R(6), _CA(10), _F(14), _C('squat', 'jump'), _P('star'), _X(2),
         _C('left', 'right', 'jump'), _P('airplane', 2), _R(6), _S(2), _J(2), _P('armsUp', 2),
         _C('jump', 'squat', 'smash'), _Z(3, 'Magnifique… respire comme Lumi.'),
     ]),
     ('banquise', 'Échauffement Glacé', [
-        _Z(4, 'Brrr ! Le Nuage Grognon a soufflé un vent glacé sur la banquise. Bouge bien pour la réchauffer !'), _R(6), _J(), _CA(10), _S(), _L(), _D(), _P('armsUp'), _RO(3), _B(10, 6),
+        _Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Bouge bien pour réchauffer la banquise !"), _R(6), _J(), _CA(10), _S(), _L(), _D(), _P('armsUp'), _RO(3), _B(10, 6),
         _X(2), _C('jump', 'squat'), _F(14), _P('star'), _R(6), _CA(8),
         _Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ]),
     ('ocean', 'Échauffement Plongée', [
-        _Z(4, "Le portail magique s'ouvre… sous la mer ! Le Nuage Grognon a fait peur aux créatures de l'océan. On plonge !"), _B(12, 8), _R(6), _S(), _J(), _CA(10), _P('airplane'), _L(), _D(),
+        _Z(4, "Le portail s'ouvre… sous la mer ! L'Étoile bleue brille quelque part au fond de l'océan. On plonge !"), _B(12, 8), _R(6), _S(), _J(), _CA(10), _P('airplane'), _L(), _D(),
         _X(2), _B(10, 6), _C('squat', 'jump'), _F(14), _P('star'), _RO(3), _R(6),
         _Z(3, 'Super ! Respire comme une baleine…'),
     ]),
     ('espace', 'Échauffement Spatial', [
-        _Z(4, "Le portail magique t'envoie dans l'espace ! Le Nuage Grognon a éteint les étoiles. 3, 2, 1… décollage !"), _J(), _CA(12), _R(6), _S(), _P('star'), _L(), _D(),
+        _Z(4, "Le Nuage Grognon a emporté l'Étoile jaune tout là-haut, dans l'espace ! 3, 2, 1… décollage !"), _J(), _CA(12), _R(6), _S(), _P('star'), _L(), _D(),
         _RO(4), _X(2), _B(10, 6), _C('jump', 'smash'), _F(14), _P('airplane'), _CA(10), _J(2),
         _Z(3, 'Atterrissage en douceur… respire.'),
     ]),
@@ -221,12 +221,12 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Bravo ! Les animaux te disent merci…'),
     ]),
     ('dinos', 'Échauffement des Dinos', [
-        _Z(4, 'Le Nuage Grognon a caché les œufs de la Vallée des Dinos ! Aide Croc à les retrouver.'), _J(), _R(6), _J(2), _S(), _X(2), _P('star'), _CA(10), _L(),
+        _Z(4, "Dans la Vallée des Dinos, le Nuage Grognon a caché l'Étoile rouge au milieu des œufs ! Aide Croc à la retrouver."), _J(), _R(6), _J(2), _S(), _X(2), _P('star'), _CA(10), _L(),
         _D(), _RO(4), _C('jump', 'smash'), _F(14), _P('airplane'), _B(10, 6), _R(6),
         _Z(3, 'Bravo ! Respire comme un grand dino…'),
     ]),
     ('chateau', 'Échauffement Enchanté', [
-        _Z(4, "Voici le château du Nuage Grognon ! C'est la dernière aventure. Courage, petit sorcier !"), _R(6), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _X(2),
+        _Z(4, "Voici le château du Nuage Grognon. Le cœur de l'arc-en-ciel est caché ici. Courage, petit sorcier… et sois gentil avec lui !"), _R(6), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _X(2),
         _P('armsUp'), _C('squat', 'jump'), _RO(3), _F(14), _P('flamingo', 2), _R(6),
         _Z(3, 'Le ciel est tout bleu… Magnifique ! Fais une révérence.'),
     ]),

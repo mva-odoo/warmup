@@ -483,6 +483,7 @@ function goMenu() {
   show('menu');
   scene.setWorld(null);
   buildMenu();
+  if (!DEV.get('nostory')) playPendingTale(); // (un chapitre de l'histoire à raconter ? portail ouvert, Étoile retrouvée, fin)
 }
 
 // ---------------- Lancement ----------------
@@ -569,7 +570,8 @@ function enterHub() {
   show('camBox'); $('camBox').classList.remove('big');
   show('hubHud');
   Audio8.music(false); Audio8.themeMute(false); Audio8.theme(world.village ? world.village.id : 'ecole');
-  hub.enter(hubLast);
+  const go = () => hub.enter(hubLast);
+  if (DEV.get('nostory')) go(); else playPendingTale(go); // (l'histoire d'abord, s'il y a un chapitre à raconter)
 }
 // Fin d'un cours lancé depuis le parc : on y revient, devant la porte du bâtiment
 function backToHub() { const hw = hubWorld || HUB_WORLD; world = hw; startWorld(hw); }
@@ -913,7 +915,7 @@ class Game {
     ui.setDetail(this.detail(this.cur));
     // (à deux, pose : on annonce à qui c'est le tour)
     const who = s.turn != null && team[s.turn] ? `À toi ${team[s.turn].name || (s.turn ? 'joueur deux' : 'joueur un')} ! ` : '';
-    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : s.m === 'boss' && this.world.finalBoss ? 'Le voilà ! Le Nuage Grognon en personne ! Copie ses poses : avec ta magie, il va redevenir gentil ! ' + POSES[s.poses[0]].say : stepSpeech(s)), { slow: !!this.world.tutorial });
+    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : s.m === 'boss' && this.world.finalBoss ? 'Le voilà, le Nuage Grognon ! Il a l\'air tout triste… Copie ses poses pour lui montrer que tu veux être son ami ! ' + POSES[s.poses[0]].say : stepSpeech(s)), { slow: !!this.world.tutorial });
     if (s.creature) Audio8.cry(s.creature.id);
     if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
       Audio8.say(tutoText(s.of), { slow: true });
@@ -1775,7 +1777,7 @@ class Game {
       if (c.pi >= s.poses.length) {
         if (s.m === 'boss' && c.boss === GROGNON) { // fin de l'histoire : le Nuage Grognon devient gentil
           this.grognonWon = true;
-          setTimeout(() => Audio8.say('Incroyable ! Le Nuage Grognon n\'est plus grognon ! Il sourit, et le ciel redevient tout bleu !'), 600);
+          setTimeout(() => Audio8.say('Incroyable ! Le Nuage Grognon sourit ! Il te rend le cœur de l\'arc-en-ciel !'), 600);
         } else if (s.m === 'boss' && c.boss) { // le gardien devient ami
           Carnet.add(c.boss.id); this.team.push(c.boss);
           setTimeout(() => Audio8.say(`Bravo ! ${c.boss.name}, le gardien de ce pays, devient ton ami !`), 600);
@@ -2074,6 +2076,10 @@ class Game {
     if (this.diploma) team.forEach((p, i) => WUQStore._set('diploma_' + i, true));
     // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
     if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i, this.stage.k));
+    // Pays fini : son Étoile de couleur est retrouvée (le chapitre sera raconté au retour au parc / au menu)
+    const gem = gemOf(this.world.id);
+    this.gemWon = gem && team.some((p, i) => !Tale.hasGem(gem.world, i) && Tale.countryDone(this.world, i)) ? gem : null;
+    if (gem) team.forEach((p, i) => { if (Tale.countryDone(this.world, i)) Tale.addGem(gem.world, i); });
     // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
     this.compGrow = team.map((p, i) => {
       const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
@@ -2263,8 +2269,9 @@ function showResults(g, stars) {
     if (n % 2) Audio8.coin();
     if (n >= g.collected) clearInterval(showResults.countT);
   }, Math.max(40, 1200 / Math.max(1, g.collected)));
+  if (g.gemWon) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as retrouvé l'Étoile ${g.gemWon.name} !`); }, 3200);
   if (g.diploma) setTimeout(() => { Audio8.win(); Audio8.say('Tu as gagné ton diplôme de petit sorcier ! Toute l\'Académie est fière de toi !'); }, 2500);
-  $('resDetail').innerHTML = (g.diploma ? `<div class="diploma">🎓 <b>Diplôme de petit sorcier</b><br><small>${SCHOOL}</small></div>` : '') + `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
+  $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
   $('resBest').textContent = g.records.map((r, i) => (duo() ? (r.name || 'Joueur ' + (i + 1)) + ' : ' : '') +
     (r.isBest ? '🏆 nouveau record !' : `record ${r.prev} pts`)).join(' · ');
   const friends = $('resTeam');
@@ -2281,6 +2288,9 @@ function showResults(g, stars) {
   $('resDay').innerHTML = limit && plays >= limit
     ? `<div class="dayDone">🌙 Échauffement fini pour aujourd'hui ! À demain 👋</div>`
     : plays === 1 ? `<div class="dayGoal">✅ Échauffement du jour réussi !</div>` : '';
+  // Étoile de couleur retrouvée, diplôme de fin : en grand dans la cérémonie
+  $('resDay').insertAdjacentHTML('afterbegin', (g.gemWon ? `<div class="taleWin" style="--gc:${g.gemWon.col}">⭐ Étoile ${g.gemWon.name} retrouvée !</div>` : '')
+    + (g.diploma ? `<div class="diploma">🎓 <b>Diplôme de petit sorcier</b><br><small>${SCHOOL}</small></div>` : ''));
   $('againBtn').classList.toggle('hidden', !!(limit && plays >= limit));
   if (limit && plays >= limit) setTimeout(() => Audio8.say("Bravo ! Ton échauffement est fini pour aujourd'hui. À demain !"), 5200);
   // Photo souvenir : la caméra a fait le tour du dresseur, on prend la photo (gardée pour la chambre)
@@ -2471,7 +2481,7 @@ function tick(now) {
   if (Gestures.on && (phase === 'menu' || phase === 'results' || phase === 'paused')) Gestures.update(now);
   else if (Gestures.el) Gestures.el.classList.remove('show');
   if (phase === 'calib') updateCalib(now);
-  if (phase === 'hub') hub.update(now);
+  if (phase === 'hub' && !document.querySelector('.storyBg')) hub.update(now); // (pas pendant un chapitre de l'histoire)
   if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); updateDuoSpacing(now); }
   else if ($('duoWarn')) $('duoWarn').classList.add('hidden');
   if (phase === 'paused') updatePause(now);
@@ -2521,7 +2531,7 @@ if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village
     if (phase === 'play' && game && fromHub && !game.over && performance.now() - game.startedAt > 3000) game.finish();
     if (phase === 'results' && fromHub && performance.now() - resultsAt > 1500) $('menuBtn').click();
   }, 500);
-  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get('stages_0'))}`; }, 300); // (mode test)
+  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get('stages_0'))} gems=${JSON.stringify(Tale.gems(0))} res=${($('resDay') || {}).textContent || ''}`; }, 300); // (mode test)
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
@@ -2545,37 +2555,18 @@ if (DEV.get('replay')) {
   }).catch((e) => { console.error(e); document.title = 'replay: ' + e.message; });
 }
 
-// ---------------- L'histoire (intro racontée) ----------------
-// Au tout premier lancement (et avec le bouton « 📜 L'histoire ») : 4 grandes images, la voix raconte.
-// On avance avec « Suivant » (au clic ou en gardant la main dessus), ou tout seul après la phrase.
-const STORY = [
-  { art: '🏰✨', text: `Bienvenue à l'${SCHOOL} ! Ici, les enfants apprennent la magie… en bougeant !` },
-  { art: '🧙🪄', text: 'Tu es un petit sorcier. Chaque cours t\'apprend un nouveau sort : sauter, danser, viser avec ta baguette…' },
-  { art: '🐾💖', text: 'Les créatures magiques deviennent tes amies. Ton familier t\'accompagne partout et grandit avec toi.' },
-  { art: '🌩️😠', text: 'Mais le Nuage Grognon rend tout le monde grognon ! Après les cours, pars à l\'aventure par le portail magique… et rends-le gentil !' },
-];
-function showStory(onDone = () => {}) {
-  let k = 0;
-  const bg = document.createElement('div');
-  bg.className = 'trainerBg storyBg';
-  const next = () => { if (++k >= STORY.length) { bg.remove(); Audio8.stopSpeech(); store('storySeen', true); onDone(); } else page(); };
-  const page = () => {
-    const st = STORY[k], lastP = k === STORY.length - 1;
-    bg.innerHTML = `<div class="storyPanel"><div class="storyArt">${st.art}</div><p>${st.text}</p>
-      <div class="storyDots">${STORY.map((_, i) => `<span class="${i === k ? 'on' : ''}"></span>`).join('')}</div>
-      <button class="btn">${lastP ? 'C\'est parti ! ✨' : 'Suivant ▶'}</button></div>`;
-    bg.querySelector('button').onclick = next;
-    Audio8.say(st.text, { slow: true });
-  };
-  document.body.appendChild(bg);
-  page();
-}
-$('storyBtn').onclick = () => showStory();
+// ---------------- L'histoire : voir story.js (chapitres racontés, Étoiles de l'arc-en-ciel, livre) ----------------
+if (store('storySeen')) Tale.markSeen('prologue', 0);
+if (DEV.get('gems')) { WUQStore._set('gems_0', GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set('tale_0', { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
+if (DEV.get('taleend')) WUQStore._set('diploma_0', true); // (mode test) fin de l'histoire
+if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
+if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0)), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
+$('storyBtn').onclick = () => openTaleBook();
 $('hubBtn').onclick = () => startWorld(HUB_WORLD);
 $('hubExit').onclick = goMenu;
 
 buildMenu();
-if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !(DEV.get('hub') || DEV.get('village')) && !DEV.get('nostory')) showStory(); // (premier lancement)
+if (!DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !(DEV.get('hub') || DEV.get('village')) && !DEV.get('nostory')) playPendingTale(); // (premier lancement : le prologue)
 // Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
 if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)

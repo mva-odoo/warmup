@@ -60,7 +60,7 @@ false
 false
 ],
 [
-"Le voilà ! Le Nuage Grognon en personne ! Copie ses poses : avec ta magie, il va redevenir gentil ! ",
+"Le voilà, le Nuage Grognon ! Il a l'air tout triste… Copie ses poses pour lui montrer que tu veux être son ami ! ",
 "jeu",
 false
 ],
@@ -275,7 +275,7 @@ false
 false
 ],
 [
-"Incroyable ! Le Nuage Grognon n'est plus grognon ! Il sourit, et le ciel redevient tout bleu !",
+"Incroyable ! Le Nuage Grognon sourit ! Il te rend le cœur de l'arc-en-ciel !",
 "bravo",
 true
 ],
@@ -530,7 +530,7 @@ true
 false
 ],
 [
-"Bienvenue au village ! Vise une étape avec ta baguette pour partir à l'aventure.",
+"Bienvenue au village ! L'Étoile de ce pays est cachée par ici. Vise une étape avec ta baguette pour partir à sa recherche !",
 "jeu",
 false
 ],
@@ -556,6 +556,106 @@ true
 ],
 [
 "Lève bien ton bras, comme une baguette magique, et montre un bâtiment !",
+"jeu",
+false
+],
+[
+"Tout là-haut, le Nuage Grognon boude : « Grrr ! Rends-moi mon étoile ! »",
+"jeu",
+false
+],
+[
+"Atchoum ! Le Nuage Grognon éternue des petits éclairs. Il a l'air… tout seul.",
+"jeu",
+false
+],
+[
+"On dirait que le Nuage Grognon pleure un peu. Pourquoi est-il si grognon ?",
+"jeu",
+false
+],
+[
+"Madame Pimprenelle réfléchit : « Et si le Nuage Grognon n'était pas méchant… mais juste triste ? »",
+"jeu",
+false
+],
+[
+"Une plume de chouette t'apporte un message : « Plus qu'une étoile ! Courage, petit sorcier ! »",
+"jeu",
+false
+],
+[
+"Les six étoiles sont là ! Mais le cœur de l'arc-en-ciel est encore dans le château du Nuage Grognon. Va le voir… et sois gentil avec lui.",
+"jeu",
+false
+],
+[
+"La directrice, Madame Pimprenelle la chouette, t'accueille : « Bienvenue, petit sorcier ! Ici, on apprend la magie… en bougeant ! »",
+"jeu",
+false
+],
+[
+"Chaque cours t'apprend un nouveau sort : sauter comme une grenouille, danser, viser avec ta baguette…",
+"jeu",
+false
+],
+[
+"Et voici ton familier : une créature magique rien qu'à toi. Il te suivra partout et grandira avec toi.",
+"jeu",
+false
+],
+[
+"Mais tout là-haut, un petit nuage gris vous regarde en fronçant les sourcils… Qui est-ce ?",
+"jeu",
+false
+],
+[
+"À toi de jouer ! Va à ton premier cours. Madame Pimprenelle compte sur toi !",
+"jeu",
+false
+],
+[
+"Patatras ! Pendant la nuit, le Nuage Grognon a aspiré toutes les couleurs de l'arc-en-ciel !",
+"jeu",
+false
+],
+[
+"Il les a changées en six Étoiles de couleur, et il les a cachées dans six pays lointains.",
+"jeu",
+false
+],
+[
+"Sans arc-en-ciel, tout le monde devient grognon. Même les créatures !",
+"jeu",
+false
+],
+[
+"Madame Pimprenelle ouvre le portail magique : « Tu as fini tes cours, petit sorcier. Tu es prêt ! Va retrouver les Étoiles ! »",
+"jeu",
+false
+],
+[
+"Le Nuage Grognon renifle : « Snif… Je voulais juste des couleurs. Personne ne m'invite jamais à jouer. »",
+"jeu",
+false
+],
+[
+"Tu lui tends la main : « Viens jouer avec nous ! » Le petit nuage n'en revient pas.",
+"jeu",
+false
+],
+[
+"Il rend le cœur de l'arc-en-ciel… et pouf ! Il devient un nuage tout doux, aux couleurs de l'arc-en-ciel.",
+"jeu",
+false
+],
+[
+"À l'Académie, c'est la fête ! Tout le monde danse, même le petit nuage. Maintenant, on l'appelle le Nuage Câlin.",
+"jeu",
+false
+],
+[
+"Madame Pimprenelle te remet ton diplôme : « Bravo, petit sorcier ! La plus grande magie, c'est l'amitié. »",
 "jeu",
 false
 ],

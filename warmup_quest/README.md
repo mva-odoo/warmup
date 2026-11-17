@@ -9,11 +9,26 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 
 À l'installation, 3 séquences par défaut (une par monde) et les 8 créatures sont créées.
 
-## L'histoire
+## L'histoire : « Les Étoiles de l'Arc-en-ciel »
+Au-dessus de l'Académie brille un arc-en-ciel magique. **Madame Pimprenelle**, la chouette directrice, accueille l'enfant
+pour sa première année de petit sorcier. Quand il a fini ses cours, le **Nuage Grognon** vole les six couleurs de
+l'arc-en-ciel et les cache, changées en **Étoiles de couleur**, dans les six pays d'aventure (violette au Bois des
+Sortilèges, verte dans la Vallée des Créatures, orange sur la Banquise, bleue dans l'Océan, rouge chez les Dinos, jaune
+dans l'Espace). Finir un pays rend son Étoile : l'arc-en-ciel au-dessus de la fontaine du parc retrouve cette couleur, et
+les petites étoiles du bandeau s'allument. Au fil des Étoiles, on découvre que le Nuage Grognon n'est pas méchant mais
+triste et tout seul. Au château, on ne le bat pas : on lui montre qu'on veut être son ami ; il rend le cœur de
+l'arc-en-ciel et devient le **Nuage Câlin** (qui flotte ensuite au-dessus du parc). Diplôme : « La plus grande magie,
+c'est l'amitié. »
+- Chapitres racontés (grandes images, voix lente, on avance tout seul à la fin de chaque phrase) : le prologue au premier
+  lancement, « L'arc-en-ciel a disparu ! » quand le portail s'ouvre, un chapitre par Étoile retrouvée, et la fin. Ils
+  arrivent au retour au parc ou au menu ; l'écran de fin annonce aussi « ⭐ Étoile violette retrouvée ! ».
+- « 📜 L'histoire » ouvre le livre : les Étoiles trouvées et les chapitres débloqués, à réécouter.
+- Mode test : `?tale=prologue|portal|fin|gem_ocean`, `?gems=3` (Étoiles déjà trouvées), `?taleend=1`, `?book=1`.
+
+## L'Académie
 L'enfant est un **petit sorcier** en première année à l'**Académie des Petits Mages**. Il a toujours sa baguette et
 (par défaut) son chapeau de sorcier ; ses créatures amies sont ses **familiers**, rangés dans son **grimoire**.
-Le méchant, jamais effrayant, c'est le **Nuage Grognon**, qui rend tout le monde grognon.
-- Au premier lancement, une petite intro racontée (4 images et la voix) ; on la revoit avec « 📜 L'histoire ».
+Le Nuage Grognon n'est jamais effrayant (voir l'histoire ci-dessus).
 - La carte a deux chapitres (un ruban marque le début de chacun) :
   - **📚 À l'Académie (les cours)** : Premier jour à l'Académie (le tuto), Le Jardin de l'Académie (botanique),
     Cours de danse magique (Tempo), Cours de défense (Maître Bambou), Atelier des potions (couper les fruits),

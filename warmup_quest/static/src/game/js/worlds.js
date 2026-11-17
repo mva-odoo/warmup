@@ -591,9 +591,9 @@ const WORLDS = [
     collectible: '🫐',
     sky: ['#232661', '#7b5ea7'],
     creatures: true, // les poses font apparaître des créatures à apprivoiser
-    endText: 'Lumi et tes nouveaux amis te disent bravo !',
+    endText: 'Lumi te donne l\'Étoile verte ! Tes nouveaux amis te disent bravo !',
     sequence: [
-      Z(4, 'Le portail magique t\'emmène dans la Vallée des Créatures. Le Nuage Grognon les a effrayées : imite-les pour devenir leur ami !'),
+      Z(4, 'Le portail t\'emmène dans la Vallée des Créatures. L\'Étoile verte est cachée ici : imite les créatures, elles t\'aideront à la trouver !'),
       R(5),
       P('armsUp'), P('star'),
       S(), J(),
@@ -632,9 +632,9 @@ const WORLDS = [
         grass: '#dcecf5', grass2: '#cfe2ee', path: '#a9cbe0', path2: '#9cc0d8', fog: '#7ff0c8',
         deco: ['🌲', '🧊', '⛄', '🌲', '✨', '🧊'], ambient: ['snow', 'fireflies'] },
     ],
-    endText: 'Flocon te dit merci : la banquise est sauvée !',
+    endText: 'Flocon te rend l\'Étoile orange : la banquise est sauvée !',
     sequence: [
-      Z(4, 'Brrr ! Le Nuage Grognon a soufflé un vent glacé sur la banquise. Bouge bien pour la réchauffer !'),
+      Z(4, 'Brrr ! Le Nuage Grognon a tout gelé, et il a caché l\'Étoile orange sous la glace. Bouge bien pour réchauffer la banquise !'),
       R(6), J(), K(10), S(), L(), D(),
       P('armsUp'), Q(3), B(10, 6), X(2),
       C('jump', 'squat'), F(14), P('star'), R(6), K(8),
@@ -660,9 +660,9 @@ const WORLDS = [
         grass: '#023e8a', grass2: '#03357a', path: '#48cae4', path2: '#3fb8d0', fog: '#90e0ef',
         deco: ['🐙', '🪸', '🐚', '🦑', '🪸', '✨'], ambient: ['rising', 'fireflies'] },
     ],
-    endText: 'Plouf te dit merci : l\'océan est sauvé !',
+    endText: 'Plouf te rend l\'Étoile bleue : l\'océan est sauvé !',
     sequence: [
-      Z(4, 'Le portail magique s\'ouvre… sous la mer ! Le Nuage Grognon a fait peur aux créatures de l\'océan. On plonge !'),
+      Z(4, 'Le portail s\'ouvre… sous la mer ! L\'Étoile bleue brille quelque part au fond de l\'océan. On plonge !'),
       B(12, 8), R(6), S(), J(), K(10),
       P('airplane'), L(), D(), X(2), B(10, 6),
       C('squat', 'jump'), F(14), P('star'), Q(3), R(6),
@@ -688,9 +688,9 @@ const WORLDS = [
         grass: '#5a189a', grass2: '#521590', path: '#c77dff', path2: '#b96ff2', fog: '#e0aaff',
         deco: ['✨', '🪐', '🌟', '☄️', '✨', '🛸'], ambient: ['fireflies'] },
     ],
-    endText: 'Comète te dit merci : les étoiles brillent à nouveau !',
+    endText: 'Comète te rend l\'Étoile jaune : le ciel brille à nouveau !',
     sequence: [
-      Z(4, 'Le portail magique t\'envoie dans l\'espace ! Le Nuage Grognon a éteint les étoiles. 3, 2, 1… décollage !'),
+      Z(4, 'Le Nuage Grognon a emporté l\'Étoile jaune tout là-haut, dans l\'espace ! 3, 2, 1… décollage !'),
       J(), K(12), R(6), S(), P('star'),
       L(), D(), Q(4), X(2), B(10, 6),
       C('jump', 'smash'), F(14), P('airplane'), K(10), J(2),
@@ -765,9 +765,9 @@ const WORLDS = [
         grass: '#8a5a44', grass2: '#7e513d', path: '#5e3023', path2: '#53291d', fog: '#ffd8b8',
         deco: ['🌋', '🦕', '🪨', '🌋', '🦖', '🌴'], ambient: [] },
     ],
-    endText: 'Croc te dit merci : tous les œufs sont retrouvés !',
+    endText: 'Croc te rend l\'Étoile rouge, et tous les œufs sont retrouvés !',
     sequence: [
-      Z(4, 'Le Nuage Grognon a caché les œufs de la Vallée des Dinos ! Aide Croc à les retrouver.'),
+      Z(4, 'Dans la Vallée des Dinos, le Nuage Grognon a caché l\'Étoile rouge au milieu des œufs ! Aide Croc à la retrouver.'),
       J(), R(6), J(2), S(), X(2),
       P('star'), K(10), L(), D(), Q(4),
       C('jump', 'smash'), F(14), P('airplane'), B(10, 6), R(6),
@@ -791,9 +791,9 @@ const WORLDS = [
         grass: '#3c096c', grass2: '#360862', path: '#e0aaff', path2: '#d49af5', fog: '#c77dff',
         deco: ['🌳', '✨', '🍄', '💎', '🌳', '🦄'], ambient: ['fireflies'] },
     ],
-    endText: 'Le Nuage Grognon est devenu gentil ! Tu es un vrai petit sorcier !',
+    endText: 'Le Nuage Grognon est devenu ton ami, et l\'arc-en-ciel brille à nouveau !',
     sequence: [
-      Z(4, 'Voici le château du Nuage Grognon ! C\'est la dernière aventure. Courage, petit sorcier !'),
+      Z(4, 'Voici le château du Nuage Grognon. Le cœur de l\'arc-en-ciel est caché ici. Courage, petit sorcier… et sois gentil avec lui !'),
       R(6), P('star'), J(), S(), K(10),
       L(), D(), B(10, 6), X(2), P('armsUp'),
       C('squat', 'jump'), Q(3), F(14), P('flamingo', 2), R(6),
@@ -816,9 +816,9 @@ const WORLDS = [
         grass: '#3c096c', grass2: '#360862', path: '#e0aaff', path2: '#d49af5', fog: '#c77dff',
         deco: ['🌳', '✨', '🍄', '💎', '🌳', '🔮'], ambient: ['fireflies'] },
     ],
-    endText: 'Le Nuage Grognon s\'est enfui vers son château… mais les créatures du bois sont libres !',
+    endText: 'L\'Étoile violette brille dans ta main ! Les créatures du bois sont libres !',
     sequence: [
-      Z(4, 'Ta première aventure hors de l\'Académie ! Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'),
+      Z(4, 'Ta première aventure ! Le Nuage Grognon a caché l\'Étoile violette dans le Bois des Sortilèges. Chut… prépare ta baguette !'),
       WA(16, 3), R(6), J(2), P('armsUp'), WA(18, 4), S(2), B(10, 6), WA(20, 5), K(10),
       Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ],
@@ -857,7 +857,7 @@ const SPEEDS = [
 // Premier jour : le parcours complet = intro + les 5 leçons + respiration
 WORLDS.forEach((w) => {
   if (!w.lessons) return;
-  w.sequence = [Z(4, 'Bienvenue à l\'Académie des Petits Mages ! C\'est ton premier jour : on va tout apprendre, doucement.'),
+  w.sequence = [Z(4, 'Madame Pimprenelle, la chouette directrice, t\'attend pour ton premier jour ! On va tout apprendre, doucement.'),
     ...w.lessons.flatMap((l) => l.steps), Z(4, 'Tu connais tous les sorts ! Respire bien… Bravo, petit sorcier !')];
 });
 // Paysage 3D (« kit » de décor, voir props3d.js) de chaque partie de chaque monde

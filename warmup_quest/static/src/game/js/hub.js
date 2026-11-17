@@ -36,7 +36,7 @@ const HUB_SAY = {
   block: 'Oh ! Une créature ensorcelée bloque le chemin ! Vise-la avec ta baguette !',
   freed: "Bravo ! Elle n'est plus ensorcelée !",
   enter: 'On entre !',
-  village: "Bienvenue au village ! Vise une étape avec ta baguette pour partir à l'aventure.",
+  village: "Bienvenue au village ! L'Étoile de ce pays est cachée par ici. Vise une étape avec ta baguette pour partir à sa recherche !",
   stageLocked: "Cette étape s'ouvrira quand tu auras réussi celle d'avant !",
   countryLocked: "Ce pays est encore fermé. Termine d'abord celui-ci !",
   travel: 'En route par le portail magique !',
@@ -139,6 +139,14 @@ class AcademyHub {
       mesh(cyl, '#cfd8dc', 0, 0.35, 0, 2.6, 0.7, 2.6); mesh(cyl, '#7fd8f8', 0, 0.72, 0, 2.3, 0.05, 2.3, scene, { transparent: true, opacity: 0.85 });
       mesh(cyl, '#cfd8dc', 0, 1.3, 0, 0.35, 1.6, 0.35); mesh(cyl, '#cfd8dc', 0, 2.1, 0, 1.1, 0.2, 1.1);
       this.water = mesh(ball, '#a8e6ff', 0, 2.5, 0, 0.45, 0.55, 0.45, scene, { transparent: true, opacity: 0.8 });
+      // L'arc-en-ciel de l'Académie : une bande par Étoile retrouvée (grise et pâle tant qu'elle manque)
+      this.rainbow = RAINBOW.map((id, i) => {
+        const m = new T.Mesh(new T.TorusGeometry(10.5 - i * 0.62, 0.3, 8, 64, Math.PI), new T.MeshLambertMaterial({ color: '#d9d9e3', transparent: true, opacity: 0.3, emissiveIntensity: 0.35 }));
+        m.position.set(0, 1.2, -3); m.userData.noOutline = true; scene.add(m);
+        return { id, m, col: gemOf(id).col };
+      });
+      // Le Nuage Câlin (le Nuage Grognon devenu gentil) flotte au-dessus de la place, après la fin de l'histoire
+      try { this.calin = buildCreature3D(S, { ...GROGNON, id: 'calin', name: 'Nuage Câlin', color: '#ffd6ec', belly: '#ffffff' }, false); this.calin.group.scale.multiplyScalar(2.4); this.calin.group.visible = false; scene.add(this.calin.group); } catch (e) { this.calin = null; }
     } else {
       mesh(cyl, '#9a9184', 0, 0.4, 0, 1.6, 0.8, 1.6);
       const col = this.w.hero.accent || '#c77dff';
@@ -390,6 +398,14 @@ class AcademyHub {
     const from = this.places.find((d) => d.id === fromId || (d.kind === 'country' && d.w.id === fromId));
     this.pos = from ? { ...from.door } : { x: 0, z: 4.5 };
     this.yaw = from ? Math.atan2(from.dir.x, from.dir.z) : Math.PI; // (de dos : regarde vers le fond)
+    // Étoiles retrouvées : bandes de l'arc-en-ciel et petites étoiles du bandeau
+    for (const r of this.rainbow || []) {
+      const on = Tale.hasGem(r.id); r.m.material.color.set(on ? r.col : '#d9d9e3'); r.m.material.opacity = on ? 0.9 : 0.3;
+      r.m.material.emissive && r.m.material.emissive.set(on ? r.col : '#000000');
+    }
+    if (this.calin) this.calin.group.visible = this.kind === 'academy' && Tale.done();
+    const gemsEl = document.getElementById('hubGems');
+    if (gemsEl) gemsEl.innerHTML = GEMS.map((g) => `<span class="taleStar${Tale.hasGem(g.world) ? ' on' : ''}" style="--gc:${g.col}">⭐</span>`).join('');
     const title = document.querySelector('#hubHud .hubTitle');
     if (title) title.textContent = this.kind === 'village' ? `🌀 ${this.w.name}` : "🏰 Parc de l'Académie";
     if (this.guardian) { const n = Stages.count(this.w) || 1; this.guardian.friend = n > 1 ? Stages.dots(this.w) === n : Progress.stars(this.w) > 0; }
@@ -549,6 +565,7 @@ class AcademyHub {
     }
     for (const a of this.anims || []) a(now);
     if (this.water) { this.water.scale.y = 0.55 + Math.sin(now * 0.006) * 0.08; }
+    if (this.calin && this.calin.group.visible) { this.calin.group.position.set(Math.sin(now * 0.0004) * 4, 6 + Math.sin(now * 0.002) * 0.4, -2 + Math.cos(now * 0.0004) * 2); this.calin.animate(now, 'happy'); }
     if (this.crystal) { this.crystal.rotation.y = now * 0.001; this.crystal.position.y = 2.4 + Math.sin(now * 0.002) * 0.15; }
     if (this.guardian) { const gc = this.guardian.c; gc.animate(now, this.guardian.friend ? (Math.sin(now * 0.001) > 0.3 ? 'happy' : 'idle') : 'idle'); gc.group.rotation.z = this.guardian.friend ? 0 : Math.sin(now * 0.004) * 0.05; }
     // Caméra : vue d'ensemble pour choisir ; derrière le petit sorcier quand il marche
@@ -632,6 +649,6 @@ class AcademyHub {
   dispose() {
     if (!this.scene) return;
     this.scene.traverse((o) => { if (o.isSprite && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
-    this.scene = null; this.places = null; this.anims = []; this.labels = {}; this.block = null; this.guardian = null;
+    this.scene = null; this.places = null; this.anims = []; this.labels = {}; this.block = null; this.guardian = null; this.rainbow = null; this.calin = null;
   }
 }
