@@ -30,6 +30,14 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
   grosses flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main vers la gauche / la droite.
 - **Carte des îles** : les mondes forment un chemin ; les 3 premiers sont ouverts, chaque île suivante s'ouvre quand on gagne
   une étoile dans la précédente (réglage parent « 🗺️ Toutes les îles ouvertes »). Le dresseur est posé sur l'île où il en est.
+- **Îles en étapes** 🧩 (réglage parent « 🧩 Îles en étapes », activé d'office) : une île à plusieurs paysages se joue en
+  2 ou 3 étapes, une par partie, chacune dans son paysage (« Étape 2 sur 3 : Jungle ! »). Chaque étape finit par une
+  **créature de ce paysage à apprivoiser** ; le gardien attend à la fin de la dernière. Des pastilles sous les étoiles de
+  l'île montrent les étapes faites ; l'écran de fin annonce la suivante. Puis l'île recommence à l'étape 1. Une étape
+  est déjà courte : le réglage « partie courte » ne s'applique qu'aux îles d'une traite. (Gardé dans ce navigateur.)
+  Mode test : `&world=island&stage=1`.
+- **Faire évoluer ses amis en jouant** : au Stade, le copain qui passe et tire est une des créatures amies de l'enfant
+  (pas encore évoluée de préférence) ; chaque épreuve réussie avec lui compte comme une rencontre, et à 3 il évolue.
 - **Surprise du jour** 🎁 : chaque jour, une créature spéciale attend dans un des mondes ouverts (rien n'est perdu si on ne vient pas).
 - **Compagnon** 🐾 : avant la première partie, l'enfant choisit Flammèche, Gouttin ou Feuillou. Le compagnon court à côté de lui,
   fait les poses avec lui, saute de joie quand il réussit, grandit toutes les 2 parties et évolue au niveau 5.

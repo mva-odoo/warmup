@@ -271,7 +271,8 @@ function buildMenu() {
     card.innerHTML = `
       <canvas width="300" height="400"></canvas>
       <div class="wName"><span class="wIcon">${w.collectible}</span>${w.name}</div>
-      <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>`;
+      <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>
+      ${Stages.count(w) ? `<div class="wStages">${Array.from({ length: Stages.count(w) }, (_, i) => `<b class="${i < Stages.dots(w) ? 'on' : ''}"></b>`).join('')}</div>` : ''}`;
     card.title = w.tagline;
     if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
     // Chemins pris aux carrefours la dernière fois, et clé dorée si on a trouvé le chemin secret de cette île
@@ -360,6 +361,12 @@ function buildMenu() {
   sb.textContent = short ? '⏱️ Partie courte ✓' : '⏱️ Partie longue';
   sb.onclick = () => { store('short', !short); buildMenu(); };
   sp.appendChild(sb);
+  const stg = store('stages') !== false; // îles en étapes (une partie = une étape, avec son paysage)
+  const stb = document.createElement('button');
+  stb.className = 'btn small' + (stg ? '' : ' ghost');
+  stb.textContent = stg ? '🧩 Îles en étapes ✓' : '🧩 Îles d\'une traite';
+  stb.onclick = () => { store('stages', !stg); buildMenu(); };
+  sp.appendChild(stb);
   const full = store('fullscreen') !== false; // plein écran au lancement (rien ne dépasse, pas de clic de travers)
   const fb = document.createElement('button');
   fb.className = 'btn small' + (full ? '' : ' ghost');
@@ -515,6 +522,7 @@ async function startWorld(w) {
     show('loading', false);
   }
   scene.setWorld(w, pals, looks);
+  { const n = Stages.count(w); if (n) scene.setProgress((DEV.get('stage') ? Number(DEV.get('stage')) % n : Stages.next(w)) / n); } // (île en étapes : le paysage de l'étape dès le départ)
   if ($('simToggle').checked) {
     tracker.enableSim();
     show('simHelp');
@@ -752,7 +760,11 @@ function shortSteps(steps) {
 class Game {
   constructor(w, mul) {
     this.world = w;
-    this.steps = store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+    // Île en étapes : on joue l'étape suivante (déjà courte) ; sinon le parcours entier, raccourci pour les petits
+    const nStages = DEV.get('step') ? 0 : Stages.count(w);
+    this.stage = nStages ? { k: DEV.get('stage') ? Number(DEV.get('stage')) % nStages : Stages.next(w), n: nStages } : null;
+    this.steps = this.stage ? Stages.split(w, WUQStore.steps(w), this.stage.k)
+      : store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
     if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
@@ -800,6 +812,13 @@ class Game {
     this.pausedTotal += d;
   }
 
+  // Paysage en cours (étape de l'île, sinon l'avancée dans le parcours)
+  biomeNow(i = this.i) {
+    const bs = this.world.biomes;
+    return this.stage ? bs[this.stage.k] : bs[Math.min(bs.length - 1, Math.floor(((i + 1) / this.steps.length) * bs.length))];
+  }
+  progressAt(i) { return this.stage ? (this.stage.k + i / this.steps.length) / this.stage.n : i / this.steps.length; }
+
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
     if (s.m === 'ball') s = { m: 'bubbles', t: 10, n: 6 }; // (passe de ballon retirée : trop difficile à synchroniser)
@@ -812,8 +831,8 @@ class Game {
     }
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
     if ((s.m === 'posemix' || s.m === 'boss') && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
-    if (s.m === 'pose' && (this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
-      const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 1) / this.steps.length) * bs.length))].kit;
+    if (s.m === 'pose' && (s.capture || this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
+      const kit = this.biomeNow().kit; // (fin d'étape : toujours une créature de ce paysage)
       const forced = DEV.get('creature') && CREATURES.find((c) => c.id === DEV.get('creature')); // (mode test)
       // Surprise du jour : la première rencontre de ce monde est la créature du jour
       const daily = Progress.daily();
@@ -848,7 +867,7 @@ class Game {
     ui.setDetail(this.detail(this.cur));
     // (à deux, pose : on annonce à qui c'est le tour)
     const who = s.turn != null && team[s.turn] ? `À toi ${team[s.turn].name || (s.turn ? 'joueur deux' : 'joueur un')} ! ` : '';
-    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s)), { slow: !!this.world.tutorial });
+    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s)), { slow: !!this.world.tutorial });
     if (s.creature) Audio8.cry(s.creature.id);
     if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
       Audio8.say(tutoText(s.of), { slow: true });
@@ -868,12 +887,20 @@ class Game {
       Audio8.cry(cr.id);
     }
     if (s.m === 'moles') scene.moles = this.cur.moles;
+    if (s.m === 'goal' || s.m === 'basket' || s.m === 'kick') { // Stade : le copain est un de tes amis du carnet (pas encore évolué de préférence)
+      const kitL = creaturesOf(this.biomeNow().kit || 'meadow'), local = kitL.length ? kitL : CREATURES;
+      const own = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
+      const young = own.filter((x) => !Carnet.evolved(x.id)), pool = young.length ? young : own;
+      const mate = pool.length ? pool[Math.floor(Math.random() * pool.length)] : local[Math.floor(Math.random() * local.length)];
+      this.cur.mate = pool.length ? mate : null;
+      scene.sportCr = [mate, local[Math.floor(Math.random() * local.length)]];
+    }
     if (s.m === 'dance' || s.m === 'karate') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
     if (s.m === 'slice') scene.fruits = this.cur.fruits;
     if (s.m === 'cubes') { scene.cubes = this.cur.cubes; Audio8.music(true, 'dance'); }
     if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
-    scene.setProgress(this.i / this.steps.length);
+    scene.setProgress(this.progressAt(this.i));
   }
 
   // Combo : toutes les 3 réussites d'affilée, grande fête (bannière, étincelles autour du dresseur,
@@ -1466,7 +1493,7 @@ class Game {
     const s = c.s, easy = tracker.bodies.some((b) => b.easy), A = scene.W / Math.max(1, scene.H);
     if (!c.foes) {
       c.foes = []; c.calmed = 0; c.ptr = []; c.lastSlot = -1;
-      const bs = this.world.biomes, kit = bs[Math.min(bs.length - 1, Math.floor(((this.i + 0.5) / this.steps.length) * bs.length))].kit || 'meadow';
+      const kit = this.biomeNow().kit || 'meadow';
       c.pool = creaturesOf(kit).filter((cr) => !cr.still);
       if (!c.pool.length) c.pool = CREATURES.slice();
     }
@@ -1838,6 +1865,11 @@ class Game {
     Rec.stepEnd(this.i, rating);
     if (c.s.secret) this.secretTreasure(now);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
+    // Stade : ton ami qui a joué avec toi gagne de l'expérience (comme une rencontre) ; à 3, il évolue
+    if (c.mate) {
+      const n = Carnet.add(c.mate.id);
+      if (n === EVOLVE_AT) setTimeout(() => { ui.feedback(`${c.mate.name} a évolué !`, 'perfect'); Audio8.cry(c.mate.id, true); Audio8.say(`Incroyable ! En jouant avec toi, ${c.mate.name} a évolué !`); }, 900);
+    }
     const friend = c.s.creature || c.friend; // (baguette : la dernière créature libérée devient ton amie)
     if (friend) {
       const cr = friend;
@@ -1990,6 +2022,8 @@ class Game {
       else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
       return { name: p.name, isBest, prev: best.score };
     });
+    // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
+    if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i));
     // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
     this.compGrow = team.map((p, i) => {
       const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
@@ -2164,7 +2198,9 @@ function showResults(g, stars) {
   Audio8.music(false); Audio8.theme(null);
   show('hud', false); show('camBox', false);
   show('results');
-  $('resTitle').textContent = g.world.endText;
+  const st = g.stage, bsN = g.world.biomes;
+  $('resTitle').textContent = !st ? g.world.endText : st.k === st.n - 1 ? `${g.world.endText} (île terminée !)`
+    : `Étape ${st.k + 1} sur ${st.n} réussie ! Prochaine étape : ${bsN[st.k + 1].name}`;
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;
   // Le butin de la partie, qui se compte tout seul

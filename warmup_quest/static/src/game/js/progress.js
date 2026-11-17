@@ -89,3 +89,32 @@ const Photos = {
     try { WUQStore._set('photos_' + i, l); } catch (e) { /* (place pleine : tant pis pour la photo) */ }
   },
 };
+
+// Îles en étapes : une île à plusieurs paysages se joue en étapes (une par partie), une par paysage (3 au plus),
+// chacune avec son thème (« Étape 2 sur 3 : La Jungle »). Chaque étape finit par une créature de ce paysage à
+// apprivoiser ; le gardien attend à la fin de la dernière. Puis on recommence l'île à l'étape 1.
+// (réglage parent « 🧩 Îles en étapes » ; gardé dans ce navigateur)
+const Stages = {
+  count(w) { // nombre d'étapes de l'île (0 : elle se joue d'une traite)
+    if (store('stages') === false || w.tutorial || !w.biomes || w.biomes.length < 2) return 0;
+    const n = Math.min(3, w.biomes.length);
+    return w.sequence.length >= n * 4 + 2 ? n : 0;
+  },
+  _all(i) { return WUQStore._get('stages_' + i) || {}; },
+  done(w, i = 0) { return this._all(i)[w.id] || 0; },              // étapes terminées (en tout, toutes boucles)
+  next(w, i = 0) { const n = this.count(w); return n ? this.done(w, i) % n : 0; }, // étape à jouer (0..n-1)
+  // Pastilles de la carte : étapes faites dans le tour en cours (île finie : toutes pleines)
+  dots(w, i = 0) { const n = this.count(w), d = this.done(w, i); return !n ? 0 : d && d % n === 0 ? n : d % n; },
+  finish(w, i = 0) { const all = this._all(i); all[w.id] = (all[w.id] || 0) + 1; WUQStore._set('stages_' + i, all); },
+  // Découpe le parcours de l'île : intro de l'étape, sa part du parcours, une créature à apprivoiser
+  // (ou le gardien à la dernière), respiration finale
+  split(w, steps, k) {
+    const n = this.count(w), bs = w.biomes;
+    const boss = steps.find((st) => st.m === 'boss'), last = steps[steps.length - 1];
+    const mid = steps.slice(1, -1).filter((st) => st !== boss);
+    const a = Math.round((mid.length * k) / n), b = Math.round((mid.length * (k + 1)) / n);
+    const intro = { m: 'rest', t: 3.5, text: `Étape ${k + 1} sur ${n} : ${bs[k].name} !` };
+    const end = k === n - 1 ? (boss ? [boss] : []) : [{ m: 'pose', pose: ['star', 'airplane', 'armsUp'][k % 3], hold: 1.5, capture: true }];
+    return [intro, ...mid.slice(a, b), ...end, last.m === 'rest' ? last : { m: 'rest', t: 3, text: 'Bravo ! Respire bien…' }];
+  },
+};

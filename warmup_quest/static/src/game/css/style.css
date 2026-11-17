@@ -625,3 +625,10 @@ body.gestures #camBox.camMenu { width: max(150px, min(14vw, 22vh)); top: auto; b
 .msgOpts select { font: inherit; font-size: 15px; padding: 7px 10px; border-radius: 12px; border: 2px solid #ddd8f5; background: #fff; }
 .msgHint { margin: 6px 0 0; font-size: 13px; color: #6b6890; }
 .msgWhen { display: block; font-size: 13px; color: #7c3aed; margin-top: 2px; }
+
+/* Îles en étapes : une pastille par étape sous les étoiles (pleine = faite) */
+.worldCard .wStages { position: absolute; top: 40px; right: 10px; z-index: 2; display: flex; gap: 5px;
+  background: rgba(15,12,50,.55); padding: 4px 8px; border-radius: 99px; }
+.worldCard .wStages b { width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.worldCard .wStages b.on { background: #06d6a0; box-shadow: 0 0 6px rgba(6,214,160,.9); }
+.worldCard.locked .wStages, .worldCard.mystery .wStages { display: none; }
