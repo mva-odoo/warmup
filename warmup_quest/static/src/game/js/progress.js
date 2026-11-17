@@ -14,6 +14,12 @@ const MAP_ORDER = CHAPTERS.flatMap((c) => c.worlds);
 const MAP_FREE = 4; // le premier jour et les 3 premiers cours sont ouverts d'office
 const chapterOf = (w) => CHAPTERS.find((c) => c.worlds.includes(w.id)) || null;
 // Le Nuage Grognon : gardien de la dernière île (une créature à part, qui ne va pas dans le grimoire)
+// Gardien d'un pays : la forme évoluée d'une créature de son dernier paysage (le Nuage Grognon pour le château)
+function guardianOf(w) {
+  if (w.finalBoss) return GROGNON;
+  const pool = creaturesOf(w.biomes[w.biomes.length - 1].kit || 'meadow').filter((c) => !c.still); // (un ami animé, pour qu'il montre bien sa joie)
+  return pool[(w.id.length + w.name.length) % Math.max(1, pool.length)] || CREATURES[0];
+}
 const GROGNON = { id: 'grognon', name: 'Nuage Grognon', element: 'Orage', color: '#6c6f93', belly: '#e9e9f5', shape: 'cloud', feature: 'none' };
 
 // Créatures proposées comme premier compagnon
@@ -110,7 +116,8 @@ const Stages = {
   next(w, i = 0) { const n = this.count(w); return n ? this.done(w, i) % n : 0; }, // étape à jouer (0..n-1)
   // Pastilles de la carte : étapes faites dans le tour en cours (île finie : toutes pleines)
   dots(w, i = 0) { const n = this.count(w), d = this.done(w, i); return !n ? 0 : d && d % n === 0 ? n : d % n; },
-  finish(w, i = 0) { const all = this._all(i); all[w.id] = (all[w.id] || 0) + 1; WUQStore._set('stages_' + i, all); },
+  // Étape k réussie : on avance seulement si c'était l'étape à faire (rejouer une étape déjà faite ne saute rien)
+  finish(w, i = 0, k = null) { if (k != null && k !== this.next(w, i)) return; const all = this._all(i); all[w.id] = (all[w.id] || 0) + 1; WUQStore._set('stages_' + i, all); },
   // Découpe le parcours de l'île : intro de l'étape, sa part du parcours, une créature à apprivoiser
   // (ou le gardien à la dernière), respiration finale
   split(w, steps, k) {

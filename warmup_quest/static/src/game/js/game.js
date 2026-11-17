@@ -19,7 +19,7 @@ const scene3d = new Scene3D($('scene'));
 let scene = sceneFlat;
 // Parc de l'Académie (petit monde ouvert entre les cours) ; fromHub : la partie vient du parc, on y revient après
 const hub = new AcademyHub(scene3d);
-let fromHub = false, hubLast = null;
+let fromHub = false, hubLast = null, hubWorld = null, stageWanted = null; // (hubWorld : parc ou village d'où l'on vient ; stageWanted : étape choisie au village)
 const video = $('video');
 const camCtx = $('camOverlay').getContext('2d');
 const pictoCtx = $('cardPicto').getContext('2d');
@@ -498,7 +498,7 @@ async function startWorld(w) {
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
   // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
-  if (!DEV.get('world') && !DEV.get('hub') && !Rec.playing) {
+  if (!DEV.get('world') && !(DEV.get('hub') || DEV.get('village')) && !Rec.playing) {
     for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
@@ -524,8 +524,9 @@ async function startWorld(w) {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
       const friends = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
-      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends) : [])]);
-      if (w.hub && (!hub.scene || hub.lookKey !== JSON.stringify(looks[0]))) { hub.build(looks[0], comps[0], friends); hub.lookKey = JSON.stringify(looks[0]); }
+      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends, w.village) : [])]);
+      const hubKey = JSON.stringify(looks[0]) + (w.village ? w.village.id : 'academie');
+      if (w.hub) { hubWorld = w; if (!hub.scene || hub.lookKey !== hubKey) { hub.build(looks[0], comps[0], friends, { w: w.village }); hub.lookKey = hubKey; } }
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
@@ -534,7 +535,7 @@ async function startWorld(w) {
     show('loading', false);
   }
   if (!w.hub) scene.setWorld(w, pals, looks);
-  { const n = Stages.count(w); if (n) scene.setProgress((DEV.get('stage') ? Number(DEV.get('stage')) % n : Stages.next(w)) / n); } // (île en étapes : le paysage de l'étape dès le départ)
+  { const n = Stages.count(w); if (n && !w.hub) scene.setProgress((stageWanted != null ? stageWanted % n : DEV.get('stage') ? Number(DEV.get('stage')) % n : Stages.next(w)) / n); } // (île en étapes : le paysage de l'étape dès le départ)
   if ($('simToggle').checked) {
     tracker.enableSim();
     show('simHelp');
@@ -567,12 +568,19 @@ function enterHub() {
   ['calib', 'hud', 'results', 'countdown', 'pause'].forEach((id) => show(id, false));
   show('camBox'); $('camBox').classList.remove('big');
   show('hubHud');
-  Audio8.music(false); Audio8.themeMute(false); Audio8.theme('ecole');
+  Audio8.music(false); Audio8.themeMute(false); Audio8.theme(world.village ? world.village.id : 'ecole');
   hub.enter(hubLast);
 }
 // Fin d'un cours lancé depuis le parc : on y revient, devant la porte du bâtiment
-function backToHub() { world = HUB_WORLD; startWorld(HUB_WORLD); }
-hub.onGo = (w, id) => { hubLast = id === 'portal' ? w.id : id; startWorld(w); };
+function backToHub() { const hw = hubWorld || HUB_WORLD; world = hw; startWorld(hw); }
+// Le petit sorcier est arrivé à une porte : un cours, une étape du pays, ou un portail (Académie, village d'un pays)
+hub.onGo = (d) => {
+  if (d.kind === 'world') { hubLast = d.id; startWorld(d.w); }
+  else if (d.kind === 'stage') { hubLast = d.id; stageWanted = d.k; startWorld(d.w); }
+  else if (d.kind === 'portal') { hubLast = 'academy'; startWorld(villageWorld(d.w)); }
+  else if (d.kind === 'academy') { hubLast = 'portal'; startWorld(HUB_WORLD); }
+  else if (d.kind === 'country') { hubLast = hub.w ? hub.w.id : null; startWorld(villageWorld(d.w)); }
+};
 
 function cameraHelp(e) {
   const name = e && e.name;
@@ -616,7 +624,7 @@ function setCalibStage(stage, text, sub, speak) {
 
 function updateCalib(now) {
   const s = tracker.state;
-  if (tracker.sim && (DEV.get('world') || DEV.get('hub'))) { tracker.calibrate(); afterCalib(); return; }
+  if (tracker.sim && (DEV.get('world') || (DEV.get('hub') || DEV.get('village')))) { tracker.calibrate(); afterCalib(); return; }
   if (tracker.sim) {
     setCalibStage('sim', `Monde : ${world.name}`, "Appuie sur Entrée (ou 1 pour lever les bras) pour commencer", null);
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
@@ -796,7 +804,10 @@ class Game {
     this.world = w;
     // Île en étapes : on joue l'étape suivante (déjà courte) ; sinon le parcours entier, raccourci pour les petits
     const nStages = DEV.get('step') ? 0 : Stages.count(w);
-    this.stage = nStages ? { k: DEV.get('stage') ? Number(DEV.get('stage')) % nStages : Stages.next(w), n: nStages } : null;
+    // (étape choisie au village, sinon l'étape à faire)
+    const kWant = stageWanted != null ? stageWanted : DEV.get('stage') ? Number(DEV.get('stage')) : null;
+    stageWanted = null;
+    this.stage = nStages ? { k: kWant != null ? kWant % nStages : Stages.next(w), n: nStages } : null;
     this.steps = this.stage ? Stages.split(w, WUQStore.steps(w), this.stage.k)
       : store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
@@ -914,9 +925,7 @@ class Game {
     if (s.m === 'pose') scene.setDemoPose(s.pose);
     if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
     if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
-      const kit = this.world.biomes[this.world.biomes.length - 1].kit || 'meadow';
-      const pool = creaturesOf(kit).filter((c) => !c.still); // (un ami animé, pour qu'il montre bien sa joie)
-      const cr = this.world.finalBoss ? GROGNON : pool[(this.world.id.length + this.world.name.length) % Math.max(1, pool.length)] || CREATURES[0];
+      const cr = guardianOf(this.world); // (le même qu'au village du pays)
       this.cur.boss = cr;
       scene.setBoss && scene.setBoss({ cr, pose: s.poses[0] });
       Audio8.cry(cr.id);
@@ -2064,7 +2073,7 @@ class Game {
     this.diploma = !!this.grognonWon;
     if (this.diploma) team.forEach((p, i) => WUQStore._set('diploma_' + i, true));
     // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
-    if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i));
+    if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i, this.stage.k));
     // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
     this.compGrow = team.map((p, i) => {
       const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
@@ -2494,8 +2503,9 @@ function draw(now) {
 
 // Mode test (développement) : ?world=ferme&step=rope lance directement un monde en mode clavier,
 // à partir de la première étape du type demandé (sert à vérifier le rendu sans caméra).
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('hub')) {
-  const w = DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc)
+if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village'))) {
+  const vw = DEV.get('village') && WORLDS.find((x) => x.id === DEV.get('village'));
+  const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
   if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
   if (DEV.get('duo')) WUQStore._set('duo', true); // (mode test) partie à deux
   if (DEV.get('comp')) { const [id, xp] = DEV.get('comp').split(':'); WUQStore.setCompanion(0, { id, xp: Number(xp) || 0 }); } // (mode test) compagnon
@@ -2510,6 +2520,7 @@ if (DEV.get('world') || DEV.get('carnet') || DEV.get('hub')) {
     if (phase === 'play' && game && fromHub && !game.over && performance.now() - game.startedAt > 3000) game.finish();
     if (phase === 'results' && fromHub && performance.now() - resultsAt > 1500) $('menuBtn').click();
   }, 500);
+  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get('stages_0'))}`; }, 300); // (mode test)
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
@@ -2563,7 +2574,7 @@ $('hubBtn').onclick = () => startWorld(HUB_WORLD);
 $('hubExit').onclick = goMenu;
 
 buildMenu();
-if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !DEV.get('hub') && !DEV.get('nostory')) showStory(); // (premier lancement)
+if (!store('storySeen') && !DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !(DEV.get('hub') || DEV.get('village')) && !DEV.get('nostory')) showStory(); // (premier lancement)
 // Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
 if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
 if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
@@ -2592,7 +2603,7 @@ if (DEV.get('room')) { // (mode test) chambre remplie
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || DEV.get('hub')) {
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || (DEV.get('hub') || DEV.get('village'))) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   requestAnimationFrame(drawLoop);

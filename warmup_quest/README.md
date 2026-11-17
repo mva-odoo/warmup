@@ -32,7 +32,7 @@ Le méchant, jamais effrayant, c'est le **Nuage Grognon**, qui rend tout le mond
 Bouton « 🏰 Entrer dans le parc de l'Académie » du menu : au lieu de choisir sur la carte, l'enfant se promène.
 - Au centre une fontaine, au fond le château (Premier jour), et en cercle un bâtiment par cours : le jardin, la salle de
   danse, la pagode du dojo, l'atelier des potions (chaudron qui bouillonne), le terrain de la récré, la tour des singes,
-  le marché ; et le **portail magique** des aventures (il mène à la prochaine aventure à gagner). Chaque bâtiment a son
+  le marché ; et le **portail magique** des aventures (il mène au village de la prochaine aventure à gagner). Chaque bâtiment a son
   panneau (nom et étoiles, ou 🔒 ? s'il est encore fermé) ; une main 👉 montre le prochain cours à réussir.
 - **Choisir** : lever le bras et viser un bâtiment avec sa baguette (rayon et anneau doré qui se remplit, ~1,2 s).
 - **Y aller** : courir sur place. Le petit sorcier suit le chemin tout seul, plus vite quand l'enfant court (jauge 🏃) ;
@@ -44,6 +44,17 @@ Bouton « 🏰 Entrer dans le parc de l'Académie » du menu : au lieu de choisi
 - 3D seulement (bouton caché avec « Graphismes 2D »). Mode clavier : ← → choisir, Entrée valider, Espace courir.
   Mode test : `?hub=1&hubauto=1` (choisit et court tout seul ; `hubslow=1` sans courir, `hubblock=1` créature forcée,
   `hubret=1` finit le cours tout de suite et revient au parc).
+
+## Les villages des aventures
+Le portail du parc mène au **village** du pays d'aventure en cours (même principe : viser avec la baguette, courir sur place).
+- Ciel, sol, chemins, décor et petites maisons aux couleurs du pays ; les villageois sont les créatures du pays ; au centre,
+  une pierre magique aux couleurs du pays.
+- **Une porte par étape** du pays (portique dans le paysage de l'étape : « Étape 2 : Récif »), avec « À faire » ou « ✅ Réussie ».
+  On ne peut entrer que dans les étapes déjà ouvertes ; rejouer une étape réussie ne fait pas sauter la suivante.
+- À la dernière porte, le **gardien ensorcelé** attend sous son petit nuage d'orage (au château, c'est le Nuage Grognon) ;
+  une fois le pays fini, il fait la fête.
+- Des portails mènent au **pays d'avant / d'après** (s'il est ouvert) et à l'**Académie**. Après une étape, 🏠 ramène au village.
+- Mode test : `?village=banquise&hubauto=1` (`hubret=1` : finit l'étape tout de suite et revient au village).
 
 ## Utilisation
 - **Ajouter un enfant** : directement dans le jeu, bouton « + Ajouter un enfant » (prénom + couleur).

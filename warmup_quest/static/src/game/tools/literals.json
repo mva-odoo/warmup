@@ -425,6 +425,11 @@ true
 true
 ],
 [
+"village",
+"jeu",
+false
+],
+[
 "hello",
 "jeu",
 false
@@ -435,7 +440,27 @@ false
 false
 ],
 [
+"stageLocked",
+"jeu",
+false
+],
+[
+"countryLocked",
+"jeu",
+false
+],
+[
 "locked",
+"jeu",
+false
+],
+[
+"world",
+"jeu",
+false
+],
+[
+"stage",
 "jeu",
 false
 ],
@@ -491,6 +516,26 @@ true
 ],
 [
 "On entre !",
+"jeu",
+false
+],
+[
+"Bienvenue au village ! Vise une étape avec ta baguette pour partir à l'aventure.",
+"jeu",
+false
+],
+[
+"Cette étape s'ouvrira quand tu auras réussi celle d'avant !",
+"jeu",
+false
+],
+[
+"Ce pays est encore fermé. Termine d'abord celui-ci !",
+"jeu",
+false
+],
+[
+"En route par le portail magique !",
 "jeu",
 false
 ],
