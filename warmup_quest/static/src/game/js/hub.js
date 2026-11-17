@@ -1,6 +1,6 @@
-// Le parc de l'Académie : un petit monde ouvert pour aller d'un cours à l'autre.
-// Au centre une fontaine, au fond le château de l'Académie, et en cercle un bâtiment par cours (danse, dojo, atelier
-// des potions, récré…) ; le portail magique mène aux aventures. L'enfant VISE un bâtiment avec sa baguette (bras levé,
+// Le château de l'Académie : un petit monde ouvert pour aller d'un cours à l'autre.
+// Une grande cour fermée par les remparts, une fontaine au milieu ; au fond le donjon (le premier jour), sur les côtés
+// une tour par cours (danse, dojo, atelier des potions, récré…), à l'entrée la grande porte du portail des aventures. L'enfant VISE un bâtiment avec sa baguette (bras levé,
 // comme l'épreuve de la baguette), puis COURT SUR PLACE : son petit sorcier suit le chemin tout seul, plus vite quand
 // il court (c'est déjà l'échauffement). En route, parfois, une créature ensorcelée bloque le passage : un coup de
 // baguette et elle redevient gentille. Jamais d'échec, jamais perdu : on ne peut que suivre les chemins.
@@ -9,13 +9,18 @@
 // paysage), le gardien ensorcelé qui attend à la dernière, un portail vers le pays d'avant / d'après et un vers
 // l'Académie. Les villageois sont les créatures du pays.
 
-const HUB_SPOTS = { // [angle en degrés (0 = au fond, vers -z), distance au centre]
-  ecole: [0, 27], jardin3d: [-100, 18], disco: [-68, 18], dojo: [-38, 18], verger: [38, 18],
-  stade: [68, 18], singes: [100, 18], supermarche: [132, 18], portal: [-132, 18],
+// Plan du château : [x, z, rempart] (o = gauche, e = droite, n = fond, s = entrée). Les cours suivent l'ordre du
+// chapitre : à gauche de l'entrée vers le fond, puis à droite du fond vers l'entrée (comme une ronde dans la cour).
+// Les allées sont droites : l'allée centrale (de la porte au donjon) et trois allées en travers, une par paire de tours.
+const CASTLE = {
+  ecole: [0, -27, 'n'], jardin3d: [-19, 9, 'o'], disco: [-19, 0, 'o'], dojo: [-19, -9, 'o'], verger: [-10, -17, 'n'],
+  stade: [19, -9, 'e'], singes: [19, 0, 'e'], supermarche: [19, 9, 'e'], portal: [0, 17, 's'],
 };
+const CASTLE_SIDE = { o: { x: -1, z: 0 }, e: { x: 1, z: 0 }, n: { x: 0, z: -1 }, s: { x: 0, z: 1 } };
+const CASTLE_ROOF = { jardin3d: '#52b788', disco: '#f15bb5', verger: '#7b2cbf', stade: '#4cc9f0', supermarche: '#ff9f1c' }; // (toit de la tour de chaque cours)
 // Pseudo-monde « parc » : passe par le même lancement qu'un monde (caméra, calibrage), sans parcours
 const HUB_WORLD = {
-  id: 'hub', hub: true, name: "Parc de l'Académie", tagline: '', heroName: '', collectible: '✨', sky: ['#8ecae6', '#e8f6ff'],
+  id: 'hub', hub: true, name: "Château de l'Académie", tagline: '', heroName: '', collectible: '✨', sky: ['#8ecae6', '#e8f6ff'],
   hero: { body: '#70d6ff', belly: '#e0f7ff', limb: '#3a86ff', accent: '#ffd166' },
   biomes: [{ name: 'Parc', kit: 'flowers' }, { name: 'Parc', kit: 'meadow' }], sequence: [], endText: '',
 };
@@ -28,7 +33,7 @@ function villageWorld(w) {
 // Grosse icône de chaque lieu sur son panneau (les petits ne lisent pas encore)
 const HUB_ICONS = { ecole: '🏰', jardin3d: '🌸', disco: '💃', dojo: '🥋', verger: '🧪', stade: '⚽', singes: '🐒', supermarche: '🛒' };
 const HUB_SAY = {
-  hello: "Bienvenue dans le parc de l'Académie ! Lève le bras et vise un bâtiment avec ta baguette pour choisir ton cours.",
+  hello: "Bienvenue au château de l'Académie ! Lève le bras et vise une tour avec ta baguette pour choisir ton cours.",
   go: "C'est parti ! Cours sur place pour y aller !",
   faster: 'Cours sur place, ton petit sorcier ira plus vite !',
   locked: "Cette porte est encore fermée. Réussis d'abord le cours d'avant !",
@@ -41,7 +46,7 @@ const HUB_SAY = {
   countryLocked: "Ce pays est encore fermé. Termine d'abord celui-ci !",
   travel: 'En route par le portail magique !',
   back: 'Bravo ! Avec ta baguette, choisis où tu veux aller maintenant !',
-  aim: 'Lève bien ton bras, comme une baguette magique, et montre un bâtiment !',
+  aim: 'Lève bien ton bras, comme une baguette magique, et montre une tour !',
 };
 
 class AcademyHub {
@@ -54,15 +59,24 @@ class AcademyHub {
       'kaykit/re-crate_carrots', 'kaykit/re-crate_tomatoes', 'kaykit/re-crate_lettuce', ...creatureModels([...friends, ...creaturesOf('meadow')])];
   }
 
-  // Lieux : parc de l'Académie (les cours du chapitre 1 et le portail des aventures) ou village d'un pays
+  // Lieux : château de l'Académie (les cours du chapitre 1 et le portail des aventures) ou village d'un pays.
+  // d.dir : du centre vers le lieu ; d.door : où l'on s'arrête pour entrer ; d.route : le chemin depuis la fontaine
   dests() {
-    const list = this.kind === 'village' ? this.villageDests() : this.academyDests();
+    const list = this.kind === 'village' ? this.villageDests() : this.academyDests(), c0 = { x: 0, z: 0 };
     for (const d of list) {
+      if (d.side) { // château : tour dans un rempart, porte au bout de son allée
+        d.dir = { ...CASTLE_SIDE[d.side] }; d.pos = { x: d.x, z: d.z };
+        const off = d.id === 'ecole' ? 13 : d.id === 'portal' ? 4 : d.side === 'n' ? 8 : 7.5;
+        d.door = { x: d.x - d.dir.x * off, z: d.z - d.dir.z * off };
+        d.route = d.door.x && d.door.z ? [c0, { x: 0, z: d.door.z }, d.door] : [c0, d.door]; // (allée centrale, puis allée en travers)
+        continue;
+      }
       const rad = (d.a * Math.PI) / 180;
       d.dir = { x: Math.sin(rad), z: -Math.cos(rad) };
       d.pos = { x: d.dir.x * d.r, z: d.dir.z * d.r };
-      const dr = d.r - (d.id === 'ecole' ? 9 : d.kind === 'academy' ? 4 : 5.2); // (porte : devant le bâtiment, au bout de son chemin)
+      const dr = d.r - (d.kind === 'academy' ? 4 : 5.2); // (porte : devant le bâtiment, au bout de son chemin)
       d.door = { x: d.dir.x * dr, z: d.dir.z * dr };
+      d.route = [c0, d.door];
     }
     return list;
   }
@@ -74,7 +88,7 @@ class AcademyHub {
     const open = adv.filter((w) => Progress.unlocked(w));
     // (le portail mène au village de la prochaine aventure à gagner, sinon de la dernière ouverte)
     list.push({ id: 'portal', kind: 'portal', w: open.find((w) => Progress.stars(w) === 0) || open[open.length - 1] || adv[0], open: open.length > 0, name: '🌀 Aventures' });
-    for (const d of list) [d.a, d.r] = HUB_SPOTS[d.id];
+    for (const d of list) [d.x, d.z, d.side] = CASTLE[d.id];
     return list;
   }
   // Village : une porte par étape (la dernière avec le gardien), l'Académie, les pays d'avant / d'après
@@ -111,7 +125,7 @@ class AcademyHub {
     gr.addColorStop(0, C.sky0); gr.addColorStop(0.6, C.sky1); gr.addColorStop(1, C.fog);
     g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
     scene.background = new T.CanvasTexture(sky); scene.background.colorSpace = T.SRGBColorSpace;
-    scene.fog = new T.Fog(C.fog, 55, 110);
+    scene.fog = this.kind === 'academy' ? new T.Fog(C.fog, 75, 150) : new T.Fog(C.fog, 55, 110);
     scene.add(new T.HemisphereLight(night ? '#b8b5ff' : '#ffffff', C.grass2, night ? 0.85 : 1.25));
     const sun = new T.DirectionalLight(night ? '#c8d4ff' : '#fff4dc', night ? 0.9 : 1.6); sun.position.set(18, 30, 14);
     if (S.Q && S.Q.shadows) {
@@ -133,7 +147,9 @@ class AcademyHub {
     // Sol : un grand pré rond, des collines autour, la place au centre (fontaine à l'Académie, pierre magique au village)
     const ground = new T.Mesh(new T.CircleGeometry(60, 64), lam(C.grass)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.userData.noOutline = true; scene.add(ground);
     for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; mesh(ball, i % 2 ? C.grass2 : C.mount, Math.sin(a) * 58, -3, Math.cos(a) * 58, 14, 8, 10); }
-    mesh(cyl, shade(C.path, 0.15), 0, 0.02, 0, 6.5, 0.04, 6.5);
+    const K = { mesh, put, box, cyl, cone, ball, fit };
+    if (this.kind === 'academy') this.makeCastle(K);
+    mesh(cyl, shade(C.path, 0.15), 0, 0.06, 0, this.kind === 'academy' ? 4.4 : 6.5, 0.04, this.kind === 'academy' ? 4.4 : 6.5);
     this.water = null; this.crystal = null;
     if (this.kind === 'academy') {
       mesh(cyl, '#cfd8dc', 0, 0.35, 0, 2.6, 0.7, 2.6); mesh(cyl, '#7fd8f8', 0, 0.72, 0, 2.3, 0.05, 2.3, scene, { transparent: true, opacity: 0.85 });
@@ -142,7 +158,7 @@ class AcademyHub {
       // L'arc-en-ciel de l'Académie : une bande par Étoile retrouvée (grise et pâle tant qu'elle manque)
       this.rainbow = RAINBOW.map((id, i) => {
         const m = new T.Mesh(new T.TorusGeometry(10.5 - i * 0.62, 0.3, 8, 64, Math.PI), new T.MeshLambertMaterial({ color: '#d9d9e3', transparent: true, opacity: 0.3, emissiveIntensity: 0.35 }));
-        m.position.set(0, 1.2, -3); m.userData.noOutline = true; scene.add(m);
+        m.position.set(0, 0, -38); m.scale.setScalar(2.2); m.userData.noOutline = true; scene.add(m); // (grand arc derrière le donjon)
         return { id, m, col: gemOf(id).col };
       });
       // Le Nuage Câlin (le Nuage Grognon devenu gentil) flotte au-dessus de la place, après la fin de l'histoire
@@ -153,24 +169,33 @@ class AcademyHub {
       this.crystal = new T.Mesh(new T.OctahedronGeometry(1, 0), lam(col, { emissive: col, emissiveIntensity: 0.7 }));
       this.crystal.position.set(0, 2.4, 0); this.crystal.scale.set(0.8, 1.3, 0.8); scene.add(this.crystal);
     }
-    // Chemins de la place vers chaque lieu (tous partent du centre : impossible de se perdre)
+    // Chemins : au château, l'allée centrale et les allées en travers ; au village, de la place vers chaque lieu
+    // (tous passent par la fontaine : impossible de se perdre)
     const spots = this.dests();
-    for (const d of spots) {
-      const len = Math.hypot(d.door.x, d.door.z) - 3.2, mid = 3.2 + len / 2;
-      const p = mesh(box, C.path, d.dir.x * mid, 0.03, d.dir.z * mid, 2.4, 0.06, len);
-      p.rotation.y = Math.atan2(d.dir.x, d.dir.z);
-      for (const s of [-1, 1]) for (let k = 2; k < len; k += 4) { // petites lanternes le long du chemin
-        const t = 3.2 + k, x = d.dir.x * t + d.dir.z * s * 1.7, z = d.dir.z * t - d.dir.x * s * 1.7;
+    const paths = this.kind === 'academy'
+      ? [[{ x: 0, z: -14 }, { x: 0, z: 16.5 }, 3.2], ...[9, 0, -9].map((z) => [{ x: -11.5, z }, { x: 11.5, z }, 2.4])]
+      : spots.map((d) => [{ x: d.dir.x * 3.2, z: d.dir.z * 3.2 }, d.door, 2.4]);
+    const onPath = (x, z, pad) => Math.hypot(x, z) < (this.kind === 'academy' ? 4.4 : 6.5) + pad || paths.some(([a, b, w]) => {
+      const L = Math.hypot(b.x - a.x, b.z - a.z) || 1, ux = (b.x - a.x) / L, uz = (b.z - a.z) / L, t = (x - a.x) * ux + (z - a.z) * uz;
+      return t > -pad && t < L + pad && Math.abs((x - a.x) * uz - (z - a.z) * ux) < w / 2 + pad;
+    });
+    for (const [a, b, w] of paths) {
+      const L = Math.hypot(b.x - a.x, b.z - a.z), ux = (b.x - a.x) / L, uz = (b.z - a.z) / L;
+      const p = mesh(box, C.path, (a.x + b.x) / 2, 0.04, (a.z + b.z) / 2, w, 0.06, L);
+      p.rotation.y = Math.atan2(ux, uz);
+      for (const s of [-1, 1]) for (let k = 2; k < L; k += 4) { // petites lanternes (et fleurs) le long du chemin, jamais sur une autre allée
+        const x = a.x + ux * k + uz * s * (w / 2 + 0.5), z = a.z + uz * k - ux * s * (w / 2 + 0.5);
+        if (onPath(x, z, 0.5)) continue;
         if ((k / 4) % 2 < 1 || this.kind === 'village') put('custom/stone-lantern', x, z, 1.1);
         else { const f = P.make && P.make(['pf:flowers', 'k:flower_redA', 'k:flower_yellowA'][k % 3], { grass: C.grass }); if (f) { f.position.set(x, 0, z); scene.add(f); } }
       }
     }
-    // Les bâtiments (un par lieu)
+    // Les bâtiments (un par lieu), la façade tournée vers la fontaine (côté -z du groupe)
     this.buildings = {};
     for (const d of spots) {
-      const grp = new T.Group(); grp.position.set(d.pos.x, 0, d.pos.z); grp.rotation.y = Math.atan2(-d.dir.x, -d.dir.z) + Math.PI; // (face à la place)
+      const grp = new T.Group(); grp.position.set(d.pos.x, 0, d.pos.z); grp.rotation.y = Math.atan2(-d.dir.x, -d.dir.z) + Math.PI;
       scene.add(grp);
-      const h = this.makeBuilding(d, grp, { mesh, put, box, cyl, cone, ball, fit });
+      const h = this.makeBuilding(d, grp, K);
       this.buildings[d.id] = { grp, h };
     }
     // Décor tout autour (arbres du parc, ou objets des paysages du pays), plus ou moins selon la machine
@@ -178,6 +203,7 @@ class AcademyHub {
     const kitProps = this.w ? this.w.biomes.flatMap((b) => ((KITS[b.kit] || {}).props || []).map((pp) => pp[0])) : null;
     for (let i = 0; i < nTrees; i++) {
       const a = (i / nTrees) * Math.PI * 2 + 0.13, r = 34 + (i % 3) * 3;
+      if (this.kind === 'academy' && Math.cos(a) * r > 20) continue; // (rien devant le château : la caméra regarde par là)
       const name = kitProps && kitProps.length ? kitProps[(i * 7) % kitProps.length] : ['kk:hex-trees_A_medium', 'kk:hex-trees_B_medium', 'kk:hex-tree_single_A', 'cu:cherry-tree-a'][i % 4];
       const t = P.make && P.make(name, this.w ? this.w.biomes[0] : { grass: C.grass });
       if (t) { t.position.set(Math.sin(a) * r, 0, Math.cos(a) * r); t.rotation.y = a * 3; scene.add(t); }
@@ -199,88 +225,147 @@ class AcademyHub {
     }).filter(Boolean);
     S.outline && S.outline(scene);
     this.cam = new T.PerspectiveCamera(50, 1, 0.1, 200);
-    this.camPos = new T.Vector3(0, 30, 40); this.camLook = new T.Vector3(0, 1, -7);
+    this.overview = this.kind === 'academy' ? [new T.Vector3(0, 50, 44), new T.Vector3(0, 0, -1)] : [new T.Vector3(0, 30, 40), new T.Vector3(0, 1, -7)];
+    this.camPos = this.overview[0].clone(); this.camLook = this.overview[1].clone();
     this.cam.position.copy(this.camPos);
     this.labels = {};
     this.pos = { x: 0, z: 4.5 }; this.yaw = Math.PI; this.mode = 'choose'; this.lastSay = {}; this.moveK = 0; // (dessiné dès le calibrage, avant enter)
   }
-  // Un bâtiment par cours (modèles du jeu et formes simples), vu depuis la place ; renvoie sa hauteur
+  // Les remparts du château : cour pavée et pelouses, murs crénelés, tours d'angle, grande porte du donjon au fond,
+  // rempart bas à l'entrée (la caméra regarde par-dessus) et la tour de la directrice (la chouette veille sur la cour)
+  makeCastle(k) {
+    const { mesh, box, cyl, cone, ball } = k, S = this.S, T = S.T, scene = this.scene, anims = (this.anims = this.anims || []);
+    const stone = '#e4ddf0', stone2 = '#c3b8de', roof = '#7b2cbf', lawn = shade(this.colors.grass, 0.1);
+    mesh(box, '#ddd3c2', 0, 0.02, -0.5, 37, 0.04, 33); // (pavés de la cour)
+    for (const sx of [-1, 1]) for (const [z0, z1] of [[-15.5, -10.4], [-7.6, -1.4], [1.4, 7.6], [10.4, 15.5]]) { // pelouses entre les allées
+      mesh(box, lawn, sx * 6.6, 0.05, (z0 + z1) / 2, 8.8, 0.06, z1 - z0);
+      for (let n = 0; n < 2; n++) mesh(ball, n ? '#ff8fab' : '#ffd166', sx * (3.4 + n * 6.4), 0.25, (z0 + z1) / 2 + (n ? 1 : -1) * 1.2, 0.3, 0.3, 0.3); // (petites fleurs)
+    }
+    const wall = (x1, z1, x2, z2, h, th = 1.6) => {
+      const L = Math.hypot(x2 - x1, z2 - z1), ang = Math.atan2(x2 - x1, z2 - z1);
+      mesh(box, stone, (x1 + x2) / 2, h / 2, (z1 + z2) / 2, th, h, L).rotation.y = ang;
+      const n = Math.max(1, Math.round(L / 1.8));
+      for (let i = 0; i < n; i += 2) { const t = (i + 0.5) / n; mesh(box, stone2, x1 + (x2 - x1) * t, h + 0.4, z1 + (z2 - z1) * t, th + 0.15, 0.8, 0.9).rotation.y = ang; } // (créneaux)
+    };
+    const tower = (x, z, r, h, col = roof) => {
+      mesh(cyl, stone, x, h / 2, z, r, h, r); mesh(cyl, stone2, x, h + 0.3, z, r + 0.25, 0.6, r + 0.25);
+      mesh(cone, col, x, h + 0.6 + r * 0.8, z, r + 0.4, r * 1.6, r + 0.4);
+      mesh(ball, '#ffd166', x, h + 0.7 + r * 1.6, z, 0.25, 0.25, 0.25, scene, { emissive: '#ffd166', emissiveIntensity: 0.5 });
+    };
+    wall(-19, -17, -19, 17, 4.5); wall(19, -17, 19, 17, 4.5); // (remparts des côtés)
+    wall(-19, -17, -4, -17, 4.5); wall(4, -17, 19, -17, 4.5); // (rempart du fond, ouvert sur le donjon)
+    wall(-19, 17, -3.8, 17, 1.4); wall(3.8, 17, 19, 17, 1.4); // (rempart de l'entrée, bas)
+    for (const sx of [-1, 1]) { tower(sx * 19, -17, 2.4, 10); tower(sx * 19, 17, 1.8, 3); tower(sx * 4.6, -17, 1.5, 7.5); }
+    mesh(box, stone2, 0, 7.2, -17, 9.5, 1.2, 1.9); // (arche de la grande porte du donjon)
+    // La tour de la directrice : la plus haute, une fenêtre allumée et Madame Pimprenelle au balcon
+    tower(10, -17, 2.3, 13, '#3a86ff');
+    mesh(cyl, '#fff3b0', 10, 10.5, -14.75, 0.8, 0.1, 0.8, scene, { emissive: '#ffd166', emissiveIntensity: 0.8 }).rotation.x = Math.PI / 2;
+    mesh(cyl, stone2, 10, 8.6, -14.2, 1.3, 0.3, 1.3); // (balcon)
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const x = cv.getContext('2d'); x.font = '104px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🦉', 64, 70);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const owl = new T.Sprite(new T.SpriteMaterial({ map: tex })); owl.scale.set(2.4, 2.4, 1); owl.position.set(10, 10, -13.6); scene.add(owl);
+    anims.push((t) => { owl.position.y = 10 + Math.abs(Math.sin(t * 0.002)) * 0.25; });
+    // Drapeaux aux couleurs de l'Académie sur les tours d'angle du fond
+    for (const sx of [-1, 1]) {
+      mesh(cyl, '#6d6875', sx * 19, 16.2, -17, 0.06, 2.4, 0.06);
+      const f = mesh(box, sx < 0 ? '#ffd166' : '#ff70a6', sx * 19 + 0.7, 16.8, -17, 1.4, 0.8, 0.05);
+      anims.push((t) => { f.rotation.y = Math.sin(t * 0.003 + sx) * 0.3; });
+    }
+  }
+
+  // Tour d'un cours dans le rempart (toit à sa couleur, porte et fenêtres côté cour, bannière) ; renvoie sa hauteur
+  makeTower(g, k, col, h = 8) {
+    const { mesh, box, cyl, cone } = k, stone = '#e4ddf0';
+    mesh(cyl, stone, 0, h / 2, 0.4, 2.7, h, 2.7, g); mesh(cyl, '#c3b8de', 0, h + 0.3, 0.4, 2.95, 0.6, 2.95, g);
+    mesh(cone, col, 0, h + 2.6, 0.4, 3.3, 4, 3.3, g);
+    mesh(box, '#5a3e2b', 0, 1.3, -2.25, 1.6, 2.6, 0.2, g); mesh(cyl, '#5a3e2b', 0, 2.6, -2.25, 0.8, 0.2, 0.8, g).rotation.x = Math.PI / 2; // (porte en arc)
+    for (const y of [4.6, 6.4]) mesh(box, '#fff3b0', 0, y, -2.3, 0.7, 0.9, 0.12, g);
+    mesh(box, col, 1.6, h - 1.6, -1.9, 0.9, 2.2, 0.08, g).rotation.y = -0.6; mesh(box, col, -1.6, h - 1.6, -1.9, 0.9, 2.2, 0.08, g).rotation.y = 0.6; // (bannières)
+    return h + 4.6;
+  }
+
+  // Un bâtiment par cours (modèles du jeu et formes simples) : au château, une tour dans le rempart et, devant elle dans
+  // la cour, ce qui raconte le cours (scène de danse, chaudron, terrain…) ; renvoie la hauteur (pour le panneau)
   makeBuilding(d, g, k) {
     const { mesh, put, box, cyl, cone, ball } = k, S = this.S, T = S.T, id = d.id;
     const anims = (this.anims = this.anims || []);
     if (d.kind === 'stage') return this.makeGate(d, g, k);
     if (d.kind !== 'world') return this.makePortal(d, g, k);
+    const th = CASTLE_ROOF[id] ? this.makeTower(g, k, CASTLE_ROOF[id]) : 0;
     switch (id) {
-      case 'ecole': { // le château de l'Académie
-        if (!put('custom/castle', 0, 0, 15, Math.PI, g)) {
+      case 'ecole': { // le donjon de l'Académie, derrière la grande porte
+        if (!put('custom/castle', 0, 0, 17, Math.PI, g)) {
           mesh(box, '#f6e8ff', 0, 4, 0, 14, 8, 5, g);
           for (const x of [-7, 7]) { mesh(cyl, '#e0c3fc', x, 6, 0, 1.6, 12, 1.6, g); mesh(cone, '#9d4edd', x, 13.5, 0, 2, 3.5, 2, g); }
         }
-        return 15;
+        return 17;
       }
-      case 'jardin3d': { // massifs de fleurs et arche de verdure
-        for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2, f = S.P.make && S.P.make(['k:flower_redA', 'k:flower_yellowA', 'k:flower_purpleA', 'pf:flowers'][i % 4], { grass: '#7ccf6a' }); if (f) { f.position.set(Math.sin(a) * 2.6, 0, Math.cos(a) * 2.6); g.add(f); } }
-        const arch = new T.Mesh(new T.TorusGeometry(2.4, 0.35, 10, 24, Math.PI), S.lam('#4f9a52')); arch.position.set(0, 0, 2.4); arch.castShadow = true; g.add(arch);
-        for (let i = 0; i < 6; i++) mesh(ball, ['#ff8fab', '#ffd166', '#c77dff'][i % 3], Math.cos((i / 5) * Math.PI) * 2.4, Math.sin((i / 5) * Math.PI) * 2.4, 2.4, 0.3, 0.3, 0.3, g);
-        put('kaykit/hex-tree_single_A', -3.5, -2, 4.5, 0, g); put('kaykit/hex-tree_single_A', 3.5, -2.5, 4, 1, g);
-        return 5;
+      case 'jardin3d': { // la serre : massif de fleurs et arche de verdure devant la tour
+        for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2, f = S.P.make && S.P.make(['k:flower_redA', 'k:flower_yellowA', 'k:flower_purpleA', 'pf:flowers'][i % 4], { grass: '#7ccf6a' }); if (f) { f.position.set(Math.sin(a) * 1.9, 0, -4.6 + Math.cos(a) * 1.2); g.add(f); } }
+        const arch = new T.Mesh(new T.TorusGeometry(1.9, 0.3, 10, 24, Math.PI), S.lam('#4f9a52')); arch.position.set(0, 0, -6.2); arch.castShadow = true; g.add(arch);
+        for (let i = 0; i < 6; i++) mesh(ball, ['#ff8fab', '#ffd166', '#c77dff'][i % 3], Math.cos((i / 5) * Math.PI) * 1.9, Math.sin((i / 5) * Math.PI) * 1.9, -6.2, 0.26, 0.26, 0.26, g);
+        put('custom/cherry-tree-a', -3.4, -3.2, 4, 0, g); put('custom/cherry-tree-a', 3.4, -3.4, 3.6, 1, g);
+        return th;
       }
       case 'disco': { // la salle de danse : estrade, arche lumineuse, boule à facettes
-        mesh(box, '#3c096c', 0, 0.4, 0, 7, 0.8, 5, g);
-        const arch = new T.Mesh(new T.TorusGeometry(3.2, 0.3, 10, 28, Math.PI), S.lam('#f15bb5', { emissive: '#f15bb5', emissiveIntensity: 0.6 })); arch.position.set(0, 0.8, -1); g.add(arch);
-        const disco = new T.Mesh(new T.IcosahedronGeometry(0.8, 1), new T.MeshLambertMaterial({ color: '#e0e0ff', emissive: '#8888ff', emissiveIntensity: 0.4, flatShading: true }));
-        disco.position.set(0, 4.9, -0.5); g.add(disco);
-        anims.push((t) => { disco.rotation.y = t * 0.001; arch.material.emissiveIntensity = 0.4 + 0.4 * Math.abs(Math.sin(t * 0.004)); });
-        return 6;
+        mesh(box, '#3c096c', 0, 0.3, -4.6, 6.4, 0.6, 3.8, g);
+        const arch = new T.Mesh(new T.TorusGeometry(2.8, 0.26, 10, 28, Math.PI), S.lam('#f15bb5', { emissive: '#f15bb5', emissiveIntensity: 0.6 })); arch.position.set(0, 0.6, -3.4); g.add(arch);
+        const disco = new T.Mesh(new T.IcosahedronGeometry(0.7, 1), new T.MeshLambertMaterial({ color: '#e0e0ff', emissive: '#8888ff', emissiveIntensity: 0.4, flatShading: true }));
+        disco.position.set(0, 4.2, -3.6); g.add(disco);
+        const tiles = [0, 1, 2, 3, 4, 5].map((i) => mesh(box, ['#f15bb5', '#4cc9f0', '#ffd166'][i % 3], -2 + (i % 3) * 2, 0.62, -5.4 + Math.floor(i / 3) * 1.6, 1.7, 0.04, 1.4, g, { emissive: ['#f15bb5', '#4cc9f0', '#ffd166'][i % 3], emissiveIntensity: 0.3 }));
+        anims.push((t) => { disco.rotation.y = t * 0.001; arch.material.emissiveIntensity = 0.4 + 0.4 * Math.abs(Math.sin(t * 0.004)); tiles.forEach((m, i) => { m.material.emissiveIntensity = (Math.floor(t / 400) + i) % 3 ? 0.15 : 0.7; }); });
+        return th;
       }
-      case 'dojo': { // la pagode et son portique
-        if (!put('custom/pagoda', 0, -1, 10, 0, g)) for (let i = 0; i < 3; i++) { mesh(box, '#f2e8cf', 0, 1.2 + i * 2.6, -1, 5 - i, 2, 5 - i, g); mesh(cone, '#bc4749', 0, 2.6 + i * 2.6, -1, 3.6 - i * 0.6, 1, 3.6 - i * 0.6, g); }
-        put('custom/torii', 0, 3, 4.2, 0, g);
-        return 10;
-      }
-      case 'verger': { // l'atelier des potions : cabane, cheminée qui fume vert, chaudron qui bouillonne
-        mesh(box, '#b08968', 0, 1.8, -1, 5, 3.6, 4, g); mesh(cone, '#7b2cbf', 0, 4.6, -1, 3.9, 2.2, 3.4, g).rotation.y = Math.PI / 4;
-        mesh(box, '#5a3e2b', 0, 1.1, 1.02, 1.2, 2.2, 0.1, g); mesh(cyl, '#6d6875', 1.6, 5.4, -1.5, 0.35, 2, 0.35, g);
-        mesh(cyl, '#2b2d42', -1.8, 0.6, 2.2, 0.8, 1.1, 0.8, g); const brew = mesh(cyl, '#70e000', -1.8, 1.18, 2.2, 0.7, 0.05, 0.7, g, { emissive: '#70e000', emissiveIntensity: 0.6 });
-        const puffs = [0, 1, 2, 3].map(() => mesh(ball, '#b9fbc0', 1.6, 6.5, -1.5, 0.4, 0.4, 0.4, g, { transparent: true, opacity: 0.7 }));
-        const bubbles = [0, 1, 2].map(() => mesh(ball, '#ccff33', -1.8, 1.3, 2.2, 0.15, 0.15, 0.15, g, { emissive: '#ccff33', emissiveIntensity: 0.5 }));
-        anims.push((t) => {
-          puffs.forEach((p, i) => { const q = (t * 0.0003 + i / 4) % 1; p.position.set(1.6 + q * 1.2, 6.5 + q * 3, -1.5); p.scale.setScalar(0.3 + q * 0.7); });
-          bubbles.forEach((b, i) => { const q = (t * 0.0012 + i / 3) % 1; b.position.set(-1.8 + Math.sin(i * 2) * 0.35, 1.25 + q * 0.6, 2.2 + Math.cos(i * 2) * 0.35); b.scale.setScalar(0.15 * (1 - q)); });
-          brew.material.emissiveIntensity = 0.5 + 0.2 * Math.sin(t * 0.005);
-        });
-        return 6;
-      }
-      case 'stade': { // le terrain de la récré : pelouse rayée, but et panier
-        mesh(box, '#57cc99', 0, 0.05, 0, 9, 0.1, 6, g);
-        for (const x of [-4.4, 4.4]) mesh(box, '#ffffff', x, 0.11, 0, 0.1, 0.02, 6, g);
-        mesh(box, '#ffffff', 0, 0.11, 0, 0.1, 0.02, 6, g);
-        for (const x of [-1.3, 1.3]) mesh(cyl, '#ffffff', x - 3, 0.75, -2.6, 0.07, 1.5, 0.07, g);
-        mesh(cyl, '#ffffff', -3, 1.5, -2.6, 0.07, 2.6, 0.07, g).rotation.z = Math.PI / 2;
-        mesh(cyl, '#adb5bd', 3.5, 1.6, -2.6, 0.08, 3.2, 0.08, g); mesh(box, '#ffffff', 3.5, 3.3, -2.4, 1.3, 0.9, 0.08, g);
-        const rim = new T.Mesh(new T.TorusGeometry(0.3, 0.04, 8, 20), S.lam('#f76707')); rim.position.set(3.5, 3.0, -2.0); rim.rotation.x = Math.PI / 2; g.add(rim);
-        return 4;
-      }
-      case 'singes': { // la tour des singes farceurs (un singe tout en haut)
-        mesh(cyl, '#d6ccc2', 0, 4.5, -0.5, 2, 9, 2, g); mesh(cone, '#bc6c25', 0, 10.2, -0.5, 2.6, 2.6, 2.6, g);
-        for (const y of [3, 6]) mesh(box, '#a2d2ff', 0, y, 1.45, 0.9, 1.1, 0.2, g);
-        mesh(box, '#5a3e2b', 0, 1.1, 1.45, 1.1, 2.2, 0.2, g);
-        const mk = creaturesByModel('pets/animal-monkey');
-        if (mk) { try { const m = buildCreature3D(S, mk, false); m.group.scale.multiplyScalar(0.9); m.group.position.set(1.2, 8.3, 0.6); g.add(m.group); anims.push((t) => m.animate(t, Math.sin(t * 0.0013) > 0.4 ? 'happy' : 'idle')); } catch (e) { /* (singe indisponible) */ } }
-        for (let i = 0; i < 3; i++) mesh(ball, '#f3f7ff', -1.2 + i * 1.1, 2.4 + i * 1.7, 1.5, 0.35, 0.3, 0.15, g); // (traces de mousse)
+      case 'dojo': { // la pagode du dojo, dans le rempart, et son portique dans la cour
+        if (!put('custom/pagoda', 0, 0.6, 11, 0, g)) for (let i = 0; i < 3; i++) { mesh(box, '#f2e8cf', 0, 1.2 + i * 2.6, 0.6, 5 - i, 2, 5 - i, g); mesh(cone, '#bc4749', 0, 2.6 + i * 2.6, 0.6, 3.6 - i * 0.6, 1, 3.6 - i * 0.6, g); }
+        put('custom/torii', 0, -5, 3.8, 0, g);
         return 11;
       }
-      case 'supermarche': { // le marché aux ingrédients : trois étals à auvent rayé
-        for (const [x, c] of [[-3, '#ef476f'], [0, '#06d6a0'], [3, '#ffd166']]) {
-          mesh(box, '#8d5a3b', x, 0.6, 0, 2.4, 1.2, 1.4, g);
-          for (let i = 0; i < 4; i++) mesh(box, i % 2 ? '#ffffff' : c, x - 0.9 + i * 0.6, 2.7, 0.1, 0.6, 0.15, 1.9, g).rotation.x = -0.25;
-          for (const s of [-1, 1]) mesh(cyl, '#6b4226', x + s * 1.1, 1.4, 0.6, 0.06, 2.8, 0.06, g);
+      case 'verger': { // l'atelier des potions : un gros chaudron qui bouillonne et fume vert devant la tour
+        mesh(cyl, '#2b2d42', 0, 0.75, -4.6, 1.2, 1.4, 1.2, g); const brew = mesh(cyl, '#70e000', 0, 1.48, -4.6, 1.05, 0.05, 1.05, g, { emissive: '#70e000', emissiveIntensity: 0.6 });
+        for (const x of [-2.6, 2.6]) { mesh(box, '#8d5a3b', x, 0.5, -4.2, 1.4, 1, 1, g); for (let i = 0; i < 3; i++) mesh(cyl, ['#ff70a6', '#4cc9f0', '#ffd166'][i], x - 0.45 + i * 0.45, 1.3, -4.2, 0.16, 0.6, 0.16, g, { emissive: ['#ff70a6', '#4cc9f0', '#ffd166'][i], emissiveIntensity: 0.4 }); } // (étagères de fioles)
+        const puffs = [0, 1, 2, 3].map(() => mesh(ball, '#b9fbc0', 0, 2, -4.6, 0.4, 0.4, 0.4, g, { transparent: true, opacity: 0.7 }));
+        const bubbles = [0, 1, 2].map(() => mesh(ball, '#ccff33', 0, 1.5, -4.6, 0.15, 0.15, 0.15, g, { emissive: '#ccff33', emissiveIntensity: 0.5 }));
+        anims.push((t) => {
+          puffs.forEach((p, i) => { const q = (t * 0.0003 + i / 4) % 1; p.position.set(Math.sin(q * 6) * 0.4, 1.8 + q * 4, -4.6); p.scale.setScalar(0.3 + q * 0.8); });
+          bubbles.forEach((b, i) => { const q = (t * 0.0012 + i / 3) % 1; b.position.set(Math.sin(i * 2) * 0.5, 1.5 + q * 0.6, -4.6 + Math.cos(i * 2) * 0.5); b.scale.setScalar(0.15 * (1 - q)); });
+          brew.material.emissiveIntensity = 0.5 + 0.2 * Math.sin(t * 0.005);
+        });
+        return th;
+      }
+      case 'stade': { // le terrain de la récré : pelouse rayée, but et panier
+        mesh(box, '#57cc99', 0, 0.08, -5, 7.4, 0.1, 4.6, g);
+        for (const x of [-3.6, 0, 3.6]) mesh(box, '#ffffff', x, 0.14, -5, 0.1, 0.02, 4.6, g);
+        for (const x of [-1, 1]) mesh(cyl, '#ffffff', x - 2, 0.7, -3, 0.07, 1.4, 0.07, g);
+        mesh(cyl, '#ffffff', -2, 1.4, -3, 0.07, 2, 0.07, g).rotation.z = Math.PI / 2;
+        mesh(cyl, '#adb5bd', 2.6, 1.6, -3, 0.08, 3.2, 0.08, g); mesh(box, '#ffffff', 2.6, 3.3, -3.2, 1.3, 0.9, 0.08, g);
+        const rim = new T.Mesh(new T.TorusGeometry(0.3, 0.04, 8, 20), S.lam('#f76707')); rim.position.set(2.6, 3.0, -3.6); rim.rotation.x = Math.PI / 2; g.add(rim);
+        mesh(ball, '#ffffff', -0.8, 0.35, -5.4, 0.3, 0.3, 0.3, g); mesh(ball, '#f76707', 1.2, 0.35, -5, 0.32, 0.32, 0.32, g);
+        return th;
+      }
+      case 'singes': { // la tour des singes farceurs (un singe tout en haut, des traces de mousse partout)
+        mesh(cyl, '#d6ccc2', 0, 4.5, 0.4, 2.4, 9, 2.4, g); mesh(cone, '#bc6c25', 0, 10.6, 0.4, 3, 3.2, 3, g);
+        for (const y of [3.4, 6]) mesh(box, '#a2d2ff', 0, y, -2, 0.9, 1.1, 0.2, g);
+        mesh(box, '#5a3e2b', 0, 1.2, -2, 1.3, 2.4, 0.2, g);
+        const mk = creaturesByModel('pets/animal-monkey');
+        if (mk) { try { const m = buildCreature3D(S, mk, false); m.group.scale.multiplyScalar(0.9); m.group.position.set(1.4, 9.1, -1.4); m.group.rotation.y = Math.PI; g.add(m.group); anims.push((t) => m.animate(t, Math.sin(t * 0.0013) > 0.4 ? 'happy' : 'idle')); } catch (e) { /* (singe indisponible) */ } }
+        for (let i = 0; i < 3; i++) mesh(ball, '#f3f7ff', -1.2 + i * 1.1, 2.4 + i * 1.7, -2.1, 0.35, 0.3, 0.15, g); // (traces de mousse)
+        for (let i = 0; i < 5; i++) mesh(ball, '#f3f7ff', -2 + i, 0.15, -3.5 - (i % 2) * 1.4, 0.45, 0.2, 0.45, g);
+        put('kaykit/re-crate_carrots', 2.4, -4, 0.6, 0.4, g);
+        return 12;
+      }
+      case 'supermarche': { // le marché aux ingrédients : trois étals à auvent rayé devant la tour
+        for (const [x, c] of [[-2.5, '#ef476f'], [0, '#06d6a0'], [2.5, '#ffd166']]) {
+          mesh(box, '#8d5a3b', x, 0.55, -4.4, 2, 1.1, 1.2, g);
+          for (let i = 0; i < 4; i++) mesh(box, i % 2 ? '#ffffff' : c, x - 0.75 + i * 0.5, 2.4, -4.5, 0.5, 0.13, 1.6, g).rotation.x = -0.25;
+          for (const sx of [-1, 1]) mesh(cyl, '#6b4226', x + sx * 0.9, 1.25, -3.9, 0.06, 2.5, 0.06, g);
         }
-        put('kaykit/re-crate_carrots', -3, 0.4, 0.5, 0, g); put('kaykit/re-crate_tomatoes', 0, 0.4, 0.5, 0, g); put('kaykit/re-crate_lettuce', 3, 0.4, 0.5, 0, g);
-        return 3.5;
+        put('kaykit/re-crate_carrots', -2.5, -4.4, 0.45, 0, g); put('kaykit/re-crate_tomatoes', 0, -4.4, 0.45, 0, g); put('kaykit/re-crate_lettuce', 2.5, -4.4, 0.45, 0, g);
+        return th;
       }
     }
-    return 4;
+    return th || 4;
   }
 
   // Portail magique (vers les aventures, l'Académie ou un autre pays) : deux piliers, un anneau qui tourbillonne
@@ -348,10 +433,11 @@ class AcademyHub {
     const old = this.labels[d.id];
     if (old && old.key === key) return old.sp;
     if (old) { this.scene.remove(old.sp); old.sp.material.map.dispose(); old.sp.material.dispose(); }
+    const icon = !d.open ? '' : d.kind === 'world' ? HUB_ICONS[d.id] || '⭐' : d.kind === 'stage' ? (d.boss ? '👑' : ['1️⃣', '2️⃣', '3️⃣'][d.k] || '⭐') : '';
+    if (this.kind === 'academy') return this.flatLabel(d, key, icon);
     // (canevas : la grosse icône en haut, le panneau en dessous)
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 400;
     const x = cv.getContext('2d');
-    const icon = !d.open ? '' : d.kind === 'world' ? HUB_ICONS[d.id] || '⭐' : d.kind === 'stage' ? (d.boss ? '👑' : ['1️⃣', '2️⃣', '3️⃣'][d.k] || '⭐') : '';
     if (icon) { x.font = '120px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(icon, 256, 76); }
     x.translate(0, 144);
     x.fillStyle = d.open ? (d.next ? '#ffd166' : 'rgba(255,255,255,.95)') : 'rgba(60,50,110,.85)';
@@ -377,11 +463,47 @@ class AcademyHub {
     }
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthWrite: false }));
-    sp.center.set(0.5, 0.32); // (le point d'accroche reste au milieu du panneau)
-    sp.userData.base = d.kind === 'academy' ? 0.6 : 1; // (portail du retour, tout près de la caméra : panneau plus petit)
+    sp.center.set(0.5, 0.32); sp.userData.ar = 400 / 512; // (le point d'accroche reste au milieu du panneau)
+    sp.userData.base = d.kind === 'academy' ? 0.6 : this.kind === 'academy' ? 0.9 : 1; // (portail du retour, tout près de la caméra : panneau plus petit ; château : vu de haut, des tours serrées)
     sp.scale.set(7 * sp.userData.base, 5.47 * sp.userData.base, 1);
-    const b = this.buildings[d.id];
-    sp.position.set(d.pos.x, d.id === 'ecole' ? 9 : d.kind === 'academy' ? 3.2 : (b ? b.h : 5) + 2.4, d.pos.z + (d.id === 'ecole' ? 4 : d.kind === 'academy' ? 1.5 : 0)); // (château : devant la porte ; portail du retour, tout près de la caméra : panneau bas)
+    const lp = this.spotOf(d, true); sp.position.set(lp.x, lp.y, lp.z);
+    this.scene.add(sp);
+    this.labels[d.id] = { key, sp };
+    return sp;
+  }
+
+  // Panneau du château : plat (les tours d'un même rempart sont proches à l'écran), grosse icône à gauche, nom et
+  // étoiles à droite ; fermé : juste un cadenas
+  flatLabel(d, key, icon) {
+    const T = this.S.T, cv = document.createElement('canvas'), x = cv.getContext('2d');
+    cv.width = 640; cv.height = 224;
+    const lock = !d.open, x0 = lock ? 200 : 8, x1 = lock ? 440 : 632;
+    x.fillStyle = lock ? 'rgba(60,50,110,.88)' : d.next ? '#ffd166' : 'rgba(255,255,255,.95)';
+    x.beginPath(); x.roundRect(x0, 12, x1 - x0, 200, 50); x.fill();
+    x.lineWidth = 10; x.strokeStyle = '#7b2cbf'; x.stroke();
+    x.textBaseline = 'middle'; x.fillStyle = lock ? '#ffffff' : '#1e1b4b';
+    if (lock) { x.textAlign = 'center'; x.font = '800 92px "Baloo 2", sans-serif'; x.fillText('🔒 ?', 320, 116); }
+    else {
+      const tx = icon ? 172 : 30, tw = 632 - tx - 24;
+      if (icon) { x.textAlign = 'center'; x.font = '118px serif'; x.fillText(icon, 92, 118); }
+      x.textAlign = 'left'; x.font = '800 54px "Baloo 2", sans-serif';
+      const words = d.name.split(' ');
+      let lines = [d.name];
+      if (x.measureText(d.name).width > tw && words.length > 1) {
+        let best = 1, bw = 1e9;
+        for (let i = 1; i < words.length; i++) { const w = Math.max(x.measureText(words.slice(0, i).join(' ')).width, x.measureText(words.slice(i).join(' ')).width); if (w < bw) { bw = w; best = i; } }
+        lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+      }
+      const stars = d.kind === 'world';
+      const y0 = (stars ? 92 : 116) - (lines.length - 1) * 27;
+      lines.forEach((l, i) => x.fillText(l, tx, y0 + i * 54, tw));
+      if (stars) { x.font = '44px serif'; x.fillText([0, 1, 2].map((i) => (i < d.stars ? '⭐' : '☆')).join(' '), tx, y0 + lines.length * 54 + 4); }
+    }
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthWrite: false }));
+    sp.userData.ar = 224 / 640; sp.userData.base = d.kind === 'world' ? 1.5 : 1.2;
+    sp.scale.set(7 * sp.userData.base, 7 * sp.userData.base * sp.userData.ar, 1);
+    const lp = this.spotOf(d, true); sp.position.set(lp.x, lp.y, lp.z);
     this.scene.add(sp);
     this.labels[d.id] = { key, sp };
     return sp;
@@ -396,7 +518,7 @@ class AcademyHub {
     for (const d of this.places) { if (d.kind === 'world') d.next = d.open && d.w === cur && d.stars === 0; this.label(d); }
     // (d'où l'on arrive : la porte de ce lieu ; un autre pays : son portail ; sinon le milieu de la place)
     const from = this.places.find((d) => d.id === fromId || (d.kind === 'country' && d.w.id === fromId));
-    this.pos = from ? { ...from.door } : { x: 0, z: 4.5 };
+    this.pos = from ? { ...from.door } : { x: 0, z: 4.5 }; this.at = from || null;
     this.yaw = from ? Math.atan2(from.dir.x, from.dir.z) : Math.PI; // (de dos : regarde vers le fond)
     // Étoiles retrouvées : bandes de l'arc-en-ciel et petites étoiles du bandeau
     for (const r of this.rainbow || []) {
@@ -407,14 +529,14 @@ class AcademyHub {
     const gemsEl = document.getElementById('hubGems');
     if (gemsEl) gemsEl.innerHTML = GEMS.map((g) => `<span class="taleStar${Tale.hasGem(g.world) ? ' on' : ''}" style="--gc:${g.col}">⭐</span>`).join('');
     const title = document.querySelector('#hubHud .hubTitle');
-    if (title) title.textContent = this.kind === 'village' ? `🌀 ${this.w.name}` : "🏰 Parc de l'Académie";
+    if (title) title.textContent = this.kind === 'village' ? `🌀 ${this.w.name}` : "🏰 Château de l'Académie";
     if (this.guardian) { const n = Stages.count(this.w) || 1; this.guardian.friend = n > 1 ? Stages.dots(this.w) === n : Progress.stars(this.w) > 0; }
     this.mode = 'choose'; this.target = null; this.route = null; this.hover = null; this.charge = 0; this.ptr = null;
     this.block = null; this.trips = this.trips || 0; this.slowT = 0; this.moveK = 0; this.t0 = performance.now();
     this.enterT = 0; this.lastSay = {};
     S.mirror = false;
     this.say(from ? 'back' : this.kind === 'village' ? 'village' : 'hello', 0); // (au retour d'un cours : une phrase courte)
-    this.hint(this.kind === 'village' ? '🪄 Vise une étape avec ta baguette' : '🪄 Lève le bras et vise un bâtiment avec ta baguette');
+    this.hint(this.kind === 'village' ? '🪄 Vise une étape avec ta baguette' : '🪄 Lève le bras et vise une tour avec ta baguette');
   }
   say(k, cool = 9000) { const now = performance.now(); if (now - (this.lastSay[k] || -1e9) < cool) return; this.lastSay[k] = now; Audio8.say(HUB_SAY[k]); }
   hint(t) { const el = document.getElementById('hubHint'); if (el && el.textContent !== t) el.textContent = t; }
@@ -439,7 +561,16 @@ class AcademyHub {
     const T = this.S.T, q = new T.Vector3(v.x, v.y + dy, v.z).project(this.cam);
     return { x: (q.x + 1) / 2, y: (1 - q.y) / 2, behind: q.z > 1 };
   }
-  screenOf(d) { const b = this.buildings[d.id]; return this.screenOfObj({ x: d.pos.x, y: 0, z: d.pos.z + (d.id === 'ecole' ? 4 : 0) }, d.id === 'ecole' ? 2.5 : (b ? b.h : 5) * 0.55); } // (château : vise sa porte, sous le panneau)
+  screenOf(d) { return this.screenOfObj(this.spotOf(d, false)); }
+  // Point visé avec la baguette (lab = false) ou point d'accroche du panneau (lab = true) d'un lieu
+  spotOf(d, lab) {
+    const b = this.buildings[d.id], h = b ? b.h : 5;
+    if (d.id === 'ecole') return lab ? { x: 0, y: 9.5, z: -16 } : { x: 0, y: 4.5, z: -18 }; // (donjon : au-dessus de la grande porte)
+    if (d.id === 'portal' && d.side) return lab ? { x: 0, y: 4.6, z: 19.5 } : { x: 0, y: 2.4, z: 17 }; // (grande porte de l'entrée : panneau juste devant)
+    if (d.side && d.kind === 'world') return lab ? { x: d.pos.x - d.dir.x * 1.2, y: h + 1.6, z: d.pos.z - d.dir.z * 1.2 } : { x: d.pos.x - d.dir.x * 2.5, y: 3.6, z: d.pos.z - d.dir.z * 2.5 };
+    if (d.kind === 'academy') return lab ? { x: d.pos.x, y: 3.2, z: d.pos.z + 1.5 } : { x: d.pos.x, y: h * 0.55, z: d.pos.z }; // (portail du retour, tout près de la caméra : panneau bas)
+    return { x: d.pos.x, y: lab ? h + 2.4 : h * 0.55, z: d.pos.z };
+  }
 
   // Énergie du joueur (course sur place) : 0..1
   energy() {
@@ -451,8 +582,10 @@ class AcademyHub {
   choose(d, now) {
     if (!d.open) { Audio8.soft(); this.say({ portal: 'portalLocked', stage: 'stageLocked', country: 'countryLocked' }[d.kind] || 'locked', 4000); this.charge = 0; return; }
     this.target = d; this.mode = 'walk'; this.charge = 0; this.trips++;
-    const start = { ...this.pos }, atCenter = Math.hypot(start.x, start.z) < 5;
-    this.route = atCenter ? [start, d.door] : [start, { x: 0, z: 0 }, d.door]; // (par la place : tous les chemins y passent)
+    // (par les allées : retour à la fontaine par le chemin d'où l'on vient, puis le chemin du lieu choisi)
+    const back = this.at ? this.at.route.slice(0, -1).reverse() : Math.hypot(this.pos.x, this.pos.z) < 5 ? [] : [{ x: 0, z: 0 }]; // (déjà près de la fontaine : on part directement)
+    const route = [{ ...this.pos }, ...back, ...d.route.slice(1)];
+    this.route = route.filter((q, i) => !i || Math.hypot(q.x - route[i - 1].x, q.z - route[i - 1].z) > 0.01);
     this.seg = 0; this.walked = 0;
     this.blockAt = (typeof DEV !== 'undefined' && DEV.get('hubblock')) || (this.trips > 1 && Math.random() < 0.45) ? 0.55 : null; // (une créature ensorcelée sur le chemin, une fois sur deux à peu près)
     Audio8.spell(); this.S.burst(this.ptr ? this.ptr.x * this.S.W : this.S.W / 2, this.ptr ? this.ptr.y * this.S.H : this.S.H / 2, 30, ['#ffd166', '#ff70a6', '#ffffff', '#c77dff']);
@@ -498,7 +631,7 @@ class AcademyHub {
       }
       const total = this.route.reduce((s, q, i) => (i ? s + Math.hypot(q.x - this.route[i - 1].x, q.z - this.route[i - 1].z) : 0), 0);
       if (this.blockAt != null && this.walked / total > this.blockAt) { this.blockAt = null; this.spawnBlock(); }
-      if (this.seg >= this.route.length - 1) { this.mode = 'enter'; this.enterT = now; Audio8.say(HUB_SAY.enter); Audio8.perfect(); }
+      if (this.seg >= this.route.length - 1) { this.at = this.target; this.mode = 'enter'; this.enterT = now; Audio8.say(HUB_SAY.enter); Audio8.perfect(); }
     } else if (this.mode === 'block') {
       const bk = this.block, s = this.screenOfObj(bk.c.group.position, 0.8);
       bk.aimed = !!p && Math.hypot((s.x - p.x) * A, s.y - p.y) < 0.14;
@@ -565,21 +698,21 @@ class AcademyHub {
     }
     for (const a of this.anims || []) a(now);
     if (this.water) { this.water.scale.y = 0.55 + Math.sin(now * 0.006) * 0.08; }
-    if (this.calin && this.calin.group.visible) { this.calin.group.position.set(Math.sin(now * 0.0004) * 4, 6 + Math.sin(now * 0.002) * 0.4, -2 + Math.cos(now * 0.0004) * 2); this.calin.animate(now, 'happy'); }
+    if (this.calin && this.calin.group.visible) { this.calin.group.position.set(Math.sin(now * 0.0004) * 5, 9 + Math.sin(now * 0.002) * 0.4, -4 + Math.cos(now * 0.0004) * 2); this.calin.animate(now, 'happy'); }
     if (this.crystal) { this.crystal.rotation.y = now * 0.001; this.crystal.position.y = 2.4 + Math.sin(now * 0.002) * 0.15; }
     if (this.guardian) { const gc = this.guardian.c; gc.animate(now, this.guardian.friend ? (Math.sin(now * 0.001) > 0.3 ? 'happy' : 'idle') : 'idle'); gc.group.rotation.z = this.guardian.friend ? 0 : Math.sin(now * 0.004) * 0.05; }
     // Caméra : vue d'ensemble pour choisir ; derrière le petit sorcier quand il marche
     const follow = this.mode !== 'choose';
     const fw = { x: -Math.sin(this.yaw), z: -Math.cos(this.yaw) };
-    const wantP = follow ? new T.Vector3(px - fw.x * 8, 4.6, pz - fw.z * 8) : new T.Vector3(0, 30, 40);
-    const wantL = follow ? new T.Vector3(px + fw.x * 5, 1.5, pz + fw.z * 5) : new T.Vector3(0, 1, -7);
+    const wantP = follow ? new T.Vector3(px - fw.x * 8, 4.6, pz - fw.z * 8) : this.overview[0];
+    const wantL = follow ? new T.Vector3(px + fw.x * 5, 1.5, pz + fw.z * 5) : this.overview[1];
     const k = Math.min(1, dt * (follow ? 2.4 : 1.6));
     this.camPos.lerp(wantP, k); this.camLook.lerp(wantL, k);
     this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
     // Panneaux lointains agrandis : ils restent lisibles au fond du parc (et l'icône se voit de loin)
     for (const lb of Object.values(this.labels || {})) {
-      const k2 = lb.sp.userData.base * Math.max(1, Math.min(2.2, lb.sp.position.distanceTo(this.camPos) / 38));
-      lb.sp.scale.set(7 * k2, 5.47 * k2, 1);
+      const k2 = lb.sp.userData.base * Math.max(1, Math.min(this.kind === 'academy' ? 1.4 : 2.2, lb.sp.position.distanceTo(this.camPos) / (this.kind === 'academy' ? 55 : 38)));
+      lb.sp.scale.set(7 * k2, 7 * k2 * lb.sp.userData.ar, 1);
     }
     if (typeof DEV !== 'undefined' && DEV.get('hubdbg')) document.title = `HUB ${this.mode} dt=${dt.toFixed(3)} k=${k.toFixed(3)} cam=${this.camPos.toArray().map((v) => v.toFixed(1))} want=${wantP.toArray().map((v) => v.toFixed(1))}`;
     const W = S.W, H = S.H;

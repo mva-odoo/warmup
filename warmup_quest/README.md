@@ -14,14 +14,14 @@ Au-dessus de l'Académie brille un arc-en-ciel magique. **Madame Pimprenelle**, 
 pour sa première année de petit sorcier. Quand il a fini ses cours, le **Nuage Grognon** vole les six couleurs de
 l'arc-en-ciel et les cache, changées en **Étoiles de couleur**, dans les six pays d'aventure (violette au Bois des
 Sortilèges, verte dans la Vallée des Créatures, orange sur la Banquise, bleue dans l'Océan, rouge chez les Dinos, jaune
-dans l'Espace). Finir un pays rend son Étoile : l'arc-en-ciel au-dessus de la fontaine du parc retrouve cette couleur, et
+dans l'Espace). Finir un pays rend son Étoile : le grand arc-en-ciel derrière le donjon de l'Académie retrouve cette couleur, et
 les petites étoiles du bandeau s'allument. Au fil des Étoiles, on découvre que le Nuage Grognon n'est pas méchant mais
 triste et tout seul. Au château, on ne le bat pas : on lui montre qu'on veut être son ami ; il rend le cœur de
-l'arc-en-ciel et devient le **Nuage Câlin** (qui flotte ensuite au-dessus du parc). Diplôme : « La plus grande magie,
+l'arc-en-ciel et devient le **Nuage Câlin** (qui flotte ensuite au-dessus de la cour du château). Diplôme : « La plus grande magie,
 c'est l'amitié. »
 - Chapitres racontés (grandes images, voix lente, on avance tout seul à la fin de chaque phrase) : le prologue au premier
   lancement, « L'arc-en-ciel a disparu ! » quand le portail s'ouvre, un chapitre par Étoile retrouvée, et la fin. Ils
-  arrivent au retour au parc ou au menu ; l'écran de fin annonce aussi « ⭐ Étoile violette retrouvée ! ».
+  arrivent au retour au château ou au menu ; l'écran de fin annonce aussi « ⭐ Étoile violette retrouvée ! ».
 - « 📜 L'histoire » ouvre le livre : les Étoiles trouvées et les chapitres débloqués, à réécouter.
 - Mode test : `?tale=prologue|portal|fin|gem_ocean`, `?gems=3` (Étoiles déjà trouvées), `?taleend=1`, `?book=1`.
 
@@ -43,25 +43,29 @@ Le Nuage Grognon n'est jamais effrayant (voir l'histoire ci-dessus).
   Pays des Bonbons, La Ferme Joyeuse, Planète Rythmo (les cubes en musique restent aux carrefours et dans les cours).
 - Une carte réorganisée ne referme rien : une île est ouverte si l'enfant y a déjà joué ou est allé plus loin.
 
-## Le parc de l'Académie (petit monde ouvert)
-Bouton « 🏰 Entrer dans le parc de l'Académie » du menu : au lieu de choisir sur la carte, l'enfant se promène.
-- Au centre une fontaine, au fond le château (Premier jour), et en cercle un bâtiment par cours : le jardin, la salle de
-  danse, la pagode du dojo, l'atelier des potions (chaudron qui bouillonne), le terrain de la récré, la tour des singes,
-  le marché ; et le **portail magique** des aventures (il mène au village de la prochaine aventure à gagner). Chaque bâtiment a son
-  panneau (nom et étoiles, ou 🔒 ? s'il est encore fermé) ; une main 👉 montre le prochain cours à réussir.
-- **Choisir** : lever le bras et viser un bâtiment avec sa baguette (rayon et anneau doré qui se remplit, ~1,2 s).
+## Le château de l'Académie (petit monde ouvert)
+Bouton « 🏰 Entrer dans le château de l'Académie » du menu : au lieu de choisir sur la carte, l'enfant se promène.
+- Une grande cour fermée par des remparts crénelés, vue d'en haut, avec une fontaine au milieu. Au fond, derrière la
+  grande porte, le donjon (Premier jour) et le grand arc-en-ciel ; à côté, la tour de Madame Pimprenelle (la chouette au
+  balcon). Sur les côtés, une tour par cours, dans l'ordre du chapitre (à gauche de l'entrée vers le fond, puis à droite du
+  fond vers l'entrée) : la serre, la salle de danse, la pagode du dojo, l'atelier des potions (chaudron qui bouillonne),
+  le terrain de la récré, la tour des singes, le marché. À l'entrée, le **portail magique** des aventures (il mène au
+  village de la prochaine aventure à gagner). Chaque tour a son panneau (icône, nom et étoiles, ou 🔒 ? s'il est encore
+  fermé) ; un halo doré entoure le prochain cours à réussir.
+- **Choisir** : lever le bras et viser une tour avec sa baguette (rayon et anneau doré qui se remplit, ~1,2 s).
 - **Y aller** : courir sur place. Le petit sorcier suit le chemin tout seul, plus vite quand l'enfant court (jauge 🏃) ;
-  s'il s'arrête, il avance doucement et la voix l'encourage. Tous les chemins partent de la place : impossible de se perdre.
+  s'il s'arrête, il avance doucement et la voix l'encourage. Les allées sont droites (l'allée centrale de la porte au donjon,
+  et une allée en travers par paire de tours) et passent toutes par la fontaine : impossible de se perdre.
 - En route (à peu près un trajet sur deux, pas le premier), une **créature ensorcelée** bloque le chemin : un coup de
-  baguette et elle redevient gentille. Le familier suit l'enfant, et les amis du grimoire se promènent dans le parc.
+  baguette et elle redevient gentille. Le familier suit l'enfant, et les amis du grimoire se promènent dans la cour.
 - Arrivé à la porte, le petit sorcier entre et le cours commence directement (pas besoin de se recalibrer) ; à la fin,
-  🏠 ramène dans le parc, devant ce bâtiment. ✖ (en haut) ou Échap : retour au menu.
+  🏠 ramène au château, devant cette tour. ✖ (en haut) ou Échap : retour au menu.
 - 3D seulement (bouton caché avec « Graphismes 2D »). Mode clavier : ← → choisir, Entrée valider, Espace courir.
   Mode test : `?hub=1&hubauto=1` (choisit et court tout seul ; `hubslow=1` sans courir, `hubblock=1` créature forcée,
-  `hubret=1` finit le cours tout de suite et revient au parc).
+  `hubret=1` finit le cours tout de suite et revient au château).
 
 ## Les villages des aventures
-Le portail du parc mène au **village** du pays d'aventure en cours (même principe : viser avec la baguette, courir sur place).
+Le portail du château mène au **village** du pays d'aventure en cours (même principe : viser avec la baguette, courir sur place).
 - Ciel, sol, chemins, décor et petites maisons aux couleurs du pays ; les villageois sont les créatures du pays ; au centre,
   une pierre magique aux couleurs du pays.
 - **Une porte par étape** du pays (portique dans le paysage de l'étape : « Étape 2 : Récif »), avec « À faire » ou « ✅ Réussie ».
@@ -74,7 +78,7 @@ Le portail du parc mène au **village** du pays d'aventure en cours (même princ
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en
   5 leçons : Les premiers sorts, Les poses magiques, Les ateliers, Les farces des singes, La baguette et la récré.
-- Dans le parc et les villages, chaque panneau a une grosse icône (🌸 💃 🥋 🧪 ⚽ 🐒 🛒, 1️⃣ 2️⃣ 3️⃣ 👑) et le prochain lieu à
+- Au château et dans les villages, chaque panneau a une grosse icône (🌸 💃 🥋 🧪 ⚽ 🐒 🛒, 1️⃣ 2️⃣ 3️⃣ 👑) et le prochain lieu à
   faire est entouré d'un halo doré : pas besoin de savoir lire. Les panneaux du fond grossissent pour rester lisibles.
 - Si l'enfant ne lève pas le bras, la voix rappelle comment viser ; au retour d'un cours, une phrase courte (pas tout l'accueil).
 - Pour les plus grands : vitesse « Rapide » dans les réglages parents, et les étapes s'enchaînent vite.
