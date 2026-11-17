@@ -141,7 +141,7 @@ const Audio8 = (() => {
     candy: { bpm: 132, key: 65, scale: [0, 2, 4, 7, 9], chords: [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]], lead: 'marimba', arp: 'bell',
       kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'xxx.xxx.xxx.xxx.' },
   };
-  const WORLD_STYLE = { disco: 'dance', rythmo: 'dance', dojo: 'karate', verger: 'karate', espace: 'space', ocean: 'water', bonbons: 'candy', island: 'fun', jardin3d: 'fun', sortileges: 'space' };
+  const WORLD_STYLE = { disco: 'dance', rythmo: 'dance', dojo: 'karate', verger: 'karate', espace: 'space', ocean: 'water', bonbons: 'candy', island: 'fun', jardin3d: 'fun', sortileges: 'space', stade: 'fun' };
 
   function compose(style, seed) {
     let x = 0; for (const ch of String(seed)) x = (x * 31 + ch.charCodeAt(0)) % 2147483647;

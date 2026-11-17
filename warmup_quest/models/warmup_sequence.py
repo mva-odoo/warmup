@@ -8,6 +8,12 @@ def _step_seconds(step):
     m = step.move
     if m in ('run', 'shop', 'foam', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice', 'wand'):
         return step.duration or 0
+    if m == 'goal':
+        return 2.5 + 3.0 * max(1, step.count)
+    if m == 'basket':
+        return 3 + 7 * max(1, step.count)
+    if m == 'kick':
+        return 2 + 4.5 * max(1, step.count)
     if m == 'cubes':
         return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
     if m == 'tunnel':
@@ -109,6 +115,12 @@ class WarmupStep(models.Model):
                 s.summary = f"Laver {max(1, min(3, round(s.count / 5)))} vitre(s) pleine(s) de mousse en {s.duration:g} s"
             elif s.move == 'wand':
                 s.summary = f"Libérer {max(1, s.count)} créatures ensorcelées en {s.duration:g} s (baguette magique)"
+            elif s.move == 'goal':
+                s.summary = f"Arrêter les tirs (gardien de but) : {max(1, s.count)} ballons"
+            elif s.move == 'basket':
+                s.summary = f"Marquer {max(1, s.count)} paniers (attraper puis tirer)"
+            elif s.move == 'kick':
+                s.summary = f"Marquer {max(1, s.count)} buts (penalty)"
             elif s.move == 'shop':
                 s.summary = f"Remplir le caddie pendant {s.duration:g} s"
             elif s.move in ('jump', 'squat', 'smash'):
@@ -203,6 +215,8 @@ class WarmupStep(models.Model):
                 raise ValidationError('Le nombre de cubes doit être entre 2 et 40.')
             if s.move == 'cubes' and not 0.8 <= s.hold <= 3:
                 raise ValidationError('Le temps entre deux cubes doit être entre 0,8 et 3 secondes.')
+            if s.move in ('goal', 'basket', 'kick') and not 1 <= s.count <= 20:
+                raise ValidationError('Le nombre de ballons doit être entre 1 et 20.')
             if s.move == 'ball' and not 1 <= s.count <= 30:
                 raise ValidationError('Le nombre de passes doit être entre 1 et 30.')
             if s.move in ('pose', 'posemix', 'boss', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
@@ -217,6 +231,8 @@ class WarmupStep(models.Model):
             return {'m': 'foam', 't': self.duration or 16, 'n': max(1, self.count)}
         if m == 'wand':
             return {'m': 'wand', 't': self.duration or 16, 'n': max(1, self.count)}
+        if m in ('goal', 'basket', 'kick'):
+            return {'m': m, 'n': max(1, self.count)}
         if m == 'shop':
             return {'m': 'shop', 't': self.duration or 12}
         if m in ('jump', 'squat', 'smash'):

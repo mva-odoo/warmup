@@ -82,7 +82,7 @@ BOSS_POSES = [('star', 'airplane', 'armsUp'), ('armsUp', 'star', 'airplane'), ('
 
 # Ordre des mondes dans worlds.js (le gardien de chaque monde y est choisi par sa position)
 JS_WORLD_ORDER = ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'rythmo', 'singes', 'supermarche', 'turbo', 'island', 'forest', 'banquise', 'ocean',
-                  'espace', 'bonbons', 'ferme', 'dinos', 'chateau', 'sortileges']
+                  'espace', 'bonbons', 'ferme', 'dinos', 'chateau', 'sortileges', 'stade']
 
 
 def _boss_step(world):
@@ -112,6 +112,18 @@ def _SL(t, n):
 
 def _WA(t, n):
     return {'move': 'wand', 'duration': t, 'count': n}
+
+
+def _GO(n):
+    return {'move': 'goal', 'count': n}
+
+
+def _BK(n):
+    return {'move': 'basket', 'count': n}
+
+
+def _KI(n):
+    return {'move': 'kick', 'count': n}
 
 
 def _CU(n, beat=1.4):
@@ -156,6 +168,10 @@ DEFAULT_SEQUENCES = [
     ('sortileges', 'Les sortilèges du Nuage Grognon', [
         _Z(2.5, 'Chut… le Nuage Grognon rôde dans le bois. Prépare ta baguette !'), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
         _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, magicien ! Respire bien…'),
+    ]),
+    ('stade', 'Le match des créatures', [
+        _Z(2.5, 'Bienvenue au stade ! Échauffe-toi avec les créatures…'), _R(6), _GO(5), _J(2), _BK(3), _S(2), _KI(4),
+        _P('star'), _GO(6), _L(), _D(), _BK(3), _KI(4), _Z(3, 'Fin du match ! Respire bien, champion…'),
     ]),
     ('supermarche', 'Les courses de Panier', [
         _Z(2.5, 'Bienvenue au Super Marché ! Prends ton caddie…'), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
@@ -217,7 +233,7 @@ DEFAULT_SEQUENCES = [
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
-NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges'}
+NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges', 'stade'}
 
 
 def _new_game(world):

@@ -109,6 +109,17 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
     éclate et elle redevient gentille. La dernière libérée devient son **amie** (carnet). On vise avec tout le bras
     (pas le doigt, trop petit pour la caméra à 2–3 m) : aucun calibrage selon la place de la caméra. L'épreuve est aussi
     dans l'École des dresseurs et aux carrefours. Mode test : `&step=wand&fakelimbs=1&wandaim=1`.
+  - **Stade des Créatures** 🏟️ (après l'Île Bondissante) : on fait du sport avec les créatures, le dresseur s'arrête
+    sur le terrain.
+    - 🧤 **Gardien de but** : un copain créature tire depuis le bout du chemin ; un rond blanc montre où le ballon arrive,
+      on l'arrête avec les mains (haut du corps seulement, parfait pour une webcam de portable).
+    - 🏀 **Basket** : le copain passe le ballon ; on l'attrape en joignant les mains devant soi, puis on lève les deux bras
+      pour tirer dans le panier (mode petit : toucher le ballon suffit pour l'attraper).
+    - ⚽ **Penalty** : le ballon est posé devant un pied (une petite jambe montre lequel) ; on lève le genou de ce côté.
+      Le gardien plonge… du mauvais côté. Si la caméra ne voit pas les jambes, on tire **à la main** comme au handball
+      (bras levé puis baissé fort, du côté du ballon).
+    - Le gardien de but est aussi aux carrefours ; les trois sports sont dans l'École des dresseurs.
+      Mode test : `&step=goal|basket|kick&fakelimbs=1&sportauto=1` (clavier : G / D = genou gauche / droit, H = mains jointes).
   - **Carrefours** 🔀 : dans chaque parcours (sauf l'école), le chemin se sépare. Deux panneaux montrent deux épreuves
     tirées au hasard (bulles, taupes, fruits, cubes, mousse, étoiles, corde, tunnel, statues) ; un grand pas à gauche
     ou à droite, tenu un instant, choisit la suivante. Un carrefour au milieu, deux pour les longs parcours.

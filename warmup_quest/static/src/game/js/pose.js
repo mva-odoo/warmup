@@ -52,7 +52,7 @@ function emptyState() {
   return {
     present: false, upperBody: false, fullBody: false, kneesOK: false, anklesOK: false,
     side: 'center', squat: false, jumpUp: false,
-    armsUp: false, airplane: false, star: false, flamingo: false, crossed: false,
+    armsUp: false, airplane: false, star: false, flamingo: false, crossed: false, handsTogether: false,
   };
 }
 
@@ -70,6 +70,7 @@ class Body {
     this.T = null;         // longueur du torse (échelle du corps dans l'image)
     this.offSince = 0;
     this.wristUp = { L: 0, R: 0 };
+    this.kneeHigh = { L: false, R: false };
     this.motion = 0;       // quantité de mouvement lissée (statues musicales)
     this.prevLm = null;
     this.center = null;    // milieu des épaules (sert à reconnaître qui est qui)
@@ -189,12 +190,24 @@ class Body {
     s.flamingo = !s.squat && ((useKnees && ((s.anklesOK && Math.abs(lm[27].y - lm[28].y) / T > 0.3) ||
       (kneeL < 0.6 && kneeR > 0.8) || (kneeR < 0.6 && kneeL > 0.8))) ||
       (hipOK && ((kneeUp(25, 23) && kneeDown(26, 24)) || (kneeUp(26, 24) && kneeDown(25, 23)))));
+    // Coup de pied (penalty) : un genou qui monte (kickL = genou gauche du joueur, à gauche de l'écran en miroir)
+    if (hipOK && !s.squat) {
+      for (const [k, i, h] of [['L', 25, 23], ['R', 26, 24]]) {
+        const up = kneeSeen(i) && (lm[i].y - lm[h].y) / T < (this.easy ? 0.7 : 0.6);
+        const down = !kneeSeen(i) || (lm[i].y - lm[h].y) / T > 0.75;
+        if (up && !this.kneeHigh[k]) { this.kneeHigh[k] = true; emit('kick' + k); }
+        else if (down) this.kneeHigh[k] = false;
+      }
+    }
+    // Mains jointes devant soi (attraper un ballon) : poignets proches, entre la poitrine et le ventre
+    const front = (w) => w.y > sh.y - 0.45 * T && w.y < hip.y + 0.15 * T;
+    s.handsTogether = Math.hypot((lw.x - rw.x) * XS * 4 / 3, lw.y - rw.y) < (this.easy ? 0.7 : 0.55) * T && front(lw) && front(rw);
 
     // --- Smash : main au-dessus de la tête puis descente rapide
     for (const [k, w] of [['L', lw], ['R', rw]]) {
       if (w.y < nose.y - 0.1 * T) this.wristUp[k] = now;
       else if (this.wristUp[k] && now - this.wristUp[k] < 800 && w.y > sh.y + 0.6 * T) {
-        this.wristUp[k] = 0; emit('smash');
+        this.wristUp[k] = 0; emit('smash'); emit('throw' + k); // (lancer d'un bras : handball)
       }
     }
   }
@@ -461,12 +474,16 @@ class Tracker {
       else if (k === 'ArrowRight') { all((b) => (b.state.side = 'right')); emitAll('right'); }
       else if (k === 's' || k === 'S') emitAll('smash');
       else if (poseKeys[k]) all((b) => (b.state[poseKeys[k]] = true));
+      else if (k === 'g' || k === 'G') emitAll('kickL');
+      else if (k === 'd' || k === 'D') emitAll('kickR');
+      else if (k === 'h' || k === 'H') all((b) => (b.state.handsTogether = true));
     });
     addEventListener('keyup', (e) => {
       const k = e.key;
       if (k === 'ArrowDown') all((b) => (b.state.squat = false));
       else if (k === 'ArrowLeft' || k === 'ArrowRight') all((b) => (b.state.side = 'center'));
       else if (poseKeys[k]) all((b) => (b.state[poseKeys[k]] = false));
+      else if (k === 'h' || k === 'H') all((b) => (b.state.handsTogether = false));
     });
   }
 }

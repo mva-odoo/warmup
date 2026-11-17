@@ -32,7 +32,7 @@ const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tom
 const FOAM_COLS = ['#ffffff', '#ffe3f6', '#e3f6ff', '#ffffff', '#ecffe3'];
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['learn', 'foam', 'wand', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['learn', 'foam', 'wand', 'goal', 'basket', 'kick', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -745,7 +745,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand'];
+  const special = ['bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -792,6 +792,8 @@ class Game {
       if (c.lastFruit) c.lastFruit += d;
       if (c.prevT) c.prevT += d;
       for (const f of c.foes || []) { f.born += d; if (f.t) f.t += d; }
+      for (const b of c.shots || []) { b.born += d; b.arrive += d; if (b.t) b.t += d; }
+      if (c.ball) { c.ball.t0 += d; } if (c.kickAt) c.kickAt += d;
       if (c.lastFoe) c.lastFoe += d;
     }
     if (this.gapUntil) this.gapUntil += d;
@@ -928,6 +930,8 @@ class Game {
         ui.setDetail(this.detail(c));
         if (teamOk(c.parts.map((n) => n >= s.parts.length))) { this.add(200, 'COMBO +200'); this.complete(now); }
       }
+    } else if (s.m === 'kick' && /^(kick|throw)[LR]$/.test(type)) {
+      c.kickEv = { side: type.endsWith('L') ? -1 : 1, hand: type.startsWith('throw'), idx, t: now }; // (traité dans updateKick)
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
       this.sideDone(now);
     }
@@ -946,6 +950,9 @@ class Game {
       case 'jump': case 'squat':
         return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
       case 'foam': return `<div class="runCount">🧽 ${'⭐'.repeat(c.round || 0)}${'☆'.repeat(Math.max(0, (c.rounds || 1) - (c.round || 0)))} <b>${Math.round(Math.min(1, (c.clean || 0) / (c.target || 0.8)) * 100)} %</b></div>`;
+      case 'goal': return `<div class="runCount">🧤 <b>${c.saved || 0}</b> / ${s.n}</div>`;
+      case 'basket': return `<div class="runCount">🏀 <b>${c.baskets || 0}</b> / ${s.n}</div>`;
+      case 'kick': return `<div class="runCount">⚽ <b>${c.goals || 0}</b> / ${s.n}</div>`;
       case 'wand': return `<div class="runCount">🪄 <b>${c.calmed || 0}</b> / ${s.n}</div>`;
       case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
       case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
@@ -975,7 +982,7 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand'].includes(s.m);
+    scene.closeUp = live && !['cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand', 'basket', 'kick'].includes(s.m);
     // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
     scene.hideHero = !!s && (s.m === 'slice' || s.m === 'foam'); // (fruits, mousse : on voit tout l'écran)
     if (scene.hideHero) scene.mirror = false;
@@ -1509,6 +1516,117 @@ class Game {
     scene.wand = { foes: c.foes, ptrs: c.ptr };
   }
 
+
+  // ========== Île du Stade : sports avec les créatures (gardien de but, basket, penalty)
+  // Les ballons sont dans le repère des bulles (épaules du dresseur, unité = torse) ; la scène dessine le terrain.
+
+  // ---------- Gardien de but : un copain créature tire ; on arrête le ballon avec les mains (haut du corps seulement)
+  updateGoal(c, now) {
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy), hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    scene.hands = hands;
+    if (!c.shots) { c.shots = []; c.saved = 0; c.kickAt = now + 1800; }
+    const travel = 1900 * Math.min(1.3, this.mul), auto = DEV.get('sportauto');
+    const live = c.shots.find((b) => !b.done);
+    if (!live && c.shots.length < s.n && now >= c.kickAt && (!tracker.sim || DEV.get('fakelimbs') || auto)) {
+      const hero = c.shots.length % this.np, far = this.avatarReach(hero);
+      const spots = far ? [[-1.9, -0.9], [1.9, -0.9], [-2.1, 0.4], [2.1, 0.4], [0, -1.7]] : [[-1.0, -0.8], [1.0, -0.8], [-1.1, 0.4], [1.1, 0.4], [0, -1.3]];
+      const k = (c.lastSpot = (c.lastSpot ?? -1) + 1 + Math.floor(Math.random() * (spots.length - 1))) % spots.length;
+      c.shots.push({ hero, u: spots[k][0], v: spots[k][1], born: now, arrive: now + travel, done: null });
+      scene.sportKick && scene.sportKick();
+      Audio8.hit();
+    }
+    for (const b of c.shots) {
+      if (b.done) continue;
+      const p = (now - b.born) / (b.arrive - b.born);
+      if ((p > 0.55 && this.touches(hands[b.hero], b.u, b.v, 0.6 + (easy ? 0.3 : 0))) || (auto && p > 0.9)) {
+        b.done = 'saved'; b.t = now; c.saved++;
+        this.add(this.pts(80), '+80 🧤', b.hero); this.collect(); Audio8.boing(); scene.flash(b.hero, true);
+        if (c.saved === 1 || Math.random() < 0.4) Audio8.say(pick(['Arrêté !', 'Quel gardien !', 'Super arrêt !', 'Bravo, il ne passe pas !']));
+        c.kickAt = now + 900;
+      } else if (p > 1.15) { b.done = 'goal'; b.t = now; Audio8.soft(); c.kickAt = now + 900; }
+    }
+    ui.setDetail(this.detail(c));
+    scene.sport = { kind: 'goal', balls: c.shots };
+    if (c.shots.length >= s.n && c.shots.every((b) => b.done && now - b.t > 600)) {
+      if (c.saved >= Math.ceil(s.n * 0.6)) this.complete(now); else c.end = Math.min(c.end, now);
+    }
+  }
+
+  // ---------- Basket : un copain te passe le ballon ; attrape-le (mains jointes devant toi), puis lève les bras pour tirer
+  updateBasket(c, now) {
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy), auto = DEV.get('sportauto');
+    const hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    scene.hands = hands;
+    if (c.baskets == null) { c.baskets = 0; c.shotN = 0; c.ball = null; c.kickAt = now + 1500; }
+    const pass = 1000 * Math.min(1.3, this.mul), fly = 1000;
+    let b = c.ball;
+    if (!b && now >= c.kickAt && c.baskets < s.n) {
+      b = c.ball = { hero: c.shotN++ % this.np, phase: 'pass', t0: now };
+      scene.sportKick && scene.sportKick(); Audio8.pop();
+    }
+    if (b) {
+      const body = tracker.bodies[b.hero], st = (body && body.state) || {}, k = now - b.t0;
+      const near = this.touches(hands[b.hero], 0, 0.7, 0.75);
+      if (b.phase === 'pass' && k > pass) { b.phase = 'catch'; b.t0 = now; }
+      else if (b.phase === 'catch') {
+        if (st.handsTogether || (easy && near) || (auto && k > 600)) {
+          b.phase = 'hold'; b.t0 = now; Audio8.coin(); scene.flash(b.hero, true);
+          if (c.baskets === 0) Audio8.say('Attrapé ! Maintenant, lève les bras pour tirer !');
+        } else if (k > 6000) { b.phase = 'drop'; b.t0 = now; Audio8.soft(); }
+      } else if (b.phase === 'hold') {
+        if (st.armsUp || (auto && k > 600)) { b.phase = 'shoot'; b.t0 = now; Audio8.hit(); }
+        else if (k > 7000) { b.phase = 'drop'; b.t0 = now; Audio8.soft(); }
+      } else if (b.phase === 'shoot' && k > fly) {
+        c.baskets++; this.add(this.pts(120), '+120 🏀', b.hero); this.collect();
+        Audio8.perfect(); scene.sportScore && scene.sportScore();
+        Audio8.say(c.baskets >= s.n ? 'Panier !' : pick(['Panier !', 'Dedans !', 'Trop fort !', 'Quel tir !']));
+        c.ball = null; c.kickAt = now + 1000;
+        if (c.baskets >= s.n) { ui.setDetail(this.detail(c)); scene.sport = { kind: 'basket', ball: null }; return this.complete(now); }
+      } else if (b.phase === 'drop' && k > 800) { c.ball = null; c.kickAt = now + 600; }
+    }
+    ui.setDetail(this.detail(c));
+    scene.sport = { kind: 'basket', ball: c.ball, pass, fly };
+  }
+
+  // ---------- Penalty : le ballon est devant un pied (flèche) ; lève le genou de ce côté pour tirer.
+  // Webcam qui ne voit pas les jambes : on tire à la main (bras levé puis baissé fort, comme au handball).
+  updateKick(c, now) {
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy), auto = DEV.get('sportauto');
+    if (c.goals == null) {
+      c.goals = 0; c.shotN = 0; c.ball = null; c.kickAt = now + 1200; c.kickEv = null;
+      c.hand = tracker.mode === 'upper' && !tracker.sim;
+      if (c.hand) Audio8.say('On joue au handball ! Lève le bras du côté du ballon, et lance fort !');
+    }
+    let b = c.ball;
+    if (!b && now >= c.kickAt && c.goals < s.n) {
+      b = c.ball = { hero: c.shotN % this.np, side: c.shotN % 2 ? 1 : -1, phase: 'wait', t0: now, hand: c.hand };
+      c.shotN++; c.kickEv = null;
+    }
+    if (b) {
+      const k = now - b.t0, ev = c.kickEv;
+      if (b.phase === 'wait') {
+        if (auto && k > 900) c.kickEv = { side: b.side, idx: b.hero, t: now };
+        if (ev && ev.t >= b.t0 && (this.np === 1 || ev.idx === b.hero)) {
+          if (ev.side === b.side || easy) {
+            b.phase = 'shot'; b.t0 = now; b.keeper = -b.side; // (le gardien plonge du mauvais côté)
+            Audio8.hit(); scene.action('smash', b.hero);
+          } else if (now - (c.wrongT || 0) > 2500) { c.wrongT = now; Audio8.say(b.hand ? "L'autre bras !" : "L'autre jambe !"); }
+          c.kickEv = null;
+        }
+      } else if (b.phase === 'shot' && k > 900) {
+        b.phase = 'goal'; b.t0 = now; c.goals++;
+        this.add(this.pts(120), '+120 ⚽', b.hero); this.collect(); Audio8.perfect(); scene.flash(b.hero, true);
+        Audio8.say(pick(['Buuut !', 'But !', 'Dans le filet !', 'Quel tir !']));
+        scene.sportScore && scene.sportScore();
+      } else if (b.phase === 'goal' && k > 1200) {
+        c.ball = null; c.kickAt = now + 400;
+        if (c.goals >= s.n) { ui.setDetail(this.detail(c)); scene.sport = { kind: 'kick', ball: null }; return this.complete(now); }
+      }
+    }
+    ui.setDetail(this.detail(c));
+    scene.sport = { kind: 'kick', ball: c.ball };
+  }
+
   // Fin du chemin secret : un coffre au trésor (gros bonus) et une clé dorée sur la carte des îles
   secretTreasure(now) {
     this.add(this.pts(300), '+300 🗝️'); this.collect(5);
@@ -1781,11 +1899,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand'].includes(s.m)) {
+    } else if (['catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
         posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
-        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
+        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -1846,6 +1964,9 @@ class Game {
     if (s.m === 'ball') { this.updateBall(c, now); if (c.done) return; }
     if (s.m === 'foam') { this.updateFoam(c, now); if (c.done) return; }
     if (s.m === 'wand') { this.updateWand(c, now, dt); if (c.done) return; }
+    if (s.m === 'goal') { this.updateGoal(c, now); if (c.done) return; }
+    if (s.m === 'basket') { this.updateBasket(c, now); if (c.done) return; }
+    if (s.m === 'kick') { this.updateKick(c, now); if (c.done) return; }
     if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
     if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }

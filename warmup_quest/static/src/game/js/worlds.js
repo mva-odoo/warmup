@@ -9,7 +9,7 @@ const POSES = {
   flamingo: { icon: '🦩', label: 'Tiens sur un pied !',       say: 'Lève un genou et tiens sur un pied !' },
 };
 
-const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', boss: '👑', ball: '⚽', shop: '🛒', foam: '🧽', dance: '💃', karate: '🥋', slice: '🍉', cubes: '🟦', fork: '🔀', wand: '🪄' };
+const MOVE_ICONS = { run: '🪨', jump: '⬆️', squat: '⬇️', left: '⬅️', right: '➡️', smash: '👊', rest: '😮‍💨', bubbles: '🫧', freeze: '🎵', catch: '⭐', rope: '🪢', tunnel: '🚇', moles: '🐹', posemix: '🤸', boss: '👑', ball: '⚽', shop: '🛒', foam: '🧽', dance: '💃', karate: '🥋', slice: '🍉', cubes: '🟦', fork: '🔀', wand: '🪄', goal: '🧤', basket: '🏀', kick: '⚽' };
 const MOVE_SHORT = { jump: 'Saute', squat: 'Baisse-toi', left: 'Gauche', right: 'Droite', smash: 'Tape' };
 
 // Petits constructeurs de séquences
@@ -38,12 +38,15 @@ const KA = (...moves) => ({ m: 'karate', moves, beat: 2.0 });  // karaté : imit
 const SL = (t, n) => ({ m: 'slice', t, n });    // couper n fruits lancés en l'air (d'un geste de la main)
 const CU = (n, beat = 1.4) => ({ m: 'cubes', n, beat }); // taper n cubes qui arrivent en rythme (gauche / droite)
 const WA = (t, n) => ({ m: 'wand', t, n });   // baguette magique : libérer n créatures ensorcelées en pointant le bras
+const GO = (n) => ({ m: 'goal', n });          // gardien de but : arrêter n tirs avec les mains
+const BK = (n) => ({ m: 'basket', n });        // basket : attraper (mains jointes) puis tirer (bras levés), n paniers
+const KI = (n) => ({ m: 'kick', n });          // penalty : lever le genou du côté du ballon (ou lancer à la main), n buts
 
 // Carrefours : le chemin se sépare, un pas à gauche ou à droite choisit l'épreuve suivante
-const FORK_POOL = [B(12, 5), M(12, 6), SL(12, 6), CU(8, 1.5), MO(16, 5), K(10), Q(4), U(4), F(14), WA(14, 3)];
+const FORK_POOL = [B(12, 5), M(12, 6), SL(12, 6), CU(8, 1.5), MO(16, 5), K(10), Q(4), U(4), F(14), WA(14, 3), GO(5)];
 const FORK_NAMES = { posemix: 'les poses', bubbles: 'les bulles', moles: 'les taupes', slice: 'les fruits ninja', cubes: 'les cubes en musique', foam: 'les singes farceurs',
-  catch: 'les étoiles qui tombent', rope: 'la corde à sauter', tunnel: 'le tunnel', freeze: 'les statues musicales', wand: 'la baguette magique' };
-const FORK_SHORT = { posemix: 'Poses', bubbles: 'Bulles', moles: 'Taupes', slice: 'Fruits', cubes: 'Cubes', foam: 'Mousse', catch: 'Étoiles', rope: 'Corde', tunnel: 'Tunnel', freeze: 'Statues', wand: 'Baguette' };
+  catch: 'les étoiles qui tombent', rope: 'la corde à sauter', tunnel: 'le tunnel', freeze: 'les statues musicales', wand: 'la baguette magique', goal: 'le gardien de but' };
+const FORK_SHORT = { posemix: 'Poses', bubbles: 'Bulles', moles: 'Taupes', slice: 'Fruits', cubes: 'Cubes', foam: 'Mousse', catch: 'Étoiles', rope: 'Corde', tunnel: 'Tunnel', freeze: 'Statues', wand: 'Baguette', goal: 'Gardien' };
 // Chemin secret : une épreuve surprise (on ne sait pas laquelle avant d'y aller), avec un trésor à la fin
 const SECRET_POOL = [PM('armsUp', 'star', 'airplane'), F(12), K(10), Q(4), U(4)];
 // Deux épreuves au hasard pour un carrefour. dist : pour chaque épreuve, distance (en étapes) à la plus proche
@@ -131,6 +134,9 @@ function stepLabel(s) {
     case 'shop': return 'Remplis ton caddie !';
     case 'foam': return 'Nettoie la vitre !';
     case 'wand': return 'Baguette magique !';
+    case 'goal': return 'Arrête les tirs !';
+    case 'basket': return 'Marque des paniers !';
+    case 'kick': return 'Tire au but !';
     case 'fork': return 'Un carrefour : choisis !';
     case 'jump': return s.n > 1 ? `Saute ${s.n} fois !` : 'Saute !';
     case 'squat': return s.n > 1 ? `Baisse-toi ${s.n} fois !` : 'Baisse-toi !';
@@ -173,6 +179,9 @@ function stepSpeech(s) {
     case 'moles': return 'Des taupes rigolotes ! Tape-les avec tes mains quand elles sortent de leur trou !';
     case 'posemix': return 'Copie les poses du héros, une après l\'autre ! ' + POSES[s.poses[0]].say;
     case 'foam': return 'Les singes farceurs couvrent la vitre de mousse ! Tes mains sont des raclettes : lave toute la vitre !';
+    case 'goal': return 'Tu es le gardien de but ! Ton copain va tirer : arrête le ballon avec tes mains !';
+    case 'basket': return 'Basket ! Ton copain te passe le ballon : attrape-le avec les deux mains, puis lève les bras pour tirer dans le panier !';
+    case 'kick': return 'Penalty ! Regarde de quel côté est le ballon, et lève le genou de ce côté pour tirer !';
     case 'wand': return 'Oh non ! Le Nuage Grognon a ensorcelé des créatures ! Pointe ta baguette vers elles avec ton bras, et garde le rayon dessus pour chasser le nuage !';
     case 'fork': return `Un carrefour ! À gauche : ${forkName(s.opts[0])}. À droite : ${forkName(s.opts[1])}. Fais un grand pas du côté que tu veux !`;
     case 'shop': return 'Au supermarché ! Va dans le couloir du produit pour le mettre dans ton caddie. Attention aux chapardeurs : évite-les, ou saute par-dessus !';
@@ -207,6 +216,9 @@ function tutoText(s) {
     bubbles: 'Des bulles vont apparaître autour de ton dresseur. Tes mains sont des gants lumineux : touche les bulles pour les éclater !',
     moles: 'Des taupes vont sortir de petites îles, à gauche et à droite. Tape-les avec ta main quand elles sortent la tête !',
     foam: 'Les singes vont couvrir la vitre de mousse : on ne verra plus rien ! Lève les mains : ce sont des raclettes. Passe-les de haut en bas, de gauche à droite, comme pour laver une fenêtre, jusqu\'à ce que la vitre brille.',
+    goal: 'Tu es le gardien du but. Ton copain va tirer le ballon vers toi : un rond blanc montre où il arrive. Mets tes mains dessus pour l\'arrêter !',
+    basket: 'Ton copain va te lancer le ballon. Pour l\'attraper, rapproche tes deux mains devant ton ventre. Ensuite, lève les deux bras tout en haut : le ballon part dans le panier !',
+    kick: 'Le ballon est posé devant un de tes pieds : une petite jambe te montre lequel. Lève bien le genou de ce côté, comme pour shooter, et le ballon part dans le but !',
     wand: 'Le Nuage Grognon a rendu des créatures toutes grognonnes : regarde le petit nuage noir sur leur tête ! Lève le bras et pointe ta baguette vers une créature. Garde le rayon dessus, sans bouger, jusqu\'à ce que le rond doré soit plein : pouf, le nuage s\'en va et elle redevient gentille !',
     fork: 'Au carrefour, deux panneaux montrent deux épreuves. Fais un grand pas à gauche ou à droite, et reste un peu : tu choisis ton chemin !',
     shop: 'Des produits arrivent dans les couloirs. Fais un pas à gauche ou à droite pour te mettre devant, et hop, dans le caddie ! Les petits chapardeurs, eux, il faut les éviter.',
@@ -222,7 +234,7 @@ function tutoText(s) {
 }
 // Geste que Tempo montre pendant l'explication (quand il y en a un)
 const tutoCoachMove = (s) => (s.m === 'pose' ? s.pose : ['jump', 'squat', 'left', 'right', 'smash'].includes(s.m) ? s.m
-  : s.m === 'rope' ? 'jump' : s.m === 'wand' ? 'airplane' : s.m === 'tunnel' ? 'squat' : s.m === 'fork' ? 'left' : null);
+  : s.m === 'rope' ? 'jump' : s.m === 'wand' ? 'airplane' : s.m === 'basket' ? 'armsUp' : s.m === 'kick' ? 'flamingo' : s.m === 'tunnel' ? 'squat' : s.m === 'fork' ? 'left' : null);
 
 // Évitements : nombre d'obstacles pendant l'étape
 const dodgeCount = (s) => Math.max(2, Math.round(s.t / 2.5));
@@ -231,6 +243,9 @@ const dodgeCount = (s) => Math.max(2, Math.round(s.t / 2.5));
 function stepDuration(s) {
   switch (s.m) {
     case 'run': case 'shop': case 'foam': case 'rest': case 'bubbles': case 'freeze': case 'wand': return s.t;
+    case 'goal': return 2.5 + s.n * 3.0;
+    case 'basket': return 3 + s.n * 7;
+    case 'kick': return 2 + s.n * 4.5;
     case 'fork': return 9;
     case 'jump': return 1.8 + 1.0 * s.n;
     case 'squat': return 2.0 + 1.6 * s.n;
@@ -272,6 +287,8 @@ function maxPoints(s) {
     case 'dance': case 'karate': return s.moves.length * 100 + 50;
     case 'slice': case 'cubes': return s.n * 50 + 50;
     case 'wand': return s.n * 100 + 50;
+    case 'goal': return s.n * 80;
+    case 'basket': case 'kick': return s.n * 120;
     default: return 0;
   }
 }
@@ -299,7 +316,7 @@ const WORLDS = [
       LN(R(6)), R(8), LN(K(10)), K(10), LN(Q(2)), Q(2),
       LN(B(14, 4)), B(14, 4), LN(M(14, 4)), M(14, 4), LN(SL(16, 4)), SL(16, 4), LN(CU(6, 2.0)), CU(6, 2.0),
       LN(F(14)), F(14),
-      LN(U(4)), U(4), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10), LN(WA(18, 2)), WA(18, 2),
+      LN(U(4)), U(4), LN(MO(14, 4)), MO(14, 4), LN(SH(10)), SH(10), LN(WA(18, 2)), WA(18, 2), LN(GO(3)), GO(3), LN(BK(2)), BK(2), LN(KI(2)), KI(2),
       LN({ m: 'fork', opts: [B(10, 3), M(10, 3)] }), { m: 'fork', opts: [B(10, 3), M(10, 3)] },
       LN(BS('armsUp', 'star')), BS('armsUp', 'star'),
       Z(4, 'Tu sais tout faire ! Respire bien… Bravo, champion !'),
@@ -800,6 +817,29 @@ const WORLDS = [
       WA(16, 3), R(6), J(2), P('armsUp'), WA(18, 4), S(2), B(10, 6), WA(20, 5), K(10),
       Z(3, 'Bravo, magicien ! Respire bien…'),
     ],
+  },
+  {
+    id: 'stade',
+    name: 'Stade des Créatures',
+    tagline: 'Foot, basket : joue avec les créatures !',
+    heroName: 'Tilt',
+    hero: { body: '#06d6a0', belly: '#e6fff7', limb: '#049f76', accent: '#ef476f', extra: 'headband' },
+    collectible: '🏆',
+    sky: ['#4cc9f0', '#e0fbff'],
+    biomes: [
+      { name: 'Le stade', sky0: '#4cc9f0', sky1: '#e0fbff', sun: '#fff6c2', mount0: '#90e0ef', mount1: '#52b788',
+        grass: '#57cc99', grass2: '#4fbf8e', path: '#f8f9fa', path2: '#e9ecef', fog: '#e9fbff',
+        deco: ['🏟️', '🚩', '🎈', '⚽', '🏀', '🚩'], ambient: ['birds'] },
+      { name: 'Le parc', sky0: '#5aa9e6', sky1: '#fdffef', sun: '#fff6c2', mount0: '#a8d5ba', mount1: '#6fbf73',
+        grass: '#7ccf6a', grass2: '#72c460', path: '#e6c28f', path2: '#dbb47e', fog: '#f4fbff',
+        deco: ['🌳', '🌼', '🎈', '🌳', '🌷', '⚽'], ambient: ['butterflies'] },
+    ],
+    endText: 'Quel match ! Les créatures t\'applaudissent !',
+    sequence: [
+      Z(2.5, 'Bienvenue au stade ! Échauffe-toi avec les créatures…'),
+      R(6), GO(5), J(2), BK(3), S(2), KI(4), P('star'), GO(6), L(), D(), BK(3), KI(4),
+      Z(3, 'Fin du match ! Respire bien, champion…'),
+    ],
   }
 ];
 
@@ -815,14 +855,14 @@ const WORLD_KITS = {
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
   ecole: ['flowers'], supermarche: ['market', 'marketFruit'], singes: ['jungle', 'beach'], dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
-  verger: ['orchard', 'dojo'], rythmo: ['disco'], sortileges: ['forest', 'magic'],
+  verger: ['orchard', 'dojo'], rythmo: ['disco'], sortileges: ['forest', 'magic'], stade: ['stadium', 'meadow'],
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
 const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'], ['star', 'airplane', 'armsUp']];
 let classicN = 0; // rang parmi les mondes « classiques » (même règle que hooks.py)
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
-  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges'].includes(w.id)) return; // ces mondes ont leur propre programme
+  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges', 'stade'].includes(w.id)) return; // ces mondes ont leur propre programme
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.62), 0, classicN++ % 2 ? CU(10, 1.5) : SL(12, 6)); // fruits ou cubes, un monde sur deux

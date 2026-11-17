@@ -321,11 +321,11 @@ class DepthScene {
     this.setDemoPose(null);
     this.bubbles = []; this.hands = []; this.moles = []; this.coach = null; this.cue = null;
     this.mirror = false; this.limbs = null; this.ghostPose = null; this.closeUp = false; this.avatarHands = []; this.faceCam = false; this.hideHero = false;
-    this.wand = null;
+    this.wand = null; this.sport = null; this.sportT = {}; this.sportCr = null;
     this.foam = []; this.foamOn = false; this.squeegees = []; this.turnHero = null; this.foamDrips = []; this.foamFade = false; this.fork = null;
     if (this.foamCx) this.foamCx.clearRect(0, 0, this.foamCv.width, this.foamCv.height);
     this.sliceOn = s.m === 'slice'; this.cubeTargets = null; this.trails = [];
-    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' || s.m === 'wand' ? 0.35 : 1;
+    this.targetSpeed = s.m === 'fork' ? 0.6 : s.m === 'dance' || s.m === 'karate' ? 0 : s.m === 'tunnel' ? 0.8 : s.m === 'boss' || s.m === 'learn' ? 0 : s.m === 'moles' || s.m === 'posemix' ? 0.35 : s.m === 'run' ? 1.6 : s.m === 'shop' ? 1.0 : s.m === 'rest' ? 0.25 : s.m === 'pose' || s.m === 'bubbles' || s.m === 'wand' ? 0.35 : s.m === 'goal' || s.m === 'basket' || s.m === 'kick' ? 0 : 1;
     // (saut et accroupi : une série d'obstacles gérée par la partie, un par répétition)
     const kind = { smash: 'crate', left: 'gemL', right: 'gemR' }[s.m];
     if (kind) this.obs = { kind, born: now, dur, state: 'coming', t0: now, shake: 0 };
@@ -522,6 +522,7 @@ class DepthScene {
     this.drawCubes(now);
     this.drawFoam(now);
     this.drawWand(now);
+    this.drawSport(now);
     this.drawFork(now);
     this.drawBubbles(now);
     this.drawRope(now);
@@ -966,6 +967,121 @@ class DepthScene {
       ctx.save(); ctx.translate(tx, ty); ctx.rotate(now / 400); ctx.font = `${S * (on ? 0.07 : 0.05)}px serif`; ctx.fillText('✨', 0, 0); ctx.restore();
       ctx.textBaseline = 'alphabetic';
     });
+  }
+
+  // ---------- Île du Stade (calque 2D commun) : ballons, gardien, panier, but. En 3D, le terrain et les créatures
+  // sont de vrais modèles (voir updateSport3D) et sportPts() donne leur place à l'écran.
+  sportKick() { this.sportT.kick = performance.now(); }
+  sportScore() { this.sportT.score = performance.now(); }
+  sportMate() { // copain qui passe / tire, et gardien du penalty : des créatures du paysage
+    if (!this.sportCr) { const l = creaturesOf(this.kitName || (this.theme && this.theme.biomes[0].kit) || 'meadow'); const L = l.length ? l : CREATURES; this.sportCr = [L[Math.floor(Math.random() * L.length)], L[Math.floor(Math.random() * L.length)]]; }
+    return this.sportCr;
+  }
+  sportPts(now) {
+    const W = this.W, H = this.H, S = Math.min(W, H), kind = this.sport && this.sport.kind;
+    return {
+      mate: kind === 'basket' ? { x: W * 0.2, y: H * 0.6, s: S * 0.2 } : { x: W * 0.5, y: H * 0.44, s: S * 0.14 },
+      hoop: { x: W * 0.74, y: H * 0.3, r: S * 0.055 },
+      goal: { x: W * 0.5, y: H * 0.26, w: W * 0.36, h: H * 0.2 },
+      keeper: { x: W * 0.5 + this.keeperX(now) * W * 0.12, y: H * 0.46, s: S * 0.13 },
+    };
+  }
+  keeperX(now) { const b = this.sport && this.sport.ball; if (b && (b.phase === 'shot' || b.phase === 'goal')) return b.keeper * Math.min(1, (now - b.t0) / 300) * 1.2; return Math.sin(now / 700) * 0.6; }
+  drawBall(x, y, r, kind, rot = 0) {
+    const ctx = this.ctx;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(r * 0.15, r * 0.2, r, r, 0, 0, 6.29); ctx.fill();
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+    if (kind === 'basket') { g.addColorStop(0, '#ffb86b'); g.addColorStop(1, '#e8590c'); }
+    else { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#ced4da'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.29); ctx.fill();
+    ctx.lineWidth = Math.max(1.5, r * 0.08); ctx.strokeStyle = '#1e1b4b'; ctx.stroke();
+    if (kind === 'basket') {
+      ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, -r); ctx.lineTo(0, r);
+      ctx.moveTo(-r * 0.7, -r * 0.7); ctx.quadraticCurveTo(0, 0, -r * 0.7, r * 0.7); ctx.moveTo(r * 0.7, -r * 0.7); ctx.quadraticCurveTo(0, 0, r * 0.7, r * 0.7); ctx.stroke();
+    } else {
+      const pent = (cx, cy, rr) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 1.2566; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); };
+      ctx.fillStyle = '#1e1b4b'; pent(0, 0, r * 0.32);
+      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.29); ctx.clip();
+      for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 1.2566 + 0.63; pent(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85, r * 0.28); }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  // Terrain dessiné (rendu 2D seulement ; en 3D ce sont des modèles)
+  drawSportField(now, P) {
+    const ctx = this.ctx, kind = this.sport.kind, S = Math.min(this.W, this.H), [mate, keeper] = this.sportMate();
+    if (kind === 'kick') {
+      const g = P.goal;
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5;
+      for (let i = 1; i < 12; i++) { ctx.beginPath(); ctx.moveTo(g.x - g.w / 2 + g.w * i / 12, g.y); ctx.lineTo(g.x - g.w / 2 + g.w * i / 12, g.y + g.h); ctx.stroke(); }
+      for (let i = 1; i < 6; i++) { ctx.beginPath(); ctx.moveTo(g.x - g.w / 2, g.y + g.h * i / 6); ctx.lineTo(g.x + g.w / 2, g.y + g.h * i / 6); ctx.stroke(); }
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = S * 0.014; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(g.x - g.w / 2, g.y + g.h); ctx.lineTo(g.x - g.w / 2, g.y); ctx.lineTo(g.x + g.w / 2, g.y); ctx.lineTo(g.x + g.w / 2, g.y + g.h); ctx.stroke();
+      drawCreature(ctx, P.keeper.x, P.keeper.y, P.keeper.s, keeper, 'airplane', now);
+    } else {
+      const k = this.sportT.kick && now - this.sportT.kick < 500;
+      drawCreature(ctx, P.mate.x, P.mate.y, P.mate.s, mate, k ? 'happy' : null, now);
+    }
+    if (kind === 'basket') {
+      const h = P.hoop;
+      ctx.fillStyle = '#adb5bd'; ctx.fillRect(h.x + h.r * 1.2, h.y - h.r * 0.5, S * 0.012, this.H * 0.45);
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#e63946'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(h.x - h.r * 0.2, h.y - h.r * 2.2, h.r * 2.4, h.r * 1.9, 4); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+      for (let i = 0; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(h.x - h.r + h.r * 0.5 * i, h.y); ctx.lineTo(h.x - h.r * 0.6 + h.r * 0.3 * i, h.y + h.r * 1.4); ctx.stroke(); }
+      ctx.strokeStyle = '#f76707'; ctx.lineWidth = S * 0.01; ctx.beginPath(); ctx.ellipse(h.x, h.y, h.r, h.r * 0.3, 0, 0, 6.29); ctx.stroke();
+    }
+  }
+  drawSport(now) {
+    const sp = this.sport;
+    if (!sp) return;
+    const ctx = this.ctx, P = this.sportPts(now), S = Math.min(this.W, this.H);
+    this.drawSportField(now, P);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    if (sp.kind === 'goal') {
+      for (const b of sp.balls) {
+        const A = this.anchor(b.hero), ex = A.x + b.u * A.u, ey = A.y + b.v * A.u, p = (now - b.born) / (b.arrive - b.born);
+        let x = lerp(P.mate.x, ex, Math.min(p, 1.2)), y = lerp(P.mate.y, ey, Math.min(p, 1.2)) - Math.sin(Math.min(1, p) * Math.PI) * A.u * 0.8, r = A.u * 0.34 * (0.25 + 0.75 * Math.min(1.3, p)), al = 1;
+        if (b.done === 'saved') { const q = (now - b.t) / 600; if (q > 1) continue; x = ex + Math.sign(b.u || 1) * q * A.u * 2; y = ey - Math.sin(q * Math.PI) * A.u * 1.5; al = 1 - q; }
+        else if (b.done === 'goal') { const q = (now - b.t) / 400; if (q > 1) continue; r *= 1 + q * 0.5; al = 1 - q; }
+        else if (p > 0.55) { ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 4; ctx.setLineDash([8, 8]); ctx.beginPath(); ctx.arc(ex, ey, A.u * 0.45, 0, 6.29); ctx.stroke(); ctx.setLineDash([]); }
+        ctx.globalAlpha = al; this.drawBall(x, y, r, 'soccer', now / 120); ctx.globalAlpha = 1;
+      }
+    } else if (sp.kind === 'basket' && sp.ball) {
+      const b = sp.ball, A = this.anchor(b.hero), k = now - b.t0, chest = { x: A.x, y: A.y - 1.4 * A.u }; // (vu de dos : le ballon flotte au-dessus de la tête, sinon le dresseur le cache)
+      const hs = this.mirror && this.avatarHands && this.avatarHands[b.hero];
+      const held = hs && hs.length ? { x: A.x + hs.reduce((a, q) => a + q.u, 0) / hs.length * A.u, y: A.y + hs.reduce((a, q) => a + q.v, 0) / hs.length * A.u } : { x: A.x, y: A.y - 0.3 * A.u };
+      let x, y, r = A.u * 0.55;
+      if (b.phase === 'pass') { const t = Math.min(1, k / sp.pass); x = lerp(P.mate.x, chest.x, t); y = lerp(P.mate.y - P.mate.s * 0.5, chest.y, t) - Math.sin(t * Math.PI) * A.u; }
+      else if (b.phase === 'catch') {
+        x = chest.x; y = chest.y + Math.sin(now / 200) * A.u * 0.06;
+        ctx.font = `${A.u * 0.55}px serif`; ctx.textAlign = 'center'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 180); ctx.font = `${A.u * 0.8}px serif`; ctx.fillText('🤲', x + A.u * 1.1, y + A.u * 0.3); ctx.globalAlpha = 1;
+      } else if (b.phase === 'hold') {
+        x = held.x; y = held.y;
+        ctx.font = `${A.u * 0.6}px serif`; ctx.textAlign = 'center'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 180); ctx.fillText('🙌', x, y - A.u * 0.8); ctx.globalAlpha = 1;
+      } else if (b.phase === 'shoot') {
+        const t = Math.min(1, k / sp.fly), h = P.hoop; if (!b.from) b.from = { ...held };
+        x = lerp(b.from.x, h.x, t); y = lerp(b.from.y, h.y - h.r * 0.2, t) - Math.sin(t * Math.PI) * S * 0.25; r *= 1 - t * 0.45;
+      } else { const t = Math.min(1, k / 800); x = chest.x + t * A.u; y = chest.y + t * t * A.u * 2; ctx.globalAlpha = 1 - t; }
+      this.drawBall(x, y, r, 'basket', now / 200); ctx.globalAlpha = 1;
+    } else if (sp.kind === 'kick' && sp.ball) {
+      const b = sp.ball, A = this.anchor(b.hero), k = now - b.t0, g = P.goal;
+      const foot = b.hand ? { x: A.x + b.side * 1.1 * A.u, y: A.y + 0.1 * A.u } : { x: A.x + b.side * 1.6 * A.u, y: A.y + 2.1 * A.u };
+      const aim = { x: g.x + b.side * g.w * 0.3, y: g.y + g.h * 0.55 };
+      let x = foot.x, y = foot.y, r = A.u * 0.45;
+      if (b.phase === 'wait') {
+        ctx.font = `${A.u * 0.95}px serif`; ctx.textAlign = 'center';
+        ctx.fillText(b.hand ? '✋' : '🦵', foot.x, foot.y - A.u * 0.95 - Math.abs(Math.sin(now / 250)) * A.u * 0.2);
+      } else if (b.phase === 'shot') { const t = Math.min(1, k / 900); x = lerp(foot.x, aim.x, t); y = lerp(foot.y, aim.y, t) - Math.sin(t * Math.PI) * A.u * 0.8; r *= 1 - 0.65 * t; }
+      else { x = aim.x + Math.sin(k / 40) * Math.max(0, 1 - k / 500) * r * 0.5; y = aim.y; r *= 0.35; }
+      this.drawBall(x, y, r, 'soccer', b.phase === 'shot' ? now / 60 : 0);
+      if (b.phase === 'goal' && k < 900) {
+        ctx.font = `800 ${S * 0.09}px 'Baloo 2', sans-serif`; ctx.textAlign = 'center'; ctx.lineWidth = S * 0.012; ctx.strokeStyle = '#1e1b4b'; ctx.fillStyle = '#ffd166';
+        const sc = 1 + 0.2 * Math.sin(Math.min(1, k / 300) * Math.PI); ctx.save(); ctx.translate(g.x, g.y - S * 0.02); ctx.scale(sc, sc);
+        ctx.strokeText('BUT !', 0, 0); ctx.fillText('BUT !', 0, 0); ctx.restore();
+      }
+    }
   }
 
   // Traînée lumineuse derrière la main (coup de sabre) : on voit son geste

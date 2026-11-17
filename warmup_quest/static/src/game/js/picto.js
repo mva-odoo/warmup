@@ -164,6 +164,33 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, armL: side < 0 ? 2.5 : 0.4, armR: side > 0 ? 2.5 : 0.4 });
       break;
     }
+    case 'goal': { // le ballon arrive en grossissant : la main se lève et l'arrête
+      const k = cyc(1600), side = Math.floor(t / 1600) % 2 ? 1 : -1, bx = gx + side * S * 0.3 * k, by = gy - S * (0.95 - k * 0.3);
+      ctx.font = `${S * (0.07 + k * 0.12)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⚽', k < 0.85 ? bx : bx + side * (k - 0.85) * S * 2, by);
+      stickFigure(ctx, { ...base, armL: side < 0 && k > 0.4 ? 2.3 : 0.4, armR: side > 0 && k > 0.4 ? 2.3 : 0.4 });
+      ctx.textBaseline = 'alphabetic';
+      break;
+    }
+    case 'basket': { // mains jointes pour attraper, puis bras levés : le ballon part dans le panier
+      const k = cyc(2200), up = k > 0.45;
+      ctx.font = `${S * 0.16}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#f76707'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(gx + S * 0.36, gy - S * 0.9, S * 0.08, S * 0.025, 0, 0, 6.29); ctx.stroke();
+      const q = Math.max(0, (k - 0.5) / 0.4);
+      ctx.fillText('🏀', k < 0.5 ? gx : gx + q * S * 0.36, k < 0.5 ? gy - S * 0.5 : gy - S * (0.85 + Math.sin(Math.min(1, q) * Math.PI) * 0.25 - Math.max(0, q - 1) * 0.3));
+      stickFigure(ctx, { ...base, armL: up ? 2.8 : 1.1, armR: up ? 2.8 : 1.1 });
+      ctx.textBaseline = 'alphabetic';
+      break;
+    }
+    case 'kick': { // un genou se lève : le ballon part
+      const k = cyc(1800), side = Math.floor(t / 1800) % 2 ? 1 : -1, kick = k > 0.3 && k < 0.6;
+      ctx.font = `${S * 0.12}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const q = Math.max(0, (k - 0.4) / 0.6);
+      ctx.fillText('⚽', gx + side * S * (0.16 + q * 0.2), gy - S * (0.06 + q * 0.7));
+      stickFigure(ctx, { ...base, kneeUp: kick ? (side < 0 ? 'L' : 'R') : null, armL: 0.7, armR: 0.7 });
+      ctx.textBaseline = 'alphabetic';
+      break;
+    }
     case 'wand': { // le bras pointe une créature grognonne : un rayon, le nuage noir disparaît, un cœur apparaît
       const k = cyc(2000), side = Math.floor(t / 2000) % 2 ? 1 : -1, cx = gx + side * S * 0.36, cy = gy - S * 0.78;
       stickFigure(ctx, { ...base, armL: side < 0 ? 2.2 : 0.3, armR: side > 0 ? 2.2 : 0.3 });

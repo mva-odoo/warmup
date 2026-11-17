@@ -55,7 +55,7 @@ const HABITATS = {
 // Fichiers 3D des créatures (la forme évoluée est le même modèle, plus grand, avec une couronne)
 const creatureModels = (list) => [...new Set(list.map((c) => c && c.model).filter(Boolean))];
 const creaturesByModel = (model) => CREATURES.find((c) => c.model === model) || null;
-const KIT_ALIAS = { flowers: 'meadow' }; // (paysages qui partagent leurs habitants)
+const KIT_ALIAS = { flowers: 'meadow', stadium: 'meadow' }; // (paysages qui partagent leurs habitants)
 const creaturesOf = (kit) => CREATURES.filter((c) => (HABITATS[c.id] || []).includes(KIT_ALIAS[kit] || kit));
 const EVOLVE_AT = 3;
 

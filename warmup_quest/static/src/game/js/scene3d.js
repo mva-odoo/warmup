@@ -38,6 +38,7 @@ function terrainH(x, z) {
   return k * k * Math.max(-0.2, h + 1.6);
 }
 const DEPTH_SCALE = 1.3;   // profondeur DepthScene -> unités 3D
+const SPORT_GOAL_Z = -11, SPORT_RIM = { x: 2.9, y: 2.95, z: -4.8 }; // (île du Stade : but du penalty, panier de basket)
 
 // Poses du héros animé : direction visée par chaque os (repère du monde : x = droite de l'écran, y = haut,
 // z = vers la caméra ; le héros est vu de dos, son côté gauche « L » est à gauche de l'écran).
@@ -1726,6 +1727,73 @@ class Scene3D extends DepthScene {
     return this.project(ax + hd.u * 0.5 * sc, ay - hd.v * 0.5 * sc, h.m3.group.position.z);
   }
 
+  // ---------- Île du Stade (3D) : but avec filet et gardien (penalty), panier de basket, copain créature qui passe / tire
+  buildSport3D(kind) {
+    const T = this.T, g = new T.Group(), white = this.lam('#ffffff'), [mateCr, keeperCr] = this.sportMate();
+    const cyl = (r, h, mat, x, y, z, rz = 0, rx = 0) => { const m = new T.Mesh(new T.CylinderGeometry(r, r, h, 12), mat); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); m.castShadow = true; g.add(m); return m; };
+    const lines = (pts, col = '#ffffff', op = 0.7) => { const ge = new T.BufferGeometry().setFromPoints(pts.map((p) => new T.Vector3(...p))); const l = new T.LineSegments(ge, new T.LineBasicMaterial({ color: col, transparent: true, opacity: op })); g.add(l); return l; };
+    const crea = (cr, x, z, sc, face) => { const m = buildCreature3D(this, cr, false); m.group.scale.multiplyScalar(sc); m.group.position.set(x, 0, z); m.group.rotation.y = face; g.add(m.group); return m; };
+    this.sportM = [];
+    if (kind === 'kick') {
+      const Z = SPORT_GOAL_Z, w = 2.6, h = 2.2, d = 1.2;
+      cyl(0.09, h, white, -w, h / 2, Z); cyl(0.09, h, white, w, h / 2, Z); cyl(0.09, w * 2 + 0.18, white, 0, h, Z, Math.PI / 2);
+      const pts = [];
+      for (let i = 0; i <= 16; i++) { const x = -w + (2 * w * i) / 16; pts.push([x, h, Z], [x, h * 0.85, Z - d], [x, h * 0.85, Z - d], [x, 0, Z - d]); }
+      for (let j = 0; j <= 7; j++) { const y = (h * 0.85 * j) / 7; pts.push([-w, y, Z - d], [w, y, Z - d]); }
+      for (const sx of [-w, w]) for (let j = 0; j <= 7; j++) { const y = (h * j) / 7; pts.push([sx, y, Z], [sx, Math.min(y, h * 0.85), Z - d]); }
+      this.sportNet = lines(pts);
+      this.sportM = [null, crea(keeperCr, 0, Z + 0.4, 1.35, 0)];
+    } else if (kind === 'basket') {
+      const grey = this.lam('#adb5bd'), H = SPORT_RIM.y;
+      cyl(0.1, H + 0.6, grey, SPORT_RIM.x + 0.9, (H + 0.6) / 2, SPORT_RIM.z - 0.5);
+      const board = new T.Mesh(new T.BoxGeometry(1.7, 1.15, 0.08), white); board.position.set(SPORT_RIM.x, H + 0.45, SPORT_RIM.z - 0.45); board.castShadow = true; g.add(board);
+      const sq = new T.Mesh(new T.BoxGeometry(0.62, 0.46, 0.09), this.lam('#e63946')); sq.position.set(SPORT_RIM.x, H + 0.3, SPORT_RIM.z - 0.44); g.add(sq);
+      const sq2 = new T.Mesh(new T.BoxGeometry(0.5, 0.34, 0.1), white); sq2.position.copy(sq.position); g.add(sq2);
+      const rim = new T.Mesh(new T.TorusGeometry(0.34, 0.04, 8, 28), this.lam('#f76707')); rim.position.set(SPORT_RIM.x, H, SPORT_RIM.z); rim.rotation.x = Math.PI / 2; g.add(rim);
+      const net = new T.Mesh(new T.CylinderGeometry(0.34, 0.22, 0.5, 12, 3, true), new T.MeshBasicMaterial({ color: '#ffffff', wireframe: true, transparent: true, opacity: 0.8 }));
+      net.position.set(SPORT_RIM.x, H - 0.25, SPORT_RIM.z); g.add(net); this.sportNet = net;
+      this.sportM = [crea(mateCr, -2.6, -3.5, 1.25, Math.atan2(2.6, 3.5))];
+    } else {
+      this.sportM = [crea(mateCr, 0, SPORT_GOAL_Z, 1.4, 0)];
+    }
+    this.outline && g.children.forEach((m) => m.isMesh && this.outline(m));
+    this.s3.add(g); this.sportG = g;
+  }
+  updateSport3D(now) {
+    const kind = this.sport && this.sport.kind;
+    if (kind !== this.sportKind3) { // (autre épreuve : on range le terrain)
+      if (this.sportG) { this.s3.remove(this.sportG); this.sportG = null; this.sportNet = null; }
+      this.sportKind3 = kind;
+      if (kind) this.buildSport3D(kind);
+    }
+    if (!this.sportG) return;
+    const [mate, keeper] = this.sportM, T0 = this.sportT, b = this.sport.ball;
+    if (mate) mate.animate(now, T0.kick && now - T0.kick < 600 ? 'happy' : 'idle');
+    if (keeper) {
+      keeper.group.position.x = this.keeperX(now) * 1.6;
+      keeper.group.rotation.z = b && (b.phase === 'shot' || b.phase === 'goal') ? -b.keeper * Math.min(1.1, (now - b.t0) / 250) : 0; // (plongeon)
+      keeper.animate(now, b && b.phase === 'goal' ? 'no' : 'idle');
+    }
+    if (this.sportNet) { const k = T0.score ? Math.max(0, 1 - (now - T0.score) / 700) : 0; this.sportNet.scale.set(1, 1, 1 + Math.sin(now / 40) * 0.15 * k); }
+  }
+  drawSportField() {} // (le terrain est en 3D)
+  sportPts(now) {
+    const P = super.sportPts(now), kind = this.sport && this.sport.kind;
+    if (kind === 'basket') {
+      const m = this.project(-2.6, 0.9, -3.5), m2 = this.project(-2.6, 2.4, -3.5);
+      P.mate = { x: m.x, y: m.y, s: Math.abs(m.y - m2.y) };
+      const c = this.project(SPORT_RIM.x, SPORT_RIM.y, SPORT_RIM.z), e = this.project(SPORT_RIM.x + 0.34, SPORT_RIM.y, SPORT_RIM.z);
+      P.hoop = { x: c.x, y: c.y, r: Math.abs(e.x - c.x) };
+    } else if (kind === 'kick') {
+      const a = this.project(-2.6, 2.2, SPORT_GOAL_Z), b = this.project(2.6, 0, SPORT_GOAL_Z);
+      P.goal = { x: (a.x + b.x) / 2, y: a.y, w: b.x - a.x, h: b.y - a.y };
+    } else if (kind === 'goal') {
+      const m = this.project(0, 0.6, SPORT_GOAL_Z);
+      P.mate = { x: m.x, y: m.y, s: 0 };
+    }
+    return P;
+  }
+
   // ---------- Carrefour : deux panneaux en bois de chaque côté du chemin (icône de l'épreuve + flèche)
   updateForkSigns(now) {
     const f = this.fork, T = this.T;
@@ -1922,6 +1990,9 @@ class Scene3D extends DepthScene {
     else if (k === 'rope') Object.assign(shot, { x: 2.6, y: -0.9, z: -0.8, lx: -0.3, lz: 6.5, fov: 50 }); // de trois quarts, bas : on voit la corde passer sous les pieds
     else if (k === 'cubes') Object.assign(shot, { y: 0.5, z: 1.3, ly: 0.2, fov: 60 });           // plus large : on voit les cubes arriver
     else if (k === 'tunnel') Object.assign(shot, { y: -1.1, z: -1.4, ly: -0.2, fov: 62 });       // au ras du sol, dans le tunnel
+    else if (k === 'basket') Object.assign(shot, { x: -0.6, y: 0.7, z: 1.4, lx: 0.9, ly: 1.0, fov: 60 });     // basket : on voit le copain et le panier
+    else if (k === 'kick') Object.assign(shot, { y: 0.5, z: 0.4, ly: 0.2, lz: -1, fov: 55 });                 // penalty : regard vers le but
+    else if (k === 'goal') Object.assign(shot, { y: 0.2, ly: 0.4, fov: 56 });                               // gardien : on voit le tireur au loin
     else if (k === 'wand') Object.assign(shot, { y: 0.5, z: 1.1, ly: 0.7, fov: 58 });              // baguette : plus large, on voit les créatures autour
     else if (k === 'catch') Object.assign(shot, { y: 0.9, z: 1.0, ly: 0.9, fov: 58 });           // lève les yeux vers les étoiles qui tombent
     else if (k === 'smash') Object.assign(shot, { y: -0.4, z: -0.9, fov: 52 });                  // serré sur le rocher
@@ -2153,6 +2224,7 @@ class Scene3D extends DepthScene {
     this.updateBall3D(now);
     this.updateMonkeys(now);
     this.updateWand3D(now);
+    this.updateSport3D(now);
     this.updateForkSigns(now);
     // Paysage suivant quand on avance dans la partie
     const fb = typeof DEV !== 'undefined' && DEV.get('biome'); // (mode test) paysage forcé
@@ -2298,6 +2370,7 @@ class Scene3D extends DepthScene {
     this.drawBubbles(now);
     this.drawFoam(now);
     this.drawWand(now);
+    this.drawSport(now);
     this.drawFork(now);
     this.drawTurn(now);
     this.drawRope(now);

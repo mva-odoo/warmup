@@ -42,6 +42,7 @@ const KITS = {
   // Supermarché : rayons remplis de produits (Food Kit), cageots de fruits, caddies garés
   market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
   marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
+  stadium: { grass: true, props: [['lightPole', 3], ['balloon', 2], ['c:flag', 2], ['t:banner-red', 1], ['kk:hex-tree_single_A', 2], ['k:plant_bushDetailed', 2], ['pf:flowers', 1]], backdrop: ['hills'], particles: 'petals' },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 2], ['cu:cherry-tree-b', 2], ['cu:stone-lantern', 2], ['cu:torii', 1], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
   dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 1], ['cu:cherry-tree-b', 1], ['cu:stone-lantern', 2], ['t:lantern', 2], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
