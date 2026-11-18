@@ -1138,7 +1138,8 @@ class Game {
     const out = [];
     for (const [w, f] of [[15, 19], [16, 20]]) {
       const i = (b.lm[f].visibility ?? 1) > (b.lm[w].visibility ?? 1) ? f : w;
-      if ((b.lm[i].visibility ?? 1) > 0.35) out.push({ u: -(b.lm[i].x - sh.x) * camAspect() / b.T, v: (b.lm[i].y - sh.y) / b.T });
+      const k = b.reachK ? 1.1 / b.reachK : 1; // (portée mesurée à l'échauffement : un enfant aux bras courts atteint pareil)
+      if ((b.lm[i].visibility ?? 1) > 0.35) out.push({ u: -(b.lm[i].x - sh.x) * camAspect() / b.T * k, v: (b.lm[i].y - sh.y) / b.T * k });
     }
     return out;
   }
@@ -1147,13 +1148,24 @@ class Game {
   avatarReach(i) { const h = scene.heroes && scene.heroes[i]; return !!(scene.mirror && h && h.m3 && h.m3.human); }
 
   // Une main (ou tout le bras, du coude à la main) touche-t-elle le point (u, v) ?
-  touches(hs, u, v, rad) {
-    return !!hs && hs.some((hd) => {
-      if (hd.su == null) return Math.hypot(hd.u - u, hd.v - v) < rad;
-      const ex = hd.su + (hd.u - hd.su) * 0.3, ey = hd.sv + (hd.v - hd.sv) * 0.3; // tout l'avant du bras compte
-      const dx = hd.u - ex, dy = hd.v - ey, t = Math.max(0, Math.min(1, ((u - ex) * dx + (v - ey) * dy) / (dx * dx + dy * dy || 1)));
-      return Math.hypot(ex + dx * t - u, ey + dy * t - v) < rad;
-    });
+  // Aide à la visée (comme les jeux miroir) : zone de contact un peu plus large avec une vraie caméra, et l'objet visé
+  // (main tout près) est marqué « visé » (obj.aimT) : il grossit et brille à l'écran
+  touches(hs, u, v, rad, obj = null) {
+    if (!hs) return false;
+    const R = tracker.sim ? rad : rad * 1.25;
+    let best = Infinity;
+    for (const hd of hs) {
+      let d;
+      if (hd.su == null) d = Math.hypot(hd.u - u, hd.v - v);
+      else {
+        const ex = hd.su + (hd.u - hd.su) * 0.3, ey = hd.sv + (hd.v - hd.sv) * 0.3; // tout l'avant du bras compte
+        const dx = hd.u - ex, dy = hd.v - ey, t = Math.max(0, Math.min(1, ((u - ex) * dx + (v - ey) * dy) / (dx * dx + dy * dy || 1)));
+        d = Math.hypot(ex + dx * t - u, ey + dy * t - v);
+      }
+      best = Math.min(best, d);
+    }
+    if (obj && best < R * 1.8) obj.aimT = performance.now();
+    return best < R;
   }
 
   // Point sur l'arc que les bras du héros peuvent atteindre (a : 0 = à l'horizontale, négatif = vers le haut)
@@ -1192,7 +1204,7 @@ class Game {
       const bb = c.bubbles[i];
       if (now - bb.born < 300) continue; // le temps de la voir apparaître
       const hs = hands[bb.hero];
-      if (this.touches(hs, bb.u, bb.v, bb.r + 0.45 + (tracker.bodies[bb.hero] && tracker.bodies[bb.hero].easy ? 0.3 : 0))) this.popBubble(c, i, now);
+      if (this.touches(hs, bb.u, bb.v, bb.r + 0.45 + (tracker.bodies[bb.hero] && tracker.bodies[bb.hero].easy ? 0.3 : 0), bb)) this.popBubble(c, i, now);
     }
   }
 
@@ -1367,7 +1379,7 @@ class Game {
     for (const m of c.moles) {
       if (m.state !== 'up') continue;
       const hs = hands[m.hero];
-      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.2, 0.95 + (tracker.bodies[m.hero] && tracker.bodies[m.hero].easy ? 0.35 : 0))) {
+      if (now - m.born > 200 && this.touches(hs, m.u, m.v - 0.2, 0.95 + (tracker.bodies[m.hero] && tracker.bodies[m.hero].easy ? 0.35 : 0), m)) {
         m.state = 'bonk'; m.t = now; c.bonked++;
         this.add(50, '+50', m.hero); this.collect(); Audio8.boing(); scene.flash(m.hero, true);
         ui.setDetail(this.detail(c));
@@ -1458,7 +1470,7 @@ class Game {
       cb.u = cb.spot.u * sc; cb.v = cb.spot.v * sc;
       if (now >= cb.arrive - 700 && now <= cb.arrive + 500) {
         // (cube bleu : main gauche du dresseur, à gauche de l'écran ; orange : main droite ; violet, en haut : n'importe laquelle)
-        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 0.85));
+        const hit = hands.some((hs) => this.touches(hs, cb.u, cb.v, 0.85, cb));
         if (hit || (tracker.sim && !DEV.get('fakelimbs') && now >= cb.arrive)) { // (clavier : tous tapés)
           cb.hit = now;
           this.add(this.pts(50), '+' + this.pts(50)); Audio8.hit(); scene.flash(null, true);
@@ -1657,7 +1669,7 @@ class Game {
     for (const b of c.shots) {
       if (b.done) continue;
       const p = (now - b.born) / (b.arrive - b.born);
-      if ((p > 0.55 && this.touches(hands[b.hero], b.u, b.v, 0.6 + (easy ? 0.3 : 0))) || (auto && p > 0.9)) {
+      if ((p > 0.55 && this.touches(hands[b.hero], b.u, b.v, 0.6 + (easy ? 0.3 : 0), b)) || (auto && p > 0.9)) {
         b.done = 'saved'; b.t = now; c.saved++;
         this.add(this.pts(80), '+80 🧤', b.hero); this.collect(); Audio8.boing(); scene.flash(b.hero, true);
         if (c.saved === 1 || Math.random() < 0.4) Audio8.say(pick(['Arrêté !', 'Quel gardien !', 'Super arrêt !', 'Bravo, il ne passe pas !']));
@@ -2746,7 +2758,8 @@ if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmo
 if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || (DEV.get('hub') || DEV.get('village'))) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
-  requestAnimationFrame(drawLoop);
+  if (DEV.get('vkid')) setInterval(() => draw(performance.now()), 33); // (enfant virtuel : capture sans fenêtre = ~2 images/s seulement ; le héros 3D doit suivre les gestes comme sur un vrai écran)
+  else requestAnimationFrame(drawLoop);
 } else {
   const loop = (now) => { requestAnimationFrame(loop); tick(now); draw(now); };
   requestAnimationFrame(loop);

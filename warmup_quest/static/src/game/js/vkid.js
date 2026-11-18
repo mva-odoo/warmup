@@ -169,7 +169,30 @@ const VKid = (() => {
       } else POSES.up(s);
       return s;
     }
+    if (P.get('vkididle') && ph === 'play') return s; // (mode test : enfant qui ne fait rien, pour vérifier que le jeu ne gagne pas tout seul)
     if (ph === 'paused') { POSES.up(s); return s; } // (« lève les bras pour reprendre »)
+    // Jeux du chemin à portée de main (bulles, taupes, cubes) : il tend le bras vers la cible la plus proche de son héros
+    const G = typeof game !== 'undefined' && game, gc = G && G.cur && !G.cur.done ? G.cur : null;
+    if (ph === 'play' && gc && !(A && A.s) && ['bubbles', 'moles', 'cubes'].includes(gc.s.m)) {
+      const now2 = performance.now();
+      const list = gc.s.m === 'bubbles' ? (gc.bubbles || []).filter((x) => x.hero === idx)
+        : gc.s.m === 'moles' ? (gc.moles || []).filter((x) => x.hero === idx && x.state === 'up' && now2 - x.born > 250)
+        : (gc.cubes || []).filter((x) => !x.hit && !x.missed && x.u != null && x.arrive - now2 < 1000);
+      list.sort((a, b) => (a.arrive || a.born || 0) - (b.arrive || b.born || 0));
+      // (une cible par main : la plus pressée à gauche pour la main gauche, à droite pour la droite ; les cubes doubles demandent les deux)
+      const tl = list.find((x) => x.u < 0), tr2 = list.find((x) => x.u >= 0);
+      for (const t of [tl, tr2]) {
+        if (!t) continue;
+        const av = G.avatarReach(idx), hs = av && scene.avatarHands && scene.avatarHands[idx], left = t.u < 0;
+        const shU = hs && hs[left ? 0 : 1] ? hs[left ? 0 : 1].su : (left ? -1 : 1) * L('shW') / TORSO, shV = hs && hs[left ? 0 : 1] ? hs[left ? 0 : 1].sv : 0;
+        t.vkAim = t.vkAim || { bias: V(gauss() * 0.3 * (1.2 - SKILL), gauss() * 0.3 * (1.2 - SKILL), 0), t: now2 };
+        const dec = Math.exp(-(now2 - t.vkAim.t) / 1000 * (0.6 + SKILL * 1.4));
+        const vx = t.u - shU + t.vkAim.bias.x * dec, vy = (t.v - (gc.s.m === 'moles' ? 0.2 : 0)) - shV + t.vkAim.bias.y * dec;
+        const n = Math.hypot(vx, vy) || 1, w = av ? reach(vx / n * 9, vy / n * 9, 0.85 + SKILL * 0.12) : reach(vx * 0.95, vy * 0.95, 0.85 + SKILL * 0.12);
+        if (left) s.wL = w; else s.wR = w;
+      }
+      return s;
+    }
     if (!A || !A.s || ph !== 'play') return s;
     const st = A.st, g = A.s.game, obey = rnd() < 0.5 + SKILL * 0.5;
     if (A.cal) { const d = A.calDirs()[A.cal.i], n = Math.hypot(d[0], d[1]), w = reach(d[0] / n * 9, d[1] / n * 9, 0.86 + SKILL * 0.1); if (d[0] < 0) s.wL = w; else s.wR = w; return s; }
@@ -243,12 +266,24 @@ const VKid = (() => {
       seenArena.done = true;
       stats.games.push({ g: seenArena.game, ratio: +A.ratio().toFixed(2), ok: A.st ? A.st.ok : 0, n: seenArena.n, s: Math.round((now - arenaT0) / 1000) });
     }
+    const G = typeof game !== 'undefined' && game;
+    if (G && G.cur && ['bubbles', 'moles', 'cubes'].includes(G.cur.s.m)) {
+      const c = G.cur; if (c !== stats.pathCur) { stats.pathCur = c; stats.pathT0 = now; }
+      if (c.done && !c.vkSeen) { c.vkSeen = true; const got = c.s.m === 'moles' ? c.bonked : c.s.m === 'cubes' ? c.cubeHits : c.popped || 0; stats.games.push({ g: c.s.m, ratio: +(Math.min(1, got / Math.max(1, c.s.n))).toFixed(2), ok: got, n: c.s.n, s: Math.round((now - stats.pathT0) / 1000) }); }
+    }
+    if (P.get('vkiddbg') && G && G.cur && G.cur.s.m === 'cubes') { // (mode test) distance main-cube au moment d'arriver
+      const hs = G.handsOf(tracker.bodies[0], 0) || [];
+      for (const cb of G.cur.cubes || []) { if (cb.u == null || cb.hit || cb.missed) continue; const d = Math.min(...hs.map((h) => Math.hypot(h.u - cb.u, h.v - cb.v))); cb.vkMin = Math.min(cb.vkMin ?? 9, d); }
+      stats.dbg = (G.cur.cubes || []).filter((cb) => cb.missed || cb.hit).slice(-8).map((cb) => [cb.spot.u, cb.spot.v, cb.hit ? 1 : 0, +(cb.vkMin ?? 9).toFixed(2), cb.vkAim ? Math.round(cb.arrive - cb.vkAim.t) : null, cb.k]);
+      stats.hands = hs.map((h) => [+h.u.toFixed(2), +h.v.toFixed(2), +(h.su ?? 0).toFixed(2), +(h.sv ?? 0).toFixed(2)]);
+    }
     if (stats.frames % 10 === 0) {
       const e = stats.err, m = e.length ? e.reduce((a, b) => a + b, 0) / e.length : null;
       const cs = typeof calibState !== 'undefined' ? calibState.stage : ''; if (cs && stats.stages[stats.stages.length - 1] !== cs) stats.stages.push(cs);
-      const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
-      document.title = 'VK ' + JSON.stringify({ dbg: stats.dbg, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
+      const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd && !stats.dbg) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
+      document.title = 'VK ' + JSON.stringify({ raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
     }
   }
+  if (on && P.get('vkiddbg')) { stats.raf = 0; const f = () => { stats.raf++; requestAnimationFrame(f); }; requestAnimationFrame(f); }
   return { on, feed, stats, profiles: PROFILES };
 })();

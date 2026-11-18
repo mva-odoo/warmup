@@ -669,6 +669,7 @@ class DepthScene {
       ctx.fillStyle = 'rgba(60, 35, 20, 0.85)';
       ctx.beginPath(); ctx.ellipse(x, y + r * 0.9, r * 1.2, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
       if (k <= 0) continue;
+      if (now - (m.aimT || 0) < 150 && m.state !== 'bonk') { ctx.strokeStyle = 'rgba(255,209,102,.95)'; ctx.lineWidth = Math.max(3, r * 0.12); ctx.beginPath(); ctx.ellipse(x, y + r * 0.9, r * 1.45, r * 0.5, 0, 0, Math.PI * 2); ctx.stroke(); } // (visée : anneau doré)
       // Corps qui sort (coupé au niveau du trou)
       ctx.save();
       ctx.beginPath(); ctx.rect(x - r * 2, y - r * 3, r * 4, r * 3.9); ctx.clip();
@@ -1307,7 +1308,9 @@ class DepthScene {
     const ctx = this.ctx;
     for (const bb of this.bubbles) {
       const A = this.anchor(bb.hero), grow = Math.min(1, (now - bb.born) / 300);
-      const x = A.x + bb.u * A.u, y = A.y + bb.v * A.u + Math.sin(now * 0.003 + bb.p) * A.u * 0.05, r = bb.r * A.u * grow;
+      const aim = now - (bb.aimT || 0) < 150; bb.k = (bb.k || 1) + ((aim ? 1.25 : 1) - (bb.k || 1)) * 0.25; // (visée : elle grossit)
+      const x = A.x + bb.u * A.u, y = A.y + bb.v * A.u + Math.sin(now * 0.003 + bb.p) * A.u * 0.05, r = bb.r * A.u * grow * bb.k;
+      if (aim) { ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke(); }
       const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
       g.addColorStop(0, 'rgba(255,255,255,0.7)'); g.addColorStop(0.7, 'rgba(173,232,255,0.35)'); g.addColorStop(1, 'rgba(255,170,230,0.75)');
       ctx.fillStyle = g;

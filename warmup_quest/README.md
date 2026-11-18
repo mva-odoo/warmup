@@ -149,6 +149,10 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   l'enfant ; ensuite, bras tendu = bord de la zone de jeu, quelle que soit sa taille ou sa distance à la caméra.
 - **Aide à la visée** : une main qui s'approche d'un ingrédient ou d'un bonhomme de neige est attirée vers lui, et
   l'objet visé grossit.
+- Sur les chemins aussi (bulles, taupes, cubes, ballons) : zone de contact un peu plus large avec une vraie caméra,
+  l'objet visé grossit (bulle) ou s'entoure d'un anneau doré (taupe) ; sans héros 3D, les mains de l'enfant sont mises
+  à l'échelle de sa portée mesurée. Un enfant virtuel qui ne fait rien (`&vkididle=1`) ne gagne rien : l'aide ne joue
+  pas à sa place. L'enfant virtuel joue aussi aux bulles, taupes et cubes (`?world=jardin3d&step=moles&vkid=1`).
 - Mode test : `?posemodel=lite|full` impose le modèle, `?nofilter=1` coupe le lissage (pour comparer), `?nocal=1` saute
   l'échauffement, `?nointro=1` l'entrée en scène, `?arena2d=1` les jeux miroir dessinés.
 - **Enfant virtuel** (`js/vkid.js`, `?world=defis&step=arena&game=potions&vkid=1`) : un squelette d'enfant simulé,
