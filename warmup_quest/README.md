@@ -166,6 +166,9 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   après 20 s. Le titre donne aussi `duo` : inversions de joueurs et images où l'un n'est plus vu.
 - À deux, si un enfant s'en va : pause « revenez à deux… ou lève les bras pour continuer seul » ; l'autre continue
   seul (le petit sorcier l'imite), et l'enfant parti reprend sa place dès qu'il revient 1,5 s devant la caméra.
+- Jeux miroir à deux : il suffit qu'UN des enfants fasse le geste (poses, bouclier, lancers comptent pour les deux) ;
+  au tir à la corde ils tirent ensemble, au 1-2-3 le nuage voit celui qui bouge, à la course de balais chacun a son
+  propre milieu et on fait la moyenne (amplifiée) de leurs penchés.
 
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en

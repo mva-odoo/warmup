@@ -97,9 +97,11 @@ class Arena {
   // ---------- Le corps de l'enfant, en pixels de l'écran (miroir), ou celui du petit sorcier dessiné (mode clavier)
   body(now) {
     const b = tracker.lead(), W = this.W, H = this.H, video = document.getElementById('video');
-    const st = { ...(this.fake || {}) }, base = tracker.state;
-    for (const k of ['armsUp', 'airplane', 'star', 'starArms', 'flamingo', 'squat', 'handsTogether', 'present']) if (st[k] == null) st[k] = !!base[k];
-    if (st.side == null) st.side = base.side || 'center';
+    // À deux, jeux miroir : il suffit qu'UN des enfants fasse le geste (le petit n'attend pas le grand, et inversement)
+    const act = tracker.active, any = (k) => act.some((x) => x.state[k]);
+    const st = { ...(this.fake || {}) }, base = act.length > 1 ? null : tracker.state;
+    for (const k of ['armsUp', 'airplane', 'star', 'starArms', 'flamingo', 'squat', 'handsTogether', 'present']) if (st[k] == null) st[k] = base ? !!base[k] : any(k);
+    if (st.side == null) st.side = base ? base.side || 'center' : (act.find((x) => x.state.side !== 'center') || { state: { side: 'center' } }).state.side;
     const real = !tracker.sim && b && b.lm && b.state.present && video && video.videoWidth;
     if (real) {
       const vw = video.videoWidth, vh = video.videoHeight, k = Math.max(W / vw, H / vh), dw = vw * k, dh = vh * k, ox = (W - dw) / 2, oy = (H - dh) / 2;
@@ -420,7 +422,8 @@ class Arena {
   // ----- 1, 2, 3… Nuage Grognon : on court sur place quand il a le dos tourné, statue quand il regarde
   init_soleil(st, now) { st.prog = 0; st.phase = 'wait'; st.at = now; st.until = now + 2500; st.ratio = 0; }
   up_soleil(st, now, dt, B, evs) {
-    const moving = B.motion > 0.035 || this.has(evs, 'jump', 'left', 'right') || (tracker.sim && !this.auto && (tracker.state.side !== 'center' || tracker.state.squat));
+    const mAll = B.real ? Math.max(B.motion, ...tracker.active.filter((x) => x.state.present).map((x) => x.motion || 0)) : B.motion; // (à deux : le nuage voit celui qui bouge)
+    const moving = mAll > 0.035 || this.has(evs, 'jump', 'left', 'right') || (tracker.sim && !this.auto && (tracker.state.side !== 'center' || tracker.state.squat));
     if (now > st.until) {
       if (st.phase === 'dos') { st.phase = 'regarde'; st.at = now; st.until = now + 2200; st.seen = false; this.say('Nuage Grognon !', 0); }
       else { st.phase = 'dos'; st.at = now; st.until = now + 2500 + Math.random() * 2000; this.say('Un, deux, trois…', 0); }
@@ -656,7 +659,8 @@ class Arena {
   // ----- Tir à la corde magique contre le Nuage Grognon : bouger les bras très vite (ou sauter) pour tirer
   init_corde(st, now) { st.m = 0; st.burst = 0; st.nextBurst = now + 4000; st.ratio = 0.5; }
   up_corde(st, now, dt, B, evs) {
-    const pull = B.real ? Math.max(0, Math.min(1, (B.motion - 0.015) / 0.05)) : B.st.wave || this.has(evs, 'jump', 'smash', 'left', 'right') ? 1 : (st.keyPull = Math.max(0, (st.keyPull || 0) - dt * 2));
+    const mSum = B.real ? tracker.active.filter((x) => x.state.present).reduce((a, x) => a + (x.motion || 0), 0) : 0; // (à deux : on tire ensemble)
+    const pull = B.real ? Math.max(0, Math.min(1, (mSum - 0.015) / 0.05)) : B.st.wave || this.has(evs, 'jump', 'smash', 'left', 'right') ? 1 : (st.keyPull = Math.max(0, (st.keyPull || 0) - dt * 2));
     if (this.has(evs, 'jump', 'smash')) st.keyPull = 1;
     if (now > st.nextBurst) { st.burst = now; st.nextBurst = now + 4500 + Math.random() * 2500; this.say('Il tire fort !', 0); }
     const cloud = now - st.burst < 1100 ? 0.32 : 0.1;
@@ -702,16 +706,20 @@ class Arena {
   up_balai(st, now, dt, B) {
     // position voulue : décalage du corps (ou pas de côté), hauteur selon les bras / l'accroupi
     let tx = B.st.side === 'left' ? -1 : B.st.side === 'right' ? 1 : 0;
-    const b = tracker.lead();
-    if (B.real && b && b.calib && b.center && b.T) {
-      // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté ;
-      //  testé avec l'enfant virtuel qui se balade) + se pencher compte aussi (épaules décalées par rapport aux hanches)
-      const lm = b.lm, hipX = lm ? (lm[23].x + lm[24].x) / 2 : b.center.x;
-      st.cx = st.cx == null ? b.calib.cx : st.cx + (b.center.x - st.cx) * Math.min(1, dt / 25);
-      const lean0 = -((b.center.x - hipX) * camXS()) / (b.T * 0.35); // (caméra de travers : l'enfant droit paraît penché -> on part de sa position de départ)
-      st.lean0 = st.lean0 == null ? lean0 : st.lean0 + (lean0 - st.lean0) * Math.min(1, dt / 25);
-      const step = -((b.center.x - st.cx) * camXS()) / (b.T * 0.7), lean = lean0 - st.lean0;
-      tx = Math.max(-1, Math.min(1, step + lean));
+    // Chaque enfant a SON milieu et SA façon de se tenir (à deux, ou si celui qui mène change, rien ne saute) ;
+    // à deux : moyenne amplifiée (un seul qui se penche suffit presque, les deux ensemble à fond ; pas de bruit doublé au milieu)
+    if (B.real) {
+      st.ref = st.ref || new Map(); let best = null, sum = 0, n = 0;
+      for (const b of tracker.active) {
+        if (!b.state.present || !b.center || !b.T || !b.lm) continue;
+        const hipX = (b.lm[23].x + b.lm[24].x) / 2, lean0 = -((b.center.x - hipX) * camXS()) / (b.T * 0.35);
+        let r = st.ref.get(b); if (!r) st.ref.set(b, (r = { cx: b.center.x, lean0 })); // (sa position de départ, là où il est au début du jeu)
+        // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté)
+        r.cx += (b.center.x - r.cx) * Math.min(1, dt / 25); r.lean0 += (lean0 - r.lean0) * Math.min(1, dt / 25);
+        const v = Math.max(-1, Math.min(1, -((b.center.x - r.cx) * camXS()) / (b.T * 0.7) + (lean0 - r.lean0)));
+        sum += v; n++; best = Math.max(-1, Math.min(1, n > 1 ? (sum / n) * 1.5 : sum));
+      }
+      if (best != null) tx = best;
     }
     const ty = B.st.armsUp ? -1 : B.st.squat ? 1 : 0;
     st.x += (tx - st.x) * Math.min(1, dt * 5); st.y += (ty - st.y) * Math.min(1, dt * 4);
@@ -721,7 +729,7 @@ class Arena {
     }
     for (const r of st.rings) {
       if (r.res || (now - r.t0) < r.dur) continue;
-      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < 0.6;
+      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < 0.7; // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
       r.res = pass ? 'ok' : 'miss'; r.t = now;
       if (pass) { this.win(ARENA.balai.pts, '+' + ARENA.balai.pts, ...this.ringXY(r.gx, r.gy)); if (st.ok % 3 === 0) this.say('Encore un !', 3000); } else Audio8.soft();
     }

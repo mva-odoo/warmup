@@ -1021,7 +1021,7 @@ class Game {
     } else if (s.m === 'act') {
       if (c.act) c.act.ev.push(type); // (traité dans updateAct)
     } else if (s.m === 'arena') {
-      if (this.np === 1 || tracker.bodies[idx] === tracker.lead()) arena.ev.push(type); // (traité par arena.js ; à deux : le joueur que le sorcier imite)
+      if (this.np === 1 || !(tracker.bodies[idx] && tracker.bodies[idx].away)) arena.ev.push(type); // (traité par arena.js ; à deux : les gestes des deux enfants comptent)
     } else if (s.m === 'kick' && /^(kick|throw)[LR]$/.test(type)) {
       c.kickEv = { side: type.endsWith('L') ? -1 : 1, hand: type.startsWith('throw'), idx, t: now }; // (traité dans updateKick)
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
