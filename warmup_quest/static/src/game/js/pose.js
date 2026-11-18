@@ -161,19 +161,23 @@ class Body {
     else if (s.jumpUp && dy > -0.08 * T) s.jumpUp = false;
 
     // --- Accroupi : le haut du corps descend OU les deux cuisses « écrasées »
-    const squatNow = dy > 0.35 * T * E || (useKnees && kneeL < 0.45 / E && kneeR < 0.45 / E);
-    const standNow = dy < 0.18 * T && kneeL > 0.55 && kneeR > 0.55;
+    // (27 % du torse suffit : une petite flexion d'enfant, souvent sans les genoux dans l'image d'une webcam de portable)
+    const squatNow = dy > 0.27 * T * E || (useKnees && kneeL < 0.45 / E && kneeR < 0.45 / E);
+    const standNow = dy < 0.15 * T * E && kneeL > 0.55 && kneeR > 0.55;
     if (!s.squat && squatNow) { s.squat = true; emit('squat'); }
     else if (s.squat && standNow) s.squat = false;
 
-    // --- Ligne de base adaptative (seulement quand on est « normal »)
-    if (Math.abs(dy) < 0.1 * T) {
-      this.base += (sh.y - this.base) * 0.05;
-      if (hipOK) this.T += (Tnow - this.T) * 0.03;
+    // --- Ligne de base adaptative (seulement quand on est « normal »). Elle remonte vite (l'enfant se redresse) mais ne
+    // descend que très lentement : sinon, un enfant qui s'accroupit doucement l'entraîne avec lui et l'accroupi n'est jamais vu
+    // (et on ne la bouge pas pendant un mouvement rapide : la montée d'un saut ne doit pas la tirer vers le haut)
+    const vy = this.prevShY == null ? 0 : Math.abs(sh.y - this.prevShY) / T; this.prevShY = sh.y;
+    if (Math.abs(dy) < 0.1 * T && vy < 0.02) {
+      this.base += (sh.y - this.base) * (dy < 0 ? 0.05 : 0.01);
+      if (hipOK && !s.squat) this.T += (Tnow - this.T) * 0.03;
       this.offSince = 0;
     } else {
       if (!this.offSince) this.offSince = now;
-      if (now - this.offSince > 4000) { // le joueur s'est déplacé : on recale
+      if (now - this.offSince > (s.squat ? 12000 : 4000)) { // le joueur s'est déplacé : on recale (pas pendant un accroupi tenu : tunnel, fusée…)
         this.base = sh.y; if (hipOK) this.T = Tnow; this.offSince = 0;
         s.squat = false; s.jumpUp = false;
       }
