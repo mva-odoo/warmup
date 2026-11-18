@@ -12,21 +12,33 @@
   <canvas id="scene"></canvas>
   <canvas id="arena" class="hidden"></canvas>
 
-  <!-- Menu -->
+  <!-- Accueil : trois grandes tuiles (le château, la Salle des Défis, la carte), le reste en petit -->
   <section id="menu" class="screen">
-    <h1>Warm-Up <span>Quest</span></h1>
-    <p class="subtitle">🪄 Académie des Petits Mages : bouge pour apprendre la magie !</p>
+    <div class="homeSky" aria-hidden="true"><div class="homeCastle"></div></div>
     <div id="menuExtra"></div>
-    <button class="btn hubBtn" id="hubBtn">🏰 Entrer dans le château de l'Académie</button>
-    <div id="worlds" class="worlds"></div>
+    <header class="homeTitle">
+      <div class="homeKicker">🪄 Académie des Petits Mages</div>
+      <h1>Warm-Up <span>Quest</span></h1>
+      <p class="subtitle">Bouge pour apprendre la magie !</p>
+    </header>
+    <div class="homeTiles">
+      <button class="tile tilePlay" id="hubBtn"><span class="tileIcon">🏰</span><b>Jouer</b><small>Le château de l'Académie</small></button>
+      <button class="tile tileDefis" id="defisBtn"><span class="tileIcon">🏆</span><b>Salle des Défis</b><small>Trois défis : bats ton record !</small></button>
+      <button class="tile tileMap" id="mapBtn"><span class="tileIcon">🗺️</span><b>La carte</b><small>Tous les cours et les aventures</small></button>
+    </div>
     <div class="menuBottom">
       <button class="btn small ghost" id="storyBtn">📜 L'histoire</button>
       <button class="btn small ghost" id="carnetBtn">📖 Mon grimoire</button>
       <button class="btn small ghost" id="roomBtn">🏠 Ma chambre</button>
     </div>
+    <!-- La carte de l'Académie (toutes les îles), dans un panneau -->
+    <div id="mapPanel" class="mapPanel hidden">
+      <div class="mapHead" id="mapHead"><button class="btn small ghost" id="mapBack">◀ Retour</button><h2>🗺️ La carte de l'Académie</h2></div>
+      <div id="worlds" class="worlds"></div>
+    </div>
     <!-- Réglages pour les grands, repliés par défaut -->
-    <details class="parents">
-      <summary>⚙️ Réglages (parents)</summary>
+    <details class="parents" id="parentsBox">
+      <summary title="Réglages (parents)">⚙️ <span>Réglages (parents)</span></summary>
       <div class="options">
       <div class="speed" id="speeds"></div>
       <div class="voiceRow">

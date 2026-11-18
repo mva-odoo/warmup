@@ -97,6 +97,13 @@ thème (moins de course qu'avant). Étape `act` dans le jeu, `act_…` dans les 
 - Odoo : les séquences par défaut de ces pays sont remplacées par la migration 20.0.17 seulement si elles n'ont pas été
   modifiées (mêmes épreuves, nombres et durées qu'à l'origine).
 
+## L'interface
+- Accueil : trois grandes tuiles, **🏰 Jouer** (le château), **🏆 Salle des Défis**, **🗺️ La carte** (toutes les îles,
+  dans un panneau, page par page) ; en dessous l'histoire, le grimoire et la chambre ; les réglages parents derrière la
+  roue dentée ⚙️ en bas à droite. Mode test : `?map=1` ouvre la carte.
+- Une même identité partout : ciel de nuit, silhouette du château, panneaux aux bords dorés, gros boutons dorés ; la
+  consigne de la partie sur un parchemin ; pause, chargement, calibrage et écran de fin dans un grand panneau.
+
 ## Les jeux miroir (comme sur console)
 Une scène fixe, sans chemin : l'enfant se voit en grand à l'écran (image de la caméra, en miroir, avec un chapeau de
 sorcier et des mains lumineuses) et la magie se dessine autour de lui. Quand il touche un objet avec sa vraie main, il le

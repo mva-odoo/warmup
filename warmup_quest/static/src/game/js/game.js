@@ -125,7 +125,7 @@ function ensurePager(wrap) {
   return row;
 }
 function turnMenuPage(d) {
-  if (phase !== 'menu' || !$('carnet').classList.contains('hidden')) return;
+  if (phase !== 'menu' || !$('carnet').classList.contains('hidden') || $('mapPanel').classList.contains('hidden')) return;
   const was = menuPage;
   menuPage = Math.max(0, (menuPage || 0) + d);
   menuSlide = d;
@@ -240,7 +240,7 @@ function buildMenu() {
   // Pages de la carte : deux rangées d'îles qui tiennent dans l'écran (pas de défilement) ;
   // on tourne la page avec les flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main
   const row0 = ensurePager(wrap);
-  const top = ($('menuExtra').getBoundingClientRect().bottom || 140) + 12, gap = 16; // (haut de la carte, une fois l'entête posé)
+  const top = ($('mapHead').getBoundingClientRect().bottom || 110) + 12, gap = 16; // (haut de la carte : sous l'entête du panneau)
   const availH = Math.max(340, innerHeight - top - 78), ch = Math.max(170, Math.min(300, (availH - gap) / 2)), cw = ch * 0.75;
   const perRow = Math.max(2, Math.min(7, Math.floor((Math.min(row0.clientWidth || innerWidth, 1400) - 2 * 96 + gap) / (cw + gap))));
   const list = [...Progress.ordered(), 'surprise'], perPage = perRow * 2;
@@ -476,7 +476,7 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   if (phase === 'play' || phase === 'calib' || phase === 'countdown') Rec.end(null); // (partie abandonnée : on garde quand même les mouvements)
-  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end();
+  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end(); show('mapPanel', false);
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
   showMenuCam();
@@ -2664,9 +2664,13 @@ if (store('storySeen')) Tale.markSeen('prologue', 0);
 if (DEV.get('gems')) { WUQStore._set('gems_0', GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set('tale_0', { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
 if (DEV.get('taleend')) WUQStore._set('diploma_0', true); // (mode test) fin de l'histoire
 if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
+if (DEV.get('map')) setTimeout(() => $('mapBtn').click(), 600); // (mode test) la carte ouverte
 if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0), () => {}, Number(DEV.get('talepage')) || 0), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
 $('storyBtn').onclick = () => openTaleBook();
 $('hubBtn').onclick = () => startWorld(HUB_WORLD);
+$('defisBtn').onclick = () => startWorld(WORLDS.find((w) => w.id === 'defis'));
+$('mapBtn').onclick = () => { show('mapPanel'); buildMenu(); Audio8.whoosh(); }; // (la carte : toutes les îles, page par page)
+$('mapBack').onclick = () => show('mapPanel', false);
 $('hubExit').onclick = goMenu;
 
 buildMenu();
