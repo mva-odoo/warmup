@@ -14,9 +14,21 @@
 const VKid = (() => {
   const P = new URLSearchParams(location.search);
   const on = !!P.get('vkid');
-  const H = Number(P.get('vkidh') || 1.25), D = Number(P.get('vkidd') || 2.4), NOISE = Number(P.get('vkidnoise') || 1);
-  const LAG = Number(P.get('vkidlag') || 300), SKILL = Math.max(0, Math.min(1, Number(P.get('vkidskill') || 0.7)));
-  const CAM_H = 0.9, TAN_H = Math.tan((62 * Math.PI) / 360), TAN_V = TAN_H * 0.75;
+  // Profils « vraie vie » : ?vkid=petit, grand, decale, biais, camhaute, cambasse, travers, bouge, proche, loin, pire
+  const PROFILES = {
+    petit: { h: 1.0, d: 2.0 }, grand: { h: 1.5, d: 2.9 }, decale: { x: 0.55 }, biais: { yaw: 30, x: -0.25 },
+    camhaute: { cam: 1.7, tilt: -22 }, cambasse: { cam: 0.35, tilt: 10 }, travers: { roll: 9, x: 0.2 },
+    bouge: { drift: 0.45 }, proche: { d: 1.55 }, loin: { d: 3.6, h: 1.1 },
+    pire: { h: 1.05, d: 1.9, x: 0.4, yaw: 25, cam: 1.5, tilt: -18, roll: 6, drift: 0.35, noise: 1.8, skill: 0.45, lag: 450 },
+  };
+  const PR = PROFILES[P.get('vkid')] || {};
+  const num = (k, pk, def) => Number(P.get(k) ?? PR[pk] ?? def);
+  const H = num('vkidh', 'h', 1.25), D = num('vkidd', 'd', 2.4), NOISE = num('vkidnoise', 'noise', 1);
+  const LAG = num('vkidlag', 'lag', 300), SKILL = Math.max(0, Math.min(1, num('vkidskill', 'skill', 0.7)));
+  const X0 = num('vkidx', 'x', 0), YAW = (num('vkidyaw', 'yaw', 0) * Math.PI) / 180, DRIFT = num('vkiddrift', 'drift', 0);
+  const CAM_H = num('vkidcam', 'cam', 0.9), TILT = (num('vkidtilt', 'tilt', 0) * Math.PI) / 180, ROLL = (num('vkidroll', 'roll', 0) * Math.PI) / 180;
+  const TAN_H = Math.tan((62 * Math.PI) / 360), TAN_V = TAN_H * 0.75;
+  let drift = { x: 0, z: 0, vx: 0, vz: 0 };
   // Proportions d'un enfant (part de la taille)
   const B = { hipY: 0.53, hipW: 0.075, torso: 0.27, shW: 0.12, upper: 0.17, fore: 0.15, hand: 0.07, thigh: 0.25, shin: 0.24 };
   const L = (k) => B[k] * H, ARM = L('upper') + L('fore'), TORSO = L('torso');
@@ -32,7 +44,7 @@ const VKid = (() => {
   const lerpV = (a, b, k) => V(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k);
 
   // État du corps (lissé) et intention (ce que le cerveau veut, appliquée après le temps de réaction)
-  const rest = () => ({ bx: 0, drop: 0, jump: 0, spread: 0, kneeL: 0, kneeR: 0,
+  const rest = () => ({ bx: 0, lean: 0, drop: 0, jump: 0, spread: 0, kneeL: 0, kneeR: 0,
     wL: V(L('shW') + 0.02, -ARM * 0.95, 0.04), wR: V(-L('shW') - 0.02, -ARM * 0.95, 0.04) }); // (poignets, par rapport à l'épaule)
   let cur = rest(), queue = [], last = 0, jumpT = 0, aim = { key: null, bias: V(), t: 0 }, throwS = null, stirA = 0;
   const stats = { games: [], cal: null, err: [], frames: 0 };
@@ -47,7 +59,7 @@ const VKid = (() => {
   }
   function joints(s) {
     const hip = V(s.bx, L('hipY') - s.drop * 0.2 * H + s.jump, 0);
-    const sh = add(hip, V(0, TORSO, -s.drop * 0.05 * H));
+    const sh = add(hip, V(s.lean * 0.12 * H, TORSO * (1 - Math.abs(s.lean) * 0.08), -s.drop * 0.05 * H)); // (penché : les épaules partent de côté)
     const J = {};
     J.hipL = add(hip, V(L('hipW'), 0, 0)); J.hipR = add(hip, V(-L('hipW'), 0, 0));
     J.shL = add(sh, V(L('shW'), 0, 0)); J.shR = add(sh, V(-L('shW'), 0, 0));
@@ -70,18 +82,30 @@ const VKid = (() => {
     add(J.nose, V(-0.015 * H, 0.02 * H, -0.01 * H)), add(J.nose, V(-0.025 * H, 0.02 * H, -0.01 * H)), add(J.nose, V(-0.035 * H, 0.02 * H, -0.015 * H)),
     add(J.nose, V(0.055 * H, 0.005 * H, -0.06 * H)), add(J.nose, V(-0.055 * H, 0.005 * H, -0.06 * H)), add(J.nose, V(0.015 * H, -0.025 * H, 0)), add(J.nose, V(-0.015 * H, -0.025 * H, 0)),
     J.shL, J.shR, J.elL, J.elR, J.wrL, J.wrR, J.pkL, J.pkR, J.ixL, J.ixR, J.thL, J.thR, J.hipL, J.hipR, J.knL, J.knR, J.anL, J.anR, J.heL, J.heR, J.ftL, J.ftR];
-  function project(p) { const dep = D - p.z; return { x: 0.5 + p.x / (2 * dep * TAN_H), y: 0.5 - (p.y - CAM_H) / (2 * dep * TAN_V), z: -p.z / (2 * dep * TAN_H) }; }
+  // Placement réel : l'enfant est décalé, tourné de biais, il se balade ; la caméra est haute ou basse, penchée, de travers
+  function place(p) {
+    const c = Math.cos(YAW), sn = Math.sin(YAW);
+    return V(p.x * c + p.z * sn + X0 + drift.x, p.y, -p.x * sn + p.z * c + drift.z);
+  }
+  function toCam(p) { // repère de la caméra (x à droite de l'image, y en haut, z vers l'arrière de la caméra)
+    let x = p.x, y = p.y - CAM_H, z = p.z - D;
+    const ct = Math.cos(-TILT), st = Math.sin(-TILT); [y, z] = [y * ct - z * st, y * st + z * ct]; // (inclinaison haut / bas)
+    const cr = Math.cos(-ROLL), sr = Math.sin(-ROLL); [x, y] = [x * cr - y * sr, x * sr + y * cr]; // (caméra de travers)
+    return V(x, y, z);
+  }
+  function project(q) { const dep = Math.max(0.3, -q.z); return { x: 0.5 + q.x / (2 * dep * TAN_H), y: 0.5 - q.y / (2 * dep * TAN_V), z: q.z / (2 * dep * TAN_H) }; }
 
   function frame(now) {
-    const J = joints(cur), pts = ORDER(J), hip = J.hip, n = 0.004 * NOISE;
-    const out = pts.map((p, i) => {
-      const q = project(p), hand = i >= 15 && i <= 22, jit = hand ? 1.6 : 1;
+    const J = joints(cur), cams = ORDER(J).map((p) => toCam(place(p))), hipC = toCam(place(J.hip)), n = 0.004 * NOISE;
+    const out = cams.map((cq, i) => {
+      const q = project(cq), hand = i >= 15 && i <= 22, jit = hand ? 1.6 : 1;
       let vis = hand ? 0.82 + rnd() * 0.15 : 0.93 + rnd() * 0.07;
+      if (q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) vis *= 0.25; // (hors de l'image : MediaPipe devine, avec peu de confiance)
       if (i === 19 || i === 20) vis -= 0.12; // (le bout des doigts est moins bien vu que le poignet)
       if (hand && rnd() < 0.03 * NOISE) vis = 0.2; // (poignet mal vu, de temps en temps)
       return { x: q.x + gauss() * n * jit, y: q.y + gauss() * n * jit, z: q.z, visibility: vis };
     });
-    out.world = pts.map((p) => ({ x: p.x - hip.x + gauss() * 0.008 * NOISE, y: -(p.y - hip.y) + gauss() * 0.008 * NOISE, z: -(p.z - hip.z) + gauss() * 0.012 * NOISE }));
+    out.world = cams.map((p) => ({ x: p.x - hipC.x + gauss() * 0.008 * NOISE, y: -(p.y - hipC.y) + gauss() * 0.008 * NOISE, z: -(p.z - hipC.z) + gauss() * 0.012 * NOISE }));
     return out;
   }
 
@@ -145,7 +169,7 @@ const VKid = (() => {
       if (st.phase === 'dos' && now - st.at > LAG) { const k = Math.sin(now / 160); s.kneeL = Math.max(0, k) * 0.6; s.kneeR = Math.max(0, -k) * 0.6; s.wL = V(0.15, -ARM * (0.6 - k * 0.25), k * 0.25); s.wR = V(-0.15, -ARM * (0.6 + k * 0.25), -k * 0.25); }
     } else if (g === 'corde') { const k = Math.sin(now / 110); s.wL = V(L('shW') * 0.2, k * ARM * 0.7, ARM * 0.5); s.wR = V(-L('shW') * 0.2, -k * ARM * 0.7, ARM * 0.5); }
     else if (g === 'equilibre') { s.kneeL = 1; if (st.gust || tracker.mode === 'upper') POSES.plane(s); }
-    else if (g === 'balai') { const r = (st.rings || []).find((x) => !x.res); if (r) { s.bx = -r.gx * 0.3; if (r.gy < 0) POSES.up(s); if (r.gy > 0) s.drop = 1; } }
+    else if (g === 'balai') { const r = (st.rings || []).find((x) => !x.res); if (r) { s.bx = -r.gx * 0.15; s.lean = -r.gx; if (r.gy < 0) POSES.up(s); if (r.gy > 0) s.drop = 1; } }
     else if (g === 'photo') POSES.star(s);
     return s;
   }
@@ -159,8 +183,12 @@ const VKid = (() => {
     const want = queue[0].s;
     const ka = 1 - Math.exp(-dt / (0.14 - SKILL * 0.04)), kb = 1 - Math.exp(-dt / 0.22);
     cur.wL = lerpV(cur.wL, want.wL, ka); cur.wR = lerpV(cur.wR, want.wR, ka);
-    for (const k of ['bx', 'drop', 'spread', 'kneeL', 'kneeR']) cur[k] += (want[k] - cur[k]) * kb;
+    for (const k of ['bx', 'lean', 'drop', 'spread', 'kneeL', 'kneeR']) cur[k] += (want[k] - cur[k]) * kb;
     const jk = now - jumpT < 420 ? Math.sin(((now - jumpT) / 420) * Math.PI) : 0; cur.jump = jk * 0.14 * H;
+    if (DRIFT) { // (un enfant ne reste pas en place : il se balade doucement, revient vers le milieu)
+      drift.vx = drift.vx * 0.96 + gauss() * 0.006 * DRIFT - drift.x * 0.004; drift.vz = drift.vz * 0.96 + gauss() * 0.006 * DRIFT - drift.z * 0.004;
+      drift.x = Math.max(-DRIFT, Math.min(DRIFT, drift.x + drift.vx)); drift.z = Math.max(-DRIFT, Math.min(DRIFT, drift.z + drift.vz));
+    }
     tr.assign([frame(now)], now);
     stats.frames++;
     measure(now);
@@ -178,5 +206,5 @@ const VKid = (() => {
       document.title = 'VK ' + JSON.stringify({ phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length });
     }
   }
-  return { on, feed, stats };
+  return { on, feed, stats, profiles: PROFILES };
 })();

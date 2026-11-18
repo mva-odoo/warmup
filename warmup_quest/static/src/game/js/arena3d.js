@@ -275,9 +275,9 @@ class Arena3D {
     // Mains magiques : là où l'enfant tend VRAIMENT la main (vecteur épaule -> main, à l'échelle du jeu), au bout du bras du
     // sorcier ; c'est avec elles qu'on touche. Les bras du sorcier sont courts : sans ça, impossible d'atteindre les objets.
     this.avHand3 = [this.handPos(sw('arm-left')), this.handPos(sw('arm-right'))];
+    const vec = this.handVecs(A, now, st, b, real); this.lastVec = vec; // (aussi vu de dos : l'échauffement en a besoin)
     if (!this.cfg.back) {
-      const vec = this.handVecs(A, now, st, b, real), k = A3_REACH / ((b && b.reachK) || (real ? 1.1 : 1));
-      this.lastVec = vec;
+      const k = A3_REACH / ((b && b.reachK) || (real ? 1.1 : 1));
       [['handL', 'sL', 0], ['handR', 'sR', 1]].forEach(([hk, sk, i]) => {
         const v = vec[i], s0 = J[sk]; if (!v || !s0) { J[hk] = null; return; }
         // (un peu d'avance sur le mouvement : la main magique paraît moins en retard)

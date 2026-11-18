@@ -157,6 +157,10 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   neige, poses, duel…) avec un temps de réaction et des gestes imprécis. Résultats dans le titre de la page
   (`VK {...}` : score de chaque jeu, portée mesurée). Réglages : `vkidh` (taille, m), `vkidd` (distance, m),
   `vkidnoise`, `vkidlag` (ms), `vkidskill` (0 à 1), `vkidseed`.
+  Profils « vraie vie » : `?vkid=petit`, `grand`, `decale` (pas au milieu), `biais` (tourné), `camhaute` (caméra sur
+  la télé), `cambasse` (sur une table), `travers` (caméra penchée), `bouge` (se balade), `proche` (pieds hors de
+  l'image), `loin`, `pire` (tout à la fois, maladroit et lent). Tableau de résultats de tous les profils × 7 jeux :
+  `tools/vkid_test.sh` (ou `tools/vkid_test.sh "petit pire" "potions duel"`), résultats dans `~/.cache/wuq-test/`.
 
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en

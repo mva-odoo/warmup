@@ -703,7 +703,16 @@ class Arena {
     // position voulue : décalage du corps (ou pas de côté), hauteur selon les bras / l'accroupi
     let tx = B.st.side === 'left' ? -1 : B.st.side === 'right' ? 1 : 0;
     const b = tracker.bodies[0];
-    if (B.real && b && b.calib && b.center && b.T) tx = Math.max(-1, Math.min(1, -((b.center.x - b.calib.cx) * camXS()) / (b.T * 0.7)));
+    if (B.real && b && b.calib && b.center && b.T) {
+      // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté ;
+      //  testé avec l'enfant virtuel qui se balade) + se pencher compte aussi (épaules décalées par rapport aux hanches)
+      const lm = b.lm, hipX = lm ? (lm[23].x + lm[24].x) / 2 : b.center.x;
+      st.cx = st.cx == null ? b.calib.cx : st.cx + (b.center.x - st.cx) * Math.min(1, dt / 25);
+      const lean0 = -((b.center.x - hipX) * camXS()) / (b.T * 0.35); // (caméra de travers : l'enfant droit paraît penché -> on part de sa position de départ)
+      st.lean0 = st.lean0 == null ? lean0 : st.lean0 + (lean0 - st.lean0) * Math.min(1, dt / 25);
+      const step = -((b.center.x - st.cx) * camXS()) / (b.T * 0.7), lean = lean0 - st.lean0;
+      tx = Math.max(-1, Math.min(1, step + lean));
+    }
     const ty = B.st.armsUp ? -1 : B.st.squat ? 1 : 0;
     st.x += (tx - st.x) * Math.min(1, dt * 5); st.y += (ty - st.y) * Math.min(1, dt * 4);
     if (st.spawned < st.n && now > st.next) {
