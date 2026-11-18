@@ -4,7 +4,27 @@
 // Le Tracker fusionne les états : en coopératif, un défi est réussi quand les DEUX le font.
 
 const VISION_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+// Deux modèles : « full » (poignets et genoux nettement plus stables) sur un ordinateur correct, « lite » sur un petit PC
+// ou si « full » s'avère trop lent pendant la partie (bascule automatique, voir update)
+const POSE_MODELS = {
+  full: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
+  lite: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+};
+
+// Filtre « One-Euro » (Casiez, Roussel, Vogel, 2012) sur chaque coordonnée : lisse fort quand le point bouge peu (le
+// tremblement de la détection disparaît), presque pas quand il bouge vite (aucun retard sur un saut ou un geste rapide).
+// minCut : coupure au repos (Hz) ; beta : plus il est grand, plus le filtre se relâche quand ça bouge ; dCut : vitesse.
+class OneEuro {
+  constructor(minCut = 1.5, beta = 8, dCut = 1) { this.minCut = minCut; this.beta = beta; this.dCut = dCut; this.x = null; this.dx = 0; this.t = 0; }
+  static alpha(cut, dt) { const r = 2 * Math.PI * cut * dt; return r / (r + 1); }
+  filter(x, t) {
+    if (this.x == null || t - this.t > 0.5) { this.x = x; this.dx = 0; this.t = t; return x; } // (premier point, ou trou de détection : on repart)
+    const dt = Math.max(1e-3, t - this.t); this.t = t;
+    this.dx += OneEuro.alpha(this.dCut, dt) * ((x - this.x) / dt - this.dx);
+    this.x += OneEuro.alpha(this.minCut + this.beta * Math.abs(this.dx), dt) * (x - this.x);
+    return this.x;
+  }
+}
 
 const POSE_NAMES = ['armsUp', 'airplane', 'star', 'flamingo'];
 
@@ -87,8 +107,16 @@ class Body {
     this.mode = this.state.anklesOK ? 'full' : this.state.kneesOK ? 'knees' : 'upper';
   }
 
+  // Points lissés (filtre One-Euro par point et par axe) ; la visibilité reste celle de la détection
+  smooth(lm, now) {
+    const t = now / 1000;
+    if (!this.flt || this.flt.length !== lm.length) this.flt = lm.map(() => [new OneEuro(), new OneEuro()]);
+    return lm.map((p, i) => ({ ...p, x: this.flt[i][0].filter(p.x, t), y: this.flt[i][1].filter(p.y, t) }));
+  }
+
   process(lm, now, emit) {
     const s = this.state;
+    if (lm && !(typeof DEV !== 'undefined' && DEV.get('nofilter'))) lm = this.smooth(lm, now); // (?nofilter=1 : points bruts, pour comparer)
     this.lm = lm || null;
     if (!lm) {
       s.present = s.upperBody = s.fullBody = false;
@@ -267,27 +295,36 @@ class Tracker {
   async start(video, progress) {
     progress('Ouverture de la caméra…');
     const stream = await navigator.mediaDevices.getUserMedia({
-      // (petit PC : image plus petite, plus rapide à analyser ; la détection reste précise pour un enfant entier)
-      video: { width: { ideal: this.lowPower ? 480 : 640 }, height: { ideal: this.lowPower ? 360 : 480 }, facingMode: 'user' }, audio: false,
+      // (petit PC : image plus petite, plus rapide à analyser ; sinon une image plus grande : à 2-3 m, l'enfant y est plus
+      // détaillé, ses poignets et ses genoux sont mieux placés)
+      video: { width: { ideal: this.lowPower ? 480 : 1280 }, height: { ideal: this.lowPower ? 360 : 720 }, facingMode: 'user' }, audio: false,
     });
     video.srcObject = stream;
     await video.play();
     progress('Chargement de la détection des mouvements…');
     const { PoseLandmarker, FilesetResolver } = await import(VISION_CDN + '/vision_bundle.mjs');
-    const fileset = await FilesetResolver.forVisionTasks(VISION_CDN + '/wasm');
+    this.vision = { PoseLandmarker, fileset: await FilesetResolver.forVisionTasks(VISION_CDN + '/wasm') };
+    const forced = typeof DEV !== 'undefined' && POSE_MODELS[DEV.get('posemodel')] ? DEV.get('posemodel') : null; // (?posemodel=lite|full)
+    await this.loadModel(forced || (this.lowPower ? 'lite' : 'full'));
+  }
+
+  // Charge un modèle de détection (GPU si possible, sinon CPU) ; remplace le précédent
+  async loadModel(name) {
+    const { PoseLandmarker, fileset } = this.vision;
     const opts = (delegate) => ({
-      baseOptions: { modelAssetPath: POSE_MODEL, delegate },
+      baseOptions: { modelAssetPath: POSE_MODELS[name], delegate },
       runningMode: 'VIDEO', numPoses: this.players,
       minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
     });
-    try {
-      this.landmarker = await PoseLandmarker.createFromOptions(fileset, opts('GPU'));
-      this.delegate = 'GPU';
-    } catch (e) {
+    let lm, delegate = 'GPU';
+    try { lm = await PoseLandmarker.createFromOptions(fileset, opts('GPU')); } catch (e) {
       console.warn('GPU indisponible, passage en CPU', e);
-      this.landmarker = await PoseLandmarker.createFromOptions(fileset, opts('CPU'));
-      this.delegate = 'CPU';
+      lm = await PoseLandmarker.createFromOptions(fileset, opts('CPU')); delegate = 'CPU';
     }
+    const old = this.landmarker;
+    this.landmarker = lm; this.delegate = delegate; this.model = name; this.lastVideoTime = -1;
+    this.perf.ms = 0; this.slowSince = 0;
+    if (old) try { old.close(); } catch (e) { /* (déjà fermé) */ }
   }
 
   update(video, now) {
@@ -304,6 +341,11 @@ class Tracker {
     const t0 = performance.now();
     const res = this.landmarker.detectForVideo(video, now);
     P.ms += (performance.now() - t0 - P.ms) * 0.1;
+    // Modèle « full » trop lent sur cette machine (analyse > 45 ms pendant 4 s) : on passe au modèle léger, sans arrêter le jeu
+    if (this.model === 'full' && !this.switching) {
+      if (P.ms > 45) { if (!this.slowSince) this.slowSince = now; else if (now - this.slowSince > 4000) { this.switching = true; this.loadModel('lite').catch((e) => console.warn(e)).finally(() => { this.switching = false; }); } }
+      else this.slowSince = 0;
+    }
     P.frames++;
     if (!P.since) P.since = now;
     if (now - P.since >= 1000) { P.fps = Math.round(P.frames * 1000 / (now - P.since)); P.frames = 0; P.since = now; }
@@ -448,7 +490,7 @@ class Tracker {
   perfLabel() {
     if (this.sim || !this.perf.fps) return '';
     const slow = this.perf.fps < 15 ? ' 🐢' : '';
-    return `${this.perf.fps} img/s · ${this.delegate}${slow}`;
+    return `${this.perf.fps} img/s · ${this.delegate} · ${this.model || ''}${slow}`;
   }
 
   // Mode clavier pour tester sans caméra (le clavier joue pour tous les joueurs)

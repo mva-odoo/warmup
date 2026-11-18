@@ -97,6 +97,14 @@ thème (moins de course qu'avant). Étape `act` dans le jeu, `act_…` dans les 
 - Odoo : les séquences par défaut de ces pays sont remplacées par la migration 20.0.17 seulement si elles n'ont pas été
   modifiées (mêmes épreuves, nombres et durées qu'à l'origine).
 
+## Détection des mouvements
+- Modèle MediaPipe « full » et image 1280×720 sur un ordinateur correct (poignets et genoux plus stables) ; « lite » et
+  480×360 sur un petit PC. Si « full » est trop lent pendant la partie (analyse > 45 ms pendant 4 s), le jeu passe tout
+  seul au modèle léger. Le modèle utilisé s'affiche sous la vignette caméra (img/s · GPU · full).
+- Chaque point du squelette est lissé par un filtre One-Euro : le tremblement est divisé par 2 à 3 environ au repos,
+  pour une image de retard (≈ 33 ms) seulement sur un geste rapide.
+- Mode test : `?posemodel=lite|full` impose le modèle, `?nofilter=1` coupe le lissage (pour comparer).
+
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en
   5 leçons : Les premiers sorts, Les poses magiques, Les ateliers, Les farces des singes, La baguette et la récré.
