@@ -170,6 +170,11 @@ false
 false
 ],
 [
+"Pause ! Revenez à deux, ou lève les bras pour continuer tout seul.",
+"jeu",
+false
+],
+[
 "lost",
 "jeu",
 false

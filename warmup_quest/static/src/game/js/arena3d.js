@@ -216,7 +216,7 @@ class Arena3D {
 
   // Le corps vu à l'écran (comme arena.body) : directions des membres du joueur (ou du sorcier au clavier) -> petit sorcier 3D
   body(A, now, st) {
-    const b = tracker.bodies[0], real = !tracker.sim && b && b.lm && b.state.present, M = this.M;
+    const b = tracker.lead(), real = !tracker.sim && b && b.lm && b.state.present, M = this.M;
     let limbs;
     let unit = 1; // (longueur d'un torse, dans l'unité des directions)
     if (real) { limbs = A.g.limbsOf(b, 0); unit = b.T || 0.25; const w3 = this.worldLimbs(b); if (w3) limbs = { ...limbs, ...w3 }; }

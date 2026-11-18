@@ -3,6 +3,7 @@
 # Usage (depuis n'importe où) :
 #   tools/vkid_test.sh                       -> tous les profils × 7 jeux
 #   tools/vkid_test.sh "petit pire" "potions duel"
+#   tools/vkid_test.sh "1&vkid2=1 1&vkid2=petit&vkidgap=0.7" "potions"   (deux enfants : profil + réglages)
 # Résultats aussi dans ~/.cache/wuq-test/vkid-<date>.txt. Il faut chromium.
 cd "$(dirname "$0")/.." || exit 1
 PROFILES=${1:-"1 petit grand decale biais camhaute cambasse travers bouge proche loin pire"}
@@ -25,7 +26,8 @@ except Exception: print(f"{pf:9} {g:10} pas de résultat"); sys.exit()
 gm = next((x for x in d.get('games', []) if x['g'] == g), None)
 cal = d.get('cal') or {}
 res = f"{round(gm['ratio'] * 100):3d} % en {gm['s']:3d} s" if gm else "pas fini     "
-print(f"{pf:9} {g:10} {res}   portée {cal.get('reachK', '-')} / {cal.get('kidArm', '-')}")
+duo = d.get('duo'); dd = f"   à deux : {duo['swaps']} inversions, {duo['lost']} pertes / {duo['frames']} images" if duo else ""
+print(f"{pf:9} {g:10} {res}   portée {cal.get('reachK', '-')} / {cal.get('kidArm', '-')}{dd}")
 PY
 }
 export -f run; export OUT BUDGET PORT

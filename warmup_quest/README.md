@@ -161,6 +161,11 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   la télé), `cambasse` (sur une table), `travers` (caméra penchée), `bouge` (se balade), `proche` (pieds hors de
   l'image), `loin`, `pire` (tout à la fois, maladroit et lent). Tableau de résultats de tous les profils × 7 jeux :
   `tools/vkid_test.sh` (ou `tools/vkid_test.sh "petit pire" "potions duel"`), résultats dans `~/.cache/wuq-test/`.
+  **Deux enfants** : `&vkid2=1` (ou un profil, `&vkid2=petit`), écart `&vkidgap=0.8` (m), réglages du 2e `vkid2h`,
+  `vkid2x`… ; ils vont chacun dans leur rond au calibrage. `&vkid2leave=20` (ou `vkid1leave`) : un enfant s'en va
+  après 20 s. Le titre donne aussi `duo` : inversions de joueurs et images où l'un n'est plus vu.
+- À deux, si un enfant s'en va : pause « revenez à deux… ou lève les bras pour continuer seul » ; l'autre continue
+  seul (le petit sorcier l'imite), et l'enfant parti reprend sa place dès qu'il revient 1,5 s devant la caméra.
 
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en

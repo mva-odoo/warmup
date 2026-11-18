@@ -122,7 +122,7 @@ const ARENA_LINES = ['Un, deux, trois…', 'Nuage Grognon !', 'Je t\'ai vu bouge
   'La potion est prête !', 'Attention, il prépare un sort !', 'Bouclier ! Joins tes mains !', 'Esquive ! Pas de côté !', 'Paré !', 'Ouille ! Ça chatouille !',
   'À toi ! Lève les deux bras pour lancer ton sort !', 'Il tire fort !', 'Tire, tire !', 'Le vent souffle ! Ouvre les bras !', 'Bravo, tu tiens bien !',
   'Trois, deux, un…', 'Ouistiti !', 'Super photo !', 'Passe dans l\'anneau !', 'Encore un !', 'Il est tout étourdi !', 'Super, le mur est passé !', 'Ouille, le mur !',
-  'Champion !', 'Presque ! La prochaine fois !', 'Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', 'Super, c\'est parti !'];
+  'Champion !', 'Presque ! La prochaine fois !', 'Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', 'Super, c\'est parti !', 'Pause ! Revenez à deux, ou lève les bras pour continuer tout seul.'];
 
 // Imite les animaux : chaque carte demande un geste (un événement, ou une pose à tenir un moment)
 const ANIMALS = [

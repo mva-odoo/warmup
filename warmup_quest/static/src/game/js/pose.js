@@ -281,9 +281,22 @@ class Tracker {
   }
 
   // État commun : en coopératif, une pose / un côté n'est validé que si tout le monde y est
+  // À deux, un enfant parti (« continuer seul ») ne compte plus ; il revient tout seul s'il se remontre 1,5 s
+  get active() {
+    const now = performance.now();
+    for (const b of this.bodies) {
+      if (!b.away) continue;
+      if (b.state.present) { b.backT = b.backT || now; if (now - b.backT > 1500) { b.away = false; b.backT = 0; } } else b.backT = 0;
+    }
+    const a = this.bodies.filter((b) => !b.away);
+    return a.length ? a : this.bodies;
+  }
+  // Le joueur qui mène (jeux miroir : c'est lui que le petit sorcier imite)
+  lead() { const a = this.active; return a.find((b) => b.state.present) || a[0]; }
   get state() {
-    if (this.bodies.length === 1) return this.bodies[0].state;
-    const all = this.bodies.map((b) => b.state);
+    const act = this.active;
+    if (act.length === 1) return act[0].state;
+    const all = act.map((b) => b.state);
     const every = (k) => all.every((s) => s[k]);
     const m = emptyState();
     for (const k of ['present', 'upperBody', 'fullBody', 'kneesOK', 'anklesOK', 'squat', ...POSE_NAMES]) m[k] = every(k);
@@ -543,7 +556,9 @@ class Tracker {
 // Garde les points d'un joueur de son côté de la ligne médiane (side +1 : x > midX)
 function cleanSide(lm, midX, side) {
   const margin = 0.03;
-  return lm.map((p, i) => (i >= 13 && (p.x - midX) * side < -margin ? { ...p, visibility: 0 } : p));
+  const out = lm.map((p, i) => (i >= 13 && (p.x - midX) * side < -margin ? { ...p, visibility: 0 } : p));
+  out.world = lm.world; // (garde les points 3D, sinon perdus à deux)
+  return out;
 }
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }

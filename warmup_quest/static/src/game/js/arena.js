@@ -53,7 +53,7 @@ class Arena {
       if (c) { c.start = (c.start || this.t0) + dur; c.end = (c.end || this.t0) + dur; }
       document.body.classList.add('arenaIntro');
       // Première fois : « attrape les étoiles » pour mesurer jusqu'où l'enfant tend les bras (sa portée), avant le titre
-      const b0 = tracker.bodies[0];
+      const b0 = tracker.lead();
       if (b0 && !b0.reachK && !DEV.get('nocal')) { this.cal = { t0: this.t0, i: 0, on: 0, best: 0, vals: [], st: this.t0 }; Audio8.say('Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', { interrupt: true }); }
       else { Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250); }
     }
@@ -96,7 +96,7 @@ class Arena {
 
   // ---------- Le corps de l'enfant, en pixels de l'écran (miroir), ou celui du petit sorcier dessiné (mode clavier)
   body(now) {
-    const b = tracker.bodies[0], W = this.W, H = this.H, video = document.getElementById('video');
+    const b = tracker.lead(), W = this.W, H = this.H, video = document.getElementById('video');
     const st = { ...(this.fake || {}) }, base = tracker.state;
     for (const k of ['armsUp', 'airplane', 'star', 'starArms', 'flamingo', 'squat', 'handsTogether', 'present']) if (st[k] == null) st[k] = !!base[k];
     if (st.side == null) st.side = base.side || 'center';
@@ -143,7 +143,7 @@ class Arena {
 
   // ---------- Boucle
   update(now) {
-    if (DEV.get('a3state')) document.title = 'AS ' + JSON.stringify({ on: !!this.s, g: this.s && this.s.game, cal: this.cal && this.cal.i, intro: !!this.intro, outro: !!this.outro, over: this.st && this.st.over, ok: this.st && this.st.ok, phase, reach: tracker.bodies[0] && tracker.bodies[0].reachK });
+    if (DEV.get('a3state')) document.title = 'AS ' + JSON.stringify({ on: !!this.s, g: this.s && this.s.game, cal: this.cal && this.cal.i, intro: !!this.intro, outro: !!this.outro, over: this.st && this.st.over, ok: this.st && this.st.ok, phase, reach: tracker.lead() && tracker.lead().reachK });
     if (!this.s) return;
     if (this.outro) { // célébration de fin (3D)
       this.ev.splice(0); this.B = this.body(now);
@@ -314,7 +314,7 @@ class Arena {
   // Une étoile à la fois (en haut à gauche, en haut à droite, à gauche, à droite) : on la prend en tendant le bras vers elle.
   calDirs() { return [[-0.7, -0.7], [0.7, -0.7], [-1, 0.05], [1, 0.05]]; }
   updateCal(now) {
-    const cal = this.cal, b0 = tracker.bodies[0];
+    const cal = this.cal, b0 = tracker.lead();
     this.ev.splice(0); this.B = this.body(now);
     const dt = Math.min(0.1, (now - (cal.last || now)) / 1000); cal.last = now;
     const D = this.calDirs()[cal.i], vec = (this.v3 && this.v3.lastVec) || [];
@@ -334,7 +334,7 @@ class Arena {
     else if (now - cal.st > 6500) next(null); // (étoile trop difficile : on passe)
   }
   endCal(now) {
-    const cal = this.cal, v = [...cal.vals].sort((a, b) => a - b), b0 = tracker.bodies[0];
+    const cal = this.cal, v = [...cal.vals].sort((a, b) => a - b), b0 = tracker.lead();
     const reach = v.length ? v[Math.floor(v.length / 2)] : 1.1;
     if (b0) b0.reachK = Math.max(0.7, Math.min(1.6, reach * 1.05)); // (un peu de marge : bras tendu = bord de la portée du jeu)
     const d = now - cal.t0; this.cal = null;
@@ -702,7 +702,7 @@ class Arena {
   up_balai(st, now, dt, B) {
     // position voulue : décalage du corps (ou pas de côté), hauteur selon les bras / l'accroupi
     let tx = B.st.side === 'left' ? -1 : B.st.side === 'right' ? 1 : 0;
-    const b = tracker.bodies[0];
+    const b = tracker.lead();
     if (B.real && b && b.calib && b.center && b.T) {
       // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté ;
       //  testé avec l'enfant virtuel qui se balade) + se pencher compte aussi (épaules décalées par rapport aux hanches)

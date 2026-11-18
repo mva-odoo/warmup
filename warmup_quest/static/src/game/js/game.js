@@ -719,11 +719,12 @@ function pauseGame(reason) {
   resumeHold = 0;
   Audio8.stopSpeech();
   Audio8.music(false); Audio8.theme(null);
-  $('pauseReason').textContent = reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : reason === 'gesture' ? '✖️ Bras croisés : pause' : '';
+  const one = reason === 'lost' && duo() && tracker.bodies.some((b) => b.state.present);
+  $('pauseReason').textContent = one ? '👀 Je ne vois plus qu\'un joueur : revenez à deux… ou lève les bras pour continuer seul' : reason === 'lost' ? '👀 Je ne te vois plus : pause automatique' : reason === 'gesture' ? '✖️ Bras croisés : pause' : '';
   $('pauseBar').style.width = '0%';
   show('lost', false);
   show('pause');
-  Audio8.say(reason === 'lost' ? 'Pause ! Reviens devant la caméra et lève les bras pour continuer.' : 'Pause !');
+  Audio8.say(one ? 'Pause ! Revenez à deux, ou lève les bras pour continuer tout seul.' : reason === 'lost' ? 'Pause ! Reviens devant la caméra et lève les bras pour continuer.' : 'Pause !');
 }
 
 function resumeGame() {
@@ -743,11 +744,13 @@ function resumeGame() {
 function updatePause(now) {
   // Reprise sans les mains : bras en l'air pendant 1,5 s
   const s = tracker.state;
-  if (s.present && s.armsUp) {
+  // À deux, si l'un est parti : l'autre lève les bras pour continuer seul (sinon la partie resterait bloquée)
+  const alone = duo() && !s.present && tracker.bodies.some((b) => b.state.present && b.state.armsUp);
+  if ((s.present && s.armsUp) || alone) {
     if (!resumeHold) resumeHold = now;
     const p = Math.min(1, (now - resumeHold) / 1500);
     $('pauseBar').style.width = p * 100 + '%';
-    if (p >= 1) resumeGame();
+    if (p >= 1) { if (alone) for (const b of tracker.bodies) if (!b.state.present) b.away = true; resumeGame(); }
   } else {
     resumeHold = 0;
     $('pauseBar').style.width = '0%';
@@ -1018,7 +1021,7 @@ class Game {
     } else if (s.m === 'act') {
       if (c.act) c.act.ev.push(type); // (traité dans updateAct)
     } else if (s.m === 'arena') {
-      if (idx === 0 || this.np === 1) arena.ev.push(type); // (traité par arena.js)
+      if (this.np === 1 || tracker.bodies[idx] === tracker.lead()) arena.ev.push(type); // (traité par arena.js ; à deux : le joueur que le sorcier imite)
     } else if (s.m === 'kick' && /^(kick|throw)[LR]$/.test(type)) {
       c.kickEv = { side: type.endsWith('L') ? -1 : 1, hand: type.startsWith('throw'), idx, t: now }; // (traité dans updateKick)
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
@@ -2623,7 +2626,7 @@ if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village
   const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
   const vk = !!DEV.get('vkid'); // (?vkid=1 : enfant virtuel à la place du clavier, voir vkid.js)
   if (w) { $('simToggle').checked = !vk; store('sim', !vk); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
-  if (DEV.get('duo')) WUQStore._set('duo', true); // (mode test) partie à deux
+  if (DEV.get('duo') || DEV.get('vkid2')) WUQStore._set('duo', true); // (mode test) partie à deux (?vkid2=1 : deux enfants virtuels)
   if (DEV.get('comp')) { const [id, xp] = DEV.get('comp').split(':'); WUQStore.setCompanion(0, { id, xp: Number(xp) || 0 }); } // (mode test) compagnon
   if (w && DEV.get('combo')) setTimeout(() => { if (game) { game.streak = 3 * Number(DEV.get('combo')); game.comboCheck(); } }, 9000); // (mode test)
   if (w && DEV.get('results')) setTimeout(() => { if (game) { game.score = 2600; game.collected = 14; game.finish(); } }, 7000); // (mode test) écran de fin
