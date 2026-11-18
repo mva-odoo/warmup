@@ -1,5 +1,30 @@
 [
 [
+"Échauffement magique ! Tends bien ton bras pour attraper l'étoile !",
+"jeu",
+false
+],
+[
+"Champion !",
+"jeu",
+false
+],
+[
+"Bravo !",
+"bravo",
+true
+],
+[
+"Presque ! La prochaine fois !",
+"jeu",
+false
+],
+[
+"Super, c'est parti !",
+"bravo",
+true
+],
+[
 "Super, le mur est passé !",
 "bravo",
 true
@@ -23,11 +48,6 @@ false
 "Je t'ai vu bouger !",
 "jeu",
 false
-],
-[
-"Bravo !",
-"bravo",
-true
 ],
 [
 "Touché !",

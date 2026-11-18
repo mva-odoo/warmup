@@ -141,7 +141,16 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   seul au modèle léger. Le modèle utilisé s'affiche sous la vignette caméra (img/s · GPU · full).
 - Chaque point du squelette est lissé par un filtre One-Euro : le tremblement est divisé par 2 à 3 environ au repos,
   pour une image de retard (≈ 33 ms) seulement sur un geste rapide.
-- Mode test : `?posemodel=lite|full` impose le modèle, `?nofilter=1` coupe le lissage (pour comparer).
+- Points 3D du squelette (en mètres, donnés par MediaPipe) : le petit sorcier des jeux miroir reprend la vraie direction
+  des bras et des jambes, profondeur comprise (mains jointes, bras tendus devant soi, genou levé).
+- Jeux miroir : on touche avec des **mains magiques** qui suivent la vraie main de l'enfant (épaule → main), à l'échelle
+  du jeu, reliées à la main du sorcier par un rayon ; un peu d'avance sur le mouvement pour réduire le retard.
+- **Échauffement magique** (au premier jeu miroir de la partie) : attraper 4 étoiles bras tendu mesure la portée de
+  l'enfant ; ensuite, bras tendu = bord de la zone de jeu, quelle que soit sa taille ou sa distance à la caméra.
+- **Aide à la visée** : une main qui s'approche d'un ingrédient ou d'un bonhomme de neige est attirée vers lui, et
+  l'objet visé grossit.
+- Mode test : `?posemodel=lite|full` impose le modèle, `?nofilter=1` coupe le lissage (pour comparer), `?nocal=1` saute
+  l'échauffement, `?nointro=1` l'entrée en scène, `?arena2d=1` les jeux miroir dessinés.
 
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en

@@ -51,18 +51,22 @@ class Arena {
     if (this.v3 && !DEV.get('nointro')) {
       const dur = 3300; this.intro = { t0: this.t0, dur, n: -1 };
       if (c) { c.start = (c.start || this.t0) + dur; c.end = (c.end || this.t0) + dur; }
-      Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250); document.body.classList.add('arenaIntro');
+      document.body.classList.add('arenaIntro');
+      // Première fois : « attrape les étoiles » pour mesurer jusqu'où l'enfant tend les bras (sa portée), avant le titre
+      const b0 = tracker.bodies[0];
+      if (b0 && !b0.reachK && !DEV.get('nocal')) { this.cal = { t0: this.t0, i: 0, on: 0, best: 0, vals: [], st: this.t0 }; Audio8.say('Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', { interrupt: true }); }
+      else { Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250); }
     }
     this.cv.classList.remove('hidden'); document.body.classList.add('arenaOn');
     const init = this['init_' + s.game]; if (init) init.call(this, this.st, this.t0);
   }
-  end() { if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
+  end() { if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
   // Pause : toutes les échéances du jeu sont décalées (murs, ordres, bonshommes, anneaux…)
   shift(d) {
     const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT']);
     const walk = (o, depth) => { if (!o || typeof o !== 'object' || depth > 3) return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'number' && keys.has(k) && v > 1000) o[k] = v + d; else if (typeof v === 'object') walk(v, depth + 1); } };
     walk(this.st, 0); this.lastT += d;
-    if (this.intro) this.intro.t0 += d; if (this.outro) this.outro.t0 += d; if (this.v3) this.v3.shift(d);
+    if (this.intro) this.intro.t0 += d; if (this.outro) this.outro.t0 += d; if (this.cal) { this.cal.t0 += d; this.cal.st += d; } if (this.v3) this.v3.shift(d);
   }
   ratio() { const st = this.st; if (!st) return 0; return st.ratio != null ? st.ratio : st.ok / Math.max(1, st.n); }
   detail() {
@@ -128,7 +132,7 @@ class Arena {
     return G;
   }
   hands(B) { return [B.J.handL, B.J.handR].filter((h) => h && (h.v == null || h.v > 0.3)); }
-  touching(B, x, y, r) { return this.hands(B).some((h) => Math.hypot(h.x - x, h.y - y) < r); }
+  touching(B, x, y, r) { const rr = this.v3 ? r * 1.25 : r; return this.hands(B).some((h) => Math.hypot(h.x - x, h.y - y) < rr); } // (3D : un peu plus généreux)
   // Pose demandée tenue ? (étoile : les bras suffisent quand on ne voit pas les jambes)
   poseOk(B, p) {
     const st = B.st;
@@ -139,6 +143,7 @@ class Arena {
 
   // ---------- Boucle
   update(now) {
+    if (DEV.get('a3state')) document.title = 'AS ' + JSON.stringify({ on: !!this.s, g: this.s && this.s.game, cal: this.cal && this.cal.i, intro: !!this.intro, outro: !!this.outro, over: this.st && this.st.over, ok: this.st && this.st.ok, phase, reach: tracker.bodies[0] && tracker.bodies[0].reachK });
     if (!this.s) return;
     if (this.outro) { // célébration de fin (3D)
       this.ev.splice(0); this.B = this.body(now);
@@ -146,6 +151,7 @@ class Arena {
       return;
     }
     if (this.st.over) return;
+    if (this.cal) { this.updateCal(now); return; }
     if (this.intro) { // entrée en scène : le sorcier imite déjà l'enfant, les règles attendent
       const it = this.intro, k = now - it.t0, n = k < 1400 ? -1 : Math.min(3, Math.floor((k - 1400) / 600));
       if (n !== it.n) { it.n = n; if (n >= 0 && n < 3) Audio8.tick(); else if (n === 3) Audio8.go(); }
@@ -159,6 +165,7 @@ class Arena {
     if (this.auto) this.autoPlay(now, evs);
     this.evs = evs;
     this.B = this.body(now);
+    this.assist(now);
     const up = this['up_' + this.s.game]; if (up) up.call(this, this.st, now, dt, this.B, evs);
   }
   has(evs, ...k) { return evs.some((e) => k.includes(e)); }
@@ -171,7 +178,8 @@ class Arena {
     if (this.v3) { // 3D : la scène est dessinée par le moteur du jeu ; ici, seulement les textes et les étincelles
       this.v3.render(this, now);
       ctx.clearRect(0, 0, W, H); ctx.save();
-      if (this.intro) this.hudIntro(now);
+      if (this.cal) this.hudCal(now);
+      else if (this.intro) this.hudIntro(now);
       else if (this.outro) this.hudOutro(now);
       else { const hud = this['hud_' + this.s.game]; if (hud) hud.call(this, this.st, now, B); if (this.introEnd && now - this.introEnd < 700) this.hudGo(now - this.introEnd); }
       this.drawFx(now); ctx.restore(); return;
@@ -276,6 +284,75 @@ class Arena {
       else if (f.k === 'txt') { ctx.globalAlpha = 1; this.text(f.txt, f.x, f.y - q * H * 0.06, H * 0.06 * (1 + 0.15 * Math.sin(q * Math.PI)), f.col, 1 - Math.max(0, q - 0.6) / 0.4); }
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ---------- Aide à la visée : une main qui s'approche d'un objet à toucher est attirée vers lui (et l'objet grossit)
+  targets() {
+    const st = this.st, g = this.s.game;
+    if (g === 'potions' && st.phase === 'pick') return (st.items || []).filter((it) => !it.taken && !it.bad && it.x != null).map((it) => ({ x: it.x, y: it.y, ref: it }));
+    if (g === 'neige') return (st.men || []).filter((m) => !m.hit && !m.gone && m.x != null && now0() - m.t0 > 300).map((m) => ({ x: m.x, y: m.y, ref: m }));
+    return [];
+  }
+  assist(now) {
+    const B = this.B; if (!B || !B.J) return;
+    const tg = this.targets(); if (!tg.length) return;
+    const R = B.T * (this.v3 ? 1.4 : 1.1);
+    for (const k of ['handL', 'handR']) {
+      const h = B.J[k]; if (!h) continue;
+      let best = null, bd = R;
+      for (const t of tg) { const d = Math.hypot(t.x - h.x, t.y - h.y); if (d < bd) { bd = d; best = t; } }
+      if (!best) continue;
+      const pull = 0.7 * Math.pow(1 - bd / R, 0.6);
+      B.J[k] = { ...h, x: h.x + (best.x - h.x) * pull, y: h.y + (best.y - h.y) * pull };
+      best.ref.aimT = now;
+    }
+    B.J.wL = B.J.handL; B.J.wR = B.J.handR;
+    if (this.v3) this.v3.setHands(B.J);
+  }
+
+  // ---------- « Attrape les étoiles » (une fois par partie) : mesure la portée des bras de l'enfant
+  // Une étoile à la fois (en haut à gauche, en haut à droite, à gauche, à droite) : on la prend en tendant le bras vers elle.
+  calDirs() { return [[-0.7, -0.7], [0.7, -0.7], [-1, 0.05], [1, 0.05]]; }
+  updateCal(now) {
+    const cal = this.cal, b0 = tracker.bodies[0];
+    this.ev.splice(0); this.B = this.body(now);
+    const dt = Math.min(0.1, (now - (cal.last || now)) / 1000); cal.last = now;
+    const D = this.calDirs()[cal.i], vec = (this.v3 && this.v3.lastVec) || [];
+    let hit = false;
+    if (tracker.sim) { if (now - cal.st > 700) { hit = true; cal.best = 1; } }
+    else for (const v of vec) {
+      if (!v) continue; const L = Math.hypot(v[0], v[1]); if (L < 0.55) continue;
+      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.8) { hit = true; cal.best = Math.max(cal.best, L); }
+    }
+    cal.on = hit ? cal.on + dt : Math.max(0, cal.on - dt * 2);
+    const next = (val) => {
+      if (val) { cal.vals.push(val); Audio8.coin(); const p = this.calStar(cal.i); this.burst(p.x, p.y, 30); if (this.v3) this.v3.react('win'); }
+      cal.i++; cal.on = 0; cal.best = 0; cal.st = now;
+      if (cal.i >= 4) this.endCal(now);
+    };
+    if (cal.on > 0.4) next(cal.best);
+    else if (now - cal.st > 6500) next(null); // (étoile trop difficile : on passe)
+  }
+  endCal(now) {
+    const cal = this.cal, v = [...cal.vals].sort((a, b) => a - b), b0 = tracker.bodies[0];
+    const reach = v.length ? v[Math.floor(v.length / 2)] : 1.1;
+    if (b0) b0.reachK = Math.max(0.7, Math.min(1.6, reach * 1.05)); // (un peu de marge : bras tendu = bord de la portée du jeu)
+    const d = now - cal.t0; this.cal = null;
+    if (this.c) { this.c.start += d; this.c.end += d; }
+    this.shift(d); this.lastT = now;
+    if (this.intro) this.intro.t0 = now; // (après le décalage : le titre commence maintenant)
+    Audio8.say('Super, c\'est parti !', { interrupt: true }); Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250);
+  }
+  calStar(i) { const B = this.B, D = this.calDirs()[i], n = Math.hypot(D[0], D[1]); return { x: B.sh.x + D[0] / n * B.T * 2.0, y: B.sh.y + D[1] / n * B.T * 2.0 }; }
+  hudCal(now) {
+    const cal = this.cal, W = this.W, H = this.H;
+    this.text('✨ Échauffement magique ✨', W / 2, H * 0.14, H * 0.06, '#ffd166');
+    for (let i = 0; i < 4; i++) {
+      const p = this.calStar(i), cur = i === cal.i, done = i < cal.i;
+      if (cur) { this.ring(p.x, p.y, this.B.T * 0.55, cal.on / 0.4, '#b8f2a1', 0.01); this.emo('⭐', p.x, p.y, this.B.T * (0.75 + 0.1 * Math.sin(now / 150))); }
+      else this.emo(done ? '✅' : '⭐', p.x, p.y, this.B.T * (done ? 0.45 : 0.4), 0, done ? 1 : 0.35);
+    }
+    this.pill(['↖️ Tends le bras vers l\'étoile, en haut !', '↗️ Et l\'autre étoile, en haut !', '⬅️ Tends le bras sur le côté !', 'Et de l\'autre côté ! ➡️'][cal.i] || '', '#ffffff');
   }
 
   // ---------- L'enfant imaginaire (mode test) : fait ce que le jeu demande, avec un temps de réaction
@@ -465,7 +542,8 @@ class Arena {
     const bag = [...AR_INGREDIENTS].sort(() => Math.random() - 0.5);
     st.recipe = bag.slice(0, 3).map(([e, n]) => ({ e, n, got: false }));
     const extra = bag.slice(3, 5).map(([e, n]) => ({ e, n, bad: true }));
-    const spots = [[-2.1, -0.6], [2.1, -0.6], [-2.4, 0.7], [2.4, 0.7], [0, -1.7]].sort(() => Math.random() - 0.5);
+    // (3D : en arc autour du haut du corps, à portée des mains magiques, jamais derrière le chaudron à droite)
+    const spots = (this.v3 ? [[-1.9, -0.3], [-1.6, 0.9], [1.9, -0.6], [-1.5, -1.6], [1.5, -1.7]] : [[-2.1, -0.6], [2.1, -0.6], [-2.4, 0.7], [2.4, 0.7], [0, -1.7]]).sort(() => Math.random() - 0.5);
     st.items = [...st.recipe.map((r) => ({ ...r, ref: r })), ...extra].map((it, i) => ({ ...it, spot: spots[i], wob: 0, seed: Math.random() * 6 }));
     st.phase = 'pick'; st.stir = 0; st.ang = null; st.flying = [];
   }
@@ -726,65 +804,89 @@ class Arena {
   // ======================= Interface par-dessus la 3D (textes, chronos, recette) =======================
   bar(k, y, col = '#ffd166') { const ctx = this.ctx, W = this.W, H = this.H; ctx.fillStyle = 'rgba(30,27,75,.55)'; ctx.beginPath(); ctx.roundRect(W * 0.25, y, W * 0.5, H * 0.018, H * 0.009); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(W * 0.25, y, Math.max(H * 0.018, W * 0.5 * Math.max(0, Math.min(1, k))), H * 0.018, H * 0.009); ctx.fill(); }
   ring(x, y, r, k, col = '#ffd166', w = 0.012) { const ctx = this.ctx; ctx.lineCap = 'round'; ctx.lineWidth = this.H * w; ctx.strokeStyle = 'rgba(30,27,75,.45)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.29); ctx.stroke(); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.max(0, k) * 6.29); ctx.stroke(); }
+  // Consigne permanente en bas de l'écran : grosse pastille (icône ou dessin de la pose + texte court)
+  pill(text, col = '#ffffff', pose = null) {
+    const ctx = this.ctx, W = this.W, H = this.H, h = H * 0.095, y = H * 0.885;
+    ctx.save(); ctx.font = `800 ${H * 0.048}px 'Baloo 2', system-ui, sans-serif`;
+    const tw = ctx.measureText(text).width, pw = pose ? h * 1.05 : 0, w = Math.min(W * 0.92, tw + pw + H * 0.07);
+    ctx.fillStyle = 'rgba(30,20,80,.82)'; ctx.strokeStyle = 'rgba(255,209,102,.9)'; ctx.lineWidth = H * 0.005;
+    ctx.beginPath(); ctx.roundRect(W / 2 - w / 2, y - h / 2, w, h, h / 2); ctx.fill(); ctx.stroke();
+    if (pose) {
+      this.pc = this.pc || Object.assign(document.createElement('canvas'), { width: 150, height: 150 });
+      const pc = this.pc.getContext('2d'); drawPicto(pc, 150, 150, pose, performance.now());
+      ctx.fillStyle = '#fff8e7'; ctx.beginPath(); ctx.arc(W / 2 - w / 2 + h * 0.55, y, h * 0.44, 0, 6.29); ctx.fill();
+      ctx.drawImage(this.pc, W / 2 - w / 2 + h * 0.1, y - h * 0.45, h * 0.9, h * 0.9);
+    }
+    ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, W / 2 + pw / 2, y + H * 0.004, w - pw - H * 0.04);
+    ctx.restore();
+  }
+  posePicto(p) { return p === 'squat' ? { m: 'squat' } : p === 'left' || p === 'right' ? { m: p } : { m: 'pose', pose: p }; }
   hud_mur(st, now) {
-    const w = st.wall, W = this.W, H = this.H;
-    if (!w) { if (st.k < st.n) this.text(`Mur ${st.k + 1} / ${st.n}`, W / 2, H * 0.9, H * 0.05, '#ffd166'); return; }
-    this.text((w.match ? '✅ ' : '👀 ') + AR_POSE_NAMES[w.pose], W / 2, H * 0.9, H * 0.06, w.match ? '#b8f2a1' : '#ffd166');
+    const w = st.wall;
+    if (!w) { if (st.k < st.n) this.pill(`Mur ${st.k + 1} / ${st.n} : regarde le trou !`, '#ffd166'); return; }
+    this.pill((w.match ? '✅ Parfait, garde la pose : ' : 'Fais la pose du trou : ') + AR_POSE_NAMES[w.pose], w.match ? '#b8f2a1' : '#ffd166', this.posePicto(w.pose));
   }
   hud_soleil(st, now) {
     const W = this.W, H = this.H, look = st.phase === 'regarde';
     if (look) { this.ctx.fillStyle = `rgba(255,80,80,${0.1 + 0.05 * Math.sin(now / 90)})`; this.ctx.fillRect(0, 0, W, H); }
     this.text(look ? '🗿 STATUE !' : st.phase === 'dos' ? '🏃 COURS !' : 'Prêt ?', W / 2, H * 0.2, H * 0.085, look ? '#ff8fab' : '#b8f2a1');
-    this.bar(st.prog, H * 0.84, '#ffd166'); this.emo('🧙', W * 0.25 + W * 0.5 * st.prog, H * 0.815, H * 0.05); this.emo('☁️', W * 0.77, H * 0.845, H * 0.05);
+    this.bar(st.prog, H * 0.78, '#ffd166'); this.emo('🧙', W * 0.25 + W * 0.5 * st.prog, H * 0.755, H * 0.05); this.emo('☁️', W * 0.77, H * 0.785, H * 0.05);
+    this.pill(look ? 'Il te regarde : ne bouge plus du tout !' : 'Cours sur place pour avancer vers le nuage', look ? '#ff8fab' : '#ffffff');
   }
   hud_pimprenelle(st, now) {
     const W = this.W, H = this.H, c = st.cur;
     if (c) {
-      this.bubble(W * 0.5, H * 0.88, W * 0.64, H * 0.09, (c.simon ? '🦉 Pimprenelle a dit : ' : '') + c.o.no.replace(' !', '') + ' ' + c.o.icon, H * 0.045);
-      this.bar(1 - Math.min(1, (now - c.t0) / c.win), H * 0.8);
+      this.bubble(W * 0.5, H * 0.2, W * 0.64, H * 0.09, (c.simon ? '🦉 Pimprenelle a dit : ' : '🦉 ') + c.o.no.replace(' !', '') + ' ' + c.o.icon, H * 0.045);
+      this.bar(1 - Math.min(1, (now - c.t0) / c.win), H * 0.265);
     }
-    if (st.res && now - st.res.t < 1200) this.text(st.res.good ? '✅ Bravo !' : '😜 Piégé !', W / 2, H * 0.22, H * 0.08, st.res.good ? '#b8f2a1' : '#ff8fab');
+    if (st.res && now - st.res.t < 1200) this.text(st.res.good ? '✅ Bravo !' : '😜 Piégé !', W / 2, H * 0.4, H * 0.08, st.res.good ? '#b8f2a1' : '#ff8fab');
+    this.pill('Fais-le seulement si elle dit « Pimprenelle a dit » !', '#ffffff');
   }
-  hud_neige(st, now, B) {
+  hud_neige(st, now) {
     for (const m of st.men) if (!m.hit && !m.gone && m.x != null && now - m.t0 > 300) { const p = this.v3.slotXY(m.slot, 2.0); this.ring(p.x, p.y, this.H * 0.025, 1 - (now - m.t0) / m.life, '#ffd166', 0.008); }
-    if (st.balls.length === 0 && st.ok === 0 && now - this.t0 < 9000) this.text('☝️ Lève le bras… et lance !', this.W / 2, this.H * 0.9, this.H * 0.05, '#ffd166');
+    this.pill('☝️ Lève le bras, puis lance-le vers un bonhomme !', '#ffffff');
   }
   hud_potions(st, now) {
     const ctx = this.ctx, W = this.W, H = this.H;
     ctx.fillStyle = 'rgba(255,250,240,.94)'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = H * 0.006; ctx.beginPath(); ctx.roundRect(W * 0.02, H * 0.3, W * 0.12, H * 0.42, H * 0.03); ctx.fill(); ctx.stroke();
     this.emo('📜', W * 0.08, H * 0.35, H * 0.045);
     st.recipe.forEach((r, i) => { const y = H * (0.45 + i * 0.09); this.emo(r.e, W * 0.07, y, H * 0.06, 0, r.got ? 0.4 : 1); if (r.got) this.emo('✅', W * 0.11, y, H * 0.035); });
-    if (st.phase === 'stir') { const p = this.v3.potXY(), k = Math.min(1, st.stir / (4 * Math.PI)); this.ring(p.x, p.y, H * 0.1, k); this.text('🌀 Touille !', W / 2, H * 0.2, H * 0.07, '#ffd166'); }
-    else this.text('✋ Touche les ingrédients de la recette', W / 2, H * 0.92, H * 0.042, '#ffffff');
+    if (st.phase === 'stir') { const p = this.v3.potXY(), k = Math.min(1, st.stir / (4 * Math.PI)); this.ring(p.x, p.y, H * 0.08, k); this.text('🌀 Touille !', W / 2, H * 0.2, H * 0.07, '#ffd166'); this.pill('Fais de grands cercles avec ton bras 🔄', '#ffd166'); }
+    else this.pill('✋ Touche avec ta main : ' + st.recipe.filter((r) => !r.got).map((r) => r.e).join(' '), '#ffffff');
   }
   hud_duel(st, now, B) {
     const W = this.W, H = this.H, g = this.v3.grimXY();
     for (let i = 0; i < st.n; i++) this.emo(i < st.hp ? '💜' : '🤍', g.x + (i - (st.n - 1) / 2) * H * 0.045, g.y, H * 0.038);
     this.text('Grimaud', g.x, g.y - H * 0.05, H * 0.035, '#e0c3fc');
-    if (st.phase === 'charge') this.text('⚠️ Attention…', W / 2, H * 0.88, H * 0.07, '#ffd166');
-    if (st.phase === 'cast') this.text(st.kind === 'shield' ? '🙏 Mains jointes !' : '↔️ Pas de côté !', W / 2, H * 0.88, H * 0.08, st.safe ? '#b8f2a1' : '#ffd166');
-    if (st.phase === 'counter') this.text('🙌 À toi : bras levés !', W / 2, H * 0.88, H * 0.08, '#ffd166');
+    if (st.phase === 'charge') this.pill('⚠️ Attention, Grimaud prépare un sort…', '#ffd166');
+    else if (st.phase === 'cast') this.pill(st.kind === 'shield' ? '🙏 Bouclier : joins tes mains devant toi !' : '↔️ Esquive : fais un pas de côté !', st.safe ? '#b8f2a1' : '#ffd166', st.kind === 'shield' ? null : { m: 'fork' });
+    else if (st.phase === 'counter') this.pill('🙌 À toi : lève les deux bras pour lancer ton sort !', '#ffd166', { m: 'pose', pose: 'armsUp' });
+    else this.pill('Regarde Grimaud…', '#ffffff');
     if (st.hurt && now - st.hurt < 400) { this.ctx.fillStyle = `rgba(255,77,109,${0.3 * (1 - (now - st.hurt) / 400)})`; this.ctx.fillRect(0, 0, W, H); }
   }
   hud_corde(st, now) {
     const strong = now - st.burst < 1100;
     this.text(strong ? '💨 Il tire fort !' : '💪 Tire !', this.W / 2, this.H * 0.2, this.H * 0.075, strong ? '#ff8fab' : '#b8f2a1');
-    this.bar(st.ratio, this.H * 0.84, '#c77dff');
+    this.bar(st.ratio, this.H * 0.78, '#c77dff');
+    this.pill('Bouge les bras très vite pour tirer la corde !', '#ffffff');
   }
   hud_equilibre(st) {
-    const W = this.W, H = this.H;
-    if (st.gust) this.text('💨 Le vent ! Bras ouverts !', W / 2, H * 0.2, H * 0.07, '#bde0fe');
-    else this.text(tracker.mode === 'upper' ? '✈️ Bras ouverts' : '🦩 Sur un pied', W / 2, H * 0.2, H * 0.065, st.ok2 ? '#b8f2a1' : '#ffd166');
-    this.bar(st.ratio, H * 0.84, '#b8f2a1');
+    const W = this.W, H = this.H, up = tracker.mode === 'upper';
+    if (st.gust) this.text('💨 Le vent !', W / 2, H * 0.2, H * 0.08, '#bde0fe');
+    this.bar(st.ratio, H * 0.78, '#b8f2a1');
+    this.pill(st.gust ? 'Ouvre grand les bras pour ne pas tomber !' : up ? 'Garde les bras ouverts' : 'Tiens sur un pied', st.ok2 ? '#b8f2a1' : '#ffd166', st.gust || up ? { m: 'pose', pose: 'airplane' } : { m: 'pose', pose: 'flamingo' });
   }
   hud_balai(st, now) {
-    if (now - this.t0 < 6000) this.text('Penche-toi · 🙌 monter · accroupi : descendre', this.W / 2, this.H * 0.92, this.H * 0.04, '#ffffff');
+    const r = (st.rings || []).find((x) => !x.res);
+    const t = !r ? 'Prépare-toi…' : r.gx < 0 ? '⬅️ Penche-toi à gauche' : r.gx > 0 ? 'Penche-toi à droite ➡️' : '⬆️ Reste au milieu';
+    this.pill(t + (r && r.gy < 0 ? ' · 🙌 bras levés' : r && r.gy > 0 ? ' · accroupi' : ''), '#ffffff');
   }
   hud_photo(st, now) {
     const ctx = this.ctx, W = this.W, H = this.H;
     if (st.count) { const k = 3 - Math.floor((now - st.count) / 1000); if (k > 0) this.text(String(k), W / 2, H * 0.45, H * 0.3, '#ffd166', 0.9); }
-    else if (st.k < st.n) this.text('Fais ta pose la plus rigolote !', W / 2, H * 0.9, H * 0.05, '#ffd166');
+    else if (st.k < st.n) this.pill('📸 Fais ta pose la plus rigolote !', '#ffd166');
     if (st.flash && now - st.flash < 400) { ctx.fillStyle = `rgba(255,255,255,${1 - (now - st.flash) / 400})`; ctx.fillRect(0, 0, W, H); }
   }
 }
+const now0 = () => performance.now();
 const arena = new Arena();

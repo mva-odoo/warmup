@@ -10,6 +10,9 @@ const A3_MODELS = ['holiday/snowman', 'holiday/snowman-hat', 'holiday/tree-snow-
   'kenney/mushroom_redGroup', 'kenney/rock_largeA', 'kenney/plant_bushLarge', 'custom/castle', 'castle/flag-banner-long', 'pets/animal-chick', 'pets/animal-bunny'];
 const A3_GRIMAUD = { model: 'kk-hood', hat: 'none', glasses: false, back: 'none', color: '#5a189a' };
 const A3_H = 2; // taille du petit sorcier (unités 3D)
+// Mains magiques : bras de l'enfant tendu (≈ 1,1 torse) -> 1,9 « torse du jeu » depuis l'épaule du sorcier (ses bras à lui sont courts)
+const A3_REACH = 1.9; // (portée du jeu, bras tendu, en « torses du jeu » ; la portée de l'enfant est mesurée par les étoiles)
+const A3_NOSHADOW = { castShadow: false };
 // Décor de chaque jeu, et plan de caméra : de face (miroir) ou de dos (course vers le nuage, balai)
 const A3_GAMES = {
   mur: { room: 'corridor' }, soleil: { room: 'meadow', back: true }, pimprenelle: { room: 'hall' }, neige: { room: 'snow' },
@@ -84,7 +87,7 @@ class Arena3D {
   mat(c, o) { return this.S.lam(c, o); }
   add(parent, geo, c, x, y, z, sx = 1, sy = sx, sz = sx, o) {
     const T = this.T, m = new T.Mesh(geo, o && o.basic ? new T.MeshBasicMaterial({ color: c, ...o.basic }) : this.mat(c, o));
-    m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = m.receiveShadow = true; parent.add(m); return m;
+    m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = !!(o && o.shadow); m.receiveShadow = true; parent.add(m); return m;
   }
   geo(g) { this.own.push(g); return g; }
   get G() {
@@ -96,7 +99,7 @@ class Arena3D {
     const m = this.S.P.model(key); if (!m) return null;
     const T = this.T, sz = new T.Box3().setFromObject(m).getSize(new T.Vector3());
     m.scale.multiplyScalar(h / Math.max(0.01, sz.y)); m.position.set(x, y, z); m.rotation.y = ry;
-    m.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); parent.add(m); return m;
+    const cast = parent !== this.scene || h < 1.6; m.traverse((o) => { if (o.isMesh) { o.castShadow = cast; o.receiveShadow = true; } }); parent.add(m); return m;
   }
   tex(w, h, draw, rx = 1, ry = 1) {
     const T = this.T, c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
@@ -123,17 +126,21 @@ class Arena3D {
   sky(scene, stops) {
     scene.background = this.tex(2, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); stops.forEach(([k, c]) => g.addColorStop(k, c)); x.fillStyle = g; x.fillRect(0, 0, w, h); });
   }
-  glowMat(c, op = 1) { return new this.T.SpriteMaterial({ map: this.glowTex, color: c, blending: this.T.AdditiveBlending, depthWrite: false, transparent: true, opacity: op }); }
+  glowMat(c, op = 1, shared = false) {
+    if (shared) { this.gm = this.gm || new Map(); const k = c + op; if (!this.gm.has(k)) this.gm.set(k, this.glowMat(c, op)); return this.gm.get(k); }
+    return new this.T.SpriteMaterial({ map: this.glowTex, color: c, blending: this.T.AdditiveBlending, depthWrite: false, transparent: true, opacity: op });
+  }
   glow(c, size, op = 1) { const s = new this.T.Sprite(this.glowMat(c, op)); s.scale.setScalar(size); return s; }
 
   // Petites particules 3D : étincelles (sprites lumineux) ou morceaux (neige, briques)
   burst(pos, n = 24, opts = {}) {
     const T = this.T, cols = opts.cols || ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2', '#b8f2a1'], now = performance.now();
+    if (this.parts.length > 260) n = Math.min(n, 4); // (déjà beaucoup d'étincelles : on reste léger)
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.3) * Math.PI * 0.6, sp = (opts.speed || 3) * (0.4 + Math.random() * 0.8);
       let o;
       if (opts.chunk) { o = new T.Mesh(opts.chunk === 'box' ? this.G.box : this.G.ball, this.mat(cols[i % cols.length])); o.scale.setScalar((opts.size || 0.12) * (0.6 + Math.random() * 0.8)); o.castShadow = true; }
-      else { o = new T.Sprite(this.glowMat(cols[i % cols.length])); o.scale.setScalar((opts.size || 0.22) * (0.6 + Math.random() * 0.8)); }
+      else { o = new T.Sprite(this.glowMat(cols[i % cols.length], 1, true)); o.scale.setScalar((opts.size || 0.22) * (0.6 + Math.random() * 0.8)); }
       o.position.copy(pos); this.scene.add(o);
       this.parts.push({ o, v: new T.Vector3(Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp + (opts.up || 1.5), Math.sin(a) * Math.cos(e) * sp * 0.6), t0: now, life: opts.life || 900, g: opts.grav ?? 4, s0: o.scale.x, spin: opts.chunk ? (Math.random() - 0.5) * 12 : 0 });
     }
@@ -141,7 +148,7 @@ class Arena3D {
   updateParts(now, dt) {
     this.parts = this.parts.filter((p) => {
       const k = (now - p.t0) / p.life;
-      if (k >= 1) { this.scene.remove(p.o); if (p.o.isSprite) p.o.material.dispose(); return false; }
+      if (k >= 1) { this.scene.remove(p.o); return false; }
       p.v.y -= p.g * dt; p.o.position.addScaledVector(p.v, dt);
       if (p.o.position.y < 0.02 && p.spin) { p.o.position.y = 0.02; p.v.multiplyScalar(0.5); p.v.y = Math.abs(p.v.y) * 0.3; }
       if (p.spin) { p.o.rotation.x += p.spin * dt; p.o.rotation.z += p.spin * dt * 0.7; }
@@ -212,20 +219,20 @@ class Arena3D {
     const b = tracker.bodies[0], real = !tracker.sim && b && b.lm && b.state.present, M = this.M;
     let limbs;
     let unit = 1; // (longueur d'un torse, dans l'unité des directions)
-    if (real) { limbs = A.g.limbsOf(b, 0); unit = b.T || 0.25; }
+    if (real) { limbs = A.g.limbsOf(b, 0); unit = b.T || 0.25; const w3 = this.worldLimbs(b); if (w3) limbs = { ...limbs, ...w3 }; }
     else { // (clavier / enfant imaginaire : la forme du petit sorcier dessiné, en directions)
       const G = A.simShape(now, st), d = (a, z) => (G[a] && G[z] ? [-(G[z][0] - G[a][0]), -(G[z][1] - G[a][1])] : null);
       limbs = { 'arm-left': d('sL', 'wL'), 'arm-right': d('sR', 'wR'), 'leg-left': st.squat ? null : d('hL', 'aL'), 'leg-right': st.squat ? null : d('hR', 'aR') };
     }
     // Profondeur des bras : un bras qui paraît court à l'écran est tendu vers la caméra (mains jointes, bras devant soi)
     if (limbs) for (const k of ['arm-left', 'arm-right']) {
-      const d = limbs[k]; if (!d) continue;
+      const d = limbs[k]; if (!d || d.length === 3) continue; // (direction 3D déjà connue)
       const l = Math.min(1, Math.hypot(d[0], d[1]) / (1.05 * unit)), n = Math.hypot(d[0], d[1]) || 1;
       const z = l > 0.88 ? 0.1 : Math.max(0.1, Math.sqrt(1 - l * l)); limbs[k] = [d[0] / n * l, d[1] / n * l, z];
     }
     // jambes : genou levé vers la caméra (flamant) ; au clavier, la jambe droite se lève
     if (limbs) for (const k of ['leg-left', 'leg-right']) {
-      const d = limbs[k]; if (!d) continue;
+      const d = limbs[k]; if (!d || d.length === 3) continue;
       const l = Math.min(1, Math.hypot(d[0], d[1]) / (1.5 * unit)), n = Math.hypot(d[0], d[1]) || 1;
       limbs[k] = [d[0] / n * l, d[1] / n * l, l > 0.8 ? 0.04 : Math.sqrt(1 - l * l)];
     }
@@ -262,12 +269,73 @@ class Arena3D {
     const J = { sL: wp(sw('arm-left')), sR: wp(sw('arm-right')), hL: wp(sw('leg-left')), hR: wp(sw('leg-right')), handL: hs(sw('arm-left')), handR: hs(sw('arm-right')) };
     const head = r.bones.head ? r.bones.head.getWorldPosition(new T.Vector3()) : null;
     J.nose = head ? this.toScreen(head.add(new T.Vector3(0, M.headR * 0.8, 0))) : J.sL;
-    J.wL = J.handL; J.wR = J.handR;
-    this.hand3 = [this.handPos(sw('arm-left')), this.handPos(sw('arm-right'))];
     const sh = J.sL && J.sR ? { x: (J.sL.x + J.sR.x) / 2, y: (J.sL.y + J.sR.y) / 2 } : { x: A.W / 2, y: A.H / 2 };
     // (unité des règles : comme le torse du petit sorcier dessiné, calée sur la longueur des bras)
     const Tpx = (M.arm / 1.1) * this.ppu(this.av.group.position.z);
+    // Mains magiques : là où l'enfant tend VRAIMENT la main (vecteur épaule -> main, à l'échelle du jeu), au bout du bras du
+    // sorcier ; c'est avec elles qu'on touche. Les bras du sorcier sont courts : sans ça, impossible d'atteindre les objets.
+    this.avHand3 = [this.handPos(sw('arm-left')), this.handPos(sw('arm-right'))];
+    if (!this.cfg.back) {
+      const vec = this.handVecs(A, now, st, b, real), k = A3_REACH / ((b && b.reachK) || (real ? 1.1 : 1));
+      this.lastVec = vec;
+      [['handL', 'sL', 0], ['handR', 'sR', 1]].forEach(([hk, sk, i]) => {
+        const v = vec[i], s0 = J[sk]; if (!v || !s0) { J[hk] = null; return; }
+        // (un peu d'avance sur le mouvement : la main magique paraît moins en retard)
+        const pv = this.prevVec && this.prevVec[i], lead = real && pv ? 0.6 : 0;
+        const vx = v[0] + (pv ? (v[0] - pv[0]) * lead : 0), vy = v[1] + (pv ? (v[1] - pv[1]) * lead : 0);
+        J[hk] = { x: s0.x + vx * Tpx * k, y: s0.y + vy * Tpx * k, v: 1 };
+      });
+      this.prevVec = vec;
+      this.setHands(J);
+    } else this.hand3 = this.avHand3;
+    J.wL = J.handL; J.wR = J.handR;
+    if (DEV.get('a3dbg')) document.title = 'A3 ' + JSON.stringify({ M, Tpx: Math.round(Tpx), sh: [Math.round(J.sL.x), Math.round(J.sR.x), Math.round(J.sL.y)], hand: J.handL && [Math.round(J.handL.x), Math.round(J.handL.y)], head: [Math.round(J.nose.x), Math.round(J.nose.y)], W: A.W, H: A.H, fps: Math.round(1000 / (this.S.frameMs || 16)) });
     return { J, sh, T: Tpx, st, motion: real ? b.motion || 0 : st.wave ? 0.08 : 0, real: !!real };
+  }
+
+  setHands(J) { this.hand3 = [J.handL, J.handR].map((h) => (h ? this.toWorld(h.x, h.y, 0.45) : null)); }
+  // Directions 3D des membres (points du monde de MediaPipe, en mètres) : x vers la droite de l'écran en miroir, y en haut,
+  // z vers la caméra. Bien plus juste que de deviner la profondeur à partir de la longueur à l'écran.
+  worldLimbs(b) {
+    const w = b.wlm, lm = b.lm; if (!w || !lm || w.length < 29) return null;
+    const vis = (k) => (lm[k].visibility ?? 1) > 0.4;
+    const dir = (a, z, z2) => {
+      const e = vis(z) ? z : vis(z2) ? z2 : null; if (!vis(a) || e == null) return null;
+      const v = [-(w[e].x - w[a].x), -(w[e].y - w[a].y), -(w[e].z - w[a].z)], n = Math.hypot(v[0], v[1], v[2]) || 1;
+      return [v[0] / n, v[1] / n, Math.max(-0.35, v[2] / n)];
+    };
+    const out = { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14) };
+    if (tracker.mode !== 'upper') { out['leg-left'] = dir(23, 27, 25); out['leg-right'] = dir(24, 28, 26); }
+    for (const k of Object.keys(out)) if (!out[k]) delete out[k];
+    return out;
+  }
+  // Vecteur épaule -> main de l'enfant (en longueurs de torse, x vers la droite de l'écran en miroir, y vers le bas)
+  handVecs(A, now, st, b, real) {
+    if (real) {
+      const lm = b.lm, T = b.T || 0.25, vis = (k) => (lm[k].visibility ?? 1);
+      return [[11, 15, 19], [12, 16, 20]].map(([s0, w, f]) => {
+        const i = vis(f) > vis(w) ? f : w; if (vis(i) < 0.35 || vis(s0) < 0.3) return null;
+        return [-(lm[i].x - lm[s0].x) * camAspect() / T, (lm[i].y - lm[s0].y) / T];
+      });
+    }
+    const G = A.simShape(now, st);
+    return [['sL', 'wL'], ['sR', 'wR']].map(([a, z]) => [-(G[z][0] - G[a][0]), G[z][1] - G[a][1]]);
+  }
+  // Rayon magique entre la main du sorcier et sa main magique
+  beams(now) {
+    const T = this.T;
+    if (!this.beamM) {
+      this.beamGeo = this.geo(new T.CylinderGeometry(1, 1, 1, 6, 1, true));
+      this.beamM = [0, 1].map(() => { const m = new T.Mesh(this.beamGeo, new T.MeshBasicMaterial({ color: '#ffe8a3', transparent: true, opacity: 0.45, blending: T.AdditiveBlending, depthWrite: false })); m.userData.noOutline = true; this.scene.add(m); return m; });
+    }
+    this.beamM.forEach((m, i) => {
+      const a = this.avHand3 && this.avHand3[i], b = this.hand3 && this.hand3[i], B = this.A.B, hs = B && B.J && (i ? B.J.handR : B.J.handL);
+      const low = hs && B.J.hL && hs.y > B.J.hL.y; // (bras baissé : pas de rayon, il traverserait le sol)
+      m.visible = !!(a && b && !this.cfg.back && !low); if (!m.visible) return;
+      const d = b.clone().sub(a), L = d.length(); if (L < 0.05) { m.visible = false; return; }
+      m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(0.035, L, 0.035);
+      m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); m.material.opacity = 0.35 + 0.15 * Math.sin(now / 90 + i);
+    });
   }
 
   // ---------- Image
@@ -281,12 +349,24 @@ class Arena3D {
     const sync = this['sync3_' + this.game]; if (sync) sync.call(this, A.st, now, dt, B);
     // mains lumineuses (pas pendant le balai ni la course vers le nuage : on voit le sorcier de dos)
     const showGlow = !this.cfg.back && B && this.hand3;
-    this.glows.forEach((g, i) => { g.visible = !!(showGlow && this.hand3[i]); if (g.visible) { g.position.copy(this.hand3[i]); g.scale.setScalar(0.5 + 0.06 * Math.sin(now / 120 + i)); } });
-    if (showGlow && Math.random() < 0.35) { const h = this.hand3[Math.random() < 0.5 ? 0 : 1]; if (h) this.burst(h, 1, { cols: ['#fff3b0', '#ffd166'], speed: 0.4, up: 0.6, grav: -0.5, size: 0.1, life: 600 }); }
+    const hipY = B && B.J && B.J.hL ? B.J.hL.y : this.A.H;
+    this.glows.forEach((g, i) => {
+      const h = showGlow && this.hand3[i], hs = B && B.J && (i ? B.J.handR : B.J.handL); g.visible = !!h; if (!h) return;
+      const low = hs && hs.y > hipY; g.visible = !low; if (low) return; g.position.copy(h); g.scale.setScalar(0.6 + 0.06 * Math.sin(now / 120 + i));
+    });
+    if (showGlow) this.beams(now); else if (this.beamM) this.beamM.forEach((m) => (m.visible = false));
+    if (showGlow && Math.random() < 0.2) { const h = this.hand3[Math.random() < 0.5 ? 0 : 1]; if (h) this.burst(h, 1, { cols: ['#fff3b0', '#ffd166'], speed: 0.4, up: 0.6, grav: -0.5, size: 0.1, life: 600 }); }
+    // Fluidité : si les images arrivent trop lentement, on coupe les effets d'image, puis on baisse la qualité du jeu
+    this.ft = (this.ft || 16) * 0.92 + Math.min(100, dt * 1000) * 0.08;
+    if (!A.intro && now - (this.qCheck || (this.qCheck = now)) > 2500) {
+      if (this.ft > 26) { if (!this.noFx && S.Q && S.Q.fx) { this.noFx = true; console.info('Jeux miroir : effets d\'image coupés'); } else if (S.qualityAuto) { const nx = QUALITY_ORDER[QUALITY_ORDER.indexOf(S.quality) + 1]; if (nx) { S.setQuality(nx); if (this.sun) this.sun.castShadow = !!S.Q.shadows; } } }
+      this.qCheck = now;
+    }
+    S.frameMs = this.ft;
     for (const a of this.anims) a(now, dt);
     this.updateParts(now, dt);
     // effets d'image du jeu (trait d'encre, halo lumineux, couleurs) si le PC suit ; sinon contours simples
-    const fx = S.composer && S.renderPass && S.Q && S.Q.fx && (typeof store !== 'function' || store('effects') !== false);
+    const fx = !this.noFx && S.composer && S.renderPass && S.Q && S.Q.fx && (typeof store !== 'function' || store('effects') !== false);
     if (fx) {
       const rp = S.renderPass, oc = rp.camera; rp.scene = this.scene; rp.camera = this.cam; if (S.outlineMat) S.outlineMat.visible = false;
       try { S.composer.render(); } finally { rp.camera = oc; }
@@ -295,10 +375,10 @@ class Arena3D {
   // Caméra : survol du décor à l'entrée, plan rapproché à la fin, secousses et coups de zoom
   camFx(A, now) {
     const T = this.T, c = this.cam, av = this.av.group.position;
-    if (A.intro) {
-      const k = Math.min(1, (now - A.intro.t0) / 1900), e = k * k * (3 - 2 * k), ang = (1 - e) * 1.1;
+    if (A.intro && !A.cal) {
+      const k = Math.min(1, (now - A.intro.t0) / 1900), e = k * k * (3 - 2 * k), ang = (1 - e) * 0.7;
       const base = c.position.clone(), look = this.camL.clone(), rel = base.clone().sub(look);
-      const r = rel.length() * (1 + (1 - e) * 1.6), from = new T.Vector3(Math.sin(ang) * r, rel.y + (1 - e) * 6, Math.cos(ang) * r);
+      const r = rel.length() * (1 + (1 - e) * 0.7), from = new T.Vector3(Math.sin(ang) * r, rel.y + (1 - e) * 3.5, Math.cos(ang) * r);
       c.position.copy(look.clone().add(from)); c.lookAt(look);
     }
     if (A.outro) { // la caméra vient devant le sorcier
@@ -347,7 +427,7 @@ class Arena3D {
     }, 40);
     // tapis rouge bordé d'or jusqu'au fond
     const carpet = this.tex(64, 256, (x, w, h) => { x.fillStyle = '#9d0208'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffd166'; x.fillRect(0, 0, 6, h); x.fillRect(w - 6, 0, 6, h); x.fillStyle = 'rgba(255,209,102,.35)'; for (let y = 16; y < h; y += 64) { x.beginPath(); x.moveTo(w / 2, y); x.lineTo(w / 2 + 10, y + 16); x.lineTo(w / 2, y + 32); x.lineTo(w / 2 - 10, y + 16); x.fill(); } }, 1, 6);
-    const cp = new T.Mesh(this.geo(new T.PlaneGeometry(2.6, Math.abs(back) + 6)), this.mat('#ffffff', { map: carpet })); cp.rotation.x = -Math.PI / 2; cp.position.set(0, 0.01, (back + 4) / 2); cp.receiveShadow = true; cp.userData.noOutline = true; scene.add(cp);
+    const cp = new T.Mesh(this.geo(new T.PlaneGeometry(2.6, Math.abs(back) + 6)), this.mat('#ffffff', { map: carpet, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); cp.rotation.x = -Math.PI / 2; cp.position.set(0, 0.02, (back + 4) / 2); cp.receiveShadow = true; cp.userData.noOutline = true; scene.add(cp);
     // mur du fond, fenêtres, bannière de l'Académie
     const wallMap = this.tex(256, 256, this.stoneTex(), 10, 3);
     const wall = this.add(scene, G.box, '#ffffff', 0, 6, back, 60, 12, 0.6, { map: wallMap }); wall.userData.noOutline = true;
@@ -359,15 +439,15 @@ class Arena3D {
       x.strokeStyle = '#2b2350'; x.lineWidth = 6; x.beginPath(); x.moveTo(w / 2, 10); x.lineTo(w / 2, h); x.moveTo(0, h * 0.55); x.lineTo(w, h * 0.55); x.stroke();
     });
     for (const wx of o.windows || [-7.5, -4, 4, 7.5]) {
-      const p = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: winTex, transparent: true })); p.scale.set(1.8, 3.6, 1); p.position.set(wx, 4.6, back + 0.32); p.userData.noOutline = true; scene.add(p);
-      const light = this.glow('#7b8cff', 4, 0.25); light.position.set(wx, 4.6, back + 0.5); scene.add(light);
+      const p = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: winTex, transparent: true })); p.scale.set(1.8, 3.6, 1); p.position.set(wx, 4.6, back + 0.4); p.userData.noOutline = true; scene.add(p);
+      const light = this.glow('#7b8cff', 4, 0.25); light.position.set(wx, 4.6, back + 0.7); scene.add(light);
     }
     if (o.banner !== false) {
       const ban = this.tex(128, 256, (x, w, h) => {
         x.fillStyle = '#5a189a'; x.beginPath(); x.moveTo(0, 0); x.lineTo(w, 0); x.lineTo(w, h * 0.85); x.lineTo(w / 2, h); x.lineTo(0, h * 0.85); x.fill();
         x.strokeStyle = '#ffd166'; x.lineWidth = 8; x.stroke(); x.font = '70px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('⭐', w / 2, h * 0.42);
       });
-      for (const bx of o.banners || [0]) { const p = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: ban, transparent: true })); p.scale.set(1.5, 3, 1); p.position.set(bx, 6.4, back + 0.34); scene.add(p); }
+      for (const bx of o.banners || [0]) { const p = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: ban, transparent: true })); p.scale.set(1.5, 3, 1); p.position.set(bx, 6.4, back + 0.45); scene.add(p); }
     }
     // piliers et torches
     const pil = o.pillars || [[-4.6, -3.2], [4.6, -3.2], [-6.8, back + 1.4], [6.8, back + 1.4]];
@@ -381,8 +461,7 @@ class Arena3D {
       torches.push({ fl, gl });
     }
     if (o.torchLight !== false) {
-      const L = new T.PointLight('#ffb35c', 6, 14, 1.6); L.position.set(0, 3.5, -2.5); scene.add(L);
-      this.anims.push((now) => { L.intensity = 6 + Math.sin(now / 90) * 0.6 + Math.sin(now / 37) * 0.4; for (const t of torches) { const k = 1 + Math.sin(now / 70 + t.fl.position.x) * 0.12; t.fl.scale.set(0.14 * k, 0.38 / k + 0.04, 0.14 * k); t.gl.material.opacity = 0.75 + 0.2 * Math.sin(now / 55 + t.fl.position.x); } });
+      this.anims.push((now) => { for (const t of torches) { const k = 1 + Math.sin(now / 70 + t.fl.position.x) * 0.12; t.fl.scale.set(0.14 * k, 0.38 / k + 0.04, 0.14 * k); t.gl.material.opacity = 0.75 + 0.2 * Math.sin(now / 55 + t.fl.position.x); } });
     }
     // bougies qui flottent
     const candles = [];
@@ -392,7 +471,7 @@ class Arena3D {
       g.position.set(x, 4 + Math.random() * 2.2, z); scene.add(g); candles.push({ g, y: g.position.y, p: Math.random() * 6 });
     }
     this.anims.push((now) => { for (const c of candles) c.g.position.y = c.y + Math.sin(now / 900 + c.p) * 0.12; });
-    this.dust(scene, '#ffe8a3', 120, [-8, 8], [0.3, 6], [back + 1, 3]);
+    this.dust(scene, '#ffe8a3', 70, [-8, 8], [0.3, 6], [back + 1, 3]);
   }
   // Poussière dorée qui flotte (ou neige, ou étoiles)
   dust(scene, col, n, X, Y, Z, fall = 0) {
@@ -447,10 +526,10 @@ class Arena3D {
     this.hemi.color.set('#ffffff'); this.hemi.groundColor.set('#6fbf73'); this.hemi.intensity = 1.2; this.sun.intensity = 1.6;
     this.floor(scene, '#7ccf6a', 300, (x, w, h) => { x.fillStyle = '#7ccf6a'; x.fillRect(0, 0, w, h); for (let i = 0; i < 300; i++) { x.fillStyle = Math.random() < 0.5 ? '#6fbf73' : '#8fd97c'; x.fillRect(Math.random() * w, Math.random() * h, 3, 6); } }, 60);
     const path = this.tex(64, 256, (x, w, h) => { x.fillStyle = '#e6c28f'; x.fillRect(0, 0, w, h); for (let i = 0; i < 80; i++) { x.fillStyle = Math.random() < 0.5 ? '#d9b27c' : '#f0d3a6'; x.beginPath(); x.arc(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 0, 7); x.fill(); } }, 1, 20);
-    const pm = new T.Mesh(this.geo(new T.PlaneGeometry(3.2, 120)), this.mat('#ffffff', { map: path })); pm.rotation.x = -Math.PI / 2; pm.position.set(0, 0.01, -50); pm.receiveShadow = true; pm.userData.noOutline = true; scene.add(pm);
+    const pm = new T.Mesh(this.geo(new T.PlaneGeometry(3.2, 120)), this.mat('#ffffff', { map: path, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); pm.rotation.x = -Math.PI / 2; pm.position.set(0, 0.02, -50); pm.receiveShadow = true; pm.userData.noOutline = true; scene.add(pm);
     this.pathMap = path;
     const trees = ['kenney/tree_default', 'kenney/tree_oak', 'kenney/tree_fat', 'kenney/tree_pineRoundA'];
-    for (let z = 8; z > -95; z -= 4.5) for (const s of [-1, 1]) {
+    for (let z = 8; z > -70; z -= 6) for (const s of [-1, 1]) {
       const x = s * (4.5 + Math.random() * 6);
       if (!this.model(trees[Math.floor(Math.random() * trees.length)], 3 + Math.random() * 2, x, 0, z + Math.random() * 2, Math.random() * 6)) { this.add(scene, G.cyl, '#8d5a3b', x, 0.8, z, 0.2, 1.6, 0.2); this.add(scene, G.ball, '#43aa8b', x, 2.4, z, 1.2); }
       if (Math.random() < 0.6) this.model(['kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA', 'kenney/mushroom_redGroup'][Math.floor(Math.random() * 4)], 0.5, s * (2.2 + Math.random() * 1.5), 0, z, Math.random() * 6);
@@ -486,7 +565,7 @@ class Arena3D {
     this.add(scene, this.G.box, '#ffffff', 0, 2.5, -30, 70, 5, 1, { map: wallMap }).userData.noOutline = true;
     for (let x = -30; x <= 30; x += 3) this.add(scene, this.G.box, '#c9c3dc', x, 5.3, -30, 1.4, 0.8, 1);
     for (const x of [-14, 14]) { this.add(scene, this.G.cyl, '#c9c3dc', x, 4.5, -29, 2, 9, 2); this.add(scene, this.G.cone, '#5a189a', x, 10, -29, 2.6, 3, 2.6); }
-    this.dust(scene, '#ffffff', 260, [-10, 10], [0, 8], [-14, 4], 0.9);
+    this.dust(scene, '#ffffff', 160, [-10, 10], [0, 8], [-14, 4], 0.9);
   }
   room_sky(scene) { // ciel du soir : nuages qui filent, mer de nuages en bas, le château au loin
     const T = this.T;
@@ -628,7 +707,7 @@ class Arena3D {
   // ----- Pimprenelle a dit : la chouette directrice sur son perchoir, qui bat des ailes quand elle parle
   init3_pimprenelle(scene) {
     const T = this.T, G = this.G, g = new T.Group(), body = new T.Group();
-    this.add(g, G.cyl, '#8d5a3b', 0, 0.7, 0, 0.08, 1.4, 0.08); this.add(g, G.cyl, '#8d5a3b', 0, 1.4, 0, 0.07, 1.1, 0.07).rotation.z = Math.PI / 2; this.add(g, G.cyl, '#6d4c41', 0, 0.06, 0, 0.5, 0.12, 0.5);
+    this.add(g, G.cyl, '#8d5a3b', 0, 0.5, 0, 0.08, 1.0, 0.08); this.add(g, G.cyl, '#8d5a3b', 0, 1.0, 0, 0.07, 1.1, 0.07).rotation.z = Math.PI / 2; this.add(g, G.cyl, '#6d4c41', 0, 0.06, 0, 0.5, 0.12, 0.5);
     this.add(body, G.ball, '#a47148', 0, 0.5, 0, 0.42, 0.52, 0.38); this.add(body, G.ball, '#f2e3c6', 0, 0.42, 0.18, 0.3, 0.38, 0.24);
     for (const s of [-1, 1]) {
       this.add(body, G.ball, '#ffffff', s * 0.15, 0.78, 0.28, 0.14); this.add(body, G.ball, '#1e1b4b', s * 0.15, 0.78, 0.4, 0.07); this.add(body, G.ball, '#ffffff', s * 0.13, 0.81, 0.46, 0.02);
@@ -638,18 +717,18 @@ class Arena3D {
     this.add(body, G.cone, '#f4a261', 0, 0.66, 0.38, 0.05, 0.12, 0.05).rotation.x = Math.PI / 2 + 0.4;
     const hat = new T.Group(); this.add(hat, G.cyl, '#5a189a', 0, 0, 0, 0.32, 0.04, 0.32); this.add(hat, G.cone, '#7b2cbf', 0, 0.28, 0, 0.2, 0.55, 0.2); this.add(hat, G.cyl, '#ffd166', 0, 0.06, 0, 0.205, 0.06, 0.205); hat.position.set(0.05, 1.12, 0); hat.rotation.z = -0.2; body.add(hat);
     this.owlWings = [-1, 1].map((s) => { const p = new T.Group(); p.position.set(s * 0.36, 0.62, 0); this.add(p, G.ball, '#7f5539', s * 0.05, -0.2, 0, 0.1, 0.32, 0.22); body.add(p); return p; });
-    body.position.y = 1.45; g.add(body); this.owl = body;
-    this.S.outline(g); g.position.set(2.3, 0, -0.4); g.rotation.y = -0.45; scene.add(g);
+    body.position.y = 1.05; body.scale.setScalar(0.85); g.add(body); this.owl = body;
+    this.S.outline(g); g.position.set(2.1, 0, 0.1); g.rotation.y = -0.45; scene.add(g);
   }
   sync3_pimprenelle(st, now) {
     const c = st.cur, talking = c && now - c.t0 < 1400, res = st.res && now - st.res.t < 1200 ? st.res : null;
     this.owlWings.forEach((w, i) => { w.rotation.z = (i ? 1 : -1) * (talking ? 0.4 + 0.5 * Math.abs(Math.sin(now / 80)) : 0.05); });
-    this.owl.position.y = 1.45 + (res ? Math.abs(Math.sin((now - res.t) / 120)) * 0.25 : Math.sin(now / 600) * 0.03);
+    this.owl.position.y = 1.05 + (res ? Math.abs(Math.sin((now - res.t) / 120)) * 0.25 : Math.sin(now / 600) * 0.03);
     this.owl.rotation.y = res && !res.good ? Math.sin((now - res.t) / 90) * 0.5 : Math.sin(now / 1400) * 0.25;
   }
 
   // ----- Bataille de boules de neige : des bonshommes de neige sortent de la neige, autour du sorcier
-  pose3_pimprenelle(P) { if (this.owl) P.look = new this.T.Vector3(2.3, 1.9, -0.4); }
+  pose3_pimprenelle(P) { if (this.owl) P.look = new this.T.Vector3(2.1, 1.5, 0.1); }
   pose3_potions(P, st) { if (st.phase === 'stir') P.look = this.potW().add(new this.T.Vector3(0, 0.6, 0)); }
   slotXZ(k) { return [[-2.5, -0.6], [2.5, -0.6], [-1.5, -3.4], [1.6, -3.6], [0, -6]][k] || [0, -4]; }
   slotXY(k, y = 0.95) { const [x, z] = this.slotXZ(k); return this.toScreen(new this.T.Vector3(x, y, z)); }
@@ -667,6 +746,7 @@ class Arena3D {
       let o = this.men.get(m); const [x, z] = this.slotXZ(m.slot);
       if (!o) { o = { g: this.makeSnowman() }; this.men.set(m, o); Audio8.pop(); this.burst(new this.T.Vector3(x, 0.2, z), 10, { chunk: 'ball', cols: ['#ffffff', '#e3ecf9'], speed: 1.6, size: 0.1, life: 700 }); }
       const pop = Math.min(1, (now - m.t0) / 300);
+      const aim = now - (m.aimT || 0) < 150; o.k = (o.k || 1) + ((aim ? 1.18 : 1) - (o.k || 1)) * 0.25; o.g.scale.setScalar(o.k);
       o.g.position.set(x, -1.5 * (1 - pop), z); o.g.rotation.y = Math.atan2(this.cam.position.x - x, this.cam.position.z - z) + Math.sin(now / 300 + m.slot) * 0.15;
       if (m.hit && !o.boom) { o.boom = true; o.g.visible = false; Audio8.puff(); this.shake(0.05, 200); this.burst(new this.T.Vector3(x, 0.9, z), 26, { chunk: 'ball', cols: ['#ffffff', '#f1f6ff', '#f77f00'], speed: 3.5, size: 0.16, life: 1300 }); this.burst(new this.T.Vector3(x, 1, z), 16, { cols: ['#ffffff', '#bde0fe'] }); }
       if (m.gone) o.g.position.y = -1.5 * Math.min(1, (now - m.gone) / 600);
@@ -690,19 +770,17 @@ class Arena3D {
     for (let i = 0; i < 3; i++) { const a = i * 2.1; this.add(g, G.cyl, '#2b2d42', Math.cos(a) * 0.55, 0.1, Math.sin(a) * 0.55, 0.07, 0.3, 0.07); }
     this.brew = new T.Mesh(this.geo(new T.CircleGeometry(0.76, 32)), new T.MeshBasicMaterial({ color: '#70e000' })); this.brew.rotation.x = -Math.PI / 2; this.brew.position.y = 1.16; g.add(this.brew);
     this.brewGlow = this.glow('#70e000', 1.8, 0.3); this.brewGlow.position.y = 1.5; g.add(this.brewGlow);
-    this.brewLight = new T.PointLight('#70e000', 4, 6, 1.5); this.brewLight.position.y = 1.8; g.add(this.brewLight);
     this.bubbles = []; for (let i = 0; i < 6; i++) { const b = this.add(g, G.ball, '#b8f2a1', 0, 1.2, 0, 0.06, 0.06, 0.06, { transparent: true, opacity: 0.8 }); b.castShadow = false; this.bubbles.push({ b, p: Math.random(), x: (Math.random() - 0.5) * 0.9, z: (Math.random() - 0.5) * 0.9 }); }
     const spoon = new T.Group(); this.add(spoon, G.cyl, '#a0522d', 0, 0.6, 0, 0.04, 1.4, 0.04); this.add(spoon, G.ball, '#a0522d', 0, -0.1, 0, 0.14, 0.06, 0.14); spoon.position.y = 1.2; spoon.rotation.z = 0.35; g.add(spoon); this.spoon = spoon; spoon.visible = false;
     this.S.outline(pot); this.S.outline(rim);
-    g.position.copy(this.potW()); g.scale.setScalar(0.7); scene.add(g); this.pot = g;
+    g.position.copy(this.potW()); g.scale.setScalar(0.62); scene.add(g); this.pot = g; pot.castShadow = true;
     this.items = new Map(); this.fly = new Map(); this.spoonA = 0; this.lastStir = 0; this.lastOk = 0;
   }
-  potW() { return new this.T.Vector3(1.75, 0, 0.9); }
+  potW() { return new this.T.Vector3(1.9, 0, 0.6); }
   potXY() { return this.toScreen(this.potW().add(new this.T.Vector3(0, 0.9, 0))); }
   sync3_potions(st, now) {
     const T = this.T, cols = ['#70e000', '#c77dff', '#4cc9f0', '#ff70a6'], col = cols[st.ok % 4];
-    this.brew.material.color.set(col); this.brewGlow.material.color.set(col); this.brewLight.color.set(col);
-    this.brewLight.intensity = 4 + Math.sin(now / 200) * 0.8;
+    this.brew.material.color.set(col); this.brewGlow.material.color.set(col); this.brewGlow.material.opacity = 0.3 + 0.08 * Math.sin(now / 200);
     for (const b of this.bubbles) { const q = (now / 1400 + b.p) % 1; b.b.position.set(b.x * 0.8, 1.2 + q * 0.7, b.z * 0.8); b.b.scale.setScalar(0.06 + q * 0.05); b.b.material.color.set(col); }
     // ingrédients dans leurs bulles (là où les règles les placent, autour du sorcier)
     const live = new Set(st.items.filter((it) => !it.taken));
@@ -715,11 +793,15 @@ class Arena3D {
         const glass = new T.Mesh(this.G.ball, this.mat('#bde0fe', { transparent: true, opacity: 0.25, depthWrite: false })); glass.userData.noOutline = true; glass.renderOrder = 1; o.add(glass);
         const shine = this.add(o, this.G.ball, '#ffffff', -0.35, 0.35, 0.55, 0.12, 0.12, 0.12, { basic: { transparent: true, opacity: 0.8 } }); shine.castShadow = false;
         const e = this.emo(it.e, 1.5); e.renderOrder = 2; o.add(e); this.scene.add(o); this.items.set(it, o);
+        if (!it.bad) { const halo = this.glow('#ffd166', 3.4, 0.55); halo.renderOrder = 0; o.add(halo); o.userData.halo = halo; } // (ingrédient de la recette : il brille)
       }
       if (it.x == null) { o.visible = false; continue; }
       o.visible = true;
-      const p = this.toWorld(it.x + (now - it.wob < 500 ? Math.sin((now - it.wob) / 30) * 8 : 0), it.y, z0), r = (0.36 * this.A.B.T) / ppu;
-      o.position.copy(p); o.scale.setScalar(r); o.rotation.y = Math.sin(now / 700 + it.seed) * 0.4;
+      const p = this.toWorld(it.x + (now - it.wob < 500 ? Math.sin((now - it.wob) / 30) * 8 : 0), it.y, z0), r = (0.5 * this.A.B.T) / ppu;
+      const aim = now - (it.aimT || 0) < 150; // (visé par une main : il grossit)
+      o.userData.k = (o.userData.k || 1) + ((aim ? 1.35 : 1) - (o.userData.k || 1)) * 0.25;
+      o.position.copy(p); o.scale.setScalar(r * o.userData.k * (it.bad ? 0.85 : 1 + 0.06 * Math.sin(now / 180 + it.seed))); o.rotation.y = Math.sin(now / 700 + it.seed) * 0.4;
+      if (o.userData.halo) o.userData.halo.material.opacity = 0.4 + 0.25 * Math.sin(now / 200 + it.seed);
     }
     // ingrédients qui volent dans le chaudron
     const lf = new Set(st.flying);
@@ -745,7 +827,6 @@ class Arena3D {
     if (this.grim.human) { S.poseHumanStill(this.grim, 'idle'); const b = new T.Box3().setFromObject(this.grim.inner); this.grimS = this.grim.scale * 2.3 / Math.max(0.3, b.max.y - b.min.y); }
     scene.add(this.grim.group);
     this.orb = this.glow('#c77dff', 0.8); this.orbCore = this.add(scene, this.G.ball, '#ffffff', 0, 0, 0, 0.16, 0.16, 0.16, { basic: {} }); this.orbCore.castShadow = false; scene.add(this.orb);
-    this.orbLight = new T.PointLight('#c77dff', 0, 6, 1.5); scene.add(this.orbLight);
     this.shield = new T.Mesh(this.geo(new T.SphereGeometry(1.25, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.55)), new T.MeshBasicMaterial({ color: '#7bdff2', transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
     this.shield.rotation.x = Math.PI / 2; scene.add(this.shield);
     this.stars = [0, 1, 2].map(() => { const e = this.emo('⭐', 0.35); scene.add(e); return e; });
@@ -773,9 +854,8 @@ class Arena3D {
     if (orbAt) {
       this.orb.position.copy(orbAt); this.orb.scale.setScalar(size * (1 + 0.1 * Math.sin(now / 50))); this.orb.material.color.set(c2);
       this.orbCore.position.copy(orbAt); this.orbCore.scale.setScalar(size * 0.18);
-      this.orbLight.position.copy(orbAt); this.orbLight.color.set(c2); this.orbLight.intensity = 5 * size;
       if (Math.random() < 0.5) this.burst(orbAt, 1, { cols: [c2, '#ffffff'], speed: 0.5, up: 0.2, grav: 0, size: 0.18, life: 400 });
-    } else this.orbLight.intensity = 0;
+    }
     // résultat d'un sort : paré (étincelles sur le bouclier) ou touché
     if (st.phase !== this.lastPhase) {
       if (st.phase === 'charge') Audio8.charge();
@@ -811,7 +891,7 @@ class Arena3D {
     const h = this.hand3 && this.hand3.filter(Boolean); const a = h && h.length ? h.reduce((s, v) => s.add(v), new T.Vector3()).multiplyScalar(1 / h.length) : new T.Vector3(-2 + off, 1.1, 0.2);
     const b = new T.Vector3(cx - 0.75, 1.0, 0.1), mid = a.clone().lerp(b, 0.5); mid.y -= 0.15 + Math.sin(now / 80) * 0.03;
     const curve = new T.QuadraticBezierCurve3(a, mid, b);
-    if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh.geometry = new T.TubeGeometry(curve, 24, 0.05, 6); }
+    if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh.geometry = new T.TubeGeometry(curve, 16, 0.05, 5); }
     else { this.ropeMesh = new T.Mesh(new T.TubeGeometry(curve, 24, 0.05, 6), this.ropeMat); this.ropeMesh.castShadow = true; this.scene.add(this.ropeMesh); }
     const bp = curve.getPoint(0.5); this.bow.position.set(bp.x, bp.y, bp.z + 0.05); this.bow.material.rotation = Math.sin(now / 200) * 0.2;
   }
@@ -834,7 +914,7 @@ class Arena3D {
   init3_balai(scene) {
     const T = this.T, G = this.G, b = new T.Group();
     this.add(b, G.cyl, '#8d5a3b', 0, 0, 0, 0.05, 2.4, 0.05).rotation.x = Math.PI / 2;
-    const br = this.add(b, G.cone, '#e9c46a', 0, 0, 1.4, 0.2, 0.6, 0.2); br.rotation.x = -Math.PI / 2;
+    const br = this.add(b, G.cone, '#e9c46a', 0, 0, 1.4, 0.16, 0.7, 0.16); br.rotation.x = -Math.PI / 2;
     this.add(b, G.cyl, '#bc6c25', 0, 0, 1.08, 0.08, 0.08, 0.08).rotation.x = Math.PI / 2;
     this.S.outline(b); scene.add(b); this.broom = b;
     this.rings = new Map(); this.bx = 0; this.prevX = 0;
@@ -850,7 +930,7 @@ class Arena3D {
   cam3_balai() { const p = this.av.group.position; this.camTo(p.x * 0.55, p.y + 1.25, 7.4, p.x * 0.4, p.y + 0.7, -20, 50, 0.15); }
   sync3_balai(st, now) {
     const T = this.T, p = this.av.group.position, M = this.M;
-    this.broom.position.set(p.x, p.y + M.hipY - 0.12, 0.1); this.broom.rotation.set(-0.08, 0, this.av.group.rotation.z);
+    this.broom.position.set(p.x, p.y + M.hipY - 0.15, 0.1); this.broom.rotation.set(0.28, 0, this.av.group.rotation.z); // (balai penché : la paille part vers le bas, derrière)
     if (Math.random() < 0.7) this.burst(new T.Vector3(p.x, p.y + M.hipY - 0.1, 1.7), 1, { cols: ['#ffd166', '#ff70a6', '#ffffff'], speed: 0.6, up: 0, grav: 0, size: 0.25, life: 500 });
     const live = new Set(st.rings);
     for (const [r, o] of this.rings) if (!live.has(r)) { this.scene.remove(o); this.rings.delete(r); }
@@ -858,7 +938,8 @@ class Arena3D {
       let o = this.rings.get(r);
       if (!o) { o = new T.Mesh(this.G.torus, this.mat('#ffd166', { emissive: '#ff9e00', emissiveIntensity: 0.6 })); o.scale.setScalar(1.05); o.castShadow = true; const gl = this.glow('#ffd166', 2.6, 0.35); o.add(gl); this.scene.add(o); this.rings.set(r, o); }
       const q = Math.min(1, (now - r.t0) / r.dur), rp = this.ringPos(r.gx, r.gy);
-      o.position.set(rp.x, rp.y, -70 + 70 * q + (r.res ? (now - r.t) * 0.02 : 0));
+      const rz = -70 + 70 * q + (r.res ? (now - r.t) * 0.02 : 0), dz = Math.max(0, this.cam.position.z - rz - BEND_START);
+      o.position.set(rp.x, rp.y + dz * dz * BEND_K, rz); // (le monde « arrondi » ferait plonger les anneaux lointains : on compense)
       o.rotation.z = now / 600;
       if (q > 0.9 && !o.userData.wh) { o.userData.wh = true; Audio8.whoosh(); }
       if (r.res && !o.userData.done) { o.userData.done = true; o.material.color.set(r.res === 'ok' ? '#4ade80' : '#ff8fab'); o.material.emissive.set(r.res === 'ok' ? '#2d6a4f' : '#9d0208'); if (r.res === 'ok') this.burst(o.position.clone(), 40, { speed: 4 }); }

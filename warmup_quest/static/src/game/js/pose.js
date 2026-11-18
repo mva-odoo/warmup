@@ -115,8 +115,11 @@ class Body {
   }
 
   process(lm, now, emit) {
-    const s = this.state;
+    const s = this.state, wl = lm && lm.world;
     if (lm && !(typeof DEV !== 'undefined' && DEV.get('nofilter'))) lm = this.smooth(lm, now); // (?nofilter=1 : points bruts, pour comparer)
+    // Points 3D (lissés doucement) : vraie profondeur des membres, pour le petit sorcier qui imite l'enfant
+    if (wl) { const o = this.wlm; this.wlm = wl.map((p, i) => (o && o[i] ? { x: o[i].x + (p.x - o[i].x) * 0.5, y: o[i].y + (p.y - o[i].y) * 0.5, z: o[i].z + (p.z - o[i].z) * 0.4 } : { x: p.x, y: p.y, z: p.z })); }
+    else this.wlm = null;
     this.lm = lm || null;
     if (!lm) {
       s.present = s.upperBody = s.fullBody = false;
@@ -353,6 +356,8 @@ class Tracker {
     P.frames++;
     if (!P.since) P.since = now;
     if (now - P.since >= 1000) { P.fps = Math.round(P.frames * 1000 / (now - P.since)); P.frames = 0; P.since = now; }
+    // (points 3D en mètres, centrés sur les hanches : ils donnent la vraie profondeur des bras et des jambes)
+    (res.landmarks || []).forEach((l, i) => { if (res.worldLandmarks && res.worldLandmarks[i]) l.world = res.worldLandmarks[i]; });
     if (typeof Rec !== 'undefined') Rec.frame(now, res.landmarks || []);
     this.assign(res.landmarks || [], now);
   }
