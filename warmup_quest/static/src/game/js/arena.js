@@ -426,9 +426,9 @@ class Arena {
       else { st.phase = 'dos'; st.at = now; st.until = now + 2500 + Math.random() * 2000; this.say('Un, deux, trois…', 0); }
     }
     if (st.phase === 'dos') {
-      const sp = B.real ? Math.max(0, Math.min(1, (B.motion - 0.012) / 0.05)) : moving || B.st.wave ? 1 : 0;
-      st.prog = Math.min(1, st.prog + dt * sp * 0.085);
-    } else if (st.phase === 'regarde' && now - st.at > 450 && !st.seen && moving && !B.st.wave) { // (l'enfant imaginaire s'arrête toujours à temps)
+      const sp = B.real ? Math.max(0, Math.min(1, (B.motion - 0.008) / 0.018)) : moving || B.st.wave ? 1 : 0; // (courir sur place d'un enfant : ~0,02 ; testé avec l'enfant virtuel)
+      st.prog = Math.min(1, st.prog + dt * sp * 0.11);
+    } else if (st.phase === 'regarde' && now - st.at > 800 && !st.seen && moving && !B.st.wave) { // (l'enfant imaginaire s'arrête toujours à temps)
       st.seen = true; st.prog = Math.max(0, st.prog - 0.18); st.oops = now; Audio8.soft(); this.say('Je t\'ai vu bouger !', 0);
     }
     st.ratio = st.prog;

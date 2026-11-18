@@ -151,6 +151,12 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   l'objet visé grossit.
 - Mode test : `?posemodel=lite|full` impose le modèle, `?nofilter=1` coupe le lissage (pour comparer), `?nocal=1` saute
   l'échauffement, `?nointro=1` l'entrée en scène, `?arena2d=1` les jeux miroir dessinés.
+- **Enfant virtuel** (`js/vkid.js`, `?world=defis&step=arena&game=potions&vkid=1`) : un squelette d'enfant simulé,
+  projeté comme par une webcam (mêmes 33 points + points 3D que MediaPipe, ~20 fois par seconde, avec le bruit de la
+  détection), remplace la caméra. Il regarde l'écran et joue (calibrage bras levés, étoiles, ingrédients, boules de
+  neige, poses, duel…) avec un temps de réaction et des gestes imprécis. Résultats dans le titre de la page
+  (`VK {...}` : score de chaque jeu, portée mesurée). Réglages : `vkidh` (taille, m), `vkidd` (distance, m),
+  `vkidnoise`, `vkidlag` (ms), `vkidskill` (0 à 1), `vkidseed`.
 
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en

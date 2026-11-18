@@ -543,7 +543,7 @@ async function startWorld(w) {
     show('simHelp');
     document.body.classList.add('sim');
   }
-  if (!tracker.sim && !tracker.landmarker && !Rec.playing) {
+  if (!tracker.sim && !tracker.landmarker && !Rec.playing && !(typeof VKid !== 'undefined' && VKid.on)) {
     phase = 'loading';
     show('loading'); show('loadingError', false); show('loadingBack', false);
     try {
@@ -2621,7 +2621,8 @@ function draw(now) {
 if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village'))) {
   const vw = DEV.get('village') && WORLDS.find((x) => x.id === DEV.get('village'));
   const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
-  if (w) { $('simToggle').checked = true; store('sim', true); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
+  const vk = !!DEV.get('vkid'); // (?vkid=1 : enfant virtuel à la place du clavier, voir vkid.js)
+  if (w) { $('simToggle').checked = !vk; store('sim', !vk); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
   if (DEV.get('duo')) WUQStore._set('duo', true); // (mode test) partie à deux
   if (DEV.get('comp')) { const [id, xp] = DEV.get('comp').split(':'); WUQStore.setCompanion(0, { id, xp: Number(xp) || 0 }); } // (mode test) compagnon
   if (w && DEV.get('combo')) setTimeout(() => { if (game) { game.streak = 3 * Number(DEV.get('combo')); game.comboCheck(); } }, 9000); // (mode test)

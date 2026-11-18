@@ -336,6 +336,7 @@ class Tracker {
 
   update(video, now) {
     if (typeof Rec !== 'undefined' && Rec.playing) return Rec.feed(this, now); // (rejeu d'un enregistrement)
+    if (typeof VKid !== 'undefined' && VKid.on) return VKid.feed(this, now); // (mode test : enfant virtuel devant une webcam simulée)
     if (this.sim || !this.landmarker || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
     // Sur un PC lent, on analyse moins d'images pour garder le jeu fluide
