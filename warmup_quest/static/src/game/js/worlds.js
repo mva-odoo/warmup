@@ -71,6 +71,58 @@ const ACTS = {
     tuto: 'Un animal va apparaître sur une grande carte. Fais comme lui : la grenouille saute, la tortue se cache tout en bas, l\'oiseau ouvre ses ailes, la girafe lève les bras tout en haut !',
     cheer: [] },
 };
+// Jeux miroir (scène fixe, comme sur console) : l'enfant se voit en grand (image de la caméra, en miroir) et la magie se
+// dessine autour de lui ; pas de chemin, pas de course. Moteur : arena.js. n : murs, ordres, bonshommes, potions…
+const AR = (game, n) => ({ m: 'arena', game, n });
+const ARENA = {
+  mur: { icon: '🧱', label: 'Le Mur Magique !', sec: 4.2, pts: 100,
+    say: 'Le Mur Magique arrive ! Regarde le trou dans le mur, et prends la même pose pour passer à travers !',
+    tuto: 'Un mur arrive vers toi, avec un trou en forme de pose : les bras en l\'air, l\'avion, l\'étoile, accroupi, ou un pas de côté. Prends la même pose avant qu\'il arrive, et tu passes à travers !' },
+  soleil: { icon: '☁️', label: '1, 2, 3… Nuage Grognon !', sec: 32, pts: 300, // (n = 1 : une partie jusqu'au nuage)
+    say: 'Un, deux, trois, Nuage Grognon ! Cours sur place quand il a le dos tourné. Quand il se retourne : statue !',
+    tuto: 'Le Nuage Grognon compte, le dos tourné : cours sur place pour avancer vers lui. Quand il se retourne, ne bouge plus du tout, sinon tu recules ! Arrive jusqu\'à lui pour gagner.' },
+  pimprenelle: { icon: '🦉', label: 'Pimprenelle a dit !', sec: 4.5, pts: 100,
+    say: 'Pimprenelle a dit ! Fais ce qu\'elle dit… mais seulement si elle dit « Pimprenelle a dit » !',
+    tuto: 'Madame Pimprenelle donne des ordres. Si elle dit « Pimprenelle a dit », fais-le vite ! Si elle ne le dit pas, ne bouge pas : c\'est un piège !' },
+  neige: { icon: '⛄', label: 'Bataille de boules de neige !', sec: 3.2, pts: 80,
+    say: 'Bataille de boules de neige ! Lance une boule sur les bonshommes de neige farceurs : lève le bras et baisse-le d\'un coup !',
+    tuto: 'Des bonshommes de neige farceurs apparaissent autour de toi. Lève le bras et lance-le vers l\'avant, d\'un coup, du côté du bonhomme : la boule part ! Tu peux aussi les toucher avec ta main.' },
+  potions: { icon: '🧪', label: 'La cuisine des potions !', sec: 18, pts: 200,
+    say: 'La cuisine des potions ! Touche les ingrédients de la recette avec ta main, puis touille le chaudron en faisant de grands cercles avec ton bras !',
+    tuto: 'La recette est à gauche. Touche avec ta main les ingrédients qui flottent autour de toi : ils tombent dans le chaudron. Quand tout y est, fais de grands cercles avec ton bras pour touiller !' },
+  duel: { icon: '⚡', label: 'Duel de sorciers !', sec: 9, pts: 150,
+    say: 'Duel de sorciers avec Grimaud le farceur ! Mains jointes pour le bouclier, ou un pas de côté pour esquiver. Puis lève les bras pour lancer ton sort !',
+    tuto: 'Grimaud lance des sorts. Une boule violette : joins tes mains devant toi pour faire un bouclier. Une boule rouge : fais un grand pas de côté pour l\'esquiver. Ensuite, à toi : lève les deux bras pour lancer ton sort !' },
+  corde: { icon: '🪢', label: 'Tir à la corde magique !', sec: 24, pts: 300, // (n = 1 : une manche)
+    say: 'Tir à la corde contre le Nuage Grognon ! Bouge les bras très vite, comme si tu tirais la corde, pour la ramener de ton côté !',
+    tuto: 'Tu tiens un ruban magique, le Nuage Grognon tire de l\'autre côté. Bouge les bras très vite, ou saute, pour tirer plus fort que lui et ramener le ruban de ton côté !' },
+  equilibre: { icon: '🎪', label: 'L\'équilibriste !', sec: 1.8, pts: 30, // (n : secondes à tenir)
+    say: 'L\'équilibriste ! Tiens-toi sur un pied sur la corde. Quand le vent souffle, ouvre grand les bras !',
+    tuto: 'Ton petit sorcier marche sur une corde : tiens-toi sur un pied pour qu\'il avance. Quand le vent souffle, ouvre les bras comme un avion pour ne pas tomber !' },
+  balai: { icon: '🧹', label: 'La course de balais !', sec: 2.8, pts: 80,
+    say: 'La course de balais volants ! Penche-toi à gauche ou à droite pour tourner, lève les bras pour monter, baisse-toi pour descendre. Passe dans les anneaux !',
+    tuto: 'Tu voles sur ton balai ! Fais un pas ou penche-toi à gauche ou à droite pour tourner. Lève les bras pour monter, baisse-toi pour descendre. Passe au milieu des anneaux dorés !' },
+  photo: { icon: '📸', label: 'Le miroir magique !', sec: 7, pts: 100, // (n : photos)
+    say: 'Le miroir magique ! Fais la pose la plus rigolote que tu peux… trois, deux, un… photo !',
+    tuto: 'Regarde-toi dans le miroir magique ! Quand il compte trois, deux, un, fais ta pose la plus rigolote : la photo va dans ton grimoire.' },
+};
+// Pimprenelle a dit : les ordres (geste à faire) et les phrases (dites telles quelles : la voix est générée à l'avance)
+const SIMON_ORDERS = [
+  { g: 'armsUp', icon: '🙌', yes: 'Pimprenelle a dit : lève les bras !', no: 'Lève les bras !' },
+  { g: 'squat', icon: '⬇️', yes: 'Pimprenelle a dit : baisse-toi !', no: 'Baisse-toi !' },
+  { g: 'jump', icon: '⬆️', yes: 'Pimprenelle a dit : saute !', no: 'Saute !' },
+  { g: 'airplane', icon: '✈️', yes: "Pimprenelle a dit : fais l'avion !", no: "Fais l'avion !" },
+  { g: 'star', icon: '⭐', yes: "Pimprenelle a dit : fais l'étoile !", no: "Fais l'étoile !" },
+  { g: 'smash', icon: '👊', yes: 'Pimprenelle a dit : tape fort !', no: 'Tape fort !' },
+  { g: 'flamingo', icon: '🦩', yes: 'Pimprenelle a dit : tiens sur un pied !', no: 'Tiens sur un pied !' },
+];
+// Phrases dites pendant les jeux miroir (liste fixe, pour la voix générée à l'avance)
+const ARENA_LINES = ['Un, deux, trois…', 'Nuage Grognon !', 'Je t\'ai vu bouger !', 'Cours !', 'Statue !', 'Piégé ! Elle n\'avait pas dit « Pimprenelle a dit » !',
+  'Bien joué, tu ne t\'es pas fait avoir !', 'Bravo !', 'Trop tard !', 'Touché !', 'Pas celui-là !', 'Maintenant, touille ! Fais de grands cercles avec ton bras !',
+  'La potion est prête !', 'Attention, il prépare un sort !', 'Bouclier ! Joins tes mains !', 'Esquive ! Pas de côté !', 'Paré !', 'Ouille ! Ça chatouille !',
+  'À toi ! Lève les deux bras pour lancer ton sort !', 'Il tire fort !', 'Tire, tire !', 'Le vent souffle ! Ouvre les bras !', 'Bravo, tu tiens bien !',
+  'Trois, deux, un…', 'Ouistiti !', 'Super photo !', 'Passe dans l\'anneau !', 'Encore un !', 'Il est tout étourdi !', 'Super, le mur est passé !', 'Ouille, le mur !'];
+
 // Imite les animaux : chaque carte demande un geste (un événement, ou une pose à tenir un moment)
 const ANIMALS = [
   { id: 'frog', icon: '🐸', name: 'La grenouille', need: 'jump', say: 'La grenouille ! Saute comme elle !' },
@@ -170,6 +222,7 @@ function stepIcon(s) {
   if (s.m === 'pose') return POSES[s.pose].icon;
   if (s.m === 'combo') return '🔥';
   if (s.m === 'act') return ACTS[s.game].icon;
+  if (s.m === 'arena') return ARENA[s.game].icon;
   return MOVE_ICONS[s.m];
 }
 
@@ -183,6 +236,7 @@ function stepLabel(s) {
     case 'basket': return 'Marque des paniers !';
     case 'kick': return 'Tire au but !';
     case 'act': return ACTS[s.game].label;
+    case 'arena': return ARENA[s.game].label;
     case 'fork': return 'Un carrefour : choisis !';
     case 'jump': return s.n > 1 ? `Saute ${s.n} fois !` : 'Saute !';
     case 'squat': return s.n > 1 ? `Baisse-toi ${s.n} fois !` : 'Baisse-toi !';
@@ -229,6 +283,7 @@ function stepSpeech(s) {
     case 'basket': return 'Basket ! Ton ami te passe le ballon : attrape-le avec les deux mains, puis lève les bras pour tirer dans le panier !';
     case 'kick': return 'Penalty ! Regarde de quel côté est le ballon, et lève le genou de ce côté pour tirer !';
     case 'act': return ACTS[s.game].say;
+    case 'arena': return ARENA[s.game].say;
     case 'wand': return 'Oh non ! Le Nuage Grognon a ensorcelé des créatures ! Pointe ta baguette vers elles avec ton bras, et garde le rayon dessus pour chasser le nuage !';
     case 'fork': return `Un carrefour ! À gauche : ${forkName(s.opts[0])}. À droite : ${forkName(s.opts[1])}. Fais un grand pas du côté que tu veux !`;
     case 'shop': return 'Au supermarché ! Va dans le couloir du produit pour le mettre dans ton caddie. Attention aux chapardeurs : évite-les, ou saute par-dessus !';
@@ -254,6 +309,7 @@ function tutoText(s) {
     flamingo: 'Lève un genou et tiens-toi sur un seul pied, comme un flamant rose. Ouvre les bras pour ne pas tomber !',
   }[s.pose];
   if (s.m === 'act') return ACTS[s.game].tuto;
+  if (s.m === 'arena') return ARENA[s.game].tuto;
   return {
     jump: 'Pour sauter, plie un peu les genoux, puis saute bien haut, les deux pieds en même temps ! Quand un tronc arrive sur le chemin, saute par-dessus.',
     squat: 'Pour te baisser, plie les genoux comme une petite grenouille, puis relève-toi. Quand une branche arrive, passe dessous !',
@@ -295,6 +351,7 @@ function stepDuration(s) {
     case 'basket': return 3 + s.n * 7;
     case 'kick': return 2 + s.n * 4.5;
     case 'act': return 4 + s.n * ACTS[s.game].sec;
+    case 'arena': return 5 + s.n * ARENA[s.game].sec;
     case 'fork': return 9;
     case 'jump': return 1.8 + 1.0 * s.n;
     case 'squat': return 2.0 + 1.6 * s.n;
@@ -339,6 +396,7 @@ function maxPoints(s) {
     case 'goal': return s.n * 80;
     case 'basket': case 'kick': return s.n * 120;
     case 'act': return s.n * ACTS[s.game].pts + 100;
+    case 'arena': return s.n * ARENA[s.game].pts + 100;
     default: return 0;
   }
 }
@@ -387,7 +445,7 @@ const WORLDS = [
     endText: 'Bouton te félicite : cours de botanique réussi !',
     sequence: [
       Z(4, 'Cours de botanique ! Bouton, le jardinier, te confie des graines magiques. On les fait pousser ?'),
-      AC('grow', 3), K(10), B(10, 6), AC('grow', 3), P('star'), M(12, 6), F(14), AC('grow', 4),
+      AC('grow', 3), K(10), B(10, 6), AC('grow', 3), P('star'), AR('pimprenelle', 6), M(12, 6), AC('grow', 4),
       Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ],
   },
@@ -408,6 +466,7 @@ const WORLDS = [
     sequence: [
       Z(4, 'Cours de danse ! Chez les petits sorciers, on danse pour lancer des sorts. Musique !'),
       DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'),
+      AR('mur', 5),
       DN('star', 'jump', 'star', 'jump', 'airplane', 'armsUp'),
       F(14),
       DN('left', 'armsUp', 'right', 'armsUp', 'squat', 'jump', 'star', 'airplane'),
@@ -436,9 +495,9 @@ const WORLDS = [
       Z(4, 'Cours de défense avec Maître Bambou : on apprend à arrêter les mauvais sorts. Salue le maître… Kiaï !'),
       KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
       KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'),
-      P('airplane'),
+      AR('duel', 3),
       KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'),
-      M(12, 6),
+      P('airplane'),
       KA('left', 'smash', 'right', 'smash', 'squat', 'jump'),
       Z(3, 'Salue le maître… et respire.'),
     ],
@@ -462,8 +521,7 @@ const WORLDS = [
     endText: 'La potion est prête ! Kiwi te félicite, petit sorcier !',
     sequence: [
       Z(4, 'Atelier des potions ! Kiwi a besoin de fruits magiques coupés en deux pour sa potion. Prêt ?'),
-      SL(14, 8), J(2), SL(14, 10), P('star'),
-      S(2), SL(16, 12), P('airplane'), SL(14, 10),
+      SL(14, 8), AR('potions', 1), J(2), SL(16, 12), P('star'), AR('potions', 2),
       Z(3, 'La potion bouillonne… Bravo ! Respire bien.'),
     ],
   },
@@ -508,7 +566,7 @@ const WORLDS = [
     endText: 'Les vitres brillent, et les singes ne sont plus ensorcelés !',
     sequence: [
       Z(4, 'Oh non ! Le Nuage Grognon a ensorcelé les singes de l\'Académie : ils couvrent les vitres de la tour de mousse !'),
-      MO(16, 6), J(2), R(6), MO(18, 8), P('armsUp'), S(2), MO(18, 8), K(10), MO(20, 10),
+      MO(16, 6), J(2), AR('equilibre', 10), MO(18, 8), P('armsUp'), S(2), MO(18, 8), K(10), MO(20, 10),
       Z(3, 'Bravo ! La tour brille… respire bien.'),
     ],
   },
@@ -667,8 +725,8 @@ const WORLDS = [
     endText: 'Flocon te rend l\'Étoile orange : la banquise est sauvée !',
     sequence: [
       Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Les bébés pingouins ont besoin de toi !"),
-      AC('clap', 3), U(4), K(10), Q(3), AC('clap', 4),
-      X(2), B(10, 6), F(14), PM('airplane', 'armsUp', 'star'), AC('clap', 4),
+      AC('clap', 3), U(4), AR('neige', 8), Q(3), AC('clap', 4),
+      X(2), B(10, 6), F(14), AR('neige', 10), AC('clap', 4),
       Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ],
   },
@@ -824,9 +882,9 @@ const WORLDS = [
     endText: 'Le Nuage Grognon est devenu ton ami, et l\'arc-en-ciel brille à nouveau !',
     sequence: [
       Z(4, 'Voici le château du Nuage Grognon. Le cœur de l\'arc-en-ciel est caché ici. Courage, petit sorcier… et sois gentil avec lui !'),
-      R(6), P('star'), J(), S(), K(10),
-      L(), D(), B(10, 6), X(2), P('armsUp'),
-      C('squat', 'jump'), Q(3), F(14), P('flamingo', 2), R(6),
+      AR('balai', 10), P('star'), J(), S(), K(10),
+      L(), D(), B(10, 6), AR('mur', 6), P('armsUp'),
+      C('squat', 'jump'), Q(3), F(14), P('flamingo', 2), AR('soleil', 1),
       Z(3, 'Le ciel est tout bleu… Magnifique ! Fais une révérence.'),
     ],
   },
@@ -849,7 +907,7 @@ const WORLDS = [
     endText: 'L\'Étoile violette brille dans ta main ! Les créatures du bois sont libres !',
     sequence: [
       Z(4, 'Ta première aventure ! Le Nuage Grognon a caché l\'Étoile violette dans le Bois des Sortilèges. Chut… prépare ta baguette !'),
-      WA(16, 3), R(6), J(2), P('armsUp'), WA(18, 4), S(2), B(10, 6), WA(20, 5), K(10),
+      WA(16, 3), AR('balai', 8), J(2), P('armsUp'), WA(18, 4), S(2), B(10, 6), WA(20, 5), K(10),
       Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ],
   },
@@ -872,8 +930,32 @@ const WORLDS = [
     endText: 'Dring ! Fin de la récré… quel match !',
     sequence: [
       Z(4, 'Dring ! C\'est la récré ! On joue au ballon avec les créatures de l\'Académie.'),
-      R(6), GO(5), J(2), BK(3), S(2), KI(4), P('star'), GO(6), L(), D(), BK(3), KI(4),
+      GO(5), AR('soleil', 1), J(2), BK(3), S(2), KI(4), AR('corde', 1), P('star'), GO(6), BK(3), KI(4),
       Z(3, 'Dring ! La récré est finie. Respire bien, champion…'),
+    ],
+  },
+  {
+    // Salle des Défis : les jeux miroir, pour tous et surtout pour les grands (trois au hasard à chaque visite, de plus en
+    // plus vite ; record à battre). Hors de la carte : ouverte d'office, elle ne bloque pas l'histoire.
+    id: 'defis',
+    arenaMix: 3, noBoss: true,
+    name: 'La Salle des Défis',
+    tagline: 'Trois défis au hasard : bats ton record !',
+    heroName: 'Pimprenelle',
+    hero: { body: '#3a86ff', belly: '#dbeafe', limb: '#1e40af', accent: '#ffd166', extra: 'scarf' },
+    collectible: '🏆',
+    sky: ['#3a0ca3', '#7209b7'],
+    biomes: [
+      { name: 'La Salle des Défis', sky0: '#5a189a', sky1: '#c77dff', sun: '#ffe8c2', mount0: '#7b2cbf', mount1: '#9d4edd',
+        grass: '#7ccf6a', grass2: '#6fbf73', path: '#e6c28f', path2: '#dbb47e', fog: '#e0c3fc',
+        deco: ['🏆', '⭐', '🎈', '🪄', '🦉', '✨'], ambient: ['butterflies'] },
+    ],
+    endText: 'Quels défis ! Madame Pimprenelle est fière de toi.',
+    sequence: [
+      Z(4, 'Bienvenue dans la Salle des Défis de Madame Pimprenelle ! Trois défis t\'attendent… prêt ?'),
+      AR('mur', 6), AR('soleil', 1), AR('pimprenelle', 7), AR('neige', 10), AR('potions', 2), AR('duel', 4),
+      AR('corde', 1), AR('equilibre', 12), AR('balai', 12), AR('photo', 2),
+      Z(3, 'Bravo, champion ! Respire bien…'),
     ],
   }
 ];
@@ -895,7 +977,7 @@ const WORLD_KITS = {
   jardin3d: ['flowers'], turbo: ['meadow', 'mountain', 'desert'], island: ['beach', 'jungle', 'volcano'],
   forest: ['forest', 'beach', 'night'], banquise: ['glacier', 'aurora'], ocean: ['lagoon', 'reef', 'abyss'],
   espace: ['moon', 'mars', 'nebula'], bonbons: ['candy', 'icecream'], ferme: ['farm', 'orchard'],
-  ecole: ['flowers'], supermarche: ['market', 'marketFruit'], singes: ['jungle', 'beach'], dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
+  ecole: ['flowers'], defis: ['flowers'], supermarche: ['market', 'marketFruit'], singes: ['jungle', 'beach'], dinos: ['ferns', 'dinoland'], chateau: ['garden', 'magic'], disco: ['disco'], dojo: ['dojo', 'dojoNight'],
   verger: ['orchard', 'dojo'], rythmo: ['disco'], sortileges: ['forest', 'magic'], stade: ['stadium', 'meadow'],
 };
 // Épreuves rigolotes ajoutées à chaque monde (tunnel, taupes, copie de poses)
@@ -903,7 +985,7 @@ const FUN_POSES = [['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star'
 let classicN = 0; // rang parmi les mondes « classiques » (même règle que hooks.py)
 WORLDS.forEach((w, i) => {
   (WORLD_KITS[w.id] || []).forEach((kit, k) => { if (w.biomes[k]) w.biomes[k].kit = kit; });
-  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges', 'stade', 'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos'].includes(w.id)) return; // ces mondes ont leur propre programme (leur jeu sur place)
+  if (['disco', 'dojo', 'verger', 'rythmo', 'ecole', 'supermarche', 'singes', 'sortileges', 'stade', 'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos', 'defis'].includes(w.id)) return; // ces mondes ont leur propre programme (leur jeu sur place)
   const seq = w.sequence, n = seq.length;
   seq.splice(Math.round(n * 0.75), 0, PM(...FUN_POSES[i % FUN_POSES.length]));
   seq.splice(Math.round(n * 0.62), 0, classicN++ % 2 ? CU(10, 1.5) : SL(12, 6)); // fruits ou cubes, un monde sur deux
@@ -912,4 +994,4 @@ WORLDS.forEach((w, i) => {
 });
 // Gardien de fin de monde (avant la respiration finale), dans tous les mondes
 const BOSS_POSES = [['star', 'airplane', 'armsUp'], ['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star']];
-WORLDS.forEach((w, i) => { if (w.tutorial) return; const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });
+WORLDS.forEach((w, i) => { if (w.tutorial || w.noBoss) return; const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });

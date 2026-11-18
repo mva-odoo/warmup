@@ -16,6 +16,7 @@ WORLDS = [
     ('dinos', 'La Vallée des Dinos'),
     ('espace', "Voyage dans l'Espace"),
     ('chateau', 'Le Château du Nuage Grognon'),
+    ('defis', 'La Salle des Défis'),
     ('turbo', 'Vallée Turbo (ancienne île)'),
     ('island', 'Île Bondissante (ancienne île)'),
     ('bonbons', 'Pays des Bonbons (ancienne île)'),
@@ -59,7 +60,21 @@ MOVES = [
     ('act_launch', 'Faire décoller la fusée (rester accroupi, puis sauter)'),
     ('act_stomp', 'Marcher comme un dino (genoux levés)'),
     ('act_animals', 'Imiter les animaux'),
+    # Jeux miroir (scène fixe, l'enfant se voit à l'écran ; le code « arena_… » devient { m: 'arena', game: … })
+    ('arena_mur', 'Le Mur Magique (prendre la pose du trou)'),
+    ('arena_soleil', '1, 2, 3… Nuage Grognon (statue quand il regarde)'),
+    ('arena_pimprenelle', 'Pimprenelle a dit'),
+    ('arena_neige', 'Bataille de boules de neige'),
+    ('arena_potions', 'La cuisine des potions'),
+    ('arena_duel', 'Duel de sorciers'),
+    ('arena_corde', 'Tir à la corde magique'),
+    ('arena_equilibre', "L'équilibriste (secondes sur un pied)"),
+    ('arena_balai', 'La course de balais (anneaux)'),
+    ('arena_photo', 'Le miroir magique (photos rigolotes)'),
 ]
+
+# Jeux miroir : secondes par unité (même valeur que ARENA dans worlds.js)
+ARENA_SECONDS = {'mur': 4.2, 'soleil': 32, 'pimprenelle': 4.5, 'neige': 3.2, 'potions': 18, 'duel': 9, 'corde': 24, 'equilibre': 1.8, 'balai': 2.8, 'photo': 7}
 
 # Jeux sur place : secondes par réussite (même valeur que ACTS dans worlds.js)
 ACT_SECONDS = {'grow': 5, 'clap': 4.5, 'swim': 1.5, 'launch': 6.5, 'stomp': 5, 'animals': 5}

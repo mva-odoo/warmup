@@ -476,7 +476,7 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   if (phase === 'play' || phase === 'calib' || phase === 'countdown') Rec.end(null); // (partie abandonnée : on garde quand même les mouvements)
-  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose();
+  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end();
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
   showMenuCam();
@@ -686,6 +686,7 @@ addEventListener('keydown', (e) => {
     if (e.key === 'Escape') goMenu();
   }
   if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
+  if (arena.on && phase === 'play' && /^[bBsS]$/.test(e.key)) arena.ev.push('key_' + e.key.toLowerCase()); // (jeux miroir au clavier : B toucher, S touiller)
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'moles' && !game.cur.done) {
     const c = game.cur; c.bonked++; game.add(50, '+50'); Audio8.boing(); ui.setDetail(game.detail(c));
     if (c.bonked >= c.s.n) game.complete(performance.now());
@@ -796,7 +797,7 @@ function startCountdown(done = startGame) {
 function shortSteps(steps) {
   if (steps.length < 8) return steps;
   const mid = steps.slice(1, -1);
-  const special = ['act', 'bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
+  const special = ['arena', 'act', 'bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
   return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
 }
 
@@ -814,9 +815,17 @@ class Game {
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
     if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
+    // Salle des Défis : trois jeux miroir au hasard à chaque visite (jamais les mêmes que la dernière fois)
+    if (w.arenaMix && !DEV.get('step') && !Rec.playing) {
+      const all = this.steps.slice(1, -1), last = WUQStore._get('defisLast') || [];
+      const pick = [...all.filter((st) => !last.includes(st.game)), ...all.filter((st) => last.includes(st.game))].map((st, i, l) => ({ st, r: i < l.length - last.length ? Math.random() : 1 + Math.random() }))
+        .sort((x, y) => x.r - y.r).slice(0, w.arenaMix).map((o) => o.st);
+      WUQStore._set('defisLast', pick.map((st) => st.game));
+      this.steps = [this.steps[0], ...pick, this.steps[this.steps.length - 1]];
+    }
     this.steps = Rec.steps(this.steps); // (enregistreur : on garde le parcours ; rejeu : on reprend le même)
     const devStep = DEV.get('step');
-    if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep); if (k >= 0) this.steps = this.steps.slice(k); }
+    if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep && (!DEV.get('game') || st.game === DEV.get('game'))); if (k >= 0) this.steps = this.steps.slice(k); } // (?step=arena&game=mur)
     this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
     this.startedAt = performance.now();
     this.pausedTotal = 0;
@@ -853,6 +862,7 @@ class Game {
       for (const b of c.shots || []) { b.born += d; b.arrive += d; if (b.t) b.t += d; }
       if (c.ball) { c.ball.t0 += d; } if (c.kickAt) c.kickAt += d;
       if (c.lastFoe) c.lastFoe += d;
+      if (c.s.m === 'arena') arena.shift(d);
       if (c.act) { c.act.t += d; c.act.pop += d; c.act.subPop += d; if (c.act.shake) c.act.shake += d; }
     }
     if (this.gapUntil) this.gapUntil += d;
@@ -892,6 +902,7 @@ class Game {
   }
 
   nextStep(now) {
+    if (arena.on) arena.end(); // (fin d'un jeu miroir : retour sur le chemin)
     this.i++;
     if (this.i >= this.steps.length) return this.finish();
     const s = this.adapt(this.steps[this.i]);
@@ -933,6 +944,7 @@ class Game {
       Audio8.cry(cr.id);
     }
     if (s.m === 'moles') scene.moles = this.cur.moles;
+    if (s.m === 'arena') arena.begin(s, this, this.cur); // (jeu miroir : scène fixe, l'enfant se voit à l'écran)
     if (s.m === 'goal' || s.m === 'basket' || s.m === 'kick') { // Stade : le copain est un de tes amis du carnet (pas encore évolué de préférence)
       const kitL = creaturesOf(this.biomeNow().kit || 'meadow'), local = kitL.length ? kitL : CREATURES;
       const own = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
@@ -1005,6 +1017,8 @@ class Game {
       }
     } else if (s.m === 'act') {
       if (c.act) c.act.ev.push(type); // (traité dans updateAct)
+    } else if (s.m === 'arena') {
+      if (idx === 0 || this.np === 1) arena.ev.push(type); // (traité par arena.js)
     } else if (s.m === 'kick' && /^(kick|throw)[LR]$/.test(type)) {
       c.kickEv = { side: type.endsWith('L') ? -1 : 1, hand: type.startsWith('throw'), idx, t: now }; // (traité dans updateKick)
     } else if ((s.m === 'left' || s.m === 'right') && type === s.m && tracker.state.side === s.m) {
@@ -1028,6 +1042,7 @@ class Game {
       case 'goal': return `<div class="runCount">🧤 <b>${c.saved || 0}</b> / ${s.n}</div>`;
       case 'basket': return `<div class="runCount">🏀 <b>${c.baskets || 0}</b> / ${s.n}</div>`;
       case 'kick': return `<div class="runCount">⚽ <b>${c.goals || 0}</b> / ${s.n}</div>`;
+      case 'arena': return arena.detail();
       case 'act': { const a = c.act, per = ACTS[s.game].per || 1; return `<div class="runCount">${ACTS[s.game].icon} <b>${a ? a.reps : 0}</b> / ${s.n}</div>` + (per > 1 && a ? dots(a.sub, per) : ''); }
       case 'wand': return `<div class="runCount">🪄 <b>${c.calmed || 0}</b> / ${s.n}</div>`;
       case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
@@ -1966,6 +1981,13 @@ class Game {
     }
   }
 
+  // Fin d'un jeu miroir (arena.js) : réussi (au moins la moitié) ou noté comme une fin de temps
+  arenaEnd(ratio) {
+    const c = this.cur, now = performance.now();
+    if (!c || c.done || c.s.m !== 'arena') return;
+    if (ratio >= 0.5) this.complete(now); else c.end = now;
+  }
+
   complete(now) {
     const c = this.cur;
     if (DEV.get('hold')) { c.end = now + 60000; return; } // (mode test) l'épreuve reste affichée
@@ -2053,11 +2075,11 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['act', 'catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
+    } else if (['arena', 'act', 'catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
       const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
       const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
         posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
-        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, act: () => (c.act ? c.act.reps + c.act.sub / (ACTS[s.game].per || 1) : 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
+        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, arena: () => arena.ratio(), act: () => (c.act ? c.act.reps + c.act.sub / (ACTS[s.game].per || 1) : 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
       if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
@@ -2122,6 +2144,7 @@ class Game {
     if (s.m === 'basket') { this.updateBasket(c, now); if (c.done) return; }
     if (s.m === 'kick') { this.updateKick(c, now); if (c.done) return; }
     if (s.m === 'act') { this.updateAct(c, now, dt); if (c.done) return; }
+    if (s.m === 'arena') { arena.update(now); if (c.done) return; }
     if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
     if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
     if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
@@ -2132,6 +2155,7 @@ class Game {
 
   finish() {
     this.over = true;
+    arena.end();
     const ratio = this.maxScore ? this.score / this.maxScore : 0;
     const stars = ratio >= 0.6 ? 3 : ratio >= 0.3 ? 2 : 1; // au moins 1 étoile : on a bougé, c'est gagné
     const id = this.world.id;
@@ -2571,6 +2595,7 @@ function tick(now) {
 // Dessin (décor, pictogramme, caméra)
 function draw(now) {
   if (phase === 'hub' || (world && world.hub && (phase === 'calib' || phase === 'loading'))) hub.render(now);
+  else if (arena.on && (phase === 'play' || phase === 'paused')) arena.render(now); // (jeu miroir : la scène du chemin est cachée)
   else if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;

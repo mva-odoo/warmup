@@ -1,5 +1,135 @@
 [
 [
+"Super, le mur est passé !",
+"bravo",
+true
+],
+[
+"Ouille, le mur !",
+"jeu",
+false
+],
+[
+"Nuage Grognon !",
+"jeu",
+false
+],
+[
+"Un, deux, trois…",
+"jeu",
+false
+],
+[
+"Je t'ai vu bouger !",
+"jeu",
+false
+],
+[
+"Bravo !",
+"bravo",
+true
+],
+[
+"Touché !",
+"jeu",
+false
+],
+[
+"Pas celui-là !",
+"jeu",
+false
+],
+[
+"Maintenant, touille ! Fais de grands cercles avec ton bras !",
+"jeu",
+false
+],
+[
+"La potion est prête !",
+"jeu",
+false
+],
+[
+"Attention, il prépare un sort !",
+"jeu",
+false
+],
+[
+"shield",
+"jeu",
+false
+],
+[
+"Bouclier ! Joins tes mains !",
+"jeu",
+false
+],
+[
+"Esquive ! Pas de côté !",
+"jeu",
+false
+],
+[
+"Paré !",
+"jeu",
+false
+],
+[
+"À toi ! Lève les deux bras pour lancer ton sort !",
+"jeu",
+false
+],
+[
+"Ouille ! Ça chatouille !",
+"jeu",
+false
+],
+[
+"Il est tout étourdi !",
+"jeu",
+false
+],
+[
+"Il tire fort !",
+"jeu",
+false
+],
+[
+"Tire, tire !",
+"jeu",
+false
+],
+[
+"Le vent souffle ! Ouvre les bras !",
+"jeu",
+false
+],
+[
+"Bravo, tu tiens bien !",
+"bravo",
+true
+],
+[
+"Encore un !",
+"jeu",
+false
+],
+[
+"Trois, deux, un…",
+"jeu",
+false
+],
+[
+"Super photo !",
+"bravo",
+true
+],
+[
+"Ouistiti !",
+"jeu",
+false
+],
+[
 "C'est fini pour aujourd'hui, à demain !",
 "jeu",
 false

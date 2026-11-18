@@ -97,6 +97,28 @@ thème (moins de course qu'avant). Étape `act` dans le jeu, `act_…` dans les 
 - Odoo : les séquences par défaut de ces pays sont remplacées par la migration 20.0.17 seulement si elles n'ont pas été
   modifiées (mêmes épreuves, nombres et durées qu'à l'origine).
 
+## Les jeux miroir (comme sur console)
+Une scène fixe, sans chemin : l'enfant se voit en grand à l'écran (image de la caméra, en miroir, avec un chapeau de
+sorcier et des mains lumineuses) et la magie se dessine autour de lui. Quand il touche un objet avec sa vraie main, il le
+touche à l'écran : rien à viser. Étape `arena` (moteur : `js/arena.js`), `arena_…` dans les séquences Odoo.
+- 🧱 **Le Mur Magique** : un mur arrive avec un trou en forme de pose (bras en l'air, avion, étoile, accroupi, pas de
+  côté, sur un pied) ; prendre la pose pour passer. De plus en plus vite.
+- ☁️ **1, 2, 3… Nuage Grognon** : courir sur place quand il a le dos tourné, statue quand il se retourne (sinon on recule).
+- 🦉 **Pimprenelle a dit** : faire l'ordre seulement si elle a dit « Pimprenelle a dit » (les grands adorent le piège).
+- ⛄ **Bataille de boules de neige** : lancer (bras levé puis baissé d'un coup) vers les bonshommes farceurs, ou les toucher.
+- 🧪 **La cuisine des potions** : toucher les ingrédients de la recette, puis touiller (grands cercles avec le bras).
+- ⚡ **Duel de sorciers** contre Grimaud : bouclier (mains jointes) ou esquive (pas de côté), puis bras levés pour son sort.
+- 🪢 **Tir à la corde** contre le Nuage Grognon : bouger les bras très vite (ou sauter) pour ramener le ruban.
+- 🎪 **L'équilibriste** : sur un pied (bras ouverts sans les jambes visibles) ; bras ouverts quand le vent souffle.
+- 🧹 **La course de balais** (décor de ciel) : se pencher pour tourner, bras levés pour monter, accroupi pour descendre.
+- 📸 **Le miroir magique** : trois, deux, un… photo rigolote, gardée dans le grimoire.
+- Dans les cours et les aventures : potions (Atelier), duel (Défense), Mur (Danse), 1-2-3 et corde (Récré), Pimprenelle
+  (Jardin), boules de neige (Banquise), équilibriste (Singes), balais (Sortilèges, Château).
+- **🏆 La Salle des Défis** (la tour de Madame Pimprenelle, au château, ouverte d'office) : trois jeux miroir au hasard à
+  chaque visite, de plus en plus vite, record à battre. Elle ne bloque pas l'histoire.
+- Sans caméra (mode clavier), un petit sorcier dessiné remplace l'image ; B = toucher un ingrédient, S = touiller.
+- Mode test : `?world=defis&step=arena&game=mur&fakelimbs=1` (l'enfant imaginaire joue).
+
 ## Détection des mouvements
 - Modèle MediaPipe « full » et image 1280×720 sur un ordinateur correct (poignets et genoux plus stables) ; « lite » et
   480×360 sur un petit PC. Si « full » est trop lent pendant la partie (analyse > 45 ms pendant 4 s), le jeu passe tout

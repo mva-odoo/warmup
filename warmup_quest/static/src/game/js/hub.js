@@ -18,6 +18,7 @@
 const CASTLE = {
   ecole: [0, -27, 'n'], jardin3d: [-19, 11, 'o'], disco: [-19, 0, 'o'], dojo: [-19, -11, 'o'], verger: [-10, -17, 'n'],
   stade: [19, -11, 'e'], singes: [19, 0, 'e'], supermarche: [19, 11, 'e'], portal: [0, 17, 's'],
+  defis: [10, -17, 'n'], // (la Salle des Défis : la tour de Madame Pimprenelle, ouverte d'office)
 };
 const CASTLE_SIDE = { o: { x: -1, z: 0 }, e: { x: 1, z: 0 }, n: { x: 0, z: -1 }, s: { x: 0, z: 1 } };
 const CASTLE_ROOF = { jardin3d: '#52b788', disco: '#f15bb5', verger: '#7b2cbf', stade: '#4cc9f0', supermarche: '#ff9f1c' }; // (toit de la tour de chaque cours)
@@ -34,7 +35,7 @@ function villageWorld(w) {
   return VILLAGES.get(w.id);
 }
 // Grosse icône de chaque lieu sur son panneau (les petits ne lisent pas encore)
-const HUB_ICONS = { ecole: '🏰', jardin3d: '🌸', disco: '💃', dojo: '🥋', verger: '🧪', stade: '⚽', singes: '🐒', supermarche: '🛒' };
+const HUB_ICONS = { defis: '🏆', ecole: '🏰', jardin3d: '🌸', disco: '💃', dojo: '🥋', verger: '🧪', stade: '⚽', singes: '🐒', supermarche: '🛒' };
 const HUB_SAY = {
   hello: "Bienvenue au château de l'Académie ! Lève les deux bras pour aller au cours qui brille. Pour en choisir un autre, fais un pas de côté !",
   go: "C'est parti !",
@@ -90,6 +91,8 @@ class AcademyHub {
     const adv = CHAPTERS[1].worlds.map((id) => byId.get(id)).filter(Boolean);
     const open = adv.filter((w) => Progress.unlocked(w));
     // (le portail mène au village de la prochaine aventure à gagner, sinon de la dernière ouverte)
+    const defis = byId.get('defis'); // (hors de la carte : ouverte d'office, elle ne bloque pas l'histoire)
+    if (defis) list.push({ id: 'defis', kind: 'world', w: defis, open: true, stars: Progress.stars(defis), name: defis.name });
     list.push({ id: 'portal', kind: 'portal', w: open.find((w) => Progress.stars(w) === 0) || open[open.length - 1] || adv[0], open: open.length > 0, name: '🌀 Aventures' });
     for (const d of list) [d.x, d.z, d.side] = CASTLE[d.id];
     return list;
@@ -261,7 +264,7 @@ class AcademyHub {
     wall(-19, 17, -3.8, 17, 1.4); wall(3.8, 17, 19, 17, 1.4); // (rempart de l'entrée, bas)
     for (const sx of [-1, 1]) { tower(sx * 19, -17, 2.4, 10); tower(sx * 19, 17, 1.8, 3); tower(sx * 4.6, -17, 1.5, 7.5); }
     mesh(box, stone2, 0, 7.2, -17, 9.5, 1.2, 1.9); // (arche de la grande porte du donjon)
-    // La tour de la directrice : la plus haute, une fenêtre allumée et Madame Pimprenelle au balcon
+    // La tour de la directrice (la Salle des Défis) : la plus haute, une fenêtre allumée et Madame Pimprenelle au balcon
     tower(10, -17, 2.3, 13, '#3a86ff');
     mesh(cyl, '#fff3b0', 10, 10.5, -14.75, 0.8, 0.1, 0.8, scene, { emissive: '#ffd166', emissiveIntensity: 0.8 }).rotation.x = Math.PI / 2;
     mesh(cyl, stone2, 10, 8.6, -14.2, 1.3, 0.3, 1.3); // (balcon)
@@ -304,6 +307,14 @@ class AcademyHub {
           for (const x of [-7, 7]) { mesh(cyl, '#e0c3fc', x, 6, 0, 1.6, 12, 1.6, g); mesh(cone, '#9d4edd', x, 13.5, 0, 2, 3.5, 2, g); }
         }
         return 17;
+      }
+      case 'defis': { // la Salle des Défis (la tour est celle des remparts) : un grand miroir magique doré et une coupe
+        mesh(box, '#ffd166', 0, 2.2, -4.2, 3.2, 4.2, 0.35, g, { emissive: '#ffd166', emissiveIntensity: 0.25 });
+        const glass = mesh(box, '#bde0fe', 0, 2.2, -4.42, 2.6, 3.6, 0.05, g, { emissive: '#c77dff', emissiveIntensity: 0.4 });
+        mesh(cone, '#ffd166', 0, 4.7, -4.2, 0.6, 0.8, 0.6, g);
+        for (const x of [-2.6, 2.6]) { mesh(cyl, '#adb5bd', x, 0.6, -4.6, 0.35, 1.2, 0.35, g); mesh(cyl, '#ffd166', x, 1.6, -4.6, 0.45, 0.8, 0.45, g, { emissive: '#ffd166', emissiveIntensity: 0.3 }); } // (coupes)
+        anims.push((t) => { glass.material.emissiveIntensity = 0.3 + 0.25 * Math.sin(t * 0.003); });
+        return 13.5;
       }
       case 'jardin3d': { // la serre : massif de fleurs et arche de verdure devant la tour
         for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2, f = S.P.make && S.P.make(['k:flower_redA', 'k:flower_yellowA', 'k:flower_purpleA', 'pf:flowers'][i % 4], { grass: '#7ccf6a' }); if (f) { f.position.set(Math.sin(a) * 1.9, 0, -4.6 + Math.cos(a) * 1.2); g.add(f); } }

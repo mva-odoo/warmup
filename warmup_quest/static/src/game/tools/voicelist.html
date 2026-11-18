@@ -39,6 +39,8 @@
   for (const p of Object.values(POSES)) { add(p.say, 'consigne', true); add(p.label, 'consigne'); }
   for (const g of Object.values(ACTS)) for (const t of g.cheer) add(t, 'jeu'); // (jeux sur place : encouragements)
   for (const an of ANIMALS) add(an.say, 'consigne'); // (imite les animaux : une phrase par carte)
+  for (const t of ARENA_LINES) add(t, 'jeu'); // (jeux miroir : phrases dites pendant le jeu)
+  for (const o of SIMON_ORDERS) { add(o.yes, 'consigne'); add(o.no, 'consigne'); } // (Pimprenelle a dit)
   for (const st of Object.values(MIMIC)) for (const t of Object.values(st.say)) add(t, 'consigne');
   // 3. Carrefours
   add('Un carrefour !', 'consigne'); add('Fais un grand pas du côté que tu veux !', 'consigne');

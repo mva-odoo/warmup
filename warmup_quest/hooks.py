@@ -94,6 +94,8 @@ def _boss_step(world):
 def _with_boss(steps, world):
     """Ajoute le gardien juste avant la respiration finale."""
     steps = list(steps)
+    if world in NO_BOSS:
+        return steps
     steps.insert(len(steps) - 1, _boss_step(world))
     return steps
 
@@ -130,6 +132,11 @@ def _CU(n, beat=1.4):
     return {'move': 'cubes', 'count': n, 'hold': beat}
 
 
+def _AR(game, n):
+    """Jeu miroir (scène fixe : Mur Magique, 1, 2, 3 Nuage Grognon, Pimprenelle a dit, boules de neige…)."""
+    return {'move': 'arena_' + game, 'count': n}
+
+
 def _AC(game, n):
     """Jeu sur place d'un pays (fleurs, pingouins, dauphins, fusée, dinos, animaux)."""
     return {'move': 'act_' + game, 'count': n}
@@ -142,41 +149,42 @@ FUN_STEPS = [_U(4), _M(12, 6), _PM('armsUp', 'star', 'airplane')]
 DEFAULT_SEQUENCES = [
     ('jardin3d', 'Échauffement du Jardin', [
         _Z(4, 'Cours de botanique ! Bouton, le jardinier, te confie des graines magiques. On les fait pousser ?'),
-        _AC('grow', 3), _CA(10), _B(10, 6), _AC('grow', 3), _P('star'), _M(12, 6), _F(14), _AC('grow', 4),
+        _AC('grow', 3), _CA(10), _B(10, 6), _AC('grow', 3), _P('star'), _AR('pimprenelle', 6), _M(12, 6), _AC('grow', 4),
         _Z(3, 'Bravo, petit sorcier ! Respire le parfum des fleurs…'),
     ]),
     ('disco', 'Chorégraphies de Tempo', [
         _Z(4, 'Cours de danse ! Chez les petits sorciers, on danse pour lancer des sorts. Musique !'),
-        _DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'),
+        _DN('armsUp', 'squat', 'armsUp', 'squat', 'left', 'right', 'left', 'right'), _AR('mur', 5),
         _DN('star', 'jump', 'star', 'jump', 'airplane', 'armsUp'), _F(14),
         _DN('left', 'armsUp', 'right', 'armsUp', 'squat', 'jump', 'star', 'airplane'),
         _DN('flamingo', 'armsUp', 'squat', 'jump', 'left', 'right'), _Z(3, 'Bravo ! Salue la classe…'),
     ]),
     ('dojo', 'Leçon de Maître Bambou', [
-        _Z(4, 'Cours de défense avec Maître Bambou : on apprend à arrêter les mauvais sorts. Salue le maître… Kiaï !'), _KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'),
-        _KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'), _P('airplane'),
-        _KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'), _M(12, 6),
+        _Z(4, 'Cours de défense avec Maître Bambou : on apprend à arrêter les mauvais sorts. Salue le maître… Kiaï !'),
+        _KA('armsUp', 'squat', 'armsUp', 'squat', 'smash', 'smash'), _KA('flamingo', 'squat', 'left', 'right', 'smash', 'jump'), _AR('duel', 3),
+        _KA('squat', 'armsUp', 'smash', 'flamingo', 'jump', 'star'), _P('airplane'),
         _KA('left', 'smash', 'right', 'smash', 'squat', 'jump'), _Z(3, 'Salue le maître… et respire.'),
     ]),
     ('verger', 'Entraînement des Ninjas', [
-        _Z(4, 'Atelier des potions ! Kiwi a besoin de fruits magiques coupés en deux pour sa potion. Prêt ?'), _SL(14, 8), _J(2), _SL(14, 10), _P('star'),
-        _S(2), _SL(16, 12), _P('airplane'), _SL(14, 10), _Z(3, 'La potion bouillonne… Bravo ! Respire bien.'),
+        _Z(4, 'Atelier des potions ! Kiwi a besoin de fruits magiques coupés en deux pour sa potion. Prêt ?'),
+        _SL(14, 8), _AR('potions', 1), _J(2), _SL(16, 12), _P('star'), _AR('potions', 2),
+        _Z(3, 'La potion bouillonne… Bravo ! Respire bien.'),
     ]),
     ('rythmo', 'Rythmes de Bip', [
         _Z(2.5, 'Prêt ? Musique !'), _CU(12, 1.6), _S(2), _CU(16, 1.4), _P('armsUp'),
         _CU(16, 1.3), _J(2), _CU(20, 1.2), _Z(3, 'Bravo ! Quel rythme…'),
     ]),
     ('singes', 'Les farces des singes', [
-        _Z(4, "Oh non ! Le Nuage Grognon a ensorcelé les singes de l'Académie : ils couvrent les vitres de la tour de mousse !"), _MO(16, 6), _J(2), _R(6), _MO(18, 8), _P('armsUp'),
+        _Z(4, "Oh non ! Le Nuage Grognon a ensorcelé les singes de l'Académie : ils couvrent les vitres de la tour de mousse !"), _MO(16, 6), _J(2), _AR('equilibre', 10), _MO(18, 8), _P('armsUp'),
         _S(2), _MO(18, 8), _CA(10), _MO(20, 10), _Z(3, 'Bravo ! La tour brille… respire bien.'),
     ]),
     ('sortileges', 'Les sortilèges du Nuage Grognon', [
-        _Z(4, "Ta première aventure ! Le Nuage Grognon a caché l'Étoile violette dans le Bois des Sortilèges. Chut… prépare ta baguette !"), _WA(16, 3), _R(6), _J(2), _P('armsUp'),
+        _Z(4, "Ta première aventure ! Le Nuage Grognon a caché l'Étoile violette dans le Bois des Sortilèges. Chut… prépare ta baguette !"), _WA(16, 3), _AR('balai', 8), _J(2), _P('armsUp'),
         _WA(18, 4), _S(2), _B(10, 6), _WA(20, 5), _CA(10), _Z(3, 'Bravo, petit sorcier ! Respire bien…'),
     ]),
     ('stade', 'Le match des créatures', [
-        _Z(4, "Dring ! C'est la récré ! On joue au ballon avec les créatures de l'Académie."), _R(6), _GO(5), _J(2), _BK(3), _S(2), _KI(4),
-        _P('star'), _GO(6), _L(), _D(), _BK(3), _KI(4), _Z(3, 'Dring ! La récré est finie. Respire bien, champion…'),
+        _Z(4, "Dring ! C'est la récré ! On joue au ballon avec les créatures de l'Académie."), _GO(5), _AR('soleil', 1), _J(2), _BK(3), _S(2), _KI(4),
+        _AR('corde', 1), _P('star'), _GO(6), _BK(3), _KI(4), _Z(3, 'Dring ! La récré est finie. Respire bien, champion…'),
     ]),
     ('supermarche', 'Les courses de Panier', [
         _Z(4, "Au marché aux ingrédients ! Remplis ton caddie pour l'atelier des potions… et attention aux chapardeurs !"), _SH(12), _J(2), _SH(14), _P('armsUp'), _S(2),
@@ -203,8 +211,8 @@ DEFAULT_SEQUENCES = [
     ]),
     ('banquise', 'Échauffement Glacé', [
         _Z(4, "Brrr ! Le Nuage Grognon a tout gelé, et il a caché l'Étoile orange sous la glace. Les bébés pingouins ont besoin de toi !"),
-        _AC('clap', 3), _U(4), _CA(10), _RO(3), _AC('clap', 4),
-        _X(2), _B(10, 6), _F(14), _PM('airplane', 'armsUp', 'star'), _AC('clap', 4),
+        _AC('clap', 3), _U(4), _AR('neige', 8), _RO(3), _AC('clap', 4),
+        _X(2), _B(10, 6), _F(14), _AR('neige', 10), _AC('clap', 4),
         _Z(3, 'Bravo ! Souffle comme le vent du nord…'),
     ]),
     ('ocean', 'Échauffement Plongée', [
@@ -238,15 +246,23 @@ DEFAULT_SEQUENCES = [
         _Z(3, 'Bravo ! Respire comme un grand dino…'),
     ]),
     ('chateau', 'Échauffement Enchanté', [
-        _Z(4, "Voici le château du Nuage Grognon. Le cœur de l'arc-en-ciel est caché ici. Courage, petit sorcier… et sois gentil avec lui !"), _R(6), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _X(2),
-        _P('armsUp'), _C('squat', 'jump'), _RO(3), _F(14), _P('flamingo', 2), _R(6),
+        _Z(4, "Voici le château du Nuage Grognon. Le cœur de l'arc-en-ciel est caché ici. Courage, petit sorcier… et sois gentil avec lui !"), _AR('balai', 10), _P('star'), _J(), _S(), _CA(10), _L(), _D(), _B(10, 6), _AR('mur', 6),
+        _P('armsUp'), _C('squat', 'jump'), _RO(3), _F(14), _P('flamingo', 2), _AR('soleil', 1),
         _Z(3, 'Le ciel est tout bleu… Magnifique ! Fais une révérence.'),
+    ]),
+    ('defis', 'La Salle des Défis', [
+        _Z(4, "Bienvenue dans la Salle des Défis de Madame Pimprenelle ! Trois défis t'attendent… prêt ?"),
+        _AR('mur', 6), _AR('soleil', 1), _AR('pimprenelle', 7), _AR('neige', 10), _AR('potions', 2), _AR('duel', 4),
+        _AR('corde', 1), _AR('equilibre', 12), _AR('balai', 12), _AR('photo', 2),
+        _Z(3, 'Bravo, champion ! Respire bien…'),
     ]),
 ]
 
 # Mondes qui ont leur propre programme (pas d'épreuves rigolotes ajoutées)
 NO_FUN = {'disco', 'dojo', 'verger', 'rythmo', 'supermarche', 'singes', 'sortileges', 'stade',
-          'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos'}  # (ces pays ont leur jeu sur place)
+          'jardin3d', 'forest', 'banquise', 'ocean', 'espace', 'dinos', 'defis'}  # (ces pays ont leur jeu sur place)
+# Mondes sans gardien à la fin (la Salle des Défis : trois défis au hasard)
+NO_BOSS = {'defis'}
 
 
 def _new_game(world):
