@@ -851,6 +851,7 @@ class Game {
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep && (!DEV.get('game') || st.game === DEV.get('game'))); if (k >= 0) this.steps = this.steps.slice(k); } // (?step=arena&game=mur)
     this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
+    this.mul0 = this.mul; this.diffK = 1; // difficulté qui s'adapte (voir adaptTo)
     this.startedAt = performance.now();
     this.pausedTotal = 0;
     this.i = -1;
@@ -1152,7 +1153,7 @@ class Game {
   // (main tout près) est marqué « visé » (obj.aimT) : il grossit et brille à l'écran
   touches(hs, u, v, rad, obj = null) {
     if (!hs) return false;
-    const R = tracker.sim ? rad : rad * 1.25;
+    const R = (tracker.sim ? rad : rad * 1.25) * Math.max(1, Math.min(1.25, this.diffK || 1)); // (enfant en difficulté : cibles plus faciles)
     let best = Infinity;
     for (const hd of hs) {
       let d;
@@ -2024,6 +2025,15 @@ class Game {
     if (ratio >= 0.5) this.complete(now); else c.end = now;
   }
 
+  // Difficulté qui s'adapte à l'enfant, sans rien lui dire : une épreuve ratée ralentit la suite et élargit les cibles,
+  // deux réussites parfaites accélèrent un peu (entre 0,85 et 1,4 fois la vitesse choisie par les parents)
+  adaptTo(rating) {
+    if (DEV.get('noadapt')) return;
+    const d = { miss: 0.14, ok: 0.07, good: -0.01, perfect: -0.04 }[rating] ?? 0;
+    this.diffK = Math.max(0.85, Math.min(1.4, (this.diffK || 1) + d));
+    this.mul = this.mul0 * this.diffK;
+  }
+
   complete(now) {
     const c = this.cur;
     if (DEV.get('hold')) { c.end = now + 60000; return; } // (mode test) l'épreuve reste affichée
@@ -2042,7 +2052,7 @@ class Game {
     this.success++;
     this.collect(c.s.m === 'combo' ? 3 : 2);
     const rating = c.s.m === 'combo' || frac > 0.45 ? 'perfect' : 'good';
-    Rec.stepEnd(this.i, rating);
+    Rec.stepEnd(this.i, rating); this.adaptTo(rating); c.rating = rating;
     if (c.s.secret) this.secretTreasure(now);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
     // Stade : ton ami qui a joué avec toi gagne de l'expérience (comme une rencontre) ; à 3, il évolue
@@ -2136,7 +2146,7 @@ class Game {
     else { this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); ui.setStreak(this.streak); this.comboCheck(); }
     rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
-    Rec.stepEnd(this.i, rating);
+    Rec.stepEnd(this.i, rating); this.adaptTo(rating); c.rating = rating;
     if (c.s.secret) this.secretTreasure(now);
     if (rating === 'miss' || rating === 'ok') this.personalMessage('miss', now);
   }
@@ -2759,7 +2769,7 @@ if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || (DEV.get('hub'
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   if (DEV.get('vkid')) setInterval(() => draw(performance.now()), 33); // (enfant virtuel : capture sans fenêtre = ~2 images/s seulement ; le héros 3D doit suivre les gestes comme sur un vrai écran)
-  else requestAnimationFrame(drawLoop);
+  requestAnimationFrame(drawLoop); // (et une image synchronisée avec l'écran, pour les captures)
 } else {
   const loop = (now) => { requestAnimationFrame(loop); tick(now); draw(now); };
   requestAnimationFrame(loop);

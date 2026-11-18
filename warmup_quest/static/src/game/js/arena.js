@@ -15,6 +15,8 @@ const AR_SHAPES = { ...TARGET_POSES, stand: AR_STAND, squat: AR_SQUAT,
   right: Object.fromEntries(Object.entries(AR_STAND).map(([k, [x, y]]) => [k, [x - 1.2, y]])) };
 const AR_HEAD = (shape) => (shape === AR_SQUAT ? [0, 0.15] : [0, -0.45]);
 const AR_POSE_NAMES = { armsUp: 'les bras en l\'air', airplane: 'l\'avion', star: 'l\'étoile', flamingo: 'sur un pied', squat: 'accroupi', left: 'à gauche', right: 'à droite' };
+// Musique de chaque jeu miroir (styles d'audio.js ; un morceau à lui, tiré de son nom)
+const AR_MUSIC = { mur: 'dance', soleil: 'fun', pimprenelle: 'fun', neige: 'candy', potions: 'water', duel: 'karate', corde: 'karate', equilibre: 'space', balai: 'adventure', photo: 'dance' };
 const AR_INGREDIENTS = [['🍄', 'Champignon'], ['🌸', 'Fleur'], ['💧', 'Rosée'], ['⭐', 'Poussière d\'étoile'], ['🍓', 'Baie'], ['🪶', 'Plume'], ['🌙', 'Clair de lune']];
 
 class Arena {
@@ -60,7 +62,8 @@ class Arena {
     this.cv.classList.remove('hidden'); document.body.classList.add('arenaOn');
     const init = this['init_' + s.game]; if (init) init.call(this, this.st, this.t0);
   }
-  end() { if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
+  musicWanted() { return !!this.s && !this.outro && !(this.s.game === 'soleil' && this.st && this.st.phase === 'regarde'); } // (1-2-3 : la musique s'arrête quand le nuage regarde, comme aux statues musicales)
+  end() { if (this.s) Audio8.music(false); if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
   // Pause : toutes les échéances du jeu sont décalées (murs, ordres, bonshommes, anneaux…)
   shift(d) {
     const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT']);
@@ -134,7 +137,7 @@ class Arena {
     return G;
   }
   hands(B) { return [B.J.handL, B.J.handR].filter((h) => h && (h.v == null || h.v > 0.3)); }
-  touching(B, x, y, r) { const rr = this.v3 ? r * 1.25 : r; return this.hands(B).some((h) => Math.hypot(h.x - x, h.y - y) < rr); } // (3D : un peu plus généreux)
+  touching(B, x, y, r) { const rr = (this.v3 ? r * 1.25 : r) * Math.max(1, Math.min(1.25, this.g.diffK || 1)); return this.hands(B).some((h) => Math.hypot(h.x - x, h.y - y) < rr); } // (3D : un peu plus généreux)
   // Pose demandée tenue ? (étoile : les bras suffisent quand on ne voit pas les jambes)
   poseOk(B, p) {
     const st = B.st;
@@ -147,6 +150,8 @@ class Arena {
   update(now) {
     if (DEV.get('a3state')) document.title = 'AS ' + JSON.stringify({ on: !!this.s, g: this.s && this.s.game, cal: this.cal && this.cal.i, intro: !!this.intro, outro: !!this.outro, over: this.st && this.st.over, ok: this.st && this.st.ok, phase, reach: tracker.lead() && tracker.lead().reachK });
     if (!this.s) return;
+    const mw = this.musicWanted(); // (musique du jeu : elle reprend après une pause, se tait pour la célébration)
+    if (mw !== Audio8.musicOn()) Audio8.music(mw, AR_MUSIC[this.s.game] || 'fun', 'arena-' + this.s.game);
     if (this.outro) { // célébration de fin (3D)
       this.ev.splice(0); this.B = this.body(now);
       if (!this.outro.sent && now - this.outro.t0 > 2300) { this.outro.sent = true; this.g.arenaEnd(this.outro.ratio); }
@@ -729,7 +734,7 @@ class Arena {
     }
     for (const r of st.rings) {
       if (r.res || (now - r.t0) < r.dur) continue;
-      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < 0.7; // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
+      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < 0.7 * Math.max(1, Math.min(1.2, this.g.diffK || 1)); // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
       r.res = pass ? 'ok' : 'miss'; r.t = now;
       if (pass) { this.win(ARENA.balai.pts, '+' + ARENA.balai.pts, ...this.ringXY(r.gx, r.gy)); if (st.ok % 3 === 0) this.say('Encore un !', 3000); } else Audio8.soft();
     }
@@ -775,7 +780,8 @@ class Arena {
     if (st.count === 0 && now > st.next && st.k < st.n) { st.count = now; this.say('Trois, deux, un…', 0); }
     if (st.count && now - st.count > 3000) {
       st.count = 0; st.k++; st.flash = now; Audio8.perfect(); this.say(st.k === st.n ? 'Super photo !' : 'Ouistiti !', 0);
-      try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); const x = c.getContext('2d'); if (this.v3 && scene3d.cv3) x.drawImage(scene3d.cv3, 0, 0, c.width, c.height); x.drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
+      if (this.v3) this.v3.snapReq = (url) => url && Photos.add(0, url); // (3D : photo prise juste après la prochaine image)
+      else try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); c.getContext('2d').drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
       this.win(ARENA.photo.pts, '📸 Clic !');
       st.next = now + 2200;
       if (st.k >= st.n) setTimeout(() => this.s && this.s.game === 'photo' && this.finish(1), 1500);

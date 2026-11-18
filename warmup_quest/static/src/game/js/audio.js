@@ -162,6 +162,7 @@ const Audio8 = (() => {
     return { style, mel };
   }
 
+  let fgSeed = 'fg'; // (graine de la musique d'épreuve : un morceau différent par jeu miroir)
   let boostUntil = 0, boostLvl = 0; // musique « emballée » après un combo
   let song = null, songStyle = null, nextT = 0, stepI = 0, sched = 0, themeMuted = false, fg = null, enabled = true;
   try { enabled = localStorage.getItem('wuq_music') !== 'false'; } catch {}
@@ -208,7 +209,7 @@ const Audio8 = (() => {
   // Musique jouée : celle de l'épreuve (danse, karaté…) sinon celle du monde
   let theme = null;
   function refresh() {
-    const want = fg ? { style: fg, seed: 'fg' } : theme && !themeMuted ? theme : null;
+    const want = fg ? { style: fg, seed: fgSeed || 'fg' } : theme && !themeMuted ? theme : null;
     const fade = (v, tc) => { if (musicBus) musicBus.gain.setTargetAtTime(v, ac().currentTime, tc); };
     if (!want || !enabled) {
       // (fondu de sortie : on baisse puis on arrête, au lieu de couper net)
@@ -354,7 +355,7 @@ const Audio8 = (() => {
     // La musique de fond se tait (statues musicales) ou reprend
     themeMute(on) { themeMuted = on; refresh(); },
     // Musique d'une épreuve (danse, karaté, statues, cubes) ; music(false) : retour à la musique du monde
-    music(on, style = 'fun') { fg = on ? ({ dance: 'dance', karate: 'karate', fun: 'fun' }[style] || style) : null; refresh(); },
+    music(on, style = 'fun', seed = 'fg') { fg = on ? ({ dance: 'dance', karate: 'karate', fun: 'fun' }[style] || style) : null; fgSeed = seed; refresh(); },
     musicOn: () => !!fg,
     debug: () => ({ state: ctx && ctx.state, steps: stepI, style: songStyle }), // (mode test)
     // (mode test) calcule 6 s d'une musique sans haut-parleur et renvoie son volume moyen / maximum

@@ -165,6 +165,10 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   la télé), `cambasse` (sur une table), `travers` (caméra penchée), `bouge` (se balade), `proche` (pieds hors de
   l'image), `loin`, `pire` (tout à la fois, maladroit et lent). Tableau de résultats de tous les profils × 7 jeux :
   `tools/vkid_test.sh` (ou `tools/vkid_test.sh "petit pire" "potions duel"`), résultats dans `~/.cache/wuq-test/`.
+  **Mondes entiers** : l'enfant virtuel joue aussi les épreuves du chemin (sauts, accroupis, poses, couloirs, étoiles,
+  corde, tunnel, statues, danse, karaté, jeux sur place) ; `tools/vkid_worlds.sh` joue tous les mondes et donne les
+  épreuves à revoir (`tools/vkid_worlds.sh "verger dojo" pire`). Pas encore joués par lui : fruits, mousse, baguette,
+  sports.
   **Deux enfants** : `&vkid2=1` (ou un profil, `&vkid2=petit`), écart `&vkidgap=0.8` (m), réglages du 2e `vkid2h`,
   `vkid2x`… ; ils vont chacun dans leur rond au calibrage. `&vkid2leave=20` (ou `vkid1leave`) : un enfant s'en va
   après 20 s. Le titre donne aussi `duo` : inversions de joueurs et images où l'un n'est plus vu.
@@ -173,6 +177,16 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
 - Jeux miroir à deux : il suffit qu'UN des enfants fasse le geste (poses, bouclier, lancers comptent pour les deux) ;
   au tir à la corde ils tirent ensemble, au 1-2-3 le nuage voit celui qui bouge, à la course de balais chacun a son
   propre milieu et on fait la moyenne (amplifiée) de leurs penchés.
+
+## Difficulté qui s'adapte, musique des jeux miroir, coudes
+- La difficulté s'adapte à l'enfant sans rien lui dire : une épreuve ratée ralentit la suite et élargit un peu les
+  cibles, deux réussites parfaites accélèrent (entre 0,85 et 1,4 fois la vitesse choisie par les parents ; `?noadapt=1`
+  pour la couper).
+- Chaque jeu miroir a sa musique (duel en taiko, potions aquatique, balai d'aventure…) ; au 1-2-3, elle s'arrête quand
+  le Nuage Grognon regarde, comme aux statues musicales.
+- Personnages KayKit (Mage, Chevalier, Barbare, Voleurs) : vrais coudes et genoux dans les jeux miroir (épaule → coude →
+  poignet, d'après les points 3D). Les petits personnages Kenney ont des bras d'une seule pièce : ils restent tendus.
+- Miroir magique : la photo est prise juste après l'image 3D (avant, elle était enregistrée toute noire).
 
 ## Installation guidée (caméra, lumière, place)
 - Au calibrage, le jeu dit précisément ce qui gêne, dans l'ordre : trop sombre, trop de lumière derrière l'enfant

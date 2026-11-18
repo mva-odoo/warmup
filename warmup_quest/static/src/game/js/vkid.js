@@ -29,7 +29,7 @@ const VKid = (() => {
   // Deux enfants : ?vkid2=1 (ou un profil : ?vkid2=petit), écart entre eux ?vkidgap=1.3 (m), réglages vkid2h, vkid2x…
   const DUO = !!P.get('vkid2'), GAP = Number(P.get('vkidgap') || 1.3), LEAVE = Number(P.get('vkid2leave') || 0), LEAVE1 = Number(P.get('vkid1leave') || 0); // (vkid1leave : c'est le joueur 1 qui part) // (vkid2leave=20 : le 2e enfant s'en va après 20 s de jeu)
   let playT = 0;
-  const stats = { games: [], cal: null, err: [], frames: 0, swaps: 0, lost: 0, duoFrames: 0, stages: [] };
+  const stats = { games: [], cal: null, err: [], frames: 0, swaps: 0, lost: 0, duoFrames: 0, stages: [], steps: [] };
 
   function makeKid(idx) {
   const pre = idx ? 'vkid2' : 'vkid', PR = PROFILES[P.get(pre)] || (idx ? PROFILES[P.get('vkid')] || {} : {});
@@ -193,6 +193,7 @@ const VKid = (() => {
       }
       return s;
     }
+    if (ph === 'play' && gc && !(A && A.s)) { const r = pathBrain(s, gc, G, now); if (r) return r; }
     if (!A || !A.s || ph !== 'play') return s;
     const st = A.st, g = A.s.game, obey = rnd() < 0.5 + SKILL * 0.5;
     if (A.cal) { const d = A.calDirs()[A.cal.i], n = Math.hypot(d[0], d[1]), w = reach(d[0] / n * 9, d[1] / n * 9, 0.86 + SKILL * 0.1); if (d[0] < 0) s.wL = w; else s.wR = w; return s; }
@@ -221,6 +222,48 @@ const VKid = (() => {
     else if (g === 'balai') { const r = (st.rings || []).find((x) => !x.res); if (r) { s.bx = home - r.gx * 0.15; s.lean = -r.gx; if (r.gy < 0) POSES.up(s); if (r.gy > 0) s.drop = 1; } }
     else if (g === 'photo') POSES.star(s);
     return s;
+  }
+
+  // ---------- Épreuves du chemin et jeux sur place : ce que l'enfant fait pour chacune
+  const hop = (now, gap = 900) => { if (now - jumpT > gap) jumpT = now; };
+  const smash = (s, now, per = 900) => { const k = now % per; const w = k < per / 2 ? V(-0.05, ARM * 0.95, 0) : V(-0.05, -ARM * 0.6, ARM * 0.6); s.wR = w; s.wL = V(-w.x, w.y, w.z); };
+  function pathBrain(s, c, G, now) {
+    const st = c.s, m = st.m, t = now - (c.start || now);
+    if (t < LAG) return null;
+    const lane = (l) => { s.bx = home + (l < 0 ? 0.42 : l > 0 ? -0.42 : 0); }; // (couloir -1 = gauche de l'écran = gauche de l'enfant)
+    switch (m) {
+      case 'jump': case 'rope': if (m === 'rope') { const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod; if (pass - now < 380 + LAG * 0 && pass - now > 0) hop(now, 500); } else hop(now, 1000); return s;
+      case 'squat': case 'tunnel': if (m === 'tunnel' || (t % 1400) < 800) s.drop = 1; return s;
+      case 'smash': smash(s, now); return s;
+      case 'left': case 'right': lane(m === 'left' ? -1 : 1); return s;
+      case 'pose': pose(s, st.pose); return s;
+      case 'posemix': case 'boss': pose(s, st.poses[Math.min(c.pi || 0, st.poses.length - 1)]); return s;
+      case 'combo': { const p = (st.parts || [])[Math.floor(t / 1400) % Math.max(1, (st.parts || []).length)]; if (p) { if (p.m === 'jump') hop(now, 1000); else if (p.m === 'squat') s.drop = 1; else if (p.m === 'smash') smash(s, now); else if (p.m === 'pose') pose(s, p.pose); } return s; }
+      case 'run': case 'shop': {
+        const hz = (c.hazards || []).filter((h) => h.arrive > now - 200).sort((a, b) => a.arrive - b.arrive)[0];
+        if (hz && hz.arrive - now < 1300) {
+          if (hz.kind === 'log') { if (hz.arrive - now < 650) hop(now, 800); }
+          else if (hz.kind === 'arch') { if (hz.arrive - now < 900) s.drop = 1; }
+          else if (hz.kind === 'item') lane(hz.lane);
+          else lane(hz.lane === 0 ? (idx ? 1 : -1) : 0); // (rocher, chapardeur : on change de couloir)
+        }
+        return s;
+      }
+      case 'catch': { const it = (c.hazards || []).filter((h) => !h.t0 && h.arrive > now).sort((a, b) => a.arrive - b.arrive)[0]; if (it) lane(Math.round(it.lane)); return s; }
+      case 'freeze': if (c.phase !== 'freeze') { const k = Math.sin(now / 150); s.wL = V(0.3, k * ARM * 0.6, 0.2); s.wR = V(-0.3, -k * ARM * 0.6, 0.2); s.bx = home + k * 0.08; } return s;
+      case 'dance': case 'karate': { const mv = st.moves[Math.max(0, Math.min(st.moves.length - 1, c.showI ?? 0))]; if (mv === 'jump') hop(now, 1000); else if (mv === 'squat') s.drop = 1; else if (mv === 'smash') smash(s, now); else pose(s, mv); return s; }
+      case 'act': {
+        const a = c.act || {}, g = st.game;
+        if (g === 'grow') { if (a.phase === 0) s.drop = 1; else POSES.up(s); }
+        else if (g === 'clap') { if ((now % 500) < 250) POSES.together(s); else { s.wL = V(ARM * 0.6, 0, 0.4); s.wR = V(-ARM * 0.6, 0, 0.4); } }
+        else if (g === 'swim') { const up = (now % 900) < 450; s.wL = up ? V(0.1, ARM * 0.95, 0) : V(0.2, -ARM * 0.8, 0.2); s.wR = up ? V(-0.2, -ARM * 0.8, 0.2) : V(-0.1, ARM * 0.95, 0); }
+        else if (g === 'launch') { if (a.phase === 0) s.drop = 1; else hop(now, 1000); }
+        else if (g === 'stomp') { const k = (now % 900) < 450; s.kneeL = k ? 1 : 0; s.kneeR = k ? 0 : 1; }
+        else if (g === 'animals') { const an = a.seq && a.seq[a.reps]; if (an) { if (an.need === 'jump') hop(now, 1000); else if (an.need === 'smash') smash(s, now); else pose(s, an.need); } }
+        return s;
+      }
+      default: return null; // (fruits, mousse, baguette, sports… : pas encore joués par l'enfant virtuel)
+    }
   }
 
   // ---------- Boucle (appelée à la place de la détection)
@@ -267,6 +310,10 @@ const VKid = (() => {
       stats.games.push({ g: seenArena.game, ratio: +A.ratio().toFixed(2), ok: A.st ? A.st.ok : 0, n: seenArena.n, s: Math.round((now - arenaT0) / 1000) });
     }
     const G = typeof game !== 'undefined' && game;
+    if (G && G.cur && G.cur !== stats.stepCur) { // résultat de chaque épreuve du chemin (pour les parcours complets)
+      const prev = stats.stepCur; stats.stepCur = G.cur;
+      if (prev && !['rest', 'learn', 'fork', 'arena'].includes(prev.s.m)) stats.steps.push(prev.s.m + (prev.rating ? ':' + prev.rating : ''));
+    }
     if (G && G.cur && ['bubbles', 'moles', 'cubes'].includes(G.cur.s.m)) {
       const c = G.cur; if (c !== stats.pathCur) { stats.pathCur = c; stats.pathT0 = now; }
       if (c.done && !c.vkSeen) { c.vkSeen = true; const got = c.s.m === 'moles' ? c.bonked : c.s.m === 'cubes' ? c.cubeHits : c.popped || 0; stats.games.push({ g: c.s.m, ratio: +(Math.min(1, got / Math.max(1, c.s.n))).toFixed(2), ok: got, n: c.s.n, s: Math.round((now - stats.pathT0) / 1000) }); }
@@ -281,7 +328,7 @@ const VKid = (() => {
       const e = stats.err, m = e.length ? e.reduce((a, b) => a + b, 0) / e.length : null;
       const cs = typeof calibState !== 'undefined' ? calibState.stage : ''; if (cs && stats.stages[stats.stages.length - 1] !== cs) stats.stages.push(cs);
       const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd && !stats.dbg) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
-      document.title = 'VK ' + JSON.stringify({ raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
+      document.title = 'VK ' + JSON.stringify({ photos: P.get('vkidphotos') && typeof Photos !== 'undefined' ? Photos.list(0).map((u) => u.length) : undefined, steps: P.get('vkidsteps') ? stats.steps : undefined, adapt: typeof game !== 'undefined' && game ? +(game.diffK || 1).toFixed(2) : null, raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
     }
   }
   if (on && P.get('vkiddbg')) { stats.raf = 0; const f = () => { stats.raf++; requestAnimationFrame(f); }; requestAnimationFrame(f); }

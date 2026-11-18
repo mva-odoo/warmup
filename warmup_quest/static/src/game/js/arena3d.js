@@ -189,8 +189,15 @@ class Arena3D {
       for (const [k, d] of Object.entries(P.limbs)) {
         if (!d) continue;
         const n = P.facing === false ? k : a3swap(k), bone = r.bones[n]; if (!bone) continue; // (de face, en miroir : le bras gauche de l'enfant est le bras droit du sorcier)
-        S.aimBone(bone, r.kay ? r.child[n] : null, d.length === 3 ? d : [d[0], d[1], 0.18], m.inner, HUMAN_AXIS[n]);
-        if (r.kay && r.child[n]) r.child[n].quaternion.identity();
+        const sg = r.kay && r.child[n] && P.seg && P.seg[k], up = sg && sg[0], fo = sg && sg[1];
+        S.aimBone(bone, r.kay ? r.child[n] : null, up || (d.length === 3 ? d : [d[0], d[1], 0.18]), m.inner, HUMAN_AXIS[n]);
+        if (r.kay && r.child[n]) {
+          r.child[n].quaternion.identity();
+          if (up && fo) { // (vrai coude / genou : l'avant-bras suit le poignet de l'enfant)
+            const end = /arm/.test(n) ? (/left/.test(n) ? r.bones.handL : r.bones.handR) : r.bones[/left/.test(n) ? 'foot.l' : 'foot.r'];
+            if (end) { S.aimBone(r.child[n], end, fo, m.inner); const pq = this.boneQ.get(n + ':fo'); if (pq && P.smooth !== false) r.child[n].quaternion.copy(pq.slerp(r.child[n].quaternion, 0.5)); this.boneQ.set(n + ':fo', r.child[n].quaternion.clone()); }
+          }
+        }
         // (mouvement doux : le bras rejoint la position de l'enfant en une fraction de seconde, sans tremblote)
         const prev = this.boneQ.get(n);
         if (prev && P.smooth !== false) bone.quaternion.copy(prev.slerp(bone.quaternion, 0.5));
@@ -219,10 +226,13 @@ class Arena3D {
     const b = tracker.lead(), real = !tracker.sim && b && b.lm && b.state.present, M = this.M;
     let limbs;
     let unit = 1; // (longueur d'un torse, dans l'unité des directions)
-    if (real) { limbs = A.g.limbsOf(b, 0); unit = b.T || 0.25; const w3 = this.worldLimbs(b); if (w3) limbs = { ...limbs, ...w3 }; }
+    let seg = null;
+    if (real) { limbs = A.g.limbsOf(b, 0); unit = b.T || 0.25; const w3 = this.worldLimbs(b); if (w3) { seg = w3.seg; delete w3.seg; limbs = { ...limbs, ...w3 }; } }
     else { // (clavier / enfant imaginaire : la forme du petit sorcier dessiné, en directions)
       const G = A.simShape(now, st), d = (a, z) => (G[a] && G[z] ? [-(G[z][0] - G[a][0]), -(G[z][1] - G[a][1])] : null);
       limbs = { 'arm-left': d('sL', 'wL'), 'arm-right': d('sR', 'wR'), 'leg-left': st.squat ? null : d('hL', 'aL'), 'leg-right': st.squat ? null : d('hR', 'aR') };
+      const d3 = (a, z) => { const v = d(a, z); if (!v) return null; const n = Math.hypot(v[0], v[1]) || 1; return [v[0] / n, v[1] / n, 0.15]; };
+      seg = { 'arm-left': [d3('sL', 'eL'), d3('eL', 'wL')], 'arm-right': [d3('sR', 'eR'), d3('eR', 'wR')] };
     }
     // Profondeur des bras : un bras qui paraît court à l'écran est tendu vers la caméra (mains jointes, bras devant soi)
     if (limbs) for (const k of ['arm-left', 'arm-right']) {
@@ -245,7 +255,7 @@ class Arena3D {
     const jk = A.lastJump && now - A.lastJump < 450 ? Math.sin(((now - A.lastJump) / 450) * Math.PI) : 0;
     if (jk === 0 && this.wasJump) this.landT = now; this.wasJump = jk > 0;
     const react = now - this.reactT < 700 ? this.reactKind : null;
-    const P = { limbs, clip: st.squat ? 'duck' : react === 'win' ? 'happy' : react === 'hurt' ? 'bump' : 'idle', x: this.sideK * M.side, y: jk * 0.55 + Math.sin(now / 650) * 0.012, ry: Math.PI };
+    const P = { limbs, seg, clip: st.squat ? 'duck' : react === 'win' ? 'happy' : react === 'hurt' ? 'bump' : 'idle', x: this.sideK * M.side, y: jk * 0.55 + Math.sin(now / 650) * 0.012, ry: Math.PI };
     // penché dans le sens du pas de côté
     this.lean += ((this.prevSide - this.sideK) * 6 - this.lean) * 0.2; this.prevSide = this.sideK; P.rz = Math.max(-0.2, Math.min(0.2, this.lean));
     const over = this['pose3_' + this.game]; if (over) over.call(this, P, A.st, now, st);
@@ -257,6 +267,7 @@ class Arena3D {
       if (this.game === 'soleil') { P.ry = Math.min(1, k / 600) * Math.PI; P.facing = true; } // (se retourne vers nous)
       if (good && Math.floor(k / 280) !== this.confN) { this.confN = Math.floor(k / 280); this.burst(new this.T.Vector3(P.x + (Math.random() - 0.5) * 3, (P.y || 0) + 3.2, (P.z || 0) + 0.5), 18, { cols: ['#ffd166', '#ff70a6', '#7bdff2', '#b8f2a1', '#c77dff'], chunk: 'box', size: 0.07, speed: 2.5, grav: 3, life: 1600 }); }
     }
+    if (P.limbs !== limbs) P.seg = null; // (pose imposée par le jeu, balai, célébration : bras tendus)
     if (now - this.landT < 160) { const q = (now - this.landT) / 160; this.squash = 1 - Math.sin(q * Math.PI) * 0.12; } else this.squash = 1;
     this.P = P;
     this.poseAvatar(now, P);
@@ -307,6 +318,9 @@ class Arena3D {
     const out = { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14) };
     if (tracker.mode !== 'upper') { out['leg-left'] = dir(23, 27, 25); out['leg-right'] = dir(24, 28, 26); }
     for (const k of Object.keys(out)) if (!out[k]) delete out[k];
+    // coudes et genoux (personnages KayKit, qui ont un avant-bras) : bras = épaule -> coude, avant-bras = coude -> poignet
+    out.seg = { 'arm-left': [dir(11, 13, 13), dir(13, 15, 15)], 'arm-right': [dir(12, 14, 14), dir(14, 16, 16)] };
+    if (tracker.mode !== 'upper') { out.seg['leg-left'] = [dir(23, 25, 25), dir(25, 27, 27)]; out.seg['leg-right'] = [dir(24, 26, 26), dir(26, 28, 28)]; }
     return out;
   }
   // Vecteur épaule -> main de l'enfant (en longueurs de torse, x vers la droite de l'écran en miroir, y vers le bas)
@@ -371,6 +385,14 @@ class Arena3D {
       const rp = S.renderPass, oc = rp.camera; rp.scene = this.scene; rp.camera = this.cam; if (S.outlineMat) S.outlineMat.visible = false;
       try { S.composer.render(); } finally { rp.camera = oc; }
     } else { if (S.outlineMat) S.outlineMat.visible = true; S.renderer.render(this.scene, this.cam); }
+    // Photo demandée (miroir magique) : prise tout de suite après le dessin, dans la même image (sinon la toile est vide)
+    if (this.snapReq) {
+      const done = this.snapReq; this.snapReq = null;
+      try {
+        const c = document.createElement('canvas'), cv = S.renderer.domElement; c.width = 480; c.height = Math.round(480 * cv.height / cv.width);
+        c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height); done(c.toDataURL('image/jpeg', 0.8));
+      } catch (e) { done(null); }
+    }
   }
   // Caméra : survol du décor à l'entrée, plan rapproché à la fin, secousses et coups de zoom
   camFx(A, now) {
