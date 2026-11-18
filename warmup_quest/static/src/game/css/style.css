@@ -167,6 +167,7 @@ h1 span { color: var(--brand2); }
   background: rgba(255, 255, 255, 0.94); border: 4px solid #fff; backdrop-filter: blur(6px); }
 .card.mini { transform: translateX(-50%) scale(0.58); top: 70px; background: rgba(255, 255, 255, 0.86); }
 /* Jeux miroir : la consigne se range dans le coin, l'enfant et le jeu prennent tout l'écran */
+body.arenaIntro .card { visibility: hidden; } /* (entrée en scène d'un jeu miroir : le titre du jeu prend la place) */
 body.arenaOn .card.mini { left: 12px; top: 74px; transform: scale(0.5); transform-origin: 0 0; }
 @keyframes cardIn { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .card .icon { font-size: clamp(56px, 8vw, 88px); line-height: 1; }

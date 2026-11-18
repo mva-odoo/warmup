@@ -274,6 +274,13 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       else { const i = Math.floor(t / 1800) % 4, an = ['🐸', '🐢', '🐦', '🦒'][i], fig = [{ lift: Math.sin(k * Math.PI) * S * 0.15 }, { crouch: 1 }, POSE_FIGURES.airplane, POSE_FIGURES.armsUp][i]; stickFigure(ctx, { ...base, ...fig }); emo(an, gx + S * 0.38, gy - S * 0.2, S * 0.16); }
       break;
     }
+    case 'arena': { // jeux miroir : la grosse icône du jeu, qui se balance
+      const a = typeof ARENA !== 'undefined' && ARENA[s.game];
+      ctx.save(); ctx.translate(gx, gy - S * 0.38); ctx.rotate(Math.sin(t * 0.004) * 0.12);
+      ctx.font = `${S * 0.62}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(a ? a.icon : '✨', 0, 0);
+      ctx.restore(); ctx.textBaseline = 'alphabetic';
+      break;
+    }
     case 'rest': {
       const k = (Math.sin(t * 0.0025) + 1) / 2; // on respire : bras qui montent et descendent doucement
       stickFigure(ctx, { ...base, armL: 0.4 + k * 2.4, armR: 0.4 + k * 2.4 }, '#7c3aed');

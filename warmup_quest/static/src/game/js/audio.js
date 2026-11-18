@@ -376,6 +376,13 @@ const Audio8 = (() => {
     sparkle(k = 0) { play('bell', deg(4 + Math.round(k * 5), 3), 0, 0.08, 0.05); },
     spell() { [0, 2, 4, 7, 9].forEach((d, i) => play('bell', deg(d + 2, 3), i * 0.04, 0.35, 0.07)); play('noise', 7000, 0, 0.5, 0.05); },
     // Photo : déclic d'appareil
+    // Jeux miroir : briques qui s'écroulent, neige qui éclate, sort lancé, sort qui se charge, entrée en scène, victoire
+    crash() { graph(); const t = ac().currentTime; INST.noise(1400, t, 0.5, 0.45, sfxBus, 'lowpass'); INST.kick(0, t, 0, 0.55, sfxBus); [0, 1, 2].forEach((i) => INST.marimba(deg(i, 0), t + 0.05 + i * 0.06, 0.2, 0.2, sfxBus)); },
+    puff() { graph(); const t = ac().currentTime; INST.noise(1100, t, 0.22, 0.35, sfxBus, 'bandpass'); INST.marimba(deg(5 + Math.floor(Math.random() * 3), 2), t, 0.1, 0.12, sfxBus); },
+    zap() { tone(1200, 0.28, 'sawtooth', 0.05, 0, 180); play('noise', 6000, 0, 0.18, 0.08); },
+    charge() { tone(180, 0.9, 'triangle', 0.06, 0, 900); },
+    sting() { graph(); const t = ac().currentTime; INST.kick(0, t, 0, 0.5, sfxBus); [0, 2, 4, 7].forEach((d, i) => INST.bell(deg(d, 2), t + i * 0.07, 0.6, 0.13, sfxBus)); INST.noise(7000, t + 0.25, 0.4, 0.05, sfxBus); },
+    tada() { graph(); const t = ac().currentTime; [0, 2, 4].forEach((i) => INST.bell(chordNote(i, 2), t, 0.9, 0.12, sfxBus)); [0, 2, 4, 7, 9].forEach((d, i) => INST.bell(deg(d, 3), t + 0.18 + i * 0.05, 0.4, 0.08, sfxBus)); INST.kick(0, t, 0, 0.4, sfxBus); INST.noise(8000, t + 0.1, 0.6, 0.06, sfxBus); },
     photo() { play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
     // Combo : petite montée de notes, et la musique s'emballe (charleston rapide, arpèges doublés) quelques mesures
     combo(lvl = 1) {

@@ -38,15 +38,31 @@ class Arena {
     this.t0 = performance.now(); this.lastT = this.t0; this.saidAt = {};
     this.auto = tracker.sim && (DEV.get('fakelimbs') || DEV.get('sportauto')); // (mode test : un enfant imaginaire joue)
     this.resize();
+    // En 3D quand le jeu est en 3D (décor et petit sorcier qui imite l'enfant), sinon la version dessinée
+    this.v3 = null; this.B = null;
+    try {
+      if (typeof Arena3D !== 'undefined' && typeof scene3d !== 'undefined' && scene === scene3d && Arena3D.can(scene3d) && !DEV.get('arena2d')) {
+        this.a3 = this.a3 || new Arena3D(scene3d);
+        if (this.a3.begin(this)) this.v3 = this.a3; else this.a3.end();
+      }
+    } catch (e) { console.warn('Jeu miroir 3D indisponible', e); this.v3 = null; }
+    // Entrée en scène (3D) : la caméra survole le décor, le titre du jeu, puis 3, 2, 1… (le chrono de l'épreuve attend)
+    this.intro = null; this.outro = null;
+    if (this.v3 && !DEV.get('nointro')) {
+      const dur = 3300; this.intro = { t0: this.t0, dur, n: -1 };
+      if (c) { c.start = (c.start || this.t0) + dur; c.end = (c.end || this.t0) + dur; }
+      Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250); document.body.classList.add('arenaIntro');
+    }
     this.cv.classList.remove('hidden'); document.body.classList.add('arenaOn');
     const init = this['init_' + s.game]; if (init) init.call(this, this.st, this.t0);
   }
-  end() { this.s = null; this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
+  end() { if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
   // Pause : toutes les échéances du jeu sont décalées (murs, ordres, bonshommes, anneaux…)
   shift(d) {
     const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT']);
     const walk = (o, depth) => { if (!o || typeof o !== 'object' || depth > 3) return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'number' && keys.has(k) && v > 1000) o[k] = v + d; else if (typeof v === 'object') walk(v, depth + 1); } };
     walk(this.st, 0); this.lastT += d;
+    if (this.intro) this.intro.t0 += d; if (this.outro) this.outro.t0 += d; if (this.v3) this.v3.shift(d);
   }
   ratio() { const st = this.st; if (!st) return 0; return st.ratio != null ? st.ratio : st.ok / Math.max(1, st.n); }
   detail() {
@@ -61,9 +77,18 @@ class Arena {
   win(points, text, x, y) {
     this.st.ok++; this.g.add(this.g.pts(points), text || '+' + this.g.pts(points)); Audio8.good();
     if (x != null) this.burst(x, y, 30);
+    if (this.v3) this.v3.react('win');
     ui.setDetail(this.g.detail(this.c));
   }
-  finish(ratio = this.ratio()) { this.st.ratio = ratio; this.st.over = true; this.g.arenaEnd(ratio); } // (la partie note l'épreuve et passe à la suite)
+  finish(ratio = this.ratio()) {
+    this.st.ratio = ratio; this.st.over = true;
+    if (!this.v3) { this.g.arenaEnd(ratio); return; }
+    // (3D) célébration : le sorcier saute de joie, confettis, étoiles… puis la partie passe à la suite
+    const now = performance.now(); this.outro = { t0: now, ratio, sent: false };
+    if (this.c) this.c.end = Math.max(this.c.end || 0, now + 3000);
+    if (ratio >= 0.5) { Audio8.tada(); this.say(ratio >= 0.85 ? 'Champion !' : 'Bravo !', 0); } else { Audio8.soft(); this.say('Presque ! La prochaine fois !', 0); }
+  }
+  stars(r) { return r >= 0.85 ? 3 : r >= 0.5 ? 2 : 1; } // (la partie note l'épreuve et passe à la suite)
 
   // ---------- Le corps de l'enfant, en pixels de l'écran (miroir), ou celui du petit sorcier dessiné (mode clavier)
   body(now) {
@@ -81,20 +106,26 @@ class Arena {
       const sh = { x: (J.sL.x + J.sR.x) / 2, y: (J.sL.y + J.sR.y) / 2 };
       return { J, sh, T: (b.T || 0.25) * dh, st, motion: b.motion || 0, real: true, video: { ox, oy, dw, dh } };
     }
+    if (this.v3) return this.v3.body(this, now, st); // (3D : le petit sorcier du jeu imite l'enfant ; on touche avec SES mains)
     // Petit sorcier dessiné : forme selon les touches (ou l'enfant imaginaire), petit saut, bras qui tapent
     const T = H * 0.15, jump = this.lastJump && now - this.lastJump < 450 ? Math.sin(((now - this.lastJump) / 450) * Math.PI) * T * 0.6 : 0;
-    const shape = st.squat ? 'squat' : st.armsUp ? 'armsUp' : st.airplane ? 'airplane' : st.star ? 'star' : st.flamingo ? 'flamingo' : 'stand';
-    const G = { ...AR_SHAPES[shape] };
-    if (st.handsTogether) { G.eL = [0.35, 0.55]; G.wL = [0.05, 0.5]; G.eR = [-0.35, 0.55]; G.wR = [-0.05, 0.5]; }
-    if (this.lastSmash && now - this.lastSmash < 350) { const q = (now - this.lastSmash) / 350; G.wL = [0.5, -1 + q * 2]; G.wR = [-0.5, -1 + q * 2]; G.eL = [0.5, -0.4 + q]; G.eR = [-0.5, -0.4 + q]; }
-    if (st.wave) { const a = Math.sin(now / 90); G.wL = [0.6, 0.2 + a * 0.6]; G.wR = [-0.6, 0.2 - a * 0.6]; } // (court sur place / tire la corde)
-    if (st.stirAng != null) { G.wR = [-0.2 + Math.cos(st.stirAng) * 0.55, 0.9 + Math.sin(st.stirAng) * 0.4]; G.eR = [-0.4, 0.55]; }
+    const G = this.simShape(now, st), shape = this.simShapeName(st);
     const cx = W / 2 - (st.side === 'left' ? -1 : st.side === 'right' ? 1 : 0) * T * 1.3, cy = H * 0.5 - jump;
     const J = {};
     for (const [k, [x, y]] of Object.entries(G)) J[k] = { x: cx - x * T, y: cy + y * T, v: 1 };
     const hd = AR_HEAD(AR_SHAPES[shape]); J.nose = { x: cx - hd[0] * T, y: cy + (hd[1] + 0.05) * T, v: 1 };
     J.handL = J.wL; J.handR = J.wR;
     return { J, sh: { x: (J.sL.x + J.sR.x) / 2, y: (J.sL.y + J.sR.y) / 2 }, T, st, motion: st.wave ? 0.08 : 0, real: false };
+  }
+  simShapeName(st) { return st.squat ? 'squat' : st.armsUp ? 'armsUp' : st.airplane ? 'airplane' : st.star ? 'star' : st.flamingo ? 'flamingo' : 'stand'; }
+  // Forme du petit sorcier au clavier (en longueurs de torse ; x positif = gauche de l'écran, y vers le bas)
+  simShape(now, st) {
+    const G = { ...AR_SHAPES[this.simShapeName(st)] };
+    if (st.handsTogether) { G.eL = [0.35, 0.55]; G.wL = [0.05, 0.5]; G.eR = [-0.35, 0.55]; G.wR = [-0.05, 0.5]; }
+    if (this.lastSmash && now - this.lastSmash < 350) { const q = (now - this.lastSmash) / 350; G.wL = [0.5, -1 + q * 2]; G.wR = [-0.5, -1 + q * 2]; G.eL = [0.5, -0.4 + q]; G.eR = [-0.5, -0.4 + q]; }
+    if (st.wave) { const a = Math.sin(now / 90); G.wL = [0.6, 0.2 + a * 0.6]; G.wR = [-0.6, 0.2 - a * 0.6]; } // (court sur place / tire la corde)
+    if (st.stirAng != null) { G.wR = [-0.2 + Math.cos(st.stirAng) * 0.55, 0.9 + Math.sin(st.stirAng) * 0.4]; G.eR = [-0.4, 0.55]; }
+    return G;
   }
   hands(B) { return [B.J.handL, B.J.handR].filter((h) => h && (h.v == null || h.v > 0.3)); }
   touching(B, x, y, r) { return this.hands(B).some((h) => Math.hypot(h.x - x, h.y - y) < r); }
@@ -108,7 +139,20 @@ class Arena {
 
   // ---------- Boucle
   update(now) {
-    if (!this.s || this.st.over) return;
+    if (!this.s) return;
+    if (this.outro) { // célébration de fin (3D)
+      this.ev.splice(0); this.B = this.body(now);
+      if (!this.outro.sent && now - this.outro.t0 > 2300) { this.outro.sent = true; this.g.arenaEnd(this.outro.ratio); }
+      return;
+    }
+    if (this.st.over) return;
+    if (this.intro) { // entrée en scène : le sorcier imite déjà l'enfant, les règles attendent
+      const it = this.intro, k = now - it.t0, n = k < 1400 ? -1 : Math.min(3, Math.floor((k - 1400) / 600));
+      if (n !== it.n) { it.n = n; if (n >= 0 && n < 3) Audio8.tick(); else if (n === 3) Audio8.go(); }
+      this.ev.splice(0); this.B = this.body(now);
+      if (k < it.dur) { this.lastT = now; return; }
+      this.shift(it.dur); this.intro = null; this.introEnd = now; this.lastT = now; document.body.classList.remove('arenaIntro');
+    }
     const dt = Math.min(100, now - this.lastT) / 1000; this.lastT = now;
     const evs = this.ev.splice(0);
     for (const e of evs) { if (e === 'jump') this.lastJump = now; if (e === 'smash') this.lastSmash = now; }
@@ -121,7 +165,17 @@ class Arena {
 
   render(now) {
     if (!this.s) return;
-    const ctx = this.ctx, W = this.W, H = this.H, B = this.B || this.body(now);
+    const ctx = this.ctx, W = this.W, H = this.H;
+    if (!this.B) this.B = this.body(now);
+    const B = this.B;
+    if (this.v3) { // 3D : la scène est dessinée par le moteur du jeu ; ici, seulement les textes et les étincelles
+      this.v3.render(this, now);
+      ctx.clearRect(0, 0, W, H); ctx.save();
+      if (this.intro) this.hudIntro(now);
+      else if (this.outro) this.hudOutro(now);
+      else { const hud = this['hud_' + this.s.game]; if (hud) hud.call(this, this.st, now, B); if (this.introEnd && now - this.introEnd < 700) this.hudGo(now - this.introEnd); }
+      this.drawFx(now); ctx.restore(); return;
+    }
     ctx.save();
     if (this.s.game === 'balai') this.drawSky(now);
     else this.drawMirror(now, B);
@@ -368,7 +422,10 @@ class Arena {
       const free = slots.map((_, k) => k).filter((k) => k !== st.lastSlot && !alive.some((m) => m.slot === k)), k = free[Math.floor(Math.random() * free.length)];
       st.men.push({ slot: k, t0: now, life: Math.max(2200, 3600 - st.spawned * 120) * Math.min(1.3, this.g.mul) }); st.spawned++; st.lastSlot = k; st.next = now + 1100;
     }
-    for (const m of st.men) { const [gx, gy] = slots[m.slot]; m.x = B.sh.x + gx * T; m.y = B.sh.y + gy * T; m.x = Math.max(this.W * 0.08, Math.min(this.W * 0.92, m.x)); m.y = Math.max(this.H * 0.36, m.y); }
+    for (const m of st.men) {
+      if (this.v3) { const p = this.v3.slotXY(m.slot); m.x = p.x; m.y = p.y; continue; } // (3D : les bonshommes sont dans la neige, autour du sorcier)
+      const [gx, gy] = slots[m.slot]; m.x = B.sh.x + gx * T; m.y = B.sh.y + gy * T; m.x = Math.max(this.W * 0.08, Math.min(this.W * 0.92, m.x)); m.y = Math.max(this.H * 0.36, m.y);
+    }
     const hitMan = (m) => { m.hit = now; this.win(ARENA.neige.pts, 'Touché !', m.x, m.y); this.say('Touché !', 1500); };
     // lancer : la boule part de la main, vers le bonhomme le plus proche de ce côté
     for (const e of evs) {
@@ -413,7 +470,7 @@ class Arena {
     st.phase = 'pick'; st.stir = 0; st.ang = null; st.flying = [];
   }
   up_potions(st, now, dt, B, evs) {
-    const T = B.T, W = this.W, H = this.H, pot = { x: W / 2, y: H * 0.86 };
+    const T = B.T, W = this.W, H = this.H, pot = this.v3 ? this.v3.potXY() : { x: W / 2, y: H * 0.86 };
     if (st.phase === 'pick') {
       for (const it of st.items) {
         if (it.taken) continue;
@@ -489,7 +546,8 @@ class Arena {
       if (st.hold > 0.5) { st.bolt = now; go('bolt', 600); }
       else if (now > st.until) go('wait', 800);
     } else if (st.phase === 'bolt' && now > st.until) {
-      st.hp--; this.win(ARENA.duel.pts, '⚡ BOUM !', this.W * 0.8, this.H * 0.42); st.dizzy = now;
+      const gx = this.v3 ? this.v3.grimXY() : { x: this.W * 0.8, y: this.H * 0.42 };
+      st.hp--; this.win(ARENA.duel.pts, '⚡ BOUM !', gx.x, gx.y); st.dizzy = now;
       if (st.hp <= 0) { this.say('Il est tout étourdi !', 0); this.finish(1); return; }
       go('wait', 1600);
     }
@@ -583,7 +641,7 @@ class Arena {
     st.rings = st.rings.filter((r) => !r.res || now - r.t < 500);
     if (st.spawned >= st.n && !st.rings.some((r) => !r.res)) this.finish(st.ok / st.n);
   }
-  ringXY(gx, gy) { return [this.W / 2 + gx * this.W * 0.27, this.H * 0.52 + gy * this.H * 0.2]; }
+  ringXY(gx, gy) { if (this.v3) { const p = this.v3.ringXY(gx, gy); return [p.x, p.y]; } return [this.W / 2 + gx * this.W * 0.27, this.H * 0.52 + gy * this.H * 0.2]; }
   drawSky(now) {
     const ctx = this.ctx, W = this.W, H = this.H, st = this.st;
     const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#240046'); g.addColorStop(0.55, '#7b2cbf'); g.addColorStop(0.85, '#ff9e00'); g.addColorStop(1, '#ff6d00');
@@ -622,7 +680,7 @@ class Arena {
     if (st.count === 0 && now > st.next && st.k < st.n) { st.count = now; this.say('Trois, deux, un…', 0); }
     if (st.count && now - st.count > 3000) {
       st.count = 0; st.k++; st.flash = now; Audio8.perfect(); this.say(st.k === st.n ? 'Super photo !' : 'Ouistiti !', 0);
-      try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); c.getContext('2d').drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
+      try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); const x = c.getContext('2d'); if (this.v3 && scene3d.cv3) x.drawImage(scene3d.cv3, 0, 0, c.width, c.height); x.drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
       this.win(ARENA.photo.pts, '📸 Clic !');
       st.next = now + 2200;
       if (st.k >= st.n) setTimeout(() => this.s && this.s.game === 'photo' && this.finish(1), 1500);
@@ -636,6 +694,96 @@ class Arena {
     for (const s of [-1, 1]) this.emo(['🦋', '🐣', '🦄'][Math.floor(now / 3000) % 3], B.sh.x + s * B.T * 0.9, B.sh.y - B.T * 0.15 + Math.sin(now / 300 + s) * B.T * 0.05, B.T * 0.45); // (des amis sur les épaules)
     if (st.count) { const k = 3 - Math.floor((now - st.count) / 1000); if (k > 0) this.text(String(k), W / 2, H * 0.5, H * 0.3, '#ffd166', 0.85); }
     else if (st.k < st.n) this.text('Fais ta pose la plus rigolote !', W / 2, H * 0.86, H * 0.05, '#ffd166');
+    if (st.flash && now - st.flash < 400) { ctx.fillStyle = `rgba(255,255,255,${1 - (now - st.flash) / 400})`; ctx.fillRect(0, 0, W, H); }
+  }
+  // Entrée en scène : panneau titre qui descend, puis 3, 2, 1
+  hudIntro(now) {
+    const ctx = this.ctx, W = this.W, H = this.H, it = this.intro, k = now - it.t0, a = ARENA[this.s.game];
+    const e = (x) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+    if (k < 1700) {
+      const y = H * 0.36 - (1 - e(k / 450)) * H * 0.5 + (k > 1350 ? e((k - 1350) / 350) * -H * 0.6 : 0), w = Math.min(W * 0.7, H * 1.25), h = H * 0.24;
+      ctx.save(); ctx.translate(W / 2, y); ctx.rotate(-0.02);
+      ctx.fillStyle = 'rgba(30,20,80,.88)'; ctx.strokeStyle = '#ffd166'; ctx.lineWidth = H * 0.008;
+      ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, h * 0.25); ctx.fill(); ctx.stroke();
+      this.emo(a.icon, -w / 2 + h * 0.55, 0, h * 0.62, Math.sin(now / 200) * 0.15);
+      this.text(a.label, h * 0.35, -h * 0.08, Math.min(H * 0.075, w * 0.075), '#ffffff');
+      this.text('★ Jeu miroir ★', h * 0.35, h * 0.27, H * 0.032, '#ffd166');
+      ctx.restore();
+    } else {
+      const n = Math.floor((k - 1400) / 600), q = ((k - 1400) % 600) / 600;
+      if (n < 3) this.text(String(3 - n), W / 2, H * 0.42, H * (0.34 - q * 0.08), ['#ff70a6', '#ffd166', '#b8f2a1'][n], 1 - Math.max(0, q - 0.7) / 0.3);
+    }
+  }
+  hudGo(k) { const q = k / 700; this.text('GO !', this.W / 2, this.H * 0.42, this.H * (0.3 + q * 0.12), '#b8f2a1', 1 - q); }
+  // Célébration : étoiles qui tombent une à une, gros « BRAVO ! »
+  hudOutro(now) {
+    const W = this.W, H = this.H, o = this.outro, k = now - o.t0, n = this.stars(o.ratio), good = o.ratio >= 0.5;
+    const pop = (t) => { const x = Math.max(0, Math.min(1, t)); return x < 0.6 ? x / 0.6 * 1.2 : 1.2 - (x - 0.6) / 0.4 * 0.2; };
+    this.text(good ? (n === 3 ? 'CHAMPION !' : 'BRAVO !') : 'PRESQUE !', W / 2, H * 0.2, H * 0.11 * pop(k / 400), good ? '#ffd166' : '#bde0fe');
+    for (let i = 0; i < 3; i++) { const t = (k - 350 - i * 260) / 300; if (t < 0) continue; this.emo(i < n ? '⭐' : '☆', W / 2 + (i - 1) * H * 0.15, H * 0.33, H * 0.11 * pop(t), (i - 1) * 0.15, i < n ? 1 : 0.5); if (t < 0.15 && i < n && !o['s' + i]) { o['s' + i] = true; Audio8.coin(); } }
+  }
+
+  // ======================= Interface par-dessus la 3D (textes, chronos, recette) =======================
+  bar(k, y, col = '#ffd166') { const ctx = this.ctx, W = this.W, H = this.H; ctx.fillStyle = 'rgba(30,27,75,.55)'; ctx.beginPath(); ctx.roundRect(W * 0.25, y, W * 0.5, H * 0.018, H * 0.009); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(W * 0.25, y, Math.max(H * 0.018, W * 0.5 * Math.max(0, Math.min(1, k))), H * 0.018, H * 0.009); ctx.fill(); }
+  ring(x, y, r, k, col = '#ffd166', w = 0.012) { const ctx = this.ctx; ctx.lineCap = 'round'; ctx.lineWidth = this.H * w; ctx.strokeStyle = 'rgba(30,27,75,.45)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.29); ctx.stroke(); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.max(0, k) * 6.29); ctx.stroke(); }
+  hud_mur(st, now) {
+    const w = st.wall, W = this.W, H = this.H;
+    if (!w) { if (st.k < st.n) this.text(`Mur ${st.k + 1} / ${st.n}`, W / 2, H * 0.9, H * 0.05, '#ffd166'); return; }
+    this.text((w.match ? '✅ ' : '👀 ') + AR_POSE_NAMES[w.pose], W / 2, H * 0.9, H * 0.06, w.match ? '#b8f2a1' : '#ffd166');
+  }
+  hud_soleil(st, now) {
+    const W = this.W, H = this.H, look = st.phase === 'regarde';
+    if (look) { this.ctx.fillStyle = `rgba(255,80,80,${0.1 + 0.05 * Math.sin(now / 90)})`; this.ctx.fillRect(0, 0, W, H); }
+    this.text(look ? '🗿 STATUE !' : st.phase === 'dos' ? '🏃 COURS !' : 'Prêt ?', W / 2, H * 0.2, H * 0.085, look ? '#ff8fab' : '#b8f2a1');
+    this.bar(st.prog, H * 0.84, '#ffd166'); this.emo('🧙', W * 0.25 + W * 0.5 * st.prog, H * 0.815, H * 0.05); this.emo('☁️', W * 0.77, H * 0.845, H * 0.05);
+  }
+  hud_pimprenelle(st, now) {
+    const W = this.W, H = this.H, c = st.cur;
+    if (c) {
+      this.bubble(W * 0.5, H * 0.88, W * 0.64, H * 0.09, (c.simon ? '🦉 Pimprenelle a dit : ' : '') + c.o.no.replace(' !', '') + ' ' + c.o.icon, H * 0.045);
+      this.bar(1 - Math.min(1, (now - c.t0) / c.win), H * 0.8);
+    }
+    if (st.res && now - st.res.t < 1200) this.text(st.res.good ? '✅ Bravo !' : '😜 Piégé !', W / 2, H * 0.22, H * 0.08, st.res.good ? '#b8f2a1' : '#ff8fab');
+  }
+  hud_neige(st, now, B) {
+    for (const m of st.men) if (!m.hit && !m.gone && m.x != null && now - m.t0 > 300) { const p = this.v3.slotXY(m.slot, 2.0); this.ring(p.x, p.y, this.H * 0.025, 1 - (now - m.t0) / m.life, '#ffd166', 0.008); }
+    if (st.balls.length === 0 && st.ok === 0 && now - this.t0 < 9000) this.text('☝️ Lève le bras… et lance !', this.W / 2, this.H * 0.9, this.H * 0.05, '#ffd166');
+  }
+  hud_potions(st, now) {
+    const ctx = this.ctx, W = this.W, H = this.H;
+    ctx.fillStyle = 'rgba(255,250,240,.94)'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = H * 0.006; ctx.beginPath(); ctx.roundRect(W * 0.02, H * 0.3, W * 0.12, H * 0.42, H * 0.03); ctx.fill(); ctx.stroke();
+    this.emo('📜', W * 0.08, H * 0.35, H * 0.045);
+    st.recipe.forEach((r, i) => { const y = H * (0.45 + i * 0.09); this.emo(r.e, W * 0.07, y, H * 0.06, 0, r.got ? 0.4 : 1); if (r.got) this.emo('✅', W * 0.11, y, H * 0.035); });
+    if (st.phase === 'stir') { const p = this.v3.potXY(), k = Math.min(1, st.stir / (4 * Math.PI)); this.ring(p.x, p.y, H * 0.1, k); this.text('🌀 Touille !', W / 2, H * 0.2, H * 0.07, '#ffd166'); }
+    else this.text('✋ Touche les ingrédients de la recette', W / 2, H * 0.92, H * 0.042, '#ffffff');
+  }
+  hud_duel(st, now, B) {
+    const W = this.W, H = this.H, g = this.v3.grimXY();
+    for (let i = 0; i < st.n; i++) this.emo(i < st.hp ? '💜' : '🤍', g.x + (i - (st.n - 1) / 2) * H * 0.045, g.y, H * 0.038);
+    this.text('Grimaud', g.x, g.y - H * 0.05, H * 0.035, '#e0c3fc');
+    if (st.phase === 'charge') this.text('⚠️ Attention…', W / 2, H * 0.88, H * 0.07, '#ffd166');
+    if (st.phase === 'cast') this.text(st.kind === 'shield' ? '🙏 Mains jointes !' : '↔️ Pas de côté !', W / 2, H * 0.88, H * 0.08, st.safe ? '#b8f2a1' : '#ffd166');
+    if (st.phase === 'counter') this.text('🙌 À toi : bras levés !', W / 2, H * 0.88, H * 0.08, '#ffd166');
+    if (st.hurt && now - st.hurt < 400) { this.ctx.fillStyle = `rgba(255,77,109,${0.3 * (1 - (now - st.hurt) / 400)})`; this.ctx.fillRect(0, 0, W, H); }
+  }
+  hud_corde(st, now) {
+    const strong = now - st.burst < 1100;
+    this.text(strong ? '💨 Il tire fort !' : '💪 Tire !', this.W / 2, this.H * 0.2, this.H * 0.075, strong ? '#ff8fab' : '#b8f2a1');
+    this.bar(st.ratio, this.H * 0.84, '#c77dff');
+  }
+  hud_equilibre(st) {
+    const W = this.W, H = this.H;
+    if (st.gust) this.text('💨 Le vent ! Bras ouverts !', W / 2, H * 0.2, H * 0.07, '#bde0fe');
+    else this.text(tracker.mode === 'upper' ? '✈️ Bras ouverts' : '🦩 Sur un pied', W / 2, H * 0.2, H * 0.065, st.ok2 ? '#b8f2a1' : '#ffd166');
+    this.bar(st.ratio, H * 0.84, '#b8f2a1');
+  }
+  hud_balai(st, now) {
+    if (now - this.t0 < 6000) this.text('Penche-toi · 🙌 monter · accroupi : descendre', this.W / 2, this.H * 0.92, this.H * 0.04, '#ffffff');
+  }
+  hud_photo(st, now) {
+    const ctx = this.ctx, W = this.W, H = this.H;
+    if (st.count) { const k = 3 - Math.floor((now - st.count) / 1000); if (k > 0) this.text(String(k), W / 2, H * 0.45, H * 0.3, '#ffd166', 0.9); }
+    else if (st.k < st.n) this.text('Fais ta pose la plus rigolote !', W / 2, H * 0.9, H * 0.05, '#ffd166');
     if (st.flash && now - st.flash < 400) { ctx.fillStyle = `rgba(255,255,255,${1 - (now - st.flash) / 400})`; ctx.fillRect(0, 0, W, H); }
   }
 }

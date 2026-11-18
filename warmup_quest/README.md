@@ -105,9 +105,18 @@ thème (moins de course qu'avant). Étape `act` dans le jeu, `act_…` dans les 
   consigne de la partie sur un parchemin ; pause, chargement, calibrage et écran de fin dans un grand panneau.
 
 ## Les jeux miroir (comme sur console)
-Une scène fixe, sans chemin : l'enfant se voit en grand à l'écran (image de la caméra, en miroir, avec un chapeau de
-sorcier et des mains lumineuses) et la magie se dessine autour de lui. Quand il touche un objet avec sa vraie main, il le
-touche à l'écran : rien à viser. Étape `arena` (moteur : `js/arena.js`), `arena_…` dans les séquences Odoo.
+Une scène fixe en 3D, sans chemin : chaque jeu a son décor (grande salle de l'Académie, couloir du Mur Magique, atelier
+des potions, estrade du duel, pré du château, cour enneigée, corde au-dessus des nuages, ciel du soir pour les balais,
+grand cadre doré pour la photo). Le petit sorcier de l'enfant, en 3D, imite ses gestes en direct (bras, jambes, pas de
+côté, saut, accroupi ; un bras qui paraît court à la caméra est tendu vers l'avant) et touche les objets avec SES mains
+lumineuses : rien à viser. La course vers le Nuage Grognon et la course de balais se voient de dos.
+Comme sur console : entrée en scène (la caméra survole le décor, panneau titre, 3-2-1-GO, le chrono attend), un
+bruitage par action (briques, neige, sorts, cercles d'or, photo), secousses et coups de zoom sur les réussites, le
+sorcier qui réagit (joie, « aïe »), regarde ce qui se passe et bouge en douceur ; à la fin, il saute de joie sous les
+confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (trait d'encre, halo) si le PC suit.
+Étape `arena` : règles dans `js/arena.js` (en pixels de l'écran), décors et personnages dans `js/arena3d.js` ; sans 3D
+(PC trop faible, 3D coupée par les parents, `?arena2d=1`), l'ancienne version dessinée sur l'image de la caméra.
+`arena_…` dans les séquences Odoo.
 - 🧱 **Le Mur Magique** : un mur arrive avec un trou en forme de pose (bras en l'air, avion, étoile, accroupi, pas de
   côté, sur un pied) ; prendre la pose pour passer. De plus en plus vite.
 - ☁️ **1, 2, 3… Nuage Grognon** : courir sur place quand il a le dos tourné, statue quand il se retourne (sinon on recule).
@@ -123,7 +132,7 @@ touche à l'écran : rien à viser. Étape `arena` (moteur : `js/arena.js`), `ar
   (Jardin), boules de neige (Banquise), équilibriste (Singes), balais (Sortilèges, Château).
 - **🏆 La Salle des Défis** (la tour de Madame Pimprenelle, au château, ouverte d'office) : trois jeux miroir au hasard à
   chaque visite, de plus en plus vite, record à battre. Elle ne bloque pas l'histoire.
-- Sans caméra (mode clavier), un petit sorcier dessiné remplace l'image ; B = toucher un ingrédient, S = touiller.
+- Sans caméra (mode clavier), le petit sorcier prend les poses des touches ; B = toucher un ingrédient, S = touiller.
 - Mode test : `?world=defis&step=arena&game=mur&fakelimbs=1` (l'enfant imaginaire joue).
 
 ## Détection des mouvements

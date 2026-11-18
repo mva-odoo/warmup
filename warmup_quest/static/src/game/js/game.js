@@ -526,7 +526,7 @@ async function startWorld(w) {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
       const friends = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
-      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends, w.village) : [])]);
+      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends, w.village) : A3_MODELS)]); // (jeux miroir en 3D : décors et personnages)
       const hubKey = JSON.stringify(looks[0]) + (w.village ? w.village.id : 'academie');
       if (w.hub) { hubWorld = w; if (!hub.scene || hub.lookKey !== hubKey) { hub.build(looks[0], comps[0], friends, { w: w.village }); hub.lookKey = hubKey; } }
     } catch (e) {
