@@ -6,6 +6,7 @@
 <script src="../js/audio.js"></script>
 <script src="../js/voice.js"></script>
 <script src="../js/worlds.js"></script>
+<script src="../js/pose.js"></script>
 <script src="../js/decor.js"></script>
 <script src="../js/creatures.js"></script>
 <script src="../js/progress.js"></script>
@@ -41,6 +42,7 @@
   for (const an of ANIMALS) add(an.say, 'consigne'); // (imite les animaux : une phrase par carte)
   for (const t of ARENA_LINES) add(t, 'jeu'); // (jeux miroir : phrases dites pendant le jeu)
   for (const o of SIMON_ORDERS) { add(o.yes, 'consigne'); add(o.no, 'consigne'); } // (Pimprenelle a dit)
+  if (typeof SETUP_TIPS !== 'undefined') for (const t of Object.values(SETUP_TIPS)) add(t.say, 'consigne'); // (conseils d'installation)
   for (const st of Object.values(MIMIC)) for (const t of Object.values(st.say)) add(t, 'consigne');
   // 3. Carrefours
   add('Un carrefour !', 'consigne'); add('Fais un grand pas du côté que tu veux !', 'consigne');

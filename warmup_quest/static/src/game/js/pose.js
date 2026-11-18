@@ -510,6 +510,41 @@ class Tracker {
   }
 
   // Résumé lisible : « 24 img/s · GPU » (🐢 si la détection rame)
+  static get TIPS() { return SETUP_TIPS; }
+  // ---------- Installation : ce qui gêne la détection (lumière, trop près, tête coupée, pas au milieu, mal vu)
+  // Renvoie la gêne principale (ou null) pour un joueur ; la lumière est mesurée sur l'image de la caméra.
+  light(video, now) {
+    if (now - (this.lightT || 0) < 600) return this.lightV; this.lightT = now;
+    if (!video || !video.videoWidth || video.readyState < 2) return (this.lightV = null); // (enfant virtuel, rejeu : pas d'image)
+    try {
+      const c = (this.lightCv = this.lightCv || Object.assign(document.createElement('canvas'), { width: 32, height: 24 }));
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(video, 0, 0, 32, 24);
+      const d = x.getImageData(0, 0, 32, 24).data; let all = 0, mid = 0, edge = 0, nm = 0, ne = 0;
+      for (let i = 0; i < 32 * 24; i++) {
+        const l = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2], px = i % 32, py = Math.floor(i / 32);
+        all += l; if (px > 9 && px < 22 && py > 5 && py < 20) { mid += l; nm++; } else if (py < 10) { edge += l; ne++; }
+      }
+      this.lightV = { mean: all / (32 * 24), mid: mid / nm, top: edge / ne };
+    } catch (e) { this.lightV = null; }
+    return this.lightV;
+  }
+  setupIssue(b, video, now) {
+    const lm = b && b.lm, L = this.light(video, now);
+    if (L && L.mean < 50) return 'dark';
+    if (L && L.top > 175 && L.top - L.mid > 55) return 'backlight';
+    if (!lm || !b.state.present) return null;
+    const vis = (i) => lm[i].visibility ?? 1, inF = (i, m = 0.01) => lm[i].x > m && lm[i].x < 1 - m && lm[i].y > m && lm[i].y < 1 - m;
+    const sh = mid(lm[11], lm[12]), hipOK = vis(23) > 0.5 && vis(24) > 0.5, T = hipOK ? dist(sh, mid(lm[23], lm[24])) : null;
+    // (mains souvent hors de l'image, ou torse énorme : trop près)
+    b.outHands = (b.outHands || 0) * 0.9 + ([15, 16].filter((i) => lm[i].x < 0.02 || lm[i].x > 0.98 || lm[i].y > 0.99).length / 2) * 0.1; // (mains sorties sur les côtés ; en haut, bras levés, c'est normal)
+    if ((T && T > 0.31) || Math.abs(lm[11].x - lm[12].x) * camAspect() > 0.42 || b.outHands > 0.45) return 'close';
+    if (vis(0) < 0.5 || lm[0].y < 0.06) return 'headcut';
+    if (sh.x < 0.27 || sh.x > 0.73) return sh.x < 0.5 ? 'offRight' : 'offLeft'; // (image non inversée : x petit = l'enfant apparaît à droite de l'écran)
+    const keys = [11, 12, 13, 14, 15, 16, 23, 24].map(vis), avg = keys.reduce((a, v) => a + v, 0) / keys.length;
+    b.visAvg = (b.visAvg ?? avg) * 0.9 + avg * 0.1;
+    if (b.visAvg < 0.6) return 'blurry';
+    return null;
+  }
   perfLabel() {
     if (this.sim || !this.perf.fps) return '';
     const slow = this.perf.fps < 15 ? ' 🐢' : '';
@@ -560,6 +595,17 @@ function cleanSide(lm, midX, side) {
   out.world = lm.world; // (garde les points 3D, sinon perdus à deux)
   return out;
 }
+
+// Conseils d'installation : titre, détail (parents), phrase dite, conseil court pendant le jeu
+const SETUP_TIPS = {
+  dark: { t: 'Il fait trop sombre 💡', sub: 'Allume la lumière, ou ouvre les rideaux : la caméra voit mal dans le noir', say: 'Il fait un peu sombre ! Allume la lumière, pour que je te voie bien.', short: '💡 Plus de lumière !' },
+  backlight: { t: 'Trop de lumière derrière toi ☀️', sub: 'Une fenêtre ou une lampe est derrière toi : tourne-toi, ou ferme le rideau', say: 'Il y a trop de lumière derrière toi ! Ferme le rideau, ou change de place.', short: '☀️ Lumière derrière toi' },
+  close: { t: 'Recule un peu 👣', sub: 'Tu es trop près : je ne vois pas tes mains quand tu tends les bras', say: 'Tu es trop près ! Recule un peu, pour que je voie tes mains.', short: '👣 Recule un peu' },
+  headcut: { t: 'Je ne vois pas ta tête 🙈', sub: 'Penche l\'écran vers le haut, ou pose la caméra plus haut', say: 'Je ne vois pas ta tête ! Il faut pencher l\'écran vers le haut.', short: '🙈 Je ne vois pas ta tête' },
+  offRight: { t: 'Décale-toi par ici ⬅️', sub: 'Mets-toi au milieu de l\'image', say: 'Décale-toi un peu, au milieu !', short: '⬅️ Reviens au milieu' },
+  offLeft: { t: 'Décale-toi par ici ➡️', sub: 'Mets-toi au milieu de l\'image', say: 'Décale-toi un peu, au milieu !', short: '➡️ Reviens au milieu' },
+  blurry: { t: 'Je te vois mal 👀', sub: 'Plus de lumière sur toi, et des habits qui changent du mur derrière toi', say: 'Je te vois un peu mal ! Il faudrait plus de lumière sur toi.', short: '👀 Je te vois mal' },
+};
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }

@@ -170,6 +170,16 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   au tir à la corde ils tirent ensemble, au 1-2-3 le nuage voit celui qui bouge, à la course de balais chacun a son
   propre milieu et on fait la moyenne (amplifiée) de leurs penchés.
 
+## Installation guidée (caméra, lumière, place)
+- Au calibrage, le jeu dit précisément ce qui gêne, dans l'ordre : trop sombre, trop de lumière derrière l'enfant
+  (contre-jour, mesuré sur l'image de la caméra), trop près (mains qui sortent de l'image bras tendus), tête coupée
+  (« penche l'écran vers le haut »), pas au milieu, enfant mal vu (plus de lumière, habits qui changent du mur).
+  Titre pour l'enfant, conseil pour les parents en bas, phrase dite. Au plus 10 s de conseils, puis on joue quand même.
+- Pendant le jeu : petit voyant orange (« 👣 Recule un peu », « 💡 Plus de lumière ! »…) quand la détection devient
+  mauvaise 2,5 s de suite ; la phrase est dite au plus une fois par minute. Conseils : `SETUP_TIPS` dans `js/pose.js`.
+- Testé avec l'enfant virtuel, qui obéit aux conseils (« recule », « décale-toi ») : `&vkidd=0.9` (trop près),
+  `&vkidx=0.9` (pas au milieu), `&vkidcam=0.6&vkidtilt=-12` (tête coupée), `&vkidapproach=10` (s'approche en jouant).
+
 ## Pensé pour les 4–8 ans
 - Une partie = un cours ou une étape de 1,5 à 4,5 minutes (vitesse Facile) ; le **Premier jour** (le tuto) est découpé en
   5 leçons : Les premiers sorts, Les poses magiques, Les ateliers, Les farces des singes, La baguette et la récré.

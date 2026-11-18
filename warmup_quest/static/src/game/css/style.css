@@ -794,3 +794,12 @@ body { background: var(--night0); }
 
 /* ---------- Grimoire */
 #carnet { background: radial-gradient(ellipse at 50% 0%, #4b2fa8, var(--night1) 50%, var(--night0)); color: #fff; }
+
+/* Voyant « la caméra te voit mal » pendant le jeu (conseil court) */
+.trackWarn { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 30; padding: 8px 18px; border-radius: 999px;
+  background: rgba(245, 158, 11, .95); color: #1e1b4b; font: 800 20px 'Baloo 2', system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.25); animation: twPulse 1.2s ease-in-out infinite; }
+@keyframes twPulse { 50% { transform: translateX(-50%) scale(1.06); } }
+/* Calibrage : le conseil détaillé (parents) reste lisible, en bas, au-dessus de la grande vignette caméra */
+#calib p#calibSub { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 60; max-width: 92vw; margin: 0;
+  background: rgba(13, 8, 48, .88); color: #fff; padding: 8px 18px; border-radius: 16px; font-weight: 700; text-align: center; }
+#calib p#calibSub:empty { display: none; }

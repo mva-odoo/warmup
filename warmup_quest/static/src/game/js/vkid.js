@@ -29,7 +29,7 @@ const VKid = (() => {
   // Deux enfants : ?vkid2=1 (ou un profil : ?vkid2=petit), écart entre eux ?vkidgap=1.3 (m), réglages vkid2h, vkid2x…
   const DUO = !!P.get('vkid2'), GAP = Number(P.get('vkidgap') || 1.3), LEAVE = Number(P.get('vkid2leave') || 0), LEAVE1 = Number(P.get('vkid1leave') || 0); // (vkid1leave : c'est le joueur 1 qui part) // (vkid2leave=20 : le 2e enfant s'en va après 20 s de jeu)
   let playT = 0;
-  const stats = { games: [], cal: null, err: [], frames: 0, swaps: 0, lost: 0, duoFrames: 0 };
+  const stats = { games: [], cal: null, err: [], frames: 0, swaps: 0, lost: 0, duoFrames: 0, stages: [] };
 
   function makeKid(idx) {
   const pre = idx ? 'vkid2' : 'vkid', PR = PROFILES[P.get(pre)] || (idx ? PROFILES[P.get('vkid')] || {} : {});
@@ -38,7 +38,7 @@ const VKid = (() => {
   const LAG = num('lag', 'lag', 300 + idx * 80), SKILL = Math.max(0, Math.min(1, num('skill', 'skill', 0.7)));
   const X0 = num('x', 'x', 0) + (DUO ? (idx ? -GAP / 2 : GAP / 2) : 0); // (à deux : joueur 1 à gauche de l'écran = à droite de l'image)
   const YAW = (num('yaw', 'yaw', 0) * Math.PI) / 180, DRIFT = num('drift', 'drift', 0);
-  let drift = { x: 0, z: 0, vx: 0, vz: 0 }, home = 0; // (home : là où l'enfant s'est placé, s'il a obéi à « écartez-vous »)
+  let drift = { x: 0, z: 0, vx: 0, vz: 0 }, home = 0, back = 0; // (back : il a reculé quand le jeu le lui a demandé) // (home : là où l'enfant s'est placé, s'il a obéi à « écartez-vous »)
   // Proportions d'un enfant (part de la taille)
   const B = { hipY: 0.53, hipW: 0.075, torso: 0.27, shW: 0.12, upper: 0.17, fore: 0.15, hand: 0.07, thigh: 0.25, shin: 0.24 };
   const L = (k) => B[k] * H, ARM = L('upper') + L('fore'), TORSO = L('torso');
@@ -93,7 +93,7 @@ const VKid = (() => {
   // Placement réel : l'enfant est décalé, tourné de biais, il se balade ; la caméra est haute ou basse, penchée, de travers
   function place(p) {
     const c = Math.cos(YAW), sn = Math.sin(YAW);
-    return V(p.x * c + p.z * sn + X0 + drift.x, p.y, -p.x * sn + p.z * c + drift.z);
+    return V(p.x * c + p.z * sn + X0 + drift.x, p.y, -p.x * sn + p.z * c + drift.z - back);
   }
   function toCam(p) { // repère de la caméra (x à droite de l'image, y en haut, z vers l'arrière de la caméra)
     let x = p.x, y = p.y - CAM_H, z = p.z - D;
@@ -152,9 +152,17 @@ const VKid = (() => {
     const s = rest(), A = typeof arena !== 'undefined' ? arena : null, ph = typeof phase !== 'undefined' ? phase : '';
     s.bx = home; // (revient à sa place sauf si une consigne demande un pas)
     if (ph === 'play' && !playT) playT = now;
+    const ap = Number(P.get(pre + 'approach') || 0); // (vkidapproach=10 : après 10 s de jeu, il s'approche tout près de l'écran)
+    if (ap && playT && now - playT > ap * 1000) back = Math.max(-(D - 0.95), back - 0.01);
     const lv = idx ? LEAVE : LEAVE1;
     if (lv && playT && now - playT > lv * 1000) { const out = idx ? -(X0 + 3) : 3 - X0; home += (out - home) * 0.05; s.bx = home; return s; } // (il part en courant hors de l'image)
     if (ph === 'calib') {
+      // il obéit aux conseils d'installation (« recule », « décale-toi ») ; la caméra mal placée, il n'y peut rien
+      const cs = typeof calibState !== 'undefined' ? calibState.stage || '' : '';
+      if (cs === 'fix-close' || cs === 'back') { back = Math.min(2.5, back + 0.02); return s; }
+      if (cs === 'fix-offRight') { home += 0.015; s.bx = home; return s; }
+      if (cs === 'fix-offLeft') { home -= 0.015; s.bx = home; return s; }
+      if (cs.startsWith('fix-')) return s;
       // à deux, chacun va vers son rond (le jeu le demande : « écartez-vous », « chacun dans son rond »), puis lève les bras
       if (DUO && tracker.bodies.length === 2 && !(tracker.duoPlacement() || { ok: true }).ok) {
         const want = ((idx ? 0.28 : 0.72) - 0.5) * 2 * D * TAN_H; home += Math.max(-0.03, Math.min(0.03, (want - (X0 + home)) * 0.08)); s.bx = home;
@@ -237,7 +245,9 @@ const VKid = (() => {
     }
     if (stats.frames % 10 === 0) {
       const e = stats.err, m = e.length ? e.reduce((a, b) => a + b, 0) / e.length : null;
-      document.title = 'VK ' + JSON.stringify({ phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
+      const cs = typeof calibState !== 'undefined' ? calibState.stage : ''; if (cs && stats.stages[stats.stages.length - 1] !== cs) stats.stages.push(cs);
+      const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
+      document.title = 'VK ' + JSON.stringify({ dbg: stats.dbg, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
     }
   }
   return { on, feed, stats, profiles: PROFILES };

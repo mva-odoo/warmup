@@ -643,7 +643,10 @@ function updateCalib(now) {
   } else if (!s.upperBody) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
-    setCalibStage('far', 'Mets-toi face à la caméra 👀', 'On doit voir au moins ta tête et tes hanches', 'Mets-toi face à la caméra, recule un peu !');
+    // (épaules vues mais pas la tête : c'est la caméra qui regarde trop bas, reculer ne sert à rien)
+    const b0 = tracker.bodies[0], lm = b0 && b0.lm, headOut = s.present && lm && ((lm[0].visibility ?? 1) < 0.5 || lm[0].y < 0.02);
+    if (headOut) { const tip = SETUP_TIPS.headcut; setCalibStage('fix-headcut', tip.t, tip.sub, tip.say); }
+    else setCalibStage('far', 'Mets-toi face à la caméra 👀', 'On doit voir au moins ta tête et tes hanches', 'Mets-toi face à la caméra, recule un peu !');
   } else if (duo() && !(tracker.duoPlacement() || { ok: true }).ok) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -651,6 +654,12 @@ function updateCalib(now) {
     setCalibStage(pl.apart ? 'spots' : 'apart', pl.apart ? 'Chacun dans son rond 🟢' : 'Écartez-vous un peu ↔️',
       pl.apart ? 'Allez chacun dans le rond de votre couleur : il devient vert' : 'Il faut un grand pas entre vous deux',
       pl.apart ? 'Allez chacun dans votre rond, il devient vert quand c\'est bon !' : 'Écartez-vous un peu, faites un grand pas chacun sur le côté !');
+  } else if (calibIssue(now)) {
+    // installation à corriger (lumière, trop près, tête coupée, pas au milieu) : on le dit précisément (10 s au plus, puis on joue quand même)
+    const tip = SETUP_TIPS[calibState.issue];
+    calibState.holdStart = 0;
+    $('calibBar').style.width = '0%';
+    setCalibStage('fix-' + calibState.issue, tip.t, tip.sub, tip.say);
   } else if (duo() && !s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -670,6 +679,18 @@ function updateCalib(now) {
   } else {
     if (setCalibStage('hold', 'Ne bouge plus… ✨', '', null)) holdCalib(now);
   }
+}
+
+// Gêne d'installation pendant le calibrage (la même un moment, pour ne pas clignoter) ; abandonnée après 10 s de conseils
+function calibIssue(now) {
+  if (tracker.sim) return null;
+  calibState.issueT0 = calibState.issueT0 || now;
+  if (now - calibState.issueT0 > 10000) return (calibState.issue = null);
+  const issues = tracker.bodies.map((b) => tracker.setupIssue(b, video, now)).filter((x) => x && !(duo() && /^off/.test(x))), cur = issues[0] || null; // (à deux, chacun est sur un côté : c'est voulu)
+  if (cur !== calibState.cand) { calibState.cand = cur; calibState.candT = now; }
+  if (now - calibState.candT > 500) calibState.issue = cur;
+  if (!calibState.issue) calibState.issueT0 = now; // (le compteur des 10 s ne tourne que pendant un problème)
+  return calibState.issue;
 }
 
 function holdCalib(now) {
@@ -2548,6 +2569,20 @@ function updatePauseGesture(now) {
   } else if (pauseGesture) { pauseGesture = 0; btn.style.background = ''; }
 }
 
+// Pendant le jeu : petit voyant quand la détection devient mauvaise (2,5 s de suite), avec le conseil ; dit une fois par minute
+let trackWarn = { issue: null, since: 0, said: {} };
+function updateTrackWarn(now) {
+  const el = $('trackWarn'); if (!el) return;
+  const issue = tracker.sim ? null : tracker.bodies.map((b) => tracker.setupIssue(b, video, now)).find((x) => x && x !== 'offLeft' && x !== 'offRight') || null;
+  if (issue !== trackWarn.issue) { trackWarn.issue = issue; trackWarn.since = now; }
+  const on = !!issue && now - trackWarn.since > 2500;
+  el.classList.toggle('hidden', !on);
+  if (on) {
+    el.textContent = SETUP_TIPS[issue].short;
+    if (now - (trackWarn.said[issue] || -1e9) > 60000 && !Audio8.speaking?.()) { trackWarn.said[issue] = now; Audio8.say(SETUP_TIPS[issue].say); }
+  }
+}
+
 function updateCamStatus(now) {
   const s = tracker.state;
   const el = $('camStatus');
@@ -2558,11 +2593,12 @@ function updateCamStatus(now) {
     else { el.textContent = `👀 ${n} joueur${n > 1 ? 's' : ''} sur 2`; el.className = n ? 'warn' : 'bad'; }
   } else if (s.fullBody) { el.textContent = '✅ Corps entier'; el.className = 'ok'; }
   else if (s.upperBody) { el.textContent = s.kneesOK ? '✅ Jusqu\'aux genoux' : '✅ Haut du corps'; el.className = 'ok'; }
-  else if (s.present) { el.textContent = '↔️ Recule un peu'; el.className = 'warn'; }
+  else if (s.present) { const iss = tracker.setupIssue(tracker.bodies[0], video, now), tip = iss && SETUP_TIPS[iss]; el.textContent = tip ? tip.short : (tracker.bodies[0].lm && (tracker.bodies[0].lm[0].visibility ?? 1) < 0.5 ? SETUP_TIPS.headcut.short : '↔️ Recule un peu'); el.className = 'warn'; }
   else { el.textContent = '❓ Personne'; el.className = 'bad'; }
   $('camPerf').textContent = tracker.perfLabel();
   $('camPerf').classList.toggle('slow', tracker.perf.fps > 0 && tracker.perf.fps < 15);
   if (phase === 'play') {
+    updateTrackWarn(now);
     if (!s.present) { if (!lostSince) lostSince = now; } else lostSince = 0;
     show('lost', lostSince && now - lostSince > 1200);
     if (lostSince && now - lostSince > 3000) pauseGame('lost');
