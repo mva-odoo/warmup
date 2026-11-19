@@ -9,8 +9,8 @@ OUT=~/.cache/wuq-test; mkdir -p "$OUT"; RES="$OUT/worlds-$(date +%Y%m%d-%H%M).tx
 if ! ss -ltn | grep -q ":$PORT "; then (setsid python3 -m http.server "$PORT" >/dev/null 2>&1 &); sleep 3; fi
 run() {
   local w=$1 pf=$2 id="vw-$1-$$" t
-  t=$(timeout 700 chromium --headless=new --no-sandbox --ignore-gpu-blocklist --enable-gpu --use-angle=vulkan --enable-features=Vulkan \
-    --window-size=1280,720 --user-data-dir="$OUT/prof-$id" --virtual-time-budget=420000 --enable-logging=stderr --v=0 \
+  t=$(timeout 1100 chromium --headless=new --no-sandbox --ignore-gpu-blocklist --enable-gpu --use-angle=vulkan --enable-features=Vulkan \
+    --window-size=1280,720 --user-data-dir="$OUT/prof-$id" --virtual-time-budget=${WBUDGET:-650000} --enable-logging=stderr --v=0 \
     --dump-dom "http://localhost:$PORT/index.html?world=$w&nostory=1&nofork=1&vkid=$pf&vkidsteps=1" 2>"$OUT/err-$id.txt" | grep -o "<title>VK [^<]*" | head -1)
   local err; err=$(grep -o "Uncaught [^\"]*" "$OUT/err-$id.txt" | sort -u | head -2 | tr '\n' ' ')
   rm -rf "$OUT/prof-$id" "$OUT/err-$id.txt"
@@ -25,6 +25,6 @@ fin = 'fini' if d.get('phase') == 'results' else 'PAS FINI (' + str(d.get('phase
 print(f"{w:12} {fin:8} {len(steps):2} épreuves, {len(games)} jeux · à revoir : {', '.join(bad) or 'rien'} {err}")
 PY
 }
-export -f run; export OUT PORT
+export -f run; export OUT PORT WBUDGET
 for w in $WORLDS_L; do echo "$w $PF"; done | xargs -P "$PAR" -L 1 bash -c 'run $0 $1' | tee "$RES"
 echo "→ $RES"

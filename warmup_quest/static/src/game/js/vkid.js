@@ -79,7 +79,7 @@ const VKid = (() => {
       J['ix' + k] = add(r.end, d, L('hand')); J['pk' + k] = add(add(r.end, d, L('hand') * 0.8), V(sx * 0.02, 0, 0)); J['th' + k] = add(add(r.end, d, L('hand') * 0.5), V(-sx * 0.02, 0, 0.02));
       // jambe : la cheville reste au sol (ou monte pour le genou levé)
       const hp = J['hip' + k], lift = s['knee' + k];
-      const ank = lift > 0 ? add(hp, V(0, -L('thigh') * 0.6 - L('shin') * 0.55 * (1 - lift * 0.3), L('thigh') * 0.55 * lift)) : V(hp.x + sx * s.spread * 0.16 * H, 0.04 * H + s.jump, 0);
+      const ank = lift > 0.05 ? add(hp, V(0, -L('thigh') * 0.6 - L('shin') * 0.55 * (1 - lift * 0.3), L('thigh') * 0.55 * lift)) : V(hp.x + sx * s.spread * 0.16 * H, 0.04 * H + s.jump, 0);
       const lr = ik(hp, ank, L('thigh'), L('shin'), V(0, 0.2, 1));
       J['kn' + k] = lr.mid; J['an' + k] = lr.end; J['he' + k] = add(lr.end, V(0, -0.02 * H, -0.03 * H)); J['ft' + k] = add(lr.end, V(0, -0.03 * H, 0.08 * H));
     }
@@ -270,7 +270,7 @@ const VKid = (() => {
         else if (g === 'clap') { if ((now % 500) < 250) POSES.together(s); else { s.wL = V(ARM * 0.6, 0, 0.4); s.wR = V(-ARM * 0.6, 0, 0.4); } }
         else if (g === 'swim') { const up = (now % 900) < 450; s.wL = up ? V(0.1, ARM * 0.95, 0) : V(0.2, -ARM * 0.8, 0.2); s.wR = up ? V(-0.2, -ARM * 0.8, 0.2) : V(-0.1, ARM * 0.95, 0); }
         else if (g === 'launch') { if (a.phase === 0) s.drop = 1; else hop(now, 1000); }
-        else if (g === 'stomp') { const k = (now % 900) < 450; s.kneeL = k ? 1 : 0; s.kneeR = k ? 0 : 1; }
+        else if (g === 'stomp') { const k = (now % 1300) < 650; s.kneeL = k ? 1 : 0; s.kneeR = k ? 0 : 1; }
         else if (g === 'animals') { const an = a.seq && a.seq[a.reps]; if (an) { if (an.need === 'jump') hop(now, 1000); else if (an.need === 'smash') smash(s, now); else pose(s, an.need); } }
         return s;
       }
@@ -320,7 +320,7 @@ const VKid = (() => {
     }
     return frame(now);
   }
-  return { step, H, SKILL, ARM, TORSO, dropNow: () => cur.drop };
+  return { step, H, SKILL, ARM, TORSO, dropNow: () => cur.drop, spreadNow: () => cur.spread };
   }
 
   const kids = on ? (DUO ? [makeKid(0), makeKid(1)] : [makeKid(0)]) : [];
@@ -348,9 +348,11 @@ const VKid = (() => {
       stats.games.push({ g: seenArena.game, ratio: +A.ratio().toFixed(2), ok: A.st ? A.st.ok : 0, n: seenArena.n, s: Math.round((now - arenaT0) / 1000) });
     }
     const G = typeof game !== 'undefined' && game;
+    if (G && G.cur && G.cur.s.m === 'pose' && !G.cur.done) { const b0 = tracker.bodies[0]; if (b0) { const f = G.cur.vkFlags = G.cur.vkFlags || {}; for (const k of ['star', 'starArms', 'legsApart', 'armsUp', 'airplane', 'flamingo']) if (b0.state[k]) f[k] = (f[k] || 0) + 1; f.n = (f.n || 0) + 1; if (b0.diag) { f.legs = b0.diag.legs != null ? +b0.diag.legs.toFixed(2) : null; f.spread = +(b0.diag.spread || 0).toFixed(2); } f.kidSpread = +kids[0].spreadNow().toFixed(2); f.anklesOK = b0.state.anklesOK; } }
+    if (G && G.cur && G.cur !== stats.stepCur && stats.stepCur && stats.stepCur.vkFlags && stats.stepCur.rating) stats.poseMiss = stats.stepCur.vkFlags;
     if (G && G.cur && G.cur !== stats.stepCur) { // résultat de chaque épreuve du chemin (pour les parcours complets)
       const prev = stats.stepCur; stats.stepCur = G.cur;
-      if (prev && !['rest', 'learn', 'fork', 'arena'].includes(prev.s.m)) stats.steps.push(prev.s.m + (prev.rating ? ':' + prev.rating : ''));
+      if (prev && !['rest', 'learn', 'fork', 'arena'].includes(prev.s.m)) stats.steps.push(prev.s.m + (prev.s.pose ? '(' + prev.s.pose + ')' : '') + (prev.rating ? ':' + prev.rating : ''));
     }
     if (G && G.cur && ['bubbles', 'moles', 'cubes'].includes(G.cur.s.m)) {
       const c = G.cur; if (c !== stats.pathCur) { stats.pathCur = c; stats.pathT0 = now; }
@@ -366,7 +368,7 @@ const VKid = (() => {
       const e = stats.err, m = e.length ? e.reduce((a, b) => a + b, 0) / e.length : null;
       const cs = typeof calibState !== 'undefined' ? calibState.stage : ''; if (cs && stats.stages[stats.stages.length - 1] !== cs) stats.stages.push(cs);
       const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd && !stats.dbg) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
-      document.title = 'VK ' + JSON.stringify({ cur: P.get('vkiddbg') && G && G.cur ? { m: G.cur.s.m, n: G.cur.s.n, counts: G.cur.counts, foam: G.cur.foamProg != null ? +G.cur.foamProg.toFixed(2) : undefined, clean: G.cur.clean != null ? +G.cur.clean.toFixed(2) : undefined, sq2: (scene.squeegees || []).map((q) => [+q.x.toFixed(2), +q.y.toFixed(2)]), sq: tracker.bodies[0] && tracker.bodies[0].state.squat, drop: +kids[0].dropNow().toFixed(2) } : undefined, photos: P.get('vkidphotos') && typeof Photos !== 'undefined' ? Photos.list(0).map((u) => u.length) : undefined, steps: P.get('vkidsteps') ? stats.steps : undefined, adapt: typeof game !== 'undefined' && game ? +(game.diffK || 1).toFixed(2) : null, raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
+      document.title = 'VK ' + JSON.stringify({ poseMiss: stats.poseMiss, cur: P.get('vkiddbg') && G && G.cur ? { m: G.cur.s.m, n: G.cur.s.n, counts: G.cur.counts, foam: G.cur.foamProg != null ? +G.cur.foamProg.toFixed(2) : undefined, clean: G.cur.clean != null ? +G.cur.clean.toFixed(2) : undefined, sq2: (scene.squeegees || []).map((q) => [+q.x.toFixed(2), +q.y.toFixed(2)]), sq: tracker.bodies[0] && tracker.bodies[0].state.squat, drop: +kids[0].dropNow().toFixed(2) } : undefined, photos: P.get('vkidphotos') && typeof Photos !== 'undefined' ? Photos.list(0).map((u) => u.length) : undefined, steps: P.get('vkidsteps') ? stats.steps : undefined, adapt: typeof game !== 'undefined' && game ? +(game.diffK || 1).toFixed(2) : null, raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
     }
   }
   if (on && P.get('vkiddbg')) { stats.raf = 0; const f = () => { stats.raf++; requestAnimationFrame(f); }; requestAnimationFrame(f); }
