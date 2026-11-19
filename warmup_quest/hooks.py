@@ -1,4 +1,5 @@
 """Crée une séquence d'échauffement par défaut pour chaque monde (même programme que le jeu)."""
+import math
 
 
 def _R(t):
@@ -271,14 +272,24 @@ def _new_game(world):
     return _CU(10, 1.5) if order.index(world) % 2 else _SL(12, 6)
 
 
+# Suite de poses : elle tourne selon la place du monde dans worlds.js (même règle que FUN_POSES)
+FUN_POSES = [('armsUp', 'star', 'airplane'), ('airplane', 'armsUp', 'star'), ('star', 'airplane', 'armsUp')]
+
+
+def _js_round(x):
+    """Arrondi comme Math.round en JavaScript (4,5 -> 5 ; round() de Python donnerait 4)."""
+    return math.floor(x + 0.5)
+
+
 def _with_fun(steps, world=None):
-    """Insère tunnel, taupes, fruits / cubes et suite de poses dans la séquence."""
+    """Insère tunnel, taupes, fruits / cubes et suite de poses dans la séquence (mêmes places que worlds.js)."""
     steps = list(steps)
     n = len(steps)
-    extra = [(FUN_STEPS[2], round(n * 0.75))]
+    poses = FUN_POSES[JS_WORLD_ORDER.index(world) % 3] if world in JS_WORLD_ORDER else FUN_POSES[0]
+    extra = [(_PM(*poses), _js_round(n * 0.75))]
     if world:
-        extra.append((_new_game(world), round(n * 0.62)))
-    extra += [(FUN_STEPS[1], round(n * 0.5)), (FUN_STEPS[0], round(n * 0.25))]
+        extra.append((_new_game(world), _js_round(n * 0.62)))
+    extra += [(FUN_STEPS[1], _js_round(n * 0.5)), (FUN_STEPS[0], _js_round(n * 0.25))]
     for step, at in extra:  # (de la fin vers le début : les positions restent justes)
         steps.insert(at, step)
     return steps

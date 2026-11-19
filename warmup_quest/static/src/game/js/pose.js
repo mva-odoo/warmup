@@ -121,10 +121,9 @@ class Body {
     if (wl) { const o = this.wlm; this.wlm = wl.map((p, i) => (o && o[i] ? { x: o[i].x + (p.x - o[i].x) * 0.5, y: o[i].y + (p.y - o[i].y) * 0.5, z: o[i].z + (p.z - o[i].z) * 0.4 } : { x: p.x, y: p.y, z: p.z })); }
     else this.wlm = null;
     this.lm = lm || null;
-    if (!lm) {
-      s.present = s.upperBody = s.fullBody = false;
-      return;
-    }
+    // (enfant perdu : ses poses ne restent pas figées — sinon une pose se validerait toute seule, ou à deux par l'enfant absent)
+    const lost = () => { s.present = s.upperBody = s.fullBody = false; for (const k of [...POSE_NAMES, 'starArms', 'handsTogether', 'crossed']) s[k] = false; };
+    if (!lm) { lost(); return; }
     const vis = (i) => (lm[i].visibility == null ? 1 : lm[i].visibility);
     const inFrame = (i) => lm[i].x > 0 && lm[i].x < 1 && lm[i].y > 0 && lm[i].y < 1;
     const shOK = vis(11) > 0.5 && vis(12) > 0.5;
@@ -134,7 +133,7 @@ class Body {
     s.present = shOK;
     s.upperBody = shOK && hipOK && vis(0) > 0.5 && inFrame(0);
     s.fullBody = s.upperBody && s.anklesOK;
-    if (!s.present) return;
+    if (!s.present) { lost(); return; }
 
     const sh = mid(lm[11], lm[12]);
     const hip = mid(lm[23], lm[24]);
@@ -165,8 +164,10 @@ class Body {
 
     // --- Accroupi : le haut du corps descend OU les deux cuisses « écrasées »
     // (27 % du torse suffit : une petite flexion d'enfant, souvent sans les genoux dans l'image d'une webcam de portable)
-    const squatNow = dy > 0.27 * T * E || (useKnees && kneeL < 0.45 / E && kneeR < 0.45 / E);
-    const standNow = dy < 0.15 * T * E && kneeL > 0.55 && kneeR > 0.55;
+    // (seuil pour se relever toujours 0,1 au-dessus de celui pour s'accroupir : sinon, en mode petit, « squat » clignote à chaque image)
+    const squatK = Math.min(0.45 / E, 0.58), standK = squatK + 0.1;
+    const squatNow = dy > 0.27 * T * E || (useKnees && kneeL < squatK && kneeR < squatK);
+    const standNow = dy < 0.15 * T * E && kneeL > standK && kneeR > standK;
     if (!s.squat && squatNow) { s.squat = true; emit('squat'); }
     else if (s.squat && standNow) s.squat = false;
 
@@ -303,6 +304,7 @@ class Tracker {
     m.side = all.every((s) => s.side === all[0].side) ? all[0].side : 'center';
     m.someone = all.some((s) => s.present);
     m.crossed = all.some((s) => s.crossed); // un seul enfant suffit pour faire pause
+    m.handsTogether = all.some((s) => s.handsTogether); // (taper dans les mains, attraper : un seul suffit, comme aux jeux miroir)
     return m;
   }
 
@@ -312,20 +314,40 @@ class Tracker {
     return modes.includes('upper') ? 'upper' : modes.includes('knees') ? 'knees' : 'full';
   }
 
-  async start(video, progress) {
+  // (un seul démarrage à la fois : gestes du menu et lancement d'une partie peuvent le demander en même temps)
+  start(video, progress) {
+    if (!this.starting) this.starting = this._start(video, progress).finally(() => { this.starting = null; });
+    return this.starting;
+  }
+  async _start(video, progress) {
     progress('Ouverture de la caméra…');
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const live = video.srcObject && video.srcObject.getVideoTracks().some((t) => t.readyState === 'live');
+    const stream = live ? video.srcObject : await navigator.mediaDevices.getUserMedia({
       // (petit PC : image plus petite, plus rapide à analyser ; sinon une image plus grande : à 2-3 m, l'enfant y est plus
       // détaillé, ses poignets et ses genoux sont mieux placés)
       video: { width: { ideal: this.lowPower ? 480 : 1280 }, height: { ideal: this.lowPower ? 360 : 720 }, facingMode: 'user' }, audio: false,
     });
-    video.srcObject = stream;
-    await video.play();
-    progress('Chargement de la détection des mouvements…');
-    const { PoseLandmarker, FilesetResolver } = await import(VISION_CDN + '/vision_bundle.mjs');
-    this.vision = { PoseLandmarker, fileset: await FilesetResolver.forVisionTasks(VISION_CDN + '/wasm') };
-    const forced = typeof DEV !== 'undefined' && POSE_MODELS[DEV.get('posemodel')] ? DEV.get('posemodel') : null; // (?posemodel=lite|full)
-    await this.loadModel(forced || (this.lowPower ? 'lite' : 'full'));
+    try {
+      video.srcObject = stream;
+      await video.play();
+      progress('Chargement de la détection des mouvements…');
+      if (!this.vision) {
+        const { PoseLandmarker, FilesetResolver } = await import(VISION_CDN + '/vision_bundle.mjs');
+        this.vision = { PoseLandmarker, fileset: await FilesetResolver.forVisionTasks(VISION_CDN + '/wasm') };
+      }
+      const forced = typeof DEV !== 'undefined' && POSE_MODELS[DEV.get('posemodel')] ? DEV.get('posemodel') : null; // (?posemodel=lite|full)
+      await this.loadModel(forced || (this.lowPower ? 'lite' : 'full'));
+    } catch (e) {
+      this.stopCamera(video); // (détection impossible, hors ligne… : on ne laisse pas la caméra allumée ; « Réessayer » la rouvre)
+      throw e;
+    }
+  }
+
+  // Éteint la caméra (gestes désactivés, échec du chargement) ; start() la rallume
+  stopCamera(video) {
+    const s = video && video.srcObject;
+    if (s) { for (const t of s.getTracks()) t.stop(); video.srcObject = null; }
+    if (this.landmarker) { try { this.landmarker.close(); } catch (e) { /* (déjà fermé) */ } this.landmarker = null; }
   }
 
   // Charge un modèle de détection (GPU si possible, sinon CPU) ; remplace le précédent

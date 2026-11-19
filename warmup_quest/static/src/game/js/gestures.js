@@ -135,9 +135,10 @@ const Gestures = {
         { icon: '🍎', x: 0.2, y: 0.45, text: 'Super ! Maintenant, va chercher la pomme, de l\'autre côté. Garde ta main dessus jusqu\'à ce que le rond soit plein.' },
         { icon: '🎈', x: 0.8, y: 0.3, text: 'Bravo ! Et le ballon, tout en haut ! Lève bien ton bras.' },
       ];
-      let i = -1, raf = 0;
-      const close = () => { cancelAnimationFrame(raf); bg.remove(); resolve(); };
+      let i = -1, raf = 0, closed = false;
+      const close = () => { if (closed) return; closed = true; cancelAnimationFrame(raf); bg.remove(); resolve(); };
       const next = () => {
+        if (closed) return; // (« ✖ » pendant la petite pause : pas d'étape fantôme)
         i++;
         area.innerHTML = '';
         if (i >= STEPS.length) {
@@ -155,7 +156,7 @@ const Gestures = {
         b.setAttribute('role', 'button');
         b.textContent = st.icon;
         b.style.left = st.x * 100 + '%'; b.style.top = st.y * 100 + '%';
-        b.onclick = () => { scene.burst(innerWidth * st.x, innerHeight * st.y, 30, ['#ffd166', '#ffffff', '#4ade80']); Audio8.good(); setTimeout(next, 700); };
+        b.onclick = () => { if (b.dataset.done) return; b.dataset.done = '1'; scene.burst(innerWidth * st.x, innerHeight * st.y, 30, ['#ffd166', '#ffffff', '#4ade80']); Audio8.good(); setTimeout(next, 700); };
         area.appendChild(b);
       };
       // Petit bonhomme qui montre : bras levé, la main va sur la cible et reste

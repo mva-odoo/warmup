@@ -59,12 +59,12 @@ const Progress = {
     return { world: w, creature: pool.length ? pool[(h >> 4) % pool.length] : null };
   },
   // Parties terminées aujourd'hui (pour l'objectif du jour et la limite choisie par les parents)
-  playsToday(i = 0) { return (WUQStore._get('plays_' + i) || {})[this.dayKey()] || 0; },
+  playsToday(i = 0) { return (WUQStore._get(WUQStore.slotKey('plays', i)) || {})[this.dayKey()] || 0; },
   addPlay(i = 0) {
-    const all = WUQStore._get('plays_' + i) || {}, k = this.dayKey();
+    const all = WUQStore._get(WUQStore.slotKey('plays', i)) || {}, k = this.dayKey();
     all[k] = (all[k] || 0) + 1;
     for (const d of Object.keys(all)) if (d < this.dayKey(new Date(Date.now() - 30 * 864e5))) delete all[d]; // (on garde un mois)
-    WUQStore._set('plays_' + i, all);
+    WUQStore._set(WUQStore.slotKey('plays', i), all);
     return all[k];
   },
   // Compagnon : { id, xp } -> niveau 1..5 et forme évoluée au maximum
@@ -93,11 +93,11 @@ const Paths = {
 
 // Petits souvenirs : photos de fin de partie gardées dans ce navigateur (6 dernières par joueur)
 const Photos = {
-  list(i = 0) { return WUQStore._get('photos_' + i) || []; },
+  list(i = 0) { return WUQStore._get(WUQStore.slotKey('photos', i)) || []; },
   add(i, url) {
     if (!url) return;
     const l = [url, ...this.list(i)].slice(0, 6);
-    try { WUQStore._set('photos_' + i, l); } catch (e) { /* (place pleine : tant pis pour la photo) */ }
+    try { WUQStore._set(WUQStore.slotKey('photos', i), l); } catch (e) { /* (place pleine : tant pis pour la photo) */ }
   },
 };
 
@@ -113,13 +113,13 @@ const Stages = {
     const n = Math.min(3, w.biomes.length);
     return w.sequence.length >= n * 4 + 2 ? n : 0;
   },
-  _all(i) { return WUQStore._get('stages_' + i) || {}; },
+  _all(i) { return WUQStore._get(WUQStore.slotKey('stages', i)) || {}; },
   done(w, i = 0) { return this._all(i)[w.id] || 0; },              // étapes terminées (en tout, toutes boucles)
   next(w, i = 0) { const n = this.count(w); return n ? this.done(w, i) % n : 0; }, // étape à jouer (0..n-1)
   // Pastilles de la carte : étapes faites dans le tour en cours (île finie : toutes pleines)
   dots(w, i = 0) { const n = this.count(w), d = this.done(w, i); return !n ? 0 : d && d % n === 0 ? n : d % n; },
   // Étape k réussie : on avance seulement si c'était l'étape à faire (rejouer une étape déjà faite ne saute rien)
-  finish(w, i = 0, k = null) { if (k != null && k !== this.next(w, i)) return; const all = this._all(i); all[w.id] = (all[w.id] || 0) + 1; WUQStore._set('stages_' + i, all); },
+  finish(w, i = 0, k = null) { if (k != null && k !== this.next(w, i)) return; const all = this._all(i); all[w.id] = (all[w.id] || 0) + 1; WUQStore._set(WUQStore.slotKey('stages', i), all); },
   // Découpe le parcours de l'île : intro de l'étape, sa part du parcours, une créature à apprivoiser
   // (ou le gardien à la dernière), respiration finale
   split(w, steps, k) {

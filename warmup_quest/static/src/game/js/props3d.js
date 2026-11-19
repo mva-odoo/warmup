@@ -166,12 +166,16 @@ class Props3D {
   async preload(names) {
     const T = this.T;
     if (!this.loader) {
-      const [{ GLTFLoader }, SkeletonUtils] = await Promise.all([import(GLTF_URL), import(SKELETON_URL)]);
-      this.loader = new GLTFLoader();
-      this.SkeletonUtils = SkeletonUtils;
-      this.models = new Map();
-      this.anims = new Map();   // animations des modèles animés (créatures)
-      this.loading = new Map();
+      // (deux préchargements lancés en même temps attendent le même chargeur : les caches ne sont créés qu'une fois)
+      this.loaderP = this.loaderP || Promise.all([import(GLTF_URL), import(SKELETON_URL)]).then(([{ GLTFLoader }, SkeletonUtils]) => {
+        this.loader = new GLTFLoader();
+        this.SkeletonUtils = SkeletonUtils;
+        this.models = new Map();
+        this.anims = new Map();   // animations des modèles animés (créatures)
+        this.loading = new Map();
+        this.failed = new Set();  // modèles introuvables (on ne les attend plus)
+      }).catch((e) => { this.loaderP = null; throw e; });
+      await this.loaderP;
     }
     const base = MODELS_BASE; // clés « dossier/nom »
     await Promise.all([...new Set(names)].filter((n) => !this.models.has(n)).map((n) => {
@@ -212,7 +216,7 @@ class Props3D {
           holder.add(root);
           this.models.set(n, holder);
           if (gltf.animations && gltf.animations.length) this.anims.set(n, gltf.animations);
-        }).catch((e) => console.warn('Modèle introuvable :', n, e)));
+        }).catch((e) => { this.failed.add(n); console.warn('Modèle introuvable :', n, e); }));
       }
       return this.loading.get(n);
     }));

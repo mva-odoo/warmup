@@ -10,7 +10,10 @@ PROFILES=${1:-"1 petit grand decale biais camhaute cambasse travers bouge proche
 GAMES=${2:-"potions neige duel mur soleil balai equilibre"}
 PAR=${PAR:-3}; BUDGET=${BUDGET:-100000}; PORT=${PORT:-8765}
 OUT=~/.cache/wuq-test; mkdir -p "$OUT"; RES="$OUT/vkid-$(date +%Y%m%d-%H%M).txt"
-if ! ss -ltn | grep -q ":$PORT "; then (setsid python3 -m http.server "$PORT" >/dev/null 2>&1 &); sleep 3; fi
+# (serveur lancé par ce script : arrêté à la fin ; s'il tournait déjà, on le laisse)
+if ! ss -ltn | grep -q ":$PORT "; then setsid python3 -m http.server "$PORT" >/dev/null 2>&1 & SRV=$!; trap 'kill $SRV 2>/dev/null' EXIT; fi
+# (le serveur peut mettre plusieurs secondes à démarrer : on attend qu'il réponde, sinon les premiers essais échouent)
+for _ in $(seq 1 60); do curl -s -o /dev/null "http://localhost:$PORT/index.html" && break; sleep 0.5; done
 run() {
   local pf=$1 g=$2 id="vk-$1-$2-$$" t
   t=$(timeout 400 chromium --headless=new --no-sandbox --ignore-gpu-blocklist --enable-gpu --use-angle=vulkan --enable-features=Vulkan \

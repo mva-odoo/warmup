@@ -52,7 +52,11 @@ class WarmupVoice(models.Model):
         elif not moment:
             raise ValueError('enregistrement manquant')
         if moment:
-            player = self.env['warmup.player'].browse(int(player_id)).exists() if player_id else self.env['warmup.player']
+            try:
+                pid = int(player_id or 0)
+            except (TypeError, ValueError):
+                pid = 0
+            player = self.env['warmup.player'].browse(pid).exists() if pid > 0 else self.env['warmup.player']
             vals.update(moment=moment, player_id=player.id or False)
         rec = self.search([('key', '=', key)], limit=1)
         if rec:

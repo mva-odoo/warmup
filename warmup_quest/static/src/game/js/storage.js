@@ -5,6 +5,9 @@
 const WUQStore = {
   _get(k) { try { return JSON.parse(localStorage.getItem('wuq_' + k)); } catch { return null; } },
   _set(k, v) { try { localStorage.setItem('wuq_' + k, JSON.stringify(v)); } catch {} },
+  // Clé d'une donnée propre à un joueur (Étoiles, étapes des îles, diplôme, photos, parties du jour) : ici, sa place dans
+  // la partie (0 ou 1) ; avec Odoo, l'enfant lui-même (odoo_bridge.js), pour que deux enfants ne partagent pas leur progression
+  slotKey(k, i = 0) { return k + '_' + i; },
 
   // Carnet des créatures : { codeCreature: nombreDeFoisAmi }
   getCarnet() { return this._get('carnet') || {}; },

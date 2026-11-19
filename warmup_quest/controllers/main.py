@@ -9,6 +9,18 @@ from odoo.tools import file_open
 GAME_BASE = '/warmup_quest/static/src/game/'
 
 
+def _player(player_id):
+    """Enfant envoyé par le jeu (identifiant invalide ou supprimé : message clair plutôt qu'une erreur serveur)."""
+    try:
+        pid = int(player_id or 0)
+    except (TypeError, ValueError):
+        pid = 0
+    player = request.env['warmup.player'].browse(pid).exists() if pid > 0 else request.env['warmup.player']
+    if not player:
+        raise UserError("Cet enfant n'existe plus.")
+    return player
+
+
 class WarmupQuestController(http.Controller):
 
     @http.route('/warmup', type='http', auth='user', methods=['GET'])
@@ -52,9 +64,7 @@ class WarmupQuestController(http.Controller):
     @http.route('/warmup/api/player/look', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_player_look(self, player_id=None, look=None, color=None, **kwargs):
         """Change l'apparence du dresseur d'un enfant depuis le jeu."""
-        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
-        if not player:
-            raise UserError("Cet enfant n'existe plus.")
+        player = _player(player_id)
         player._set_look(look)
         if isinstance(color, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', color):
             player.color = color
@@ -63,9 +73,7 @@ class WarmupQuestController(http.Controller):
     @http.route('/warmup/api/player/companion', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_player_companion(self, player_id=None, companion=None, **kwargs):
         """Choix de la créature compagnon depuis le jeu."""
-        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
-        if not player:
-            raise UserError("Cet enfant n'existe plus.")
+        player = _player(player_id)
         player._set_companion(companion)
         return player._game_data()['companion']
 
@@ -93,9 +101,7 @@ class WarmupQuestController(http.Controller):
     @http.route('/warmup/api/player/paths', type='jsonrpc', auth='user', methods=['POST'])
     def warmup_player_paths(self, player_id=None, paths=None, **kwargs):
         """Mémoire des carrefours (épreuve préférée, chemins pris, clés des chemins secrets)."""
-        player = request.env['warmup.player'].browse(int(player_id or 0)).exists()
-        if not player:
-            raise UserError("Cet enfant n'existe plus.")
+        player = _player(player_id)
         player._set_paths(paths)
         return True
 

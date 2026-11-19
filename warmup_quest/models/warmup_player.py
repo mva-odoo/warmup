@@ -37,7 +37,7 @@ class WarmupPlayer(models.Model):
                                          'peuvent venir de personnages différents.')
     avatar_body = fields.Selection(AVATAR_MODELS, string='Corps', help='Vide : celui de la tête.')
     avatar_legs = fields.Selection(AVATAR_MODELS, string='Jambes', help='Vide : celles du corps.')
-    avatar_hat = fields.Selection(AVATAR_HATS, string='Chapeau', default='cap', required=True)
+    avatar_hat = fields.Selection(AVATAR_HATS, string='Chapeau', default='wizard', required=True)
     avatar_glasses = fields.Boolean(string='Lunettes')
     avatar_back = fields.Selection(AVATAR_BACKS, string='Dans le dos', default='bag')
     easy_mode = fields.Boolean(string='Mode petit (plus facile)',
@@ -89,11 +89,12 @@ class WarmupPlayer(models.Model):
         if not isinstance(paths, dict):
             return
         word = lambda k: isinstance(k, str) and len(k) <= 20 and k.replace('_', '').isalnum()
-        num = lambda v: isinstance(v, int) and 0 <= v < 100000
+        num = lambda v: isinstance(v, int) and not isinstance(v, bool) and 0 <= v < 100000
+        part = lambda key: paths.get(key) if isinstance(paths.get(key), dict) else {}  # (valeur malformée : ignorée)
         clean = {
-            'counts': {k: v for k, v in (paths.get('counts') or {}).items() if word(k) and num(v)},
-            'last': {k: [m for m in v if word(m)][:2] for k, v in (paths.get('last') or {}).items() if word(k) and isinstance(v, list)},
-            'secrets': {k: v for k, v in (paths.get('secrets') or {}).items() if word(k) and num(v)},
+            'counts': {k: v for k, v in part('counts').items() if word(k) and num(v)},
+            'last': {k: [m for m in v if word(m)][:2] for k, v in part('last').items() if word(k) and isinstance(v, list)},
+            'secrets': {k: v for k, v in part('secrets').items() if word(k) and num(v)},
         }
         self.paths = clean
 
@@ -182,7 +183,7 @@ class WarmupPlayer(models.Model):
         head = self.avatar_model or 'male-a'
         body = self.avatar_body or head
         return {'model': head, 'body': body, 'legs': self.avatar_legs or body,
-                'hat': self.avatar_hat or 'cap', 'glasses': bool(self.avatar_glasses), 'back': self.avatar_back or 'bag',
+                'hat': self.avatar_hat or 'wizard', 'glasses': bool(self.avatar_glasses), 'back': self.avatar_back or 'bag',
                 'easy': self._is_easy()}
 
     def _is_easy(self):

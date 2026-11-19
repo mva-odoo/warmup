@@ -153,7 +153,7 @@ class Scene3D extends DepthScene {
     for (const c of this.chunks || []) if (c.grass) c.grass.count = Q.grass;
     if (this.s3 && this.s3.fog && !(KITS[this.kitName] || {}).underwater) this.s3.fog.far = Q.fogFar;
     // décor en trop : on le retire (il n'est pas recréé)
-    while (this.decor && this.decor.length > Q.decor) this.s3.remove(this.decor.pop());
+    while (this.decor && this.decor.length > Q.decor) this.dispose(this.decor.pop());
     while (this.tufts && this.tufts.length > Q.tufts) this.s3.remove(this.tufts.pop());
     console.info('Qualité 3D :', q);
   }
@@ -267,13 +267,13 @@ class Scene3D extends DepthScene {
     this.introT = typeof DEV !== 'undefined' && DEV.get('world') ? 0 : performance.now(); this.outro = false; // vol d'arrivée de la caméra (pas en mode test)
     this.cubeMeshes = new Map(); this.cubeBits = []; this.cubeRings = [];
     this.shot = null; this.stepKind = null; this.roll = 0; this.qT = 0;
-    if (this.monkeys && this.s3) this.monkeys.forEach((m) => this.s3.remove(m.mesh.group));
+    if (this.monkeys && this.s3) this.monkeys.forEach((m) => this.dispose(m.mesh.group));
     this.monkeys = null;
-    if (this.cart && this.s3) this.s3.remove(this.cart);
+    if (this.cart && this.s3) this.dispose(this.cart);
     this.cart = null; this.cartItems = []; this.cartX = null;
-    if (this.bossM && this.s3) this.s3.remove(this.bossM.group);
+    if (this.bossM && this.s3) this.dispose(this.bossM.group);
     this.boss = null; this.bossM = null;
-    if (this.poseModel && this.s3) this.s3.remove(this.poseModel.root);
+    if (this.poseModel && this.s3) this.dispose(this.poseModel.root);
     this.poseModel = null;
     if (!this.ready) return;
     this.cv3.style.display = theme ? 'block' : 'none';
@@ -291,6 +291,7 @@ class Scene3D extends DepthScene {
       cone: new T.ConeGeometry(1, 1.2, 7), trunk: new T.CylinderGeometry(0.14, 0.18, 1, 6),
       ball: new T.IcosahedronGeometry(1, 1), sphere: new T.SphereGeometry(1, 14, 10),
       rock: new T.DodecahedronGeometry(1, 0), stem: new T.CylinderGeometry(0.03, 0.03, 1, 5),
+      box: new T.BoxGeometry(1, 1, 1),
     };
   }
 
@@ -382,6 +383,9 @@ class Scene3D extends DepthScene {
     this.obsMesh = null; this.obsRef = null;
     this.decor = []; this.tufts = []; this.backdrops = null; this.particles = null; this.stars = null;
     this.coachMesh = null; this.coachStyle = null; this.encMesh = null; this.encRef = null;
+    // (objets créés à la demande : ceux de la partie précédente étaient dans l'ancienne scène, on les recrée dans celle-ci)
+    this.lantern = null; this.dust = null; this.ballMesh = null; this.wandMeshes = null; this.fxRings = [];
+    this.sportG = null; this.sportNet = null; this.sportKind3 = undefined; this.forkSigns = null; this.companions = null;
     this.biomeIdx = -1;
     this.applyBiome(0);
     for (const c of this.chunks || []) if (c.grass) c.grass.count = this.Q.grass;
@@ -423,15 +427,15 @@ class Scene3D extends DepthScene {
     this.paintPath(b, night);
 
     // Arrière-plan du paysage
-    if (this.backdrops) scene.remove(this.backdrops);
+    if (this.backdrops) this.dispose(this.backdrops);
     this.backdrops = new T.Group();
     for (const name of kit.backdrop || []) this.backdrops.add(this.P.backdrop(name, b));
     scene.add(this.backdrops);
 
     // Particules d'ambiance (+ étoiles la nuit)
-    if (this.particles) { scene.remove(this.particles.points); this.particles.points.geometry.dispose(); this.particles = null; }
+    if (this.particles) { this.dispose(this.particles.points); this.particles = null; }
     if (kit.particles && kit.particles !== 'stars') this.particles = this.makeParticles(kit.particles);
-    if (this.stars) { scene.remove(this.stars); this.stars.geometry.dispose(); this.stars = null; }
+    if (this.stars) { this.dispose(this.stars); this.stars = null; }
     if (night || kit.particles === 'stars') this.stars = this.makeStars();
 
     // Hautes herbes en bordure du chemin (paysages herbeux)
@@ -452,7 +456,7 @@ class Scene3D extends DepthScene {
     } else {
       this.decor = this.decor.map((d) => {
         if (d.position.z > -18) return d;
-        const z = d.position.z; scene.remove(d);
+        const z = d.position.z; this.dispose(d);
         const n = this.makeDecor(); this.placeDecor(n, z); scene.add(n); return n;
       });
     }
@@ -639,15 +643,50 @@ class Scene3D extends DepthScene {
   // Libère le monde précédent (mémoire de la carte graphique) avant d'en construire un nouveau
   clear3d() {
     if (!this.s3) return;
-    const shared = new Set();
-    if (this.P) { for (const g of Object.values(this.P.geo)) shared.add(g); for (const m of this.P.mats.values()) shared.add(m); }
-    this.s3.traverse((o) => {
-      for (const res of [o.geometry, ...(Array.isArray(o.material) ? o.material : [o.material])]) {
-        if (res && !shared.has(res)) { shared.add(res); if (res.map && !this.isEmojiTex(res.map)) res.map.dispose(); res.dispose(); }
-      }
-    });
+    this.freeRes(this.s3); // (sans toucher aux modèles chargés ni aux formes et matériaux partagés)
+    for (const m of Object.values(this.mat || {})) m.dispose(); // (matériaux de ce monde : recréés par build)
     if (this.skyTex) this.skyTex.dispose();
     this.s3 = null;
+  }
+
+  // Ressources partagées entre plusieurs objets (caches) : jamais libérées avec un objet
+  // (modèles chargés et leurs copies, formes et matériaux communs, textures des émojis et des cubes…)
+  sharedRes() {
+    const P = this.P, models = P && P.models;
+    const key = [models ? models.size : 0, P ? P.mats.size : 0, P && P.boxMat ? 1 : 0, this.humanGeo ? this.humanGeo.size : 0,
+      this.emojiTex.size, Object.keys(this.cubeTexs || {}).length, Object.keys(this.cubeMats || {}).length].join();
+    if (this._shared && this._sharedKey === key && this._sharedMat === this.mat) return this._shared;
+    const s = new Set(), addMat = (m) => { if (m) { s.add(m); if (m.map) s.add(m.map); } };
+    if (P) {
+      for (const g of Object.values(P.geo)) s.add(g);
+      for (const m of P.mats.values()) addMat(m);
+      addMat(P.boxMat); if (P.gradient) s.add(P.gradient);
+      if (models) for (const root of models.values()) root.traverse((o) => { if (o.geometry) s.add(o.geometry); for (const m of [].concat(o.material || [])) addMat(m); });
+    }
+    for (const g of Object.values(this.geo || {})) s.add(g);
+    addMat(this.outlineMat);
+    for (const m of Object.values(this.mat || {})) addMat(m);
+    if (this.humanGeo) for (const g of this.humanGeo.values()) if (g) s.add(g);
+    for (const t of this.emojiTex.values()) s.add(t);
+    for (const t of Object.values(this.cubeTexs || {})) s.add(t);
+    if (this.cubeGeo) s.add(this.cubeGeo);
+    for (const l of Object.values(this.cubeMats || {})) for (const m of l) addMat(m);
+    this._shared = s; this._sharedKey = key; this._sharedMat = this.mat;
+    return s;
+  }
+
+  // Libère les géométries, matériaux et textures propres à un objet (keep : autres ressources à garder)
+  freeRes(obj, keep = null) {
+    if (!obj) return;
+    const shared = this.sharedRes(), done = new Set(), skip = (r) => shared.has(r) || (keep && keep.has(r)) || done.has(r);
+    obj.traverse((o) => {
+      for (const res of [o.geometry, ...[].concat(o.material || [])]) {
+        if (!res || skip(res)) continue;
+        done.add(res);
+        if (res.map && !skip(res.map)) { done.add(res.map); res.map.dispose(); }
+        res.dispose();
+      }
+    });
   }
 
   isEmojiTex(tex) { for (const t of this.emojiTex.values()) if (t === tex) return true; return false; }
@@ -879,6 +918,7 @@ class Scene3D extends DepthScene {
     this.trR.render(scene, cam);
     const out = document.createElement('canvas'); out.width = size; out.height = Math.round(size * 1.25);
     out.getContext('2d').drawImage(this.trR.domElement, 0, 0, out.width, out.height);
+    this.freeRes(scene); // (dresseur de l'aperçu : il ne sert plus)
     return out;
   }
 
@@ -968,7 +1008,7 @@ class Scene3D extends DepthScene {
     if (!want || this.ghostOnly || !h || !h.m3 || !h.m3.human) { if (this.poseModel) this.poseModel.root.visible = false; return; }
     const T = this.T;
     if (!this.poseModel || this.poseModel.look !== h.m3.human.look) {
-      if (this.poseModel) this.s3.remove(this.poseModel.root);
+      if (this.poseModel) this.dispose(this.poseModel.root);
       const root = new T.Group(), m = this.makeHumanHero(h.pal || this.theme.hero, false, h.m3.human.look);
       m.facing = true; m.isGhost = true;
       m.group.rotation.y = Math.PI; // de face
@@ -1120,7 +1160,7 @@ class Scene3D extends DepthScene {
     const c = this.coach;
     if (!c) { if (this.coachMesh) this.coachMesh.group.visible = false; return; }
     if (!this.coachMesh || this.coachStyle !== c.style) {
-      if (this.coachMesh) this.s3.remove(this.coachMesh.group);
+      if (this.coachMesh) this.dispose(this.coachMesh.group);
       // Coach : un petit humain de la même famille que le dresseur (Tempo le danseur, Maître Bambou au karaté)
       const look = COACH_LOOKS[c.style] || COACH_LOOKS.dance;
       const human = lookKeys(look).every((k) => this.P.models && this.P.models.has(k));
@@ -1298,6 +1338,7 @@ class Scene3D extends DepthScene {
     const out = document.createElement('canvas'); out.width = 300; out.height = 400;
     out.getContext('2d').drawImage(this.thumbR.domElement, 0, 0);
     disposables.forEach((x) => x.dispose());
+    this.freeRes(scene);
     this.thumbs.set(tkey, out);
     return out;
   }
@@ -1316,7 +1357,7 @@ class Scene3D extends DepthScene {
   // Créature 3D de la rencontre : arrive, montre la pose, saute de joie ou repart en saluant
   updateEncounter3D(now) {
     const e = this.enc;
-    if (!e) { if (this.encMesh) { this.s3.remove(this.encMesh.group); this.encMesh = null; this.encRef = null; } return; }
+    if (!e) { if (this.encMesh) { this.dispose(this.encMesh.group); this.encMesh = null; this.encRef = null; } return; }
     // Créature animée pas encore chargée : on la charge et on la remplacera dès qu'elle est prête
     if (e.cr.model && !e.loadAsked) {
       const keys = creatureModels([e.cr]);
@@ -1326,7 +1367,7 @@ class Scene3D extends DepthScene {
       }
     }
     if (e !== this.encRef) {
-      if (this.encMesh) this.s3.remove(this.encMesh.group);
+      if (this.encMesh) this.dispose(this.encMesh.group);
       this.encMesh = buildCreature3D(this, e.cr, e.evolved);
       this.s3.add(this.encMesh.group);
       this.encRef = e;
@@ -1380,6 +1421,7 @@ class Scene3D extends DepthScene {
     this.crR.render(scene, cam);
     const out = document.createElement('canvas'); out.width = 280; out.height = 260;
     out.getContext('2d').drawImage(this.crR.domElement, 0, 0);
+    this.freeRes(scene);
     this.crThumbs.set(key, out);
     return out;
   }
@@ -1557,6 +1599,9 @@ class Scene3D extends DepthScene {
   openRoom(canvas, data) {
     const T = this.T;
     this.closeRoom();
+    // (appelée après un chargement : si l'enfant a déjà quitté la chambre, on ne lance rien en arrière-plan)
+    const screen = canvas.closest('.screen'), gone = () => !canvas.isConnected || (screen && screen.classList.contains('hidden'));
+    if (gone()) return;
     const r = new T.WebGLRenderer({ canvas, antialias: true });
     r.setPixelRatio(Math.min(2, devicePixelRatio || 1));
     r.toneMapping = T.ACESFilmicToneMapping; r.outputColorSpace = T.SRGBColorSpace;
@@ -1627,7 +1672,7 @@ class Scene3D extends DepthScene {
     const cam = new T.PerspectiveCamera(45, 1, 0.1, 60);
     const t0 = performance.now(), fake = { lane: 0, y: 0, holdPose: null };
     const loop = () => {
-      if (!canvas.isConnected) return this.closeRoom();
+      if (gone()) return this.closeRoom();
       const now = performance.now(), t = (now - t0) / 1000;
       const w = canvas.clientWidth, h = canvas.clientHeight;
       if (canvas.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
@@ -1645,7 +1690,7 @@ class Scene3D extends DepthScene {
 
   closeRoom() {
     if (this.roomRAF) cancelAnimationFrame(this.roomRAF);
-    if (this.room) { this.room.r.dispose(); this.room = null; }
+    if (this.room) { this.freeRes(this.room.scene); this.room.r.dispose(); this.room = null; }
   }
 
   // ---------- Ballon de la passe à deux : il vole en cloche d'un dresseur à l'autre
@@ -1708,7 +1753,7 @@ class Scene3D extends DepthScene {
     }
     this.wandMeshes = this.wandMeshes || new Map();
     const foes = (this.wand && this.wand.foes) || [], alive = new Set(foes);
-    for (const [f, m] of this.wandMeshes) if (!alive.has(f)) { this.s3.remove(m.group); this.wandMeshes.delete(f); }
+    for (const [f, m] of this.wandMeshes) if (!alive.has(f)) { this.dispose(m.group); this.wandMeshes.delete(f); }
     for (const f of foes) {
       let m = this.wandMeshes.get(f);
       if (!m) { m = buildCreature3D(this, f.cr, f.evolved); this.s3.add(m.group); this.wandMeshes.set(f, m); m.base = m.group.scale.x; }
@@ -1776,7 +1821,7 @@ class Scene3D extends DepthScene {
   updateSport3D(now) {
     const kind = this.sport && this.sport.kind;
     if (kind !== this.sportKind3) { // (autre épreuve : on range le terrain)
-      if (this.sportG) { this.s3.remove(this.sportG); this.sportG = null; this.sportNet = null; }
+      if (this.sportG) { this.dispose(this.sportG); this.sportG = null; this.sportNet = null; }
       this.sportKind3 = kind;
       if (kind) this.buildSport3D(kind);
     }
@@ -1813,7 +1858,7 @@ class Scene3D extends DepthScene {
     const f = this.fork, T = this.T;
     if (!f) { if (this.forkSigns) this.forkSigns.visible = false; return; }
     if (!this.forkSigns || this.forkSigns.userData.key !== f.key) {
-      if (this.forkSigns) this.s3.remove(this.forkSigns);
+      if (this.forkSigns) this.dispose(this.forkSigns);
       const g = new T.Group(); g.userData.key = f.key;
       const wood = this.lam('#9a6b3f'), dark = this.lam('#6b4426');
       [-1, 1].forEach((side, i) => {
@@ -1866,7 +1911,7 @@ class Scene3D extends DepthScene {
 
   // ---------- Gardien de fin de monde : grande créature évoluée qui bloque le chemin et montre les poses
   setBoss(b) {
-    if (this.bossM) { this.s3.remove(this.bossM.group); this.bossM = null; }
+    if (this.bossM) { this.dispose(this.bossM.group); this.bossM = null; }
     this.boss = b;
     if (!b || !this.ready || !this.theme) return;
     const keys = creatureModels([b.cr]);
@@ -1921,7 +1966,7 @@ class Scene3D extends DepthScene {
   updateFx(now) {
     this.fxRings = (this.fxRings || []).filter((f) => {
       const k = (now - f.t0) / 900;
-      if (k >= 1) { this.s3.remove(f.ring); f.ring.geometry.dispose(); return false; }
+      if (k >= 1) { this.dispose(f.ring); return false; }
       f.ring.scale.setScalar(1 + k * (3 + f.lvl)); f.ring.material.opacity = 1 - k;
       return true;
     });
@@ -1949,11 +1994,11 @@ class Scene3D extends DepthScene {
     m.position.set(-0.22 + (n % 3) * 0.22, 0.65 + Math.floor(n / 6) * 0.22, -0.25 + (Math.floor(n / 3) % 2) * 0.35);
     m.rotation.y = Math.random() * 6;
     this.cart.add(m); this.cartItems.push(m);
-    if (this.cartItems.length > 18) this.cart.remove(this.cartItems.shift()); // (caddie bien plein !)
+    if (this.cartItems.length > 18) this.dispose(this.cartItems.shift()); // (caddie bien plein !)
   }
   cartSteal() {
     const m = this.cartItems && this.cartItems.pop();
-    if (m) this.cart.remove(m);
+    if (m) this.dispose(m);
     const p = this.heroPx(0); this.emojiPop(p.x, p.y - this.size * 0.9, 1, '😝');
   }
 
@@ -1963,18 +2008,21 @@ class Scene3D extends DepthScene {
 
   updateCompanions(now) {
     if (this.rebuildCompanions || !this.companions) {
-      for (const c of this.companions || []) if (c) this.s3.remove(c.mesh.group);
-      let pending = false;
+      for (const c of this.companions || []) if (c) this.dispose(c.mesh.group);
+      const wait = [];
       this.companions = (this.companionSpec || []).map((sp) => {
         if (!sp || !sp.cr) return null;
-        const keys = creatureModels([sp.cr]);
-        if (sp.cr.model && !keys.every((k) => this.P.models && this.P.models.has(k))) { pending = true; return null; } // (pas encore chargé : on réessaie)
+        // (modèle pas encore chargé : on le charge, puis on reconstruit une seule fois ; s'il est introuvable,
+        // buildCreature3D dessine la créature sans lui)
+        const missing = creatureModels([sp.cr]).filter((k) => !(this.P.models && this.P.models.has(k)) && !(this.P.failed && this.P.failed.has(k)));
+        if (sp.cr.model && missing.length) { wait.push(...missing); return null; }
         const mesh = buildCreature3D(this, sp.cr, sp.level >= COMPANION_MAX);
         mesh.group.scale.multiplyScalar(0.5 + sp.level * 0.07);
         this.s3.add(mesh.group);
         return { mesh, sp, x: 0 };
       });
-      this.rebuildCompanions = pending;
+      this.rebuildCompanions = false;
+      if (wait.length) this.P.preload(wait).then(() => { this.rebuildCompanions = true; }).catch((e) => console.warn(e));
     }
     this.companions.forEach((c, i) => {
       if (!c) return;
@@ -2050,9 +2098,15 @@ class Scene3D extends DepthScene {
       if (!mesh) {
         const col = cubeCol(cb.side);
         mesh = new T.Group();
-        const box = new T.Mesh(new T.BoxGeometry(0.62, 0.62, 0.62), [this.lam(col), this.lam(col), this.lam(col), this.lam(col),
-          new T.MeshBasicMaterial({ map: this.cubeTex(cb.side) }), this.lam(col)]);
-        box.material.forEach((m) => { if (m.emissive) { m.emissive.set(col); m.emissiveIntensity = 0.35; } });
+        // (forme et matériaux partagés par tous les cubes d'un même côté : rien à recréer à chaque cube)
+        this.cubeGeo = this.cubeGeo || new T.BoxGeometry(0.62, 0.62, 0.62);
+        this.cubeMats = this.cubeMats || {};
+        if (!this.cubeMats[cb.side]) {
+          const m = this.lam(col);
+          if (m.emissive) { m.emissive.set(col); m.emissiveIntensity = 0.35; }
+          this.cubeMats[cb.side] = [m, m, m, m, new T.MeshBasicMaterial({ map: this.cubeTex(cb.side) }), m];
+        }
+        const box = new T.Mesh(this.cubeGeo, this.cubeMats[cb.side]);
         box.castShadow = true; mesh.add(box);
         this.outline(mesh);
         this.s3.add(mesh); this.cubeMeshes.set(cb, mesh);
@@ -2068,7 +2122,7 @@ class Scene3D extends DepthScene {
       b.v.y -= 9 * dt; b.m.position.addScaledVector(b.v, dt); b.m.rotation.x += dt * 6; b.m.rotation.y += dt * 4;
       b.life -= dt; b.m.scale.setScalar(Math.max(0.01, 0.22 * b.life / 0.7));
       if (b.life > 0) return true;
-      this.s3.remove(b.m); return false;
+      this.dispose(b.m); return false;
     });
     // Cibles : deux anneaux à l'endroit où taper (ils grossissent quand un cube arrive)
     this.cubeRings = this.cubeRings || [];
@@ -2089,7 +2143,7 @@ class Scene3D extends DepthScene {
   burstCube(mesh, side) {
     const T = this.T, col = cubeCol(side);
     for (let i = 0; i < 10; i++) {
-      const m = new T.Mesh(this.geo.box || new T.BoxGeometry(1, 1, 1), new T.MeshBasicMaterial({ color: i % 3 ? col : '#ffffff' }));
+      const m = new T.Mesh(this.geo.box, new T.MeshBasicMaterial({ color: i % 3 ? col : '#ffffff' })); // (forme partagée ; le matériau est libéré avec le morceau)
       m.scale.setScalar(0.18); m.position.copy(mesh.position);
       this.s3.add(m);
       this.cubeBits.push({ m, life: 0.7, v: new T.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.3) * 4) });
@@ -2148,9 +2202,11 @@ class Scene3D extends DepthScene {
     return this.shadow(g);
   }
 
+  // Retire un objet de la scène et libère ses ressources propres (pas celles des caches : voir sharedRes)
   dispose(obj) {
-    this.s3.remove(obj);
-    obj.traverse((o) => { if (o.isSprite) o.material.dispose(); });
+    if (!obj) return;
+    if (obj.parent) obj.parent.remove(obj);
+    this.freeRes(obj);
   }
 
   // ---------- Pose du personnage 3D
@@ -2250,7 +2306,7 @@ class Scene3D extends DepthScene {
       d.position.z += move;
       if (d.userData.anim) d.userData.anim(now);
       if (d.position.z <= 8) return d;
-      this.s3.remove(d);
+      this.dispose(d);
       const n = this.makeDecor(); this.placeDecor(n, d.position.z - 88); this.s3.add(n); return n;
     });
     if (this.backdrops) this.backdrops.children.forEach((g) => g.userData.anim && g.userData.anim(now));

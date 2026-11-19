@@ -211,7 +211,7 @@ function buildMenu() {
     ${Gestures.on ? '<button class="pillBtn" id="gTutoBtn" title="Apprendre les gestes"><span>🎓</span></button>' : ''}`;
   extra.appendChild(gbar);
   gbar.querySelector('#gToggle').onclick = async () => {
-    if (Gestures.on) { Gestures.disable(); show('camBox', false); buildMenu(); return; }
+    if (Gestures.on) { Gestures.disable(); tracker.stopCamera(video); show('camBox', false); buildMenu(); return; } // (gestes coupés : la caméra s'éteint aussi)
     const first = !store('gesturesLearned');
     const t = gbar.querySelector('#gToggle'); t.innerHTML = '<span>🖐️</span>⏳';
     if (await Gestures.enable(() => {})) {
@@ -475,7 +475,7 @@ $('voiceStudio').onclick = () => Voice.openStudio();
 $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ? Cours sur place, puis saute !');
 
 function goMenu() {
-  if (phase === 'play' || phase === 'calib' || phase === 'countdown') Rec.end(null); // (partie abandonnée : on garde quand même les mouvements)
+  if (phase === 'play' || phase === 'calib' || phase === 'countdown' || phase === 'paused') Rec.end(null); // (partie abandonnée, même depuis la pause : on garde quand même les mouvements)
   phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end(); show('mapPanel', false);
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
@@ -490,6 +490,13 @@ function goMenu() {
 async function startWorld(w) {
   const ok = WUQStore.canStart();
   if (ok !== true) { if (typeof ok === 'string') alert(ok); return; }
+  // Limite de parties par jour (parents) : vérifiée ici pour tous les chemins (île, « Encore », bras levés, 🏰, 🏆, Surprise)
+  const lim = Number(store('dailyLimit')) || 0;
+  if (w && !w.hub && lim && Progress.playsToday() >= lim) {
+    Audio8.say("C'est fini pour aujourd'hui, à demain !");
+    if (phase !== 'menu' && !(world && world.hub)) goMenu(); // (depuis l'écran de fin : retour au menu ; au château, on y reste)
+    return;
+  }
   world = w;
   const chain = fromHub; // (on vient déjà du château ou d'un cours lancé depuis le château)
   if (w.hub) fromHub = true;
@@ -559,7 +566,7 @@ async function startWorld(w) {
     show('loading', false);
   }
   // Déjà calibré (on vient du parc, ou on y retourne) : pas besoin de recommencer « Mets-toi bien »
-  if (tracker.calibrated && chain) { if (tracker.state.upperBody) tracker.calibrate(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
+  if (tracker.calibrated && chain) { if (tracker.state.upperBody) tracker.calibrate(); if (!w.hub) recBegin(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
   startCalib();
 }
 
@@ -600,10 +607,14 @@ function cameraHelp(e) {
 $('loadingBack').onclick = goMenu;
 
 // ---------------- Calibration ----------------
-function startCalib() {
-  phase = 'calib';
+// (enregistreur de mouvements : aussi pour les cours enchaînés depuis le château, qui sautent le calibrage)
+function recBegin() {
   Rec.begin({ world: world.id, players: tracker.bodies.length, easy: tracker.bodies.map((b) => !!b.easy), speed: speed.id,
     video: { w: video.videoWidth, h: video.videoHeight }, lowPower: !!tracker.lowPower, sim: tracker.sim });
+}
+function startCalib() {
+  phase = 'calib';
+  recBegin();
   calibState = { stage: '', holdStart: 0 };
   show('calib');
   show('camBox');
@@ -756,6 +767,7 @@ function resumeGame() {
     game.shift(d);
     scene.shift(d);
     Audio8.theme(world.id);
+    if (game.cur && game.cur.s.m === 'cubes' && !game.cur.done) Audio8.music(true, 'dance'); // (les cubes retrouvent leur musique)
     frozen = false;
     lostSince = 0;
     phase = 'play';
@@ -836,12 +848,14 @@ class Game {
     this.stage = nStages ? { k: kWant != null ? kWant % nStages : Stages.next(w), n: nStages } : null;
     this.steps = this.stage ? Stages.split(w, WUQStore.steps(w), this.stage.k)
       : store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+    this.steps = this.steps.map((st) => ({ ...st })); // (copie : un carrefour ajoute une épreuve à CETTE partie, pas au programme du monde)
+    for (const st of this.steps) if (st.m === 'arena' && (st.game === 'soleil' || st.game === 'corde')) st.n = 1; // (une seule manche : sinon chrono et score maximum multipliés pour rien)
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
-    if (!w.tutorial && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
+    if (!w.tutorial && !w.arenaMix && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
     // Salle des Défis : trois jeux miroir au hasard à chaque visite (jamais les mêmes que la dernière fois)
     if (w.arenaMix && !DEV.get('step') && !Rec.playing) {
-      const all = this.steps.slice(1, -1), last = WUQStore._get('defisLast') || [];
+      const all = this.steps.slice(1, -1).filter((st) => st.m === 'arena'), last = WUQStore._get('defisLast') || [];
       const pick = [...all.filter((st) => !last.includes(st.game)), ...all.filter((st) => last.includes(st.game))].map((st, i, l) => ({ st, r: i < l.length - last.length ? Math.random() : 1 + Math.random() }))
         .sort((x, y) => x.r - y.r).slice(0, w.arenaMix).map((o) => o.st);
       WUQStore._set('defisLast', pick.map((st) => st.game));
@@ -887,6 +901,7 @@ class Game {
       for (const b of c.shots || []) { b.born += d; b.arrive += d; if (b.t) b.t += d; }
       if (c.ball) { c.ball.t0 += d; } if (c.kickAt) c.kickAt += d;
       if (c.lastFoe) c.lastFoe += d;
+      if (c.lastNow) c.lastNow += d; if (c.phaseT) c.phaseT += d; if (c.lastPrank) c.lastPrank += d; // (mousse : le chrono n'est pas rallongé deux fois)
       if (c.s.m === 'arena') arena.shift(d);
       if (c.act) { c.act.t += d; c.act.pop += d; c.act.subPop += d; if (c.act.shake) c.act.shake += d; }
     }
@@ -910,7 +925,11 @@ class Game {
     if (this.np > 1) {
       const swap = { rope: { m: 'foam', t: 14, n: 6 }, left: { m: 'catch', t: 8 }, right: { m: 'bubbles', t: 8, n: 4 }, combo: { m: 'smash', n: 2 } }[s.m];
       if (swap) s = swap;
-      if (s.m === 'pose') s = { ...s, turn: (this.turnN = ((this.turnN ?? -1) + 1)) % 2 }; // poses : chacun son tour
+      if (s.m === 'pose') { // poses : chacun son tour (sauf si l'un est parti : « continuer seul »)
+        let turn = (this.turnN = ((this.turnN ?? -1) + 1)) % 2;
+        if (tracker.bodies[turn] && tracker.bodies[turn].away) turn = 1 - turn;
+        s = { ...s, turn };
+      }
     }
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
     if ((s.m === 'posemix' || s.m === 'boss') && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
@@ -1731,13 +1750,16 @@ class Game {
     }
     let b = c.ball;
     if (!b && now >= c.kickAt && c.goals < s.n) {
-      b = c.ball = { hero: c.shotN % this.np, side: c.shotN % 2 ? 1 : -1, phase: 'wait', t0: now, hand: c.hand };
+      let hero = c.shotN % this.np;
+      if (tracker.bodies[hero] && tracker.bodies[hero].away) hero = tracker.bodies.findIndex((x) => !x.away); // (« continuer seul » : c'est lui qui tire)
+      b = c.ball = { hero: Math.max(0, hero), side: c.shotN % 2 ? 1 : -1, phase: 'wait', t0: now, hand: c.hand };
       c.shotN++; c.kickEv = null;
     }
     if (b) {
       const k = now - b.t0, ev = c.kickEv;
       if (b.phase === 'wait') {
         if (auto && k > 900) c.kickEv = { side: b.side, idx: b.hero, t: now };
+        if (tracker.bodies[b.hero] && tracker.bodies[b.hero].away && ev) b.hero = ev.idx; // (le tireur est parti pendant l'attente)
         if (ev && ev.t >= b.t0 && (this.np === 1 || ev.idx === b.hero)) {
           if (ev.side === b.side || easy) {
             b.phase = 'shot'; b.t0 = now; b.keeper = -b.side; // (le gardien plonge du mauvais côté)
@@ -1989,8 +2011,10 @@ class Game {
       }
       case 'swim': { // un bras en haut, puis l'autre (comme un nageur)
         let side = null;
-        const b = tracker.bodies[0];
-        if (b && b.lm && b.state.present) { const ny = b.lm[0].y, up = (i) => b.lm[i].y < ny; if (up(15) && !up(16)) side = 'L'; else if (up(16) && !up(15)) side = 'R'; }
+        for (const b of tracker.active) { // (à deux : celui qui nage ; si l'un est parti, l'autre continue)
+          if (side || !b.lm || !b.state.present) continue;
+          const ny = b.lm[0].y, up = (i) => b.lm[i].y < ny; if (up(15) && !up(16)) side = 'L'; else if (up(16) && !up(15)) side = 'R';
+        }
         const e = evs.find((x) => /^(kick|throw)[LR]$/.test(x)); if (e) side = e.slice(-1); // (mode clavier : G / D)
         if (fake) side = a.last === 'L' ? 'R' : 'L';
         if (side && side !== a.last && now - a.t > 250) { a.last = side; tick(); }
@@ -2163,7 +2187,7 @@ class Game {
     if ((s.m === 'left' || s.m === 'right') && st.side === s.m) return this.sideDone(now);
     if (s.m === 'pose') {
       // À deux : c'est au tour d'un seul enfant (s.turn) ; seul lui compte, l'autre l'encourage
-      const turn = s.turn != null ? s.turn : null;
+      const turn = s.turn != null && !(tracker.bodies[s.turn] && tracker.bodies[s.turn].away) ? s.turn : null; // (parti en cours de pose : l'autre la fait)
       const ok = turn != null ? !!(tracker.bodies[turn] && tracker.bodies[turn].state[s.pose]) : st[s.pose];
       // Chaque héros s'entoure de vert quand SON joueur tient la pose
       tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[s.pose] && (turn == null || turn === i) ? s.pose : null, i));
@@ -2217,7 +2241,7 @@ class Game {
     });
     // Fin de l'histoire : diplôme de petit sorcier (gardé pour chaque joueur)
     this.diploma = !!this.grognonWon;
-    if (this.diploma) team.forEach((p, i) => WUQStore._set('diploma_' + i, true));
+    if (this.diploma) team.forEach((p, i) => WUQStore._set(WUQStore.slotKey('diploma', i), true));
     // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
     if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i, this.stage.k));
     // Pays fini : son Étoile de couleur est retrouvée (le chapitre sera raconté au retour au parc / au menu)
@@ -2229,7 +2253,7 @@ class Game {
       const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
       if (!cr) return null;
       const before = Progress.companionLevel(c), next = { id: c.id, xp: (c.xp || 0) + 1 };
-      WUQStore.setCompanion(i, next);
+      WUQStore.setCompanion(i, next, { withGame: true }); // (envoyé avec la partie : pas de requête à part)
       const after = Progress.companionLevel(next);
       return { cr, level: after, up: after > before, evolved: after === COMPANION_MAX && before < COMPANION_MAX };
     });
@@ -2499,8 +2523,10 @@ function creatureCard(cr, known, evolved, count) {
   }
   const anim = (t) => {
     if (!el.isConnected) return;
-    cctx.clearRect(0, 0, 140, 130);
-    drawCreature(cctx, 70, 122, evolved ? 78 : 92, cr, known ? 'idle' : 'idle', t, evolved, !known);
+    if (el.offsetParent !== null) { // (grimoire ou écran de fin caché : on ne redessine pas pour rien)
+      cctx.clearRect(0, 0, 140, 130);
+      drawCreature(cctx, 70, 122, evolved ? 78 : 92, cr, known ? 'idle' : 'idle', t, evolved, !known);
+    }
     requestAnimationFrame(anim);
   };
   requestAnimationFrame(anim);
@@ -2697,7 +2723,7 @@ if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village
     if (phase === 'play' && game && fromHub && !game.over && performance.now() - game.startedAt > 3000) game.finish();
     if (phase === 'results' && fromHub && performance.now() - resultsAt > 1500) $('menuBtn').click();
   }, 500);
-  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get('stages_0'))} gems=${JSON.stringify(Tale.gems(0))} res=${($('resDay') || {}).textContent || ''}`; }, 300); // (mode test)
+  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get(WUQStore.slotKey('stages', 0)))} gems=${JSON.stringify(Tale.gems(0))} res=${($('resDay') || {}).textContent || ''}`; }, 300); // (mode test)
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
@@ -2723,8 +2749,8 @@ if (DEV.get('replay')) {
 
 // ---------------- L'histoire : voir story.js (chapitres racontés, Étoiles de l'arc-en-ciel, livre) ----------------
 if (store('storySeen')) Tale.markSeen('prologue', 0);
-if (DEV.get('gems')) { WUQStore._set('gems_0', GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set('tale_0', { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
-if (DEV.get('taleend')) WUQStore._set('diploma_0', true); // (mode test) fin de l'histoire
+if (DEV.get('gems')) { WUQStore._set(WUQStore.slotKey('gems', 0), GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set(WUQStore.slotKey('tale', 0), { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
+if (DEV.get('taleend')) WUQStore._set(WUQStore.slotKey('diploma', 0), true); // (mode test) fin de l'histoire
 if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
 if (DEV.get('map')) setTimeout(() => $('mapBtn').click(), 600); // (mode test) la carte ouverte
 if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0), () => {}, Number(DEV.get('talepage')) || 0), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)

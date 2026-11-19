@@ -42,19 +42,19 @@ class WarmupSession(models.Model):
     @api.model
     def _record_from_game(self, data):
         """Enregistre une partie envoyée par le jeu et met à jour le carnet du joueur."""
-        player = self.env['warmup.player'].browse(int(data.get('player_id') or 0)).exists()
+        def as_int(key, lo=0, hi=10 ** 6):
+            try:
+                return max(lo, min(hi, int(float(data.get(key) or 0))))  # (« 12.5 » envoyé en texte : 12, pas 0)
+            except (TypeError, ValueError):
+                return 0
+
+        player = self.env['warmup.player'].browse(as_int('player_id')).exists()
         if not player:
             raise UserError("Joueur introuvable.")
         world = data.get('world')
         if world not in dict(WORLDS):
             raise UserError("Monde inconnu.")
-        seq = self.env['warmup.sequence'].browse(int(data.get('sequence_id') or 0)).exists()
-
-        def as_int(key, lo=0, hi=10 ** 6):
-            try:
-                return max(lo, min(hi, int(data.get(key) or 0)))
-            except (TypeError, ValueError):
-                return 0
+        seq = self.env['warmup.sequence'].browse(as_int('sequence_id')).exists()
 
         codes = [c for c in (data.get('catches') or []) if isinstance(c, str)][:50]
         creatures = self.env['warmup.creature'].search([('code', 'in', codes)])

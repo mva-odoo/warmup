@@ -60,6 +60,14 @@ class Arena3D {
   end() {
     for (const g of this.own || []) g.dispose && g.dispose();
     if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh = null; }
+    // Le reste de la scène (petit sorcier avec chapeau, sac et baguette, décor, matériaux) : libéré aussi,
+    // sauf les ressources gardées d'un jeu à l'autre (formes communes, lueur, émojis)
+    if (this.scene) {
+      const keep = new Set([...Object.values(this._G || {}), ...(this.emoCache ? this.emoCache.values() : []), ...(this.gm ? this.gm.values() : [])]);
+      if (this.glowTex) keep.add(this.glowTex);
+      this.S.freeRes(this.scene, keep);
+    }
+    this.beamM = null; this.beamGeo = null; // (rayons recréés dans la scène du prochain jeu)
     this.scene = null; this.av = null; this.parts = []; this.objs = new Map(); this.own = [];
   }
 

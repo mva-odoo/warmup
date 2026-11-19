@@ -3,6 +3,9 @@ from odoo.exceptions import ValidationError
 
 from .warmup_constants import ACT_SECONDS, ARENA_SECONDS, COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
 
+# Jeux miroir qui ne se jouent qu'en une manche (même règle que game.js)
+SINGLE_ROUND_ARENAS = ('arena_soleil', 'arena_corde')
+
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
@@ -17,7 +20,7 @@ def _step_seconds(step):
     if m and m.startswith('act_'):
         return 4 + ACT_SECONDS.get(m[4:], 5) * max(1, step.count)
     if m and m.startswith('arena_'):
-        return 5 + ARENA_SECONDS.get(m[6:], 5) * max(1, step.count)
+        return 5 + ARENA_SECONDS.get(m[6:], 5) * step._arena_count()
     if m == 'cubes':
         return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
     if m == 'tunnel':
@@ -53,7 +56,7 @@ class WarmupSequence(models.Model):
     _order = 'world, sequence, id'
 
     name = fields.Char(required=True, translate=True)
-    world = fields.Selection(WORLDS, string='Monde', required=True, default='turbo')
+    world = fields.Selection(WORLDS, string='Monde', required=True)
     sequence = fields.Integer(default=10, help='La première séquence active de chaque monde est jouée par défaut.')
     description = fields.Text()
     active = fields.Boolean(default=True)
@@ -125,7 +128,9 @@ class WarmupStep(models.Model):
                 s.summary = f"Marquer {max(1, s.count)} paniers (attraper puis tirer)"
             elif s.move == 'kick':
                 s.summary = f"Marquer {max(1, s.count)} buts (penalty)"
-            elif s.move and (s.move.startswith('act_') or s.move.startswith('arena_')):
+            elif s.move and s.move.startswith('arena_'):
+                s.summary = f"{moves.get(s.move, '')} ×{s._arena_count()}"
+            elif s.move and s.move.startswith('act_'):
                 s.summary = f"{moves.get(s.move, '')} ×{max(1, s.count)}"
             elif s.move == 'shop':
                 s.summary = f"Remplir le caddie pendant {s.duration:g} s"
@@ -166,6 +171,11 @@ class WarmupStep(models.Model):
                 s.summary = f"Statues musicales {s.duration:g} s"
             else:
                 s.summary = moves.get(s.move, '')
+
+    def _arena_count(self):
+        """Nombre de manches d'un jeu miroir (1, 2, 3 Nuage Grognon et tir à la corde : toujours une seule)."""
+        self.ensure_one()
+        return 1 if self.move in SINGLE_ROUND_ARENAS else max(1, self.count)
 
     def _combo_parts(self):
         self.ensure_one()
@@ -244,7 +254,7 @@ class WarmupStep(models.Model):
         if m and m.startswith('act_') and m[4:] in ACT_SECONDS:
             return {'m': 'act', 'game': m[4:], 'n': max(1, self.count)}
         if m and m.startswith('arena_') and m[6:] in ARENA_SECONDS:
-            return {'m': 'arena', 'game': m[6:], 'n': max(1, self.count)}
+            return {'m': 'arena', 'game': m[6:], 'n': self._arena_count()}
         if m == 'shop':
             return {'m': 'shop', 't': self.duration or 12}
         if m in ('jump', 'squat', 'smash'):

@@ -311,6 +311,8 @@ const Audio8 = (() => {
       next(0);
     },
     stopSpeech() { stopSpeech(); },
+    // (une phrase est-elle en train d'être dite ? pour ne pas couper une consigne avec un conseil)
+    speaking: () => !!curSrc || (hasTTS && (speechSynthesis.speaking || speechSynthesis.pending)),
     voices: () => voices,
     voiceName: () => (voice ? voice.name : ''),
     isNatural: () => !!voice && quality(voice) >= 4,

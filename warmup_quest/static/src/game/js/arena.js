@@ -63,11 +63,12 @@ class Arena {
     const init = this['init_' + s.game]; if (init) init.call(this, this.st, this.t0);
   }
   musicWanted() { return !!this.s && !this.outro && !(this.s.game === 'soleil' && this.st && this.st.phase === 'regarde'); } // (1-2-3 : la musique s'arrête quand le nuage regarde, comme aux statues musicales)
-  end() { if (this.s) Audio8.music(false); if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
+  end() { if (this.s) Audio8.music(false); if (this.hush) { this.hush = false; Audio8.themeMute(false); } if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
   // Pause : toutes les échéances du jeu sont décalées (murs, ordres, bonshommes, anneaux…)
   shift(d) {
-    const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT']);
-    const walk = (o, depth) => { if (!o || typeof o !== 'object' || depth > 3) return; for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'number' && keys.has(k) && v > 1000) o[k] = v + d; else if (typeof v === 'object') walk(v, depth + 1); } };
+    const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT', 'finishAt']);
+    const seen = new Set(); // (un objet visible par deux chemins — bonhomme visé par une boule — n'est décalé qu'une fois)
+    const walk = (o, depth) => { if (!o || typeof o !== 'object' || depth > 3 || seen.has(o)) return; seen.add(o); for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'number' && keys.has(k) && v > 1000) o[k] = v + d; else if (typeof v === 'object') walk(v, depth + 1); } };
     walk(this.st, 0); this.lastT += d;
     if (this.intro) this.intro.t0 += d; if (this.outro) this.outro.t0 += d; if (this.cal) { this.cal.t0 += d; this.cal.st += d; } if (this.v3) this.v3.shift(d);
   }
@@ -105,6 +106,7 @@ class Arena {
     const st = { ...(this.fake || {}) }, base = act.length > 1 ? null : tracker.state;
     for (const k of ['armsUp', 'airplane', 'star', 'starArms', 'flamingo', 'squat', 'handsTogether', 'present']) if (st[k] == null) st[k] = base ? !!base[k] : any(k);
     if (st.side == null) st.side = base ? base.side || 'center' : (act.find((x) => x.state.side !== 'center') || { state: { side: 'center' } }).state.side;
+    if (this.v3) return this.v3.body(this, now, st); // (3D : le petit sorcier du jeu imite l'enfant ; on touche avec SES mains ; avant l'image de la caméra, sinon le sorcier 3D ne suit pas la webcam)
     const real = !tracker.sim && b && b.lm && b.state.present && video && video.videoWidth;
     if (real) {
       const vw = video.videoWidth, vh = video.videoHeight, k = Math.max(W / vw, H / vh), dw = vw * k, dh = vh * k, ox = (W - dw) / 2, oy = (H - dh) / 2;
@@ -115,7 +117,6 @@ class Arena {
       const sh = { x: (J.sL.x + J.sR.x) / 2, y: (J.sL.y + J.sR.y) / 2 };
       return { J, sh, T: (b.T || 0.25) * dh, st, motion: b.motion || 0, real: true, video: { ox, oy, dw, dh } };
     }
-    if (this.v3) return this.v3.body(this, now, st); // (3D : le petit sorcier du jeu imite l'enfant ; on touche avec SES mains)
     // Petit sorcier dessiné : forme selon les touches (ou l'enfant imaginaire), petit saut, bras qui tapent
     const T = H * 0.15, jump = this.lastJump && now - this.lastJump < 450 ? Math.sin(((now - this.lastJump) / 450) * Math.PI) * T * 0.6 : 0;
     const G = this.simShape(now, st), shape = this.simShapeName(st);
@@ -152,6 +153,8 @@ class Arena {
     if (!this.s) return;
     const mw = this.musicWanted(); // (musique du jeu : elle reprend après une pause, se tait pour la célébration)
     if (mw !== Audio8.musicOn()) Audio8.music(mw, AR_MUSIC[this.s.game] || 'fun', 'arena-' + this.s.game);
+    const hush = this.s.game === 'soleil' && !!this.st && this.st.phase === 'regarde'; // (sans ça, la musique du monde revient : pas de vrai silence)
+    if (hush !== !!this.hush) { this.hush = hush; Audio8.themeMute(hush); }
     if (this.outro) { // célébration de fin (3D)
       this.ev.splice(0); this.B = this.body(now);
       if (!this.outro.sent && now - this.outro.t0 > 2300) { this.outro.sent = true; this.g.arenaEnd(this.outro.ratio); }
@@ -173,6 +176,8 @@ class Arena {
     this.evs = evs;
     this.B = this.body(now);
     this.assist(now);
+    const st0 = this.st;
+    if (st0.finishAt) { if (now >= st0.finishAt) { st0.finishAt = 0; this.finish(st0.finishRatio); } return; } // (fin différée, suspendue pendant la pause)
     const up = this['up_' + this.s.game]; if (up) up.call(this, this.st, now, dt, this.B, evs);
   }
   has(evs, ...k) { return evs.some((e) => k.includes(e)); }
@@ -383,7 +388,7 @@ class Arena {
   init_mur(st, now) {
     const pool = ['armsUp', 'airplane', 'star', 'squat', 'left', 'right', ...(tracker.mode === 'upper' ? [] : ['flamingo'])];
     st.seq = []; while (st.seq.length < st.n) { const l = pool.filter((p) => p !== st.seq[st.seq.length - 1]); st.seq.push(l[Math.floor(Math.random() * l.length)]); }
-    st.k = 0; st.next = now + 1800; st.wall = null;
+    st.k = 0; st.next = now + 1800 * Math.min(1, this.g.mul); st.wall = null;
   }
   up_mur(st, now, dt, B) {
     if (!st.wall && st.k < st.n && now > st.next) st.wall = { pose: st.seq[st.k], t0: now, dur: Math.max(2.4, 4 - st.k * 0.18) * 1000 * Math.min(1.3, this.g.mul), ok: false };
@@ -392,7 +397,7 @@ class Arena {
     w.match = this.poseOk(B, w.pose);
     if (q > 0.62 && w.match) w.ok = true;
     if (q >= 1) {
-      st.k++; st.wall = null; st.next = now + 900;
+      st.k++; st.wall = null; st.next = now + 900 * Math.min(1, this.g.mul);
       if (w.ok) { this.win(ARENA.mur.pts, 'SUPER !', B.sh.x, B.sh.y); this.say('Super, le mur est passé !', 0); this.fx.push({ k: 'shatter', t: now }); }
       else { Audio8.soft(); this.say('Ouille, le mur !', 0); this.pop('Bong !', B.sh.x, B.sh.y, '#ff8fab'); }
       ui.setDetail(this.g.detail(this.c));
@@ -477,10 +482,10 @@ class Arena {
     else if (g === 'squat') did = this.has(evs, 'squat') || B.st.squat;
     else { c.hold = this.poseOk(B, g) ? c.hold + dt : 0; did = c.hold > 0.35; }
     const resolve = (good, msg) => {
-      st.cur = null; st.i++; st.next = now + 1300; st.res = { good, t: now };
+      st.cur = null; st.i++; st.next = now + 1300 * Math.min(1, this.g.mul); st.res = { good, t: now };
       if (good) this.win(ARENA.pimprenelle.pts, c.simon ? 'BRAVO !' : 'PAS PIÉGÉ !', B.sh.x, B.sh.y); else Audio8.soft();
       if (msg) this.say(msg, 0);
-      if (st.i >= st.n) setTimeout(() => this.s && this.s.game === 'pimprenelle' && this.finish(st.ok / st.n), 1200);
+      if (st.i >= st.n) { st.finishAt = now + 1200; st.finishRatio = st.ok / st.n; }
     };
     if (did) resolve(c.simon, c.simon ? null : 'Piégé ! Elle n\'avait pas dit « Pimprenelle a dit » !');
     else if (since > c.win) resolve(!c.simon, c.simon ? 'Trop tard !' : 'Bien joué, tu ne t\'es pas fait avoir !');
@@ -513,8 +518,9 @@ class Arena {
     }
     const hitMan = (m) => { m.hit = now; this.win(ARENA.neige.pts, 'Touché !', m.x, m.y); this.say('Touché !', 1500); };
     // lancer : la boule part de la main, vers le bonhomme le plus proche de ce côté
+    const thrown = evs.some((e) => /^throw[LR]$/.test(e)); // (un lancer émet aussi « smash » : une seule boule par lancer)
     for (const e of evs) {
-      if (!/^throw[LR]$|^smash$/.test(e)) continue;
+      if (!/^throw[LR]$|^smash$/.test(e) || (e === 'smash' && thrown)) continue;
       const hand = e === 'throwL' ? B.J.handL : e === 'throwR' ? B.J.handR : B.J.handL;
       const cand = st.men.filter((m) => !m.hit && !m.gone && !m.target).sort((a, b) => Math.abs(a.x - hand.x) - Math.abs(b.x - hand.x))[0];
       if (cand) { cand.target = true; st.balls.push({ x0: hand.x, y0: hand.y, m: cand, t0: now }); Audio8.soft(); }
@@ -784,7 +790,7 @@ class Arena {
       else try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); c.getContext('2d').drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
       this.win(ARENA.photo.pts, '📸 Clic !');
       st.next = now + 2200;
-      if (st.k >= st.n) setTimeout(() => this.s && this.s.game === 'photo' && this.finish(1), 1500);
+      if (st.k >= st.n) { st.finishAt = now + 1500; st.finishRatio = 1; }
     }
   }
   draw_photo(st, now, B) {

@@ -6,7 +6,10 @@ cd "$(dirname "$0")/.." || exit 1
 WORLDS_L=${1:-"ecole jardin3d disco dojo verger rythmo singes supermarche turbo island forest banquise ocean espace bonbons ferme dinos chateau sortileges stade defis"}
 PF=${2:-1}; PAR=${PAR:-3}; PORT=${PORT:-8765}
 OUT=~/.cache/wuq-test; mkdir -p "$OUT"; RES="$OUT/worlds-$(date +%Y%m%d-%H%M).txt"
-if ! ss -ltn | grep -q ":$PORT "; then (setsid python3 -m http.server "$PORT" >/dev/null 2>&1 &); sleep 3; fi
+# (serveur lancé par ce script : arrêté à la fin ; s'il tournait déjà, on le laisse)
+if ! ss -ltn | grep -q ":$PORT "; then setsid python3 -m http.server "$PORT" >/dev/null 2>&1 & SRV=$!; trap 'kill $SRV 2>/dev/null' EXIT; fi
+# (le serveur peut mettre plusieurs secondes à démarrer : on attend qu'il réponde, sinon les premiers essais échouent)
+for _ in $(seq 1 60); do curl -s -o /dev/null "http://localhost:$PORT/index.html" && break; sleep 0.5; done
 run() {
   local w=$1 pf=$2 id="vw-$1-$$" t
   t=$(timeout 1100 chromium --headless=new --no-sandbox --ignore-gpu-blocklist --enable-gpu --use-angle=vulkan --enable-features=Vulkan \

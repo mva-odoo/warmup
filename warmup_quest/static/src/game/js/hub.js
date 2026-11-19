@@ -531,7 +531,7 @@ class AcademyHub {
     this.places = this.dests();
     const cur = Progress.current();
     for (const d of this.places) { if (d.kind === 'world') d.next = d.open && d.w === cur && d.stars === 0; this.label(d); }
-    if (this.kind === 'academy' && !this.places.some((d) => d.next)) { const pt = this.places.find((d) => d.id === 'portal' && d.open); if (pt) pt.next = true; } // (tous les cours faits : le portail brille)
+    if (this.kind === 'academy' && !this.places.some((d) => d.next)) { const pt = this.places.find((d) => d.id === 'portal' && d.open); if (pt) { pt.next = true; this.label(pt); } } // (tous les cours faits : le portail brille, et son panneau est doré)
     // (d'où l'on arrive : la porte de ce lieu ; un autre pays : son portail ; sinon le milieu de la place)
     const from = this.places.find((d) => d.id === fromId || (d.kind === 'country' && d.w.id === fromId));
     this.pos = from ? { ...from.door } : { x: 0, z: 4.5 }; this.at = from || null;

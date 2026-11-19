@@ -57,7 +57,8 @@ const Voice = {
     return null;
   },
   // [{ text, url }] : url null = voix de synthèse pour ce morceau
-  parts(text) { return this.split(text).map((t) => ({ text: t, url: (this.clip(t) || {}).url || null })); },
+  // (morceau sans lettre ni chiffre, comme « » » seul après le découpage : rien à dire, la synthèse lirait « guillemet »)
+  parts(text) { return this.split(text).filter((t) => /[\p{L}\p{N}]/u.test(t)).map((t) => ({ text: t, url: (this.clip(t) || {}).url || null })); },
 
   // ---------- Studio (réglages parents) : enregistrer sa voix à la place de celle du jeu
   async loadPhrases() {

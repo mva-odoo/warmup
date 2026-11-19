@@ -44,6 +44,17 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   Object.assign(WUQStore, {
+    // Progression gardée dans le navigateur (Étoiles, étapes, diplôme, photos, parties du jour) : rangée par enfant, pas par
+    // place dans la partie. La première fois, l'enfant reprend ce qui était rangé à sa place (rien n'est perdu).
+    slotKey(k, i = 0) {
+      const p = selected()[i], legacy = k + '_' + i;
+      if (!p) return legacy;
+      const key = k + '_p' + p.id;
+      try {
+        if (localStorage.getItem('wuq_' + key) == null && localStorage.getItem('wuq_' + legacy) != null) localStorage.setItem('wuq_' + key, localStorage.getItem('wuq_' + legacy));
+      } catch {}
+      return key;
+    },
     // Studio voix : enregistrements gardés dans Odoo (ils suivent sur tous les postes)
     async voices() { return new Map((await rpc('/warmup/api/voice/list', {})).map((v) => [v.key, v.url])); },
     async saveVoice(key, text, blob, meta = {}) {
@@ -86,11 +97,11 @@
     },
     // Compagnon : gardé dans la fiche de l'enfant (envoyé avec la partie)
     getCompanion(i = 0) { const p = selected()[i]; return p ? p.companion || null : null; },
-    setCompanion(i, c) {
+    setCompanion(i, c, opts = {}) {
       const p = selected()[i];
       if (!p) return;
       p.companion = c;
-      if (phase !== 'results') rpc('/warmup/api/player/companion', { player_id: p.id, companion: c }).catch((e) => console.warn(e));
+      if (!opts.withGame && phase !== 'results') rpc('/warmup/api/player/companion', { player_id: p.id, companion: c }).catch((e) => console.warn(e));
     },
     players() {
       return selected().map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look, easy: !!(p.easy || (p.look && p.look.easy)) }));

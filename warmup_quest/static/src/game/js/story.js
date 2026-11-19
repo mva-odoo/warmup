@@ -64,13 +64,13 @@ function gemChapter(g, n) {
 }
 
 const Tale = {
-  _k: (k, i = 0) => k + '_' + i,
+  _k: (k, i = 0) => WUQStore.slotKey(k, i),
   seen(id, i = 0) { return !!(WUQStore._get(this._k('tale', i)) || {})[id]; },
   markSeen(id, i = 0) { const s = WUQStore._get(this._k('tale', i)) || {}; s[id] = true; WUQStore._set(this._k('tale', i), s); },
   gems(i = 0) { return WUQStore._get(this._k('gems', i)) || []; },  // pays dont l'Étoile est retrouvée (dans l'ordre où on les a eues)
   addGem(id, i = 0) { const g = this.gems(i); if (!g.includes(id)) { g.push(id); WUQStore._set(this._k('gems', i), g); } },
   hasGem(id, i = 0) { return this.gems(i).includes(id); },
-  done(i = 0) { return !!WUQStore._get('diploma_' + i); },
+  done(i = 0) { return !!WUQStore._get(WUQStore.slotKey('diploma', i)); },
   // Un pays est-il fini ? (toutes ses étapes, ou une étoile s'il se joue d'une traite)
   countryDone(w, i = 0) { const n = Stages.count(w); return n ? Stages.done(w, i) >= n : Progress.stars(w, i) > 0; },
   // Rattrape les Étoiles des pays déjà finis (anciennes parties)
