@@ -167,8 +167,8 @@ confettis et gagne 1 à 3 étoiles. Mêmes effets d'image que sur le chemin (tra
   `tools/vkid_test.sh` (ou `tools/vkid_test.sh "petit pire" "potions duel"`), résultats dans `~/.cache/wuq-test/`.
   **Mondes entiers** : l'enfant virtuel joue aussi les épreuves du chemin (sauts, accroupis, poses, couloirs, étoiles,
   corde, tunnel, statues, danse, karaté, jeux sur place) ; `tools/vkid_worlds.sh` joue tous les mondes et donne les
-  épreuves à revoir (`tools/vkid_worlds.sh "verger dojo" pire`). Pas encore joués par lui : fruits, mousse, baguette,
-  sports.
+  épreuves à revoir (`tools/vkid_worlds.sh "verger dojo" pire`). Il joue tout : chemin, jeux sur place, fruits, mousse
+  (en zigzag, comme sur une vitre), baguette, sports (but, basket, penalty).
   **Deux enfants** : `&vkid2=1` (ou un profil, `&vkid2=petit`), écart `&vkidgap=0.8` (m), réglages du 2e `vkid2h`,
   `vkid2x`… ; ils vont chacun dans leur rond au calibrage. `&vkid2leave=20` (ou `vkid1leave`) : un enfant s'en va
   après 20 s. Le titre donne aussi `duo` : inversions de joueurs et images où l'un n'est plus vu.

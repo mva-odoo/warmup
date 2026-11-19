@@ -639,8 +639,8 @@ function armPoint(b, k, minVis = 0.35) {
     if (vis(ei) < 0.5 || vis(si) < 0.5) return null;
     w = { x: e.x + (e.x - s.x) * 0.9, y: e.y + (e.y - s.y) * 0.9 };
   }
-  const A = camAspect();
-  const u = -(w.x - sh.x) * A / (T * ARM_REACH_X);
-  const v = (w.y - (sh.y - T * ARM_TOP)) / (T * ARM_SPAN_Y);
+  const A = camAspect(), R = b.reachK ? b.reachK / 1.1 : 1; // (portée mesurée à l'échauffement : bras tendu = bord de l'écran, même pour un petit)
+  const u = -(w.x - sh.x) * A / (T * ARM_REACH_X * R);
+  const v = (w.y - (sh.y - T * ARM_TOP * R)) / (T * ARM_SPAN_Y * R);
   return { x: 0.5 + Math.max(-1.08, Math.min(1.08, u)) * 0.5, y: Math.max(-0.04, Math.min(1.04, v)), wy: w.y };
 }

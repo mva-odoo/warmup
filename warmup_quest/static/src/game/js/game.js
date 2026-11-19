@@ -1510,7 +1510,7 @@ class Game {
     const s = c.s, easy = tracker.bodies.some((b) => b.easy);
     if (!c.rounds) {
       c.rounds = Math.max(1, Math.min(3, Math.round(s.n / 5))); c.round = 0; c.clean = 0; c.foamProg = 0;
-      c.target = easy ? 0.65 : 0.8;
+      c.target = easy ? 0.6 : 0.74; // (réglé avec l'enfant virtuel qui lave méthodiquement : 0,8 demandait plus de 40 s)
       scene.foam = []; scene.foamOn = true; scene.foamFade = false;
       c.phase = 'cover'; c.phaseT = now; c.thrown = 0;
       Audio8.say('Oh non ! Les singes farceurs lancent de la mousse sur la vitre ! On ne voit plus rien ! Tes mains sont des raclettes : lave la vitre !');
@@ -1538,7 +1538,7 @@ class Game {
     } else if (c.phase === 'wash') {
       for (const sq of scene.squeegees) {
         const d = Math.hypot(sq.vx, sq.vy);
-        if (d > 0.002 && d < 0.35) scene.foamWipe(sq.x - sq.vx, sq.y - sq.vy, sq.x, sq.y, 0.24 + (easy ? 0.06 : 0));
+        if (d > 0.002 && d < 0.35) scene.foamWipe(sq.x - sq.vx, sq.y - sq.vy, sq.x, sq.y, 0.28 + (easy ? 0.06 : 0));
       }
       if (now - (c.measT || 0) > 250) {
         c.measT = now;

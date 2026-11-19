@@ -227,18 +227,30 @@ const VKid = (() => {
   // ---------- Épreuves du chemin et jeux sur place : ce que l'enfant fait pour chacune
   const hop = (now, gap = 900) => { if (now - jumpT > gap) jumpT = now; };
   const smash = (s, now, per = 900) => { const k = now % per; const w = k < per / 2 ? V(-0.05, ARM * 0.95, 0) : V(-0.05, -ARM * 0.6, ARM * 0.6); s.wR = w; s.wL = V(-w.x, w.y, w.z); };
+  // Tendre le bras vers un point (u, v) autour du héros (repère des bulles) : direction depuis l'épaule du héros 3D
+  function reachTarget(u, v, G, s) {
+    const av = G.avatarReach(idx), hs = av && scene.avatarHands && scene.avatarHands[idx], left = u < 0, h = hs && hs[left ? 0 : 1];
+    const shU = h ? h.su : (left ? -1 : 1) * L('shW') / TORSO, shV = h ? h.sv : 0, vx = u - shU, vy = v - shV, n = Math.hypot(vx, vy) || 1;
+    const w = av ? reach(vx / n * 9, vy / n * 9, 0.95) : reach(vx, vy, 0.95);
+    if (left) s.wL = w; else s.wR = w; return s;
+  }
   function pathBrain(s, c, G, now) {
     const st = c.s, m = st.m, t = now - (c.start || now);
     if (t < LAG) return null;
     const lane = (l) => { s.bx = home + (l < 0 ? 0.42 : l > 0 ? -0.42 : 0); }; // (couloir -1 = gauche de l'écran = gauche de l'enfant)
     switch (m) {
-      case 'jump': case 'rope': if (m === 'rope') { const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod; if (pass - now < 380 + LAG * 0 && pass - now > 0) hop(now, 500); } else hop(now, 1000); return s;
-      case 'squat': case 'tunnel': if (m === 'tunnel' || (t % 1400) < 800) s.drop = 1; return s;
+      case 'rope': { const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod; if (pass - now < 380 && pass - now > 0) hop(now, 500); return s; }
+      case 'tunnel': s.drop = 1; return s;
+      case 'jump': case 'squat': { // un tronc / une branche arrive : on saute ou on se baisse au bon moment (pas avant)
+        const hz = (c.hazards || []).filter((h) => !h.done).sort((a, b) => a.arrive - b.arrive)[0];
+        if (hz) { const k = hz.arrive - now; if (m === 'jump' && k < 600 && k > -100) hop(now, 800); if (m === 'squat' && k < 900 && k > -250) s.drop = 1; }
+        return s;
+      }
       case 'smash': smash(s, now); return s;
       case 'left': case 'right': lane(m === 'left' ? -1 : 1); return s;
       case 'pose': pose(s, st.pose); return s;
       case 'posemix': case 'boss': pose(s, st.poses[Math.min(c.pi || 0, st.poses.length - 1)]); return s;
-      case 'combo': { const p = (st.parts || [])[Math.floor(t / 1400) % Math.max(1, (st.parts || []).length)]; if (p) { if (p.m === 'jump') hop(now, 1000); else if (p.m === 'squat') s.drop = 1; else if (p.m === 'smash') smash(s, now); else if (p.m === 'pose') pose(s, p.pose); } return s; }
+      case 'combo': { const p = (st.parts || [])[(c.parts && c.parts[idx]) || 0]; if (p === 'jump') hop(now, 1000); else if (p === 'squat') { if ((t % 1900) < 950) s.drop = 1; } else if (p === 'smash') smash(s, now); else if (p === 'left' || p === 'right') lane(p === 'left' ? -1 : 1); return s; } // (la suite : le geste qu'il reste à faire)
       case 'run': case 'shop': {
         const hz = (c.hazards || []).filter((h) => h.arrive > now - 200).sort((a, b) => a.arrive - b.arrive)[0];
         if (hz && hz.arrive - now < 1300) {
@@ -262,7 +274,33 @@ const VKid = (() => {
         else if (g === 'animals') { const an = a.seq && a.seq[a.reps]; if (an) { if (an.need === 'jump') hop(now, 1000); else if (an.need === 'smash') smash(s, now); else pose(s, an.need); } }
         return s;
       }
-      default: return null; // (fruits, mousse, baguette, sports… : pas encore joués par l'enfant virtuel)
+      case 'slice': { // un coup de sabre à travers le fruit : la main passe d'un côté à l'autre du fruit, vite
+        const f = (c.fruits || []).filter((x) => x.hero === idx && !x.cut).map((x) => ({ x, p: fruitPos(x, now) })).filter((o) => o.p.t > 0.25 && o.p.t < 1).sort((a, b) => a.x.born - b.x.born)[0];
+        if (f) {
+          const b = tracker.bodies[idx], kk = b && b.reachK ? 1.1 / b.reachK : 1, left = f.p.u < 0, sw = (now % 360) < 180 ? 0.6 : -0.6;
+          const w = reach((f.p.u - (left ? -1 : 1) * L('shW') / TORSO + sw) / kk, (f.p.v - sw * 0.5) / kk, 0.95);
+          if (left) s.wL = w; else s.wR = w;
+        }
+        return s;
+      }
+      case 'foam': { // comme un enfant qui lave une vitre : chaque main balaie sa moitié en zigzag, de haut en bas puis de bas en haut
+        const b = tracker.bodies[idx], R = b && b.reachK ? b.reachK / 1.1 : 1, yy = 0.08 + 0.84 * Math.abs(((now / 4200) % 2) - 1);
+        for (const [left, x0] of [[true, 0.05], [false, 0.55]]) {
+          const xx = x0 + 0.4 * Math.abs(((now / 700) % 2) - 1), u = (xx - 0.5) * 2;
+          const vx = u * ARM_REACH_X * R - (left ? -1 : 1) * L('shW') / TORSO, vy = yy * ARM_SPAN_Y * R - ARM_TOP * R;
+          const w = reach(vx, vy, 0.97); if (left) s.wL = w; else s.wR = w;
+        }
+        return s;
+      }
+      case 'wand': { // il pointe le bras vers la créature grognonne (part de l'écran)
+        const f = (c.foes || []).find((x) => x.state === 'grumpy'); if (!f) return s;
+        const left = f.x < 0.5, w = reach((f.x - 0.5) * 9, (f.y - 0.42) * 9, 0.97);
+        if (left) s.wL = w; else s.wR = w; return s;
+      }
+      case 'goal': { const b = (c.shots || []).find((x) => !x.done && x.hero === idx); if (b) { const r = reachTarget(b.u, b.v, G, s); if (r) return r; } return s; }
+      case 'basket': { const b = c.ball; if (b && b.hero === idx) { if (b.phase === 'catch') POSES.together(s); else if (b.phase === 'hold') POSES.up(s); } return s; }
+      case 'kick': { const b = c.ball; if (b && b.hero === idx && b.phase === 'wait' && now - b.t0 > 500) { if (b.side < 0) s.kneeL = 1; else s.kneeR = 1; } return s; }
+      default: return null;
     }
   }
 
@@ -282,7 +320,7 @@ const VKid = (() => {
     }
     return frame(now);
   }
-  return { step, H, SKILL, ARM, TORSO };
+  return { step, H, SKILL, ARM, TORSO, dropNow: () => cur.drop };
   }
 
   const kids = on ? (DUO ? [makeKid(0), makeKid(1)] : [makeKid(0)]) : [];
@@ -328,7 +366,7 @@ const VKid = (() => {
       const e = stats.err, m = e.length ? e.reduce((a, b) => a + b, 0) / e.length : null;
       const cs = typeof calibState !== 'undefined' ? calibState.stage : ''; if (cs && stats.stages[stats.stages.length - 1] !== cs) stats.stages.push(cs);
       const b0d = tracker.bodies[0], lmd = b0d && b0d.lm; if (P.get('vkiddbg') && lmd && !stats.dbg) stats.dbg = { pres: b0d.state.present, up: b0d.state.upperBody, nose: [+lmd[0].y.toFixed(2), +(lmd[0].visibility ?? 1).toFixed(2)], sh: +lmd[11].y.toFixed(2), hip: +lmd[23].y.toFixed(2), hipv: +(lmd[23].visibility ?? 1).toFixed(2) };
-      document.title = 'VK ' + JSON.stringify({ photos: P.get('vkidphotos') && typeof Photos !== 'undefined' ? Photos.list(0).map((u) => u.length) : undefined, steps: P.get('vkidsteps') ? stats.steps : undefined, adapt: typeof game !== 'undefined' && game ? +(game.diffK || 1).toFixed(2) : null, raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
+      document.title = 'VK ' + JSON.stringify({ cur: P.get('vkiddbg') && G && G.cur ? { m: G.cur.s.m, n: G.cur.s.n, counts: G.cur.counts, foam: G.cur.foamProg != null ? +G.cur.foamProg.toFixed(2) : undefined, clean: G.cur.clean != null ? +G.cur.clean.toFixed(2) : undefined, sq2: (scene.squeegees || []).map((q) => [+q.x.toFixed(2), +q.y.toFixed(2)]), sq: tracker.bodies[0] && tracker.bodies[0].state.squat, drop: +kids[0].dropNow().toFixed(2) } : undefined, photos: P.get('vkidphotos') && typeof Photos !== 'undefined' ? Photos.list(0).map((u) => u.length) : undefined, steps: P.get('vkidsteps') ? stats.steps : undefined, adapt: typeof game !== 'undefined' && game ? +(game.diffK || 1).toFixed(2) : null, raf: stats.raf, fr: stats.frames, dbg: stats.dbg, hands: stats.hands, stages: stats.stages, phase: typeof phase !== 'undefined' ? phase : '', games: stats.games, cal: stats.cal, aimErr: m == null ? null : +m.toFixed(2), n: e.length, ...(DUO ? { duo: { frames: stats.duoFrames, swaps: stats.swaps, lost: stats.lost } } : {}) });
     }
   }
   if (on && P.get('vkiddbg')) { stats.raf = 0; const f = () => { stats.raf++; requestAnimationFrame(f); }; requestAnimationFrame(f); }
