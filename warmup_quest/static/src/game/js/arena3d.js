@@ -213,11 +213,13 @@ class Arena3D {
   ppu(z0 = 0) { return this.A.H / (2 * Math.max(0.5, this.cam.position.z - z0) * Math.tan((this.cam.fov * Math.PI) / 360)); } // (pixels par unité, à la profondeur z0)
 
   // ---------- Caméra : de face, à hauteur d'enfant (le petit sorcier prend la moitié de l'écran)
-  camFront(x = 0, lookX = x, dist = 5.6) { this.camTo(x, 1.3, dist, lookX, 1.05, 0, 40); }
+  camFront(x = 0, lookX = x, dist = 5.6) { this.camTo(x, 1.3, dist, lookX, 1.05, 0, 40, 0.06); } // (amortie : ne suit pas chaque tremblement du sorcier)
   camTo(x, y, z, lx, ly, lz, fov, k = 1) {
     const c = this.cam, A = this.A;
     this.camP = this.camP || new this.T.Vector3(x, y, z); this.camL = this.camL || new this.T.Vector3(lx, ly, lz);
-    this.camP.lerp(new this.T.Vector3(x, y, z), k); this.camL.lerp(new this.T.Vector3(lx, ly, lz), k);
+    // (k réglé pour 60 images/s : même douceur sur un PC lent, qui dessine moins d'images)
+    const n = Math.min(6, Math.max(0.25, (this.frameDt || 1 / 60) * 60)), ke = k >= 1 ? 1 : 1 - Math.pow(1 - k, n);
+    this.camP.lerp(new this.T.Vector3(x, y, z), ke); this.camL.lerp(new this.T.Vector3(lx, ly, lz), ke);
     c.position.copy(this.camP); c.lookAt(this.camL);
     const asp = A.W / A.H; if (Math.abs(c.aspect - asp) > 0.001 || c.fov !== fov) { c.aspect = asp; c.fov = fov; c.updateProjectionMatrix(); }
     c.updateMatrixWorld(true);
@@ -247,7 +249,9 @@ class Arena3D {
         }
         // (mouvement doux : le bras rejoint la position de l'enfant en une fraction de seconde, sans tremblote)
         const prev = this.boneQ.get(n);
-        if (prev && P.smooth !== false) bone.quaternion.copy(prev.slerp(bone.quaternion, P.smoothK || 0.5));
+        // (un bras qui « saute » de plus de 90° en une image : souvent un point mal détecté ; on le suit doucement)
+        const jump = prev ? prev.angleTo(bone.quaternion) > 1.6 : false;
+        if (prev && P.smooth !== false) bone.quaternion.copy(prev.slerp(bone.quaternion, jump ? 0.12 : P.smoothK || 0.5));
         this.boneQ.set(n, bone.quaternion.clone());
       }
     }
@@ -270,7 +274,12 @@ class Arena3D {
 
   // Le corps vu à l'écran (comme arena.body) : directions des membres du joueur (ou du sorcier au clavier) -> petit sorcier 3D
   body(A, now, st) {
-    const b = tracker.lead(), real = !tracker.sim && b && b.lm && b.state.present, M = this.M;
+    const b0 = tracker.lead(), live = !tracker.sim && b0 && b0.lm && b0.state.present, M = this.M;
+    // (l'enfant perdu un instant, ou un autre enfant qui « mène » une image : on garde sa dernière pose 0,8 s au lieu de
+    // remettre le sorcier d'un coup au milieu dans la pose du clavier — c'était les sauts « par moment »)
+    if (live) this.lastReal = { b: b0, t: now };
+    const hold = !live && !tracker.sim && this.lastReal && now - this.lastReal.t < 800 && this.lastReal.b.lm;
+    const b = hold ? this.lastReal.b : b0, real = live || !!hold;
     let limbs;
     let unit = 1; // (longueur d'un torse, dans l'unité des directions)
     let seg = null;
@@ -298,7 +307,9 @@ class Arena3D {
     // pas de côté (vrai joueur : décalage du corps depuis le calibrage), saut
     let side = st.side === 'left' ? -1 : st.side === 'right' ? 1 : 0;
     if (real && b.calib && b.center && b.T) side = Math.max(-1, Math.min(1, -((b.center.x - b.calib.cx) * camXS()) / (b.T * 0.7)));
-    this.sideK = (this.sideK ?? side) + (side - (this.sideK ?? side)) * 0.25;
+    // (vitesse limitée : un faux point d'une image ne téléporte plus le sorcier ; un vrai pas de côté reste rapide)
+    const sk = this.sideK ?? side, dk = (side - sk) * 0.25, cap = 0.09 * Math.max(0.25, (this.frameDt || 1 / 60) * 60);
+    this.sideK = sk + Math.max(-cap, Math.min(cap, dk));
     const jk = A.lastJump && now - A.lastJump < 450 ? Math.sin(((now - A.lastJump) / 450) * Math.PI) : 0;
     if (jk === 0 && this.wasJump) this.landT = now; this.wasJump = jk > 0;
     const react = now - this.reactT < 700 ? this.reactKind : null;
@@ -401,7 +412,7 @@ class Arena3D {
 
   // ---------- Image
   render(A, now) {
-    const S = this.S, dt = Math.min(0.1, Math.max(0, (now - this.lastT) / 1000)); this.lastT = now;
+    const S = this.S, dt = Math.min(0.1, Math.max(0, (now - this.lastT) / 1000)); this.lastT = now; this.frameDt = dt;
     if (S.cv3 && S.cv3.style.display !== 'block') S.cv3.style.display = 'block';
     if (S.ctx) S.ctx.clearRect(0, 0, S.W, S.H); // (calque du chemin : vide)
     const B = A.B;

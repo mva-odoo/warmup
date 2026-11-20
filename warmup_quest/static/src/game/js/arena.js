@@ -59,7 +59,7 @@ class Arena {
       document.body.classList.add('arenaIntro');
       // Première fois : « attrape les étoiles » pour mesurer jusqu'où l'enfant tend les bras (sa portée), avant le titre
       const b0 = tracker.lead();
-      if (b0 && !b0.reachK && !DEV.get('nocal')) { this.cal = { t0: this.t0, i: 0, on: 0, best: 0, vals: [], st: this.t0 }; Audio8.say('Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', { interrupt: true }); }
+      if (b0 && !b0.reachK && !DEV.get('nocal')) { this.cal = { t0: this.t0, i: 0, on: 0, best: 0, vals: [], st: this.t0 }; Audio8.say(duo() ? 'Échauffement magique ! L\'un de vous deux, tends bien le bras pour attraper l\'étoile !' : 'Échauffement magique ! Tends bien ton bras pour attraper l\'étoile !', { interrupt: true }); }
       else { Audio8.whoosh(); setTimeout(() => this.intro && Audio8.sting(), 250); }
     }
     this.cv.classList.remove('hidden'); document.body.classList.add('arenaOn');
@@ -328,23 +328,27 @@ class Arena {
 
   // ---------- « Attrape les étoiles » (une fois par partie) : mesure la portée des bras de l'enfant
   // Une étoile à la fois (en haut à gauche, en haut à droite, à gauche, à droite) : on la prend en tendant le bras vers elle.
-  calDirs() { return [[-0.7, -0.7], [0.7, -0.7], [-1, 0.05], [1, 0.05]]; }
+  // (à deux : seulement les deux étoiles des côtés, et le bras de n'importe quel enfant compte — sinon seul celui qui « mène » était vu)
+  calDirs() { return duo() && !tracker.sim ? [[-1, 0.05], [1, 0.05]] : [[-0.7, -0.7], [0.7, -0.7], [-1, 0.05], [1, 0.05]]; }
   updateCal(now) {
     const cal = this.cal, b0 = tracker.lead();
     this.ev.splice(0); this.B = this.body(now);
     const dt = Math.min(0.1, (now - (cal.last || now)) / 1000); cal.last = now;
-    const D = this.calDirs()[cal.i], vec = (this.v3 && this.v3.lastVec) || [];
+    const D = this.calDirs()[cal.i];
+    // bras de chaque enfant vu (seul : celui qui mène) ; on retient la portée de chacun
+    const kids = duo() && this.v3 ? tracker.active.filter((b) => b.state.present && b.lm) : [];
+    const sets = kids.length ? kids.map((b) => [b, this.v3.handVecs(this, now, this.B.st, b, true)]) : [[b0, (this.v3 && this.v3.lastVec) || []]];
     let hit = false;
     if (tracker.sim) { if (now - cal.st > 700) { hit = true; cal.best = 1; } }
-    else for (const v of vec) {
-      if (!v) continue; const L = Math.hypot(v[0], v[1]); if (L < 0.55) continue;
-      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.8) { hit = true; cal.best = Math.max(cal.best, L); }
+    else for (const [b, vec] of sets) for (const v of vec) {
+      if (!v) continue; const L = Math.hypot(v[0], v[1]); if (L < (b && b.easy ? 0.45 : 0.55)) continue; // (mode petit : bras moins tendu suffit)
+      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.8) { hit = true; cal.best = Math.max(cal.best, L); if (b) (cal.per = cal.per || new Map()).set(b, Math.max(cal.per.get(b) || 0, L)); }
     }
     cal.on = hit ? cal.on + dt : Math.max(0, cal.on - dt * 2);
     const next = (val) => {
       if (val) { cal.vals.push(val); Audio8.coin(); const p = this.calStar(cal.i); this.burst(p.x, p.y, 30); if (this.v3) this.v3.react('win'); }
       cal.i++; cal.on = 0; cal.best = 0; cal.st = now;
-      if (cal.i >= 4) this.endCal(now);
+      if (cal.i >= this.calDirs().length) this.endCal(now);
     };
     if (cal.on > 0.4) next(cal.best);
     else if (now - cal.st > 6500) next(null); // (étoile trop difficile : on passe)
@@ -352,7 +356,10 @@ class Arena {
   endCal(now) {
     const cal = this.cal, v = [...cal.vals].sort((a, b) => a - b), b0 = tracker.lead();
     const reach = v.length ? v[Math.floor(v.length / 2)] : 1.1;
-    if (b0) b0.reachK = Math.max(0.7, Math.min(1.6, reach * 1.05)); // (un peu de marge : bras tendu = bord de la portée du jeu)
+    const k = (r) => Math.max(0.7, Math.min(1.6, r * 1.05)); // (un peu de marge : bras tendu = bord de la portée du jeu)
+    if (b0) b0.reachK = k(reach);
+    // (à deux : chaque enfant qui a attrapé une étoile a sa portée ; l'autre prend celle du groupe)
+    for (const b of tracker.bodies) { const r = cal.per && cal.per.get(b); if (r) b.reachK = k(Math.min(r, reach * 1.3)); else if (!b.reachK) b.reachK = k(reach); }
     const d = now - cal.t0; this.cal = null;
     if (this.c) { this.c.start += d; this.c.end += d; }
     this.shift(d); this.lastT = now;
@@ -363,12 +370,12 @@ class Arena {
   hudCal(now) {
     const cal = this.cal, W = this.W, H = this.H;
     this.text('✨ Échauffement magique ✨', W / 2, H * 0.14, H * 0.06, '#ffd166');
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < this.calDirs().length; i++) {
       const p = this.calStar(i), cur = i === cal.i, done = i < cal.i;
       if (cur) { this.ring(p.x, p.y, this.B.T * 0.55, cal.on / 0.4, '#b8f2a1', 0.01); this.emo('⭐', p.x, p.y, this.B.T * (0.75 + 0.1 * Math.sin(now / 150))); }
       else this.emo(done ? '✅' : '⭐', p.x, p.y, this.B.T * (done ? 0.45 : 0.4), 0, done ? 1 : 0.35);
     }
-    this.pill(['↖️ Tends le bras vers l\'étoile, en haut !', '↗️ Et l\'autre étoile, en haut !', '⬅️ Tends le bras sur le côté !', 'Et de l\'autre côté ! ➡️'][cal.i] || '', '#ffffff');
+    this.pill((duo() && !tracker.sim ? ['⬅️ L\'un de vous deux : tends le bras vers l\'étoile !', 'Et de l\'autre côté ! ➡️'] : ['↖️ Tends le bras vers l\'étoile, en haut !', '↗️ Et l\'autre étoile, en haut !', '⬅️ Tends le bras sur le côté !', 'Et de l\'autre côté ! ➡️'])[cal.i] || '', '#ffffff');
   }
 
   // ---------- À deux : ce que le jeu demande à CHAQUE enfant, et qui l'a déjà fait (les deux doivent le faire ensemble)
