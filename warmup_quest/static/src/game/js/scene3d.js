@@ -77,6 +77,25 @@ const HUMAN_POSES = {
 // Hauteur de la tête de l'ancien héros « jouet » (les accessoires sont dessinés pour elle)
 const HERO_HEAD_Y = 1.25;
 
+// Ciel peint (partagé avec les jeux miroir) : nuages doux qui défilent lentement, étoiles qui scintillent la nuit.
+// paintSky(c, d) : c = couleur du dégradé, d = direction regardée (normalisée)
+const SKY_PAINT_GLSL = `
+  uniform float time, night, cloudK; uniform vec3 cloudCol;
+  float skHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float skNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(skHash(i), skHash(i + vec2(1.0, 0.0)), f.x), mix(skHash(i + vec2(0.0, 1.0)), skHash(i + vec2(1.0, 1.0)), f.x), f.y); }
+  float skFbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * skNoise(p); p *= 2.03; a *= 0.5; } return v; }
+  vec3 paintSky(vec3 c, vec3 d) {
+    float h = d.y; if (h <= 0.0) return c;
+    vec2 uv = d.xz / (h + 0.22) * 1.4 + vec2(time * 0.012, time * 0.005);
+    float n = skFbm(uv), cl = smoothstep(0.5, 0.78, n) * smoothstep(0.0, 0.16, h) * cloudK;
+    float lit = smoothstep(0.45, 0.85, skFbm(uv + vec2(0.05, 0.07)));
+    c = mix(c, mix(cloudCol, cloudCol * 0.8, lit * 0.7), cl * (1.0 - night * 0.65));
+    vec2 g = d.xz / (h + 0.55) * 80.0; vec2 id = floor(g); float r = skHash(id);
+    float st = step(0.982, r) * smoothstep(0.32, 0.0, length(fract(g) - 0.5)) * (0.55 + 0.45 * sin(time * (1.3 + r * 4.0) + r * 60.0));
+    return c + vec3(st) * night * smoothstep(0.04, 0.3, h) * (1.0 - cl);
+  }`;
+
 class Scene3D extends DepthScene {
   constructor(canvas) {
     super(canvas);
@@ -309,13 +328,15 @@ class Scene3D extends DepthScene {
     this.skyU = {
       top: { value: new T.Color('#4cc3ff') }, mid: { value: new T.Color('#d4f4ff') }, low: { value: new T.Color('#ffffff') },
       sunDir: { value: new T.Vector3(-18, 22, -80).normalize() }, sunCol: { value: new T.Color('#fff2c7') }, glow: { value: 1 },
+      time: { value: 0 }, night: { value: 0 }, cloudK: { value: 1 }, cloudCol: { value: new T.Color('#ffffff') },
     };
     this.sky = new T.Mesh(new T.SphereGeometry(190, 32, 16), new T.ShaderMaterial({
       uniforms: this.skyU, side: T.BackSide, depthWrite: false, fog: false,
       vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform vec3 top, mid, low, sunCol, sunDir; uniform float glow; varying vec3 vP;
+      fragmentShader: `uniform vec3 top, mid, low, sunCol, sunDir; uniform float glow; varying vec3 vP;${SKY_PAINT_GLSL}
         void main(){ vec3 d = normalize(vP); float h = d.y;
           vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h * 1.6, 0.0, 1.0), 0.7)) : mix(mid, low, clamp(-h * 4.0, 0.0, 1.0));
+          c = paintSky(c, d);
           float s = max(dot(d, sunDir), 0.0); c += sunCol * (pow(s, 24.0) * 0.12 + pow(s, 160.0) * 0.5) * glow;
           gl_FragColor = vec4(c, 1.0);
           #include <colorspace_fragment>
@@ -400,6 +421,9 @@ class Scene3D extends DepthScene {
     this.biomeIdx = i; this.pal = b; this.kitName = b.kit || 'meadow';
     this.skyU.top.value.set(b.sky0); this.skyU.mid.value.set(b.sky1); this.skyU.low.value.set(b.fog || b.sky1);
     this.skyU.sunCol.value.set(night ? '#cfd8ff' : '#fff2c7'); this.skyU.glow.value = night ? 0.35 : 1;
+    // (nuages peints : pas sous l'eau ni dans le supermarché ; la nuit, à peine visibles, et les étoiles s'allument)
+    this.skyU.night.value = night ? 1 : 0; this.skyU.cloudK.value = kit.underwater || kit.flat ? 0 : night ? 0.5 : 1;
+    this.skyU.cloudCol.value.set(night ? '#8f97c8' : '#ffffff');
     scene.fog.color.set(b.fog || b.sky1);
     // Sous l'eau : brume bleue plus proche, pas de soleil ni de nuages
     const water = !!kit.underwater;
@@ -640,8 +664,38 @@ class Scene3D extends DepthScene {
     a.needsUpdate = true;
   }
 
+  // Papillons (paysages d'herbe, de jour) : deux ailes qui battent, ils volettent au bord du chemin et défilent avec le décor
+  updateButterflies(now, dt, move) {
+    const T = this.T, kit = KITS[this.kitName] || {}, on = !!kit.grass && !(kit.night || (this.pal && this.pal.night));
+    if (!this.flies && on) {
+      this.flies = [];
+      const cols = ['#ff70a6', '#ffd166', '#7bdff2', '#c77dff', '#ff9f1c', '#ffffff'];
+      for (let i = 0; i < 8; i++) {
+        const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+        g.fillStyle = cols[i % cols.length]; g.beginPath(); g.ellipse(34, 22, 26, 18, -0.3, 0, 6.29); g.fill(); g.beginPath(); g.ellipse(30, 46, 16, 13, 0.4, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(38, 22, 6, 0, 6.29); g.fill();
+        const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
+        const mat = new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.3, side: T.DoubleSide }), grp = new T.Group();
+        const wings = [-1, 1].map((sd) => { const pv = new T.Group(), w = new T.Mesh(new T.PlaneGeometry(0.6, 0.6), mat); w.position.x = sd * 0.3; w.scale.x = sd; w.rotation.x = -Math.PI / 2; pv.add(w); grp.add(pv); return pv; });
+        const side = Math.random() < 0.5 ? -1 : 1;
+        grp.position.set(side * (3.2 + Math.random() * 5), 0.8 + Math.random() * 1.8, 6 - Math.random() * 66);
+        this.s3.add(grp); this.flies.push({ grp, wings, ph: Math.random() * 10, x0: grp.position.x, y0: grp.position.y, tex });
+      }
+    }
+    if (!this.flies) return;
+    for (const f of this.flies) {
+      f.grp.visible = on; if (!on) continue;
+      const t = now / 1000 + f.ph, flap = Math.sin(t * 18) * 0.9;
+      f.wings[0].rotation.z = flap; f.wings[1].rotation.z = -flap;
+      f.grp.position.x = f.x0 + Math.sin(t * 0.7) * 1.2; f.grp.position.y = this.groundY(f.grp.position.x, f.grp.position.z) + f.y0 + Math.sin(t * 1.9) * 0.35 + Math.abs(Math.sin(t * 9)) * 0.08;
+      f.grp.position.z += move + Math.sin(t * 0.5) * dt * 0.6; f.grp.rotation.y = Math.sin(t * 0.7) * 0.9;
+      if (f.grp.position.z > 8) { f.grp.position.z -= 68; f.x0 = (Math.random() < 0.5 ? -1 : 1) * (3.2 + Math.random() * 5); }
+    }
+  }
+
   // Libère le monde précédent (mémoire de la carte graphique) avant d'en construire un nouveau
   clear3d() {
+    if (this.flies) { for (const f of this.flies) f.tex.dispose(); this.flies = null; }
     if (!this.s3) return;
     this.freeRes(this.s3); // (sans toucher aux modèles chargés ni aux formes et matériaux partagés)
     for (const m of Object.values(this.mat || {})) m.dispose(); // (matériaux de ce monde : recréés par build)
@@ -2430,7 +2484,9 @@ class Scene3D extends DepthScene {
     this.windU.value = now / 1000;
     this.updateDust(now, dt, move);
     this.updateParticles(now, dt, move);
+    this.updateButterflies(now, dt, move);
     for (const c of this.clouds) { c.position.x += dt * 0.6; if (c.position.x > 45) c.position.x = -45; }
+    this.skyU.time.value = now / 1000;
     // Caméra : suit le héros (couloir, saut) avec un léger balancement quand on court
     const avg = this.heroes.reduce((a, h) => a + h.lane, 0) / this.heroes.length;
     const hy = this.heroY3(this.heroes[0]);

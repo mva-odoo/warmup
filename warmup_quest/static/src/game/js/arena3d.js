@@ -32,7 +32,7 @@ class Arena3D {
   // ---------- Construction
   begin(A) {
     const S = this.S, T = this.T, game = A.s.game;
-    this.A = A; this.game = game; this.cfg = A3_GAMES[game] || { room: 'hall' };
+    this.A = A; this.game = game; this.cfg = A3_GAMES[game] || { room: 'hall' }; this.skyU = null;
     this.own = []; this.parts = []; this.objs = new Map(); this.t0 = performance.now(); this.lastT = this.t0;
     const scene = (this.scene = new T.Scene());
     this.cam = new T.PerspectiveCamera(40, 1, 0.1, 200); this.camP = null; this.camL = null;
@@ -139,8 +139,21 @@ class Arena3D {
     return this.emoCache.get(ch);
   }
   emo(ch, size) { const T = this.T, s = new T.Sprite(new T.SpriteMaterial({ map: this.emoTex(ch), depthWrite: false, transparent: true })); s.scale.set(size, size, 1); return s; }
-  sky(scene, stops) {
-    scene.background = this.tex(2, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); stops.forEach(([k, c]) => g.addColorStop(k, c)); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+  // Ciel : le dégradé (haut -> horizon) sur une grande sphère, avec les nuages peints et les étoiles du ciel des chemins
+  sky(scene, stops, o = {}) {
+    const T = this.T, grad = this.tex(2, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); stops.forEach(([k, c]) => g.addColorStop(k, c)); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+    scene.background = new T.Color(stops[stops.length - 1][1]);
+    this.skyU = { grad: { value: grad }, time: { value: 0 }, night: { value: o.night || 0 }, cloudK: { value: o.clouds ?? 1 }, cloudCol: { value: new T.Color(o.cloudCol || '#ffffff') } };
+    const m = new T.Mesh(this.geo(new T.SphereGeometry(150, 32, 16)), new T.ShaderMaterial({
+      uniforms: this.skyU, side: T.BackSide, depthWrite: false, fog: false,
+      vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D grad; varying vec3 vP;${SKY_PAINT_GLSL}
+        void main(){ vec3 d = normalize(vP); vec3 c = texture2D(grad, vec2(0.5, clamp(0.08 + d.y * 1.15, 0.0, 1.0))).rgb;
+          gl_FragColor = vec4(paintSky(c, d), 1.0);
+          #include <colorspace_fragment>
+        }`,
+    }));
+    m.renderOrder = -1; m.userData.noOutline = true; scene.add(m);
   }
   glowMat(c, op = 1, shared = false) {
     if (shared) { this.gm = this.gm || new Map(); const k = c + op; if (!this.gm.has(k)) this.gm.set(k, this.glowMat(c, op)); return this.gm.get(k); }
@@ -390,6 +403,7 @@ class Arena3D {
     if (S.cv3 && S.cv3.style.display !== 'block') S.cv3.style.display = 'block';
     if (S.ctx) S.ctx.clearRect(0, 0, S.W, S.H); // (calque du chemin : vide)
     const B = A.B;
+    if (this.skyU) this.skyU.time.value = now / 1000;
     const cam = this['cam3_' + this.game]; if (cam) cam.call(this, A.st, now); else this.camFront(this.av.group.position.x * 0.35);
     this.camFx(A, now);
     const sync = this['sync3_' + this.game]; if (sync) sync.call(this, A.st, now, dt, B);
@@ -472,7 +486,7 @@ class Arena3D {
   // Grande salle de l'Académie : dallage, murs de pierre, fenêtres en ogive (nuit étoilée), piliers, torches, bougies qui flottent
   room_hall(scene, o = {}) {
     const T = this.T, G = this.G, back = o.back ?? -9;
-    this.sky(scene, [[0, '#1b1440'], [1, '#3c2a6e']]);
+    this.sky(scene, [[0, '#1b1440'], [1, '#3c2a6e']], { night: 1, clouds: 0.3, cloudCol: '#5a4a8c' }); // (la nuit derrière les fenêtres)
     scene.fog = new T.Fog('#2a1f55', o.fogNear || 14, o.fogFar || 34);
     this.hemi.color.set('#ffe7c4'); this.hemi.groundColor.set('#3c2a5a'); this.hemi.intensity = 0.95;
     this.floor(scene, '#ffffff', 80, (x, w, h) => {
@@ -623,7 +637,7 @@ class Arena3D {
   }
   room_sky(scene) { // ciel du soir : nuages qui filent, mer de nuages en bas, le château au loin
     const T = this.T;
-    this.sky(scene, [[0, '#240046'], [0.45, '#7b2cbf'], [0.8, '#ff9e00'], [1, '#ff6d00']]);
+    this.sky(scene, [[0, '#240046'], [0.45, '#7b2cbf'], [0.8, '#ff9e00'], [1, '#ff6d00']], { night: 0.5, cloudCol: '#ffb4a2' }); // (soir : nuages roses, premières étoiles)
     scene.fog = new T.Fog('#c86bd6', 40, 120);
     this.hemi.color.set('#ffd6e8'); this.hemi.groundColor.set('#5a189a'); this.hemi.intensity = 1.1; this.sun.color.set('#ffb36b'); this.sun.position.set(6, 6, -8);
     const sea = this.tex(256, 256, (x, w, h) => { x.fillStyle = '#f6c6ea'; x.fillRect(0, 0, w, h); for (let i = 0; i < 60; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.7)' : 'rgba(199,125,255,.25)'; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 30, 8 + Math.random() * 10, 0, 0, 7); x.fill(); } }, 12, 12);
@@ -644,7 +658,7 @@ class Arena3D {
   placeFly(g, z) { const s = Math.random() < 0.5 ? -1 : 1, x = s * (7.5 + Math.random() * 14); g.position.set(x, Math.random() < 0.5 ? -4 + Math.random() * 3 : 7 + Math.random() * 5, z); g.scale.setScalar(1 + Math.random() * 1.5); }
   room_rope(scene) { // la corde de l'équilibriste, entre deux tours, au-dessus des nuages
     const T = this.T, G = this.G;
-    this.sky(scene, [[0, '#ffafcc'], [0.5, '#ffc8dd'], [1, '#fff1e6']]);
+    this.sky(scene, [[0, '#ffafcc'], [0.5, '#ffc8dd'], [1, '#fff1e6']], { cloudCol: '#fff6fb' });
     scene.fog = new T.Fog('#ffe5ec', 30, 90);
     this.hemi.color.set('#fff1e6'); this.hemi.groundColor.set('#cdb4db'); this.hemi.intensity = 1.2;
     for (let i = 0; i < 46; i++) { const m = this.add(scene, G.ball, '#ffffff', (Math.random() - 0.5) * 90, -6.5 - Math.random() * 2, -Math.random() * 70 + 6, 3 + Math.random() * 4, 1.6, 3, { emissive: '#ffe5ec', emissiveIntensity: 0.45 }); m.castShadow = false; m.userData.noOutline = true; }
