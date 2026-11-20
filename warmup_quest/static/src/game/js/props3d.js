@@ -4,6 +4,7 @@
 //  - « h: », « g: », « c: », « t: », « pf: », « sv: » : Holiday, Graveyard, Castle, Fantasy Town, Platformer
 //    et Survival Kit de Kenney (CC0) ; tous mis à l'échelle et passés en style cartoon au chargement ;
 //  - « s: », « f: », « p: » : Space Kit, Food Kit et Pirate Kit de Kenney (CC0, models/space|food|pirate/) ;
+//  - « kf: », « kd: » : Forest Nature Pack et Dungeon Pack de KayKit (CC0, models/forest|dungeon/) ;
 //  - « q: » : Stylized Nature MegaKit de Quaternius (CC0, models/quaternius/ ; arbres, sapins, buissons, fleurs, rochers) ;
 //  - les autres noms : objets à thème construits ici (bonbons, coraux, cristaux, lanternes…).
 // Chaque paysage (« kit ») indique ses objets (avec leur poids), son arrière-plan, ses particules,
@@ -22,7 +23,7 @@ const KITS = {
   beach:    { props: [['p:palm-detailed-bend', 3], ['p:palm-detailed-straight', 2], ['p:chest', 1], ['p:barrel', 1], ['p:boat-row-small', 1], ['p:rocks-sand-a', 1], ['p:rocks-sand-b', 1], ['p:patch-sand-foliage', 2], ['p:flag-pirate', 1], ['p:ship-pirate-small', 1], ['p:tower-watch', 1]], backdrop: ['sea'] },
   jungle: { grass: true, props: [['k:tree_palmDetailedTall', 2], ['q:Plant_1_Big', 2], ['q:Plant_7_Big', 2], ['q:Fern_1', 2], ['k:plant_bushLarge', 1], ['k:tree_detailed', 2], ['pf:flowers-tall', 1], ['k:hanging_moss', 1], ['pf:mushrooms', 1]], backdrop: ['hills'], particles: 'petals' },
   volcano:  { props: [['k:tree_palmShort', 2], ['k:rock_tallB', 2], ['k:rock_largeC', 2], ['k:plant_flatShort', 2]], backdrop: ['volcano'], particles: 'embers' },
-  forest: { grass: true, props: [['q:CommonTree_5', 2], ['q:CommonTree_4', 2], ['q:CommonTree_1', 1], ['q:Pine_1', 1], ['k:mushroom_redGroup', 2], ['k:mushroom_tanTall', 1], ['q:Fern_1', 2], ['k:stump_old', 1], ['k:log_stack', 1], ['q:Rock_Medium_2', 1], ['sv:tent', 1]], backdrop: ['hills'], particles: 'petals' },
+  forest: { grass: true, props: [['kf:Tree_1_A', 2], ['kf:Tree_2_A', 2], ['kf:Tree_3_A', 2], ['kf:Tree_4_A', 1], ['kf:Tree_2_C', 1], ['kf:Tree_Bare_1_A', 1], ['kf:Bush_1_A', 2], ['kf:Bush_2_A', 1], ['kf:Bush_4_A', 1], ['k:mushroom_redGroup', 2], ['k:stump_old', 1], ['kf:Rock_1_A', 1], ['kf:Rock_3_A', 1], ['kf:Grass_1_A', 2], ['sv:tent', 1]], backdrop: ['hills'], particles: 'petals' },
   night: { grass: true, props: [['kk:hw-tree_pine_orange_large', 2], ['kk:hw-tree_dead_large', 2], ['kk:hw-tree_dead_medium', 1], ['kk:hw-pumpkin_orange_jackolantern', 2], ['kk:hw-pumpkin_yellow', 1], ['kk:hw-lantern_standing', 2], ['kk:hw-post_lantern', 1], ['s:rock_crystals', 1], ['kk:hw-candle_triple', 1]], backdrop: ['hills'], particles: 'fireflies', night: true },
   glacier:  { props: [['h:tree-snow-a', 2], ['h:tree-snow-b', 2], ['pf:tree-pine-snow', 2], ['h:snowman-hat', 1], ['h:snow-pile', 2], ['h:snow-bunker', 1], ['h:present-a-cube', 1], ['h:sled', 1], ['h:rocks-large', 1]], backdrop: ['mountains'], particles: 'snow' },
   aurora:   { props: [['h:tree-snow-c', 2], ['h:tree-decorated-snow', 1], ['pf:tree-snow', 1], ['h:snow-pile', 2], ['s:rock_crystals', 1], ['h:lantern', 2], ['k:tent_detailedOpen', 1], ['h:snowman-hat', 1], ['h:present-b-round', 1]], backdrop: ['mountains'], particles: 'snow', night: true },
@@ -51,7 +52,7 @@ const KITS = {
 
 // Hauteur visée (unités 3D ; le héros mesure environ 2) selon le type de modèle Kenney
 // Préfixe d'un objet de kit -> dossier de ses modèles
-const MODEL_DIRS = { kk: 'kaykit', k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival', cu: 'custom', q: 'quaternius' };
+const MODEL_DIRS = { kk: 'kaykit', k: 'kenney', s: 'space', f: 'food', p: 'pirate', h: 'holiday', g: 'graveyard', c: 'castle', t: 'town', pf: 'platformer', sv: 'survival', cu: 'custom', q: 'quaternius', kf: 'forest', kd: 'dungeon' };
 // Grands fonds à l'horizon modelés pour le jeu (custom/) : modèle, part enfoncée dans le sol (le modèle a une base
 // prévue pour être cachée), puis copies [x, z, échelle, rotation]
 const BACKDROP_MODELS = {
@@ -87,6 +88,9 @@ function makeShopCart(P) {
   return g;
 }
 const MODEL_HEIGHT = [
+  [/^forest\/Tree_Bare/, 4.6], [/^forest\/Tree/, 5.2], [/^forest\/Bush/, 1.2], [/^forest\/Rock_1/, 0.9], [/^forest\/Rock/, 1.3], [/^forest\/Grass/, 0.45],
+  [/^dungeon\/pillar/, 7], [/^dungeon\/(banner|shelves|shelf)/, 2.6], [/^dungeon\/crates/, 1.6], [/^dungeon\/(barrel|keg|box|sword)/, 1.1], [/^dungeon\/(chest|table)/, 0.9],
+  [/^dungeon\/(torch|candle|coin)/, 0.6],
   [/^quaternius\/CommonTree/, 5.0], [/^quaternius\/Pine/, 5.6], [/^quaternius\/Bush/, 1.3], [/^quaternius\/Flower/, 0.6],
   [/^quaternius\/Fern/, 1.0], [/^quaternius\/Plant/, 1.5], [/^quaternius\/Rock/, 1.2], [/^quaternius\/Clover/, 0.3],
   [/^custom\/castle/, 26], [/^custom\/pagoda/, 19], [/^custom\/barn/, 10], [/^custom\/volcano/, 34], [/^custom\/mountains/, 40], [/^custom\/mesas/, 13],

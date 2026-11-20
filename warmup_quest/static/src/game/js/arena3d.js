@@ -7,7 +7,9 @@
 const A3_MODELS = ['holiday/snowman', 'holiday/snowman-hat', 'holiday/tree-snow-a', 'holiday/tree-snow-b', 'holiday/tree-snow-c', 'holiday/snow-pile',
   'kaykit/fu-shelf_B_large_decorated', 'kaykit/hw-candle_triple', 'kaykit/re-jar_A_large', 'kaykit/re-jar_B_medium', 'kaykit/Rogue_Hooded', 'kaykit/fu-book_set',
   'quaternius/CommonTree_1', 'quaternius/CommonTree_2', 'quaternius/CommonTree_3', 'quaternius/Pine_2', 'kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA',
-  'kenney/mushroom_redGroup', 'kenney/rock_largeA', 'kenney/plant_bushLarge', 'custom/castle', 'castle/flag-banner-long', 'pets/animal-chick', 'pets/animal-bunny'];
+  'kenney/mushroom_redGroup', 'kenney/rock_largeA', 'kenney/plant_bushLarge', 'custom/castle',
+  ...['pillar', 'torch_mounted', 'banner_patternA_red', 'banner_patternB_blue', 'barrel_large', 'barrel_small_stack', 'chest_gold', 'shelf_small_candles',
+    'table_medium_decorated_A', 'candle_triple', 'crates_stacked', 'sword_shield', 'keg_decorated', 'coin_stack_large'].map((n) => 'dungeon/' + n), 'castle/flag-banner-long', 'pets/animal-chick', 'pets/animal-bunny'];
 const A3_GRIMAUD = { model: 'kk-hood', hat: 'none', glasses: false, back: 'none', color: '#5a189a' };
 const A3_H = 2; // taille du petit sorcier (unités 3D)
 // Mains magiques : bras de l'enfant tendu (≈ 1,1 torse) -> 1,9 « torse du jeu » depuis l'épaule du sorcier (ses bras à lui sont courts)
@@ -520,16 +522,28 @@ class Arena3D {
     // piliers et torches
     const pil = o.pillars || [[-4.6, -3.2], [4.6, -3.2], [-6.8, back + 1.4], [6.8, back + 1.4]];
     const torches = [];
+    // (piliers de pierre et torches murales du Dungeon Pack de KayKit ; repli : formes simples)
     for (const [px, pz] of pil) {
-      this.add(scene, G.cyl, '#8f86ad', px, 3.5, pz, 0.42, 7, 0.42); this.add(scene, G.box, '#6d6487', px, 0.25, pz, 1.1, 0.5, 1.1); this.add(scene, G.box, '#6d6487', px, 7, pz, 1.1, 0.4, 1.1);
-      const tx = px + (px < 0 ? 0.5 : -0.5);
-      this.add(scene, G.cyl, '#5d4037', tx, 2.6, pz + 0.2, 0.06, 0.6, 0.06);
+      const pm = this.model('dungeon/pillar', 7.2, px, 0, pz); if (pm) { pm.scale.x *= 0.42; pm.scale.z *= 0.42; } // (affiné : le pilier du pack est trapu)
+      else { this.add(scene, G.cyl, '#8f86ad', px, 3.5, pz, 0.42, 7, 0.42); this.add(scene, G.box, '#6d6487', px, 0.25, pz, 1.1, 0.5, 1.1); this.add(scene, G.box, '#6d6487', px, 7, pz, 1.1, 0.4, 1.1); }
+      const tx = px + (px < 0 ? 0.62 : -0.62);
+      if (!this.model('dungeon/torch_mounted', 0.75, tx, 2.25, pz + 0.25, px < 0 ? Math.PI / 2 : -Math.PI / 2)) this.add(scene, G.cyl, '#5d4037', tx, 2.6, pz + 0.2, 0.06, 0.6, 0.06);
       const fl = this.add(scene, G.cone, '#ffb703', tx, 3.05, pz + 0.2, 0.14, 0.38, 0.14, { basic: {} }); fl.castShadow = false;
       const gl = this.glow('#ff9f1c', 1.4, 0.9); gl.position.set(tx, 3.05, pz + 0.2); scene.add(gl);
       torches.push({ fl, gl });
     }
     if (o.torchLight !== false) {
       this.anims.push((now) => { for (const t of torches) { const k = 1 + Math.sin(now / 70 + t.fl.position.x) * 0.12; t.fl.scale.set(0.14 * k, 0.38 / k + 0.04, 0.14 * k); t.gl.material.opacity = 0.75 + 0.2 * Math.sin(now / 55 + t.fl.position.x); } });
+    }
+    // Bannières et mobilier de l'Académie (Dungeon Pack de KayKit) : bannières au mur du fond, tonneaux, coffre au trésor,
+    // étagère à bougies, table, caisses ; sur les côtés, loin du sorcier
+    if (o.props !== false) {
+      const P = [['banner_patternA_red', 3.2, -2.4, 3.3, back + 0.45, 0], ['banner_patternB_blue', 3.2, 2.4, 3.3, back + 0.45, 0],
+        ['shelf_small_candles', 2.4, -9.2, 0, back + 0.7, 0], ['barrel_large', 1.2, -7.9, 0, back + 1.3, 0.4], ['barrel_small_stack', 1.1, -6.3, 0, back + 1.0, -0.3],
+        ['chest_gold', 0.9, 6.2, 0, back + 1.3, -0.35], ['crates_stacked', 1.6, 8.3, 0, back + 1.0, 0.2], ['table_medium_decorated_A', 1.0, 9.3, 0, back + 2.6, Math.PI / 2],
+        ['sword_shield', 1.3, -4.6, 2.6, back + 0.4, 0], ['keg_decorated', 1.0, 9.6, 0, back + 4.2, -0.5], ['coin_stack_large', 0.35, 7.0, 0, back + 1.9, 0]];
+      for (const [n, h, x, y, z, ry] of P) this.model('dungeon/' + n, h, x, y, z, ry);
+      const ct = this.model('dungeon/candle_triple', 0.45, 9.3, 1.0, back + 2.6); if (ct) { const g = this.glow('#ffd166', 0.9, 0.8); g.position.set(9.3, 1.6, back + 2.6); scene.add(g); }
     }
     // bougies qui flottent
     const candles = [];
