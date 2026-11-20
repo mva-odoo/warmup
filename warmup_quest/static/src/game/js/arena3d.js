@@ -6,7 +6,7 @@
 
 const A3_MODELS = ['holiday/snowman', 'holiday/snowman-hat', 'holiday/tree-snow-a', 'holiday/tree-snow-b', 'holiday/tree-snow-c', 'holiday/snow-pile',
   'kaykit/fu-shelf_B_large_decorated', 'kaykit/hw-candle_triple', 'kaykit/re-jar_A_large', 'kaykit/re-jar_B_medium', 'kaykit/Rogue_Hooded', 'kaykit/fu-book_set',
-  'kenney/tree_default', 'kenney/tree_oak', 'kenney/tree_fat', 'kenney/tree_pineRoundA', 'kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA',
+  'quaternius/CommonTree_1', 'quaternius/CommonTree_2', 'quaternius/CommonTree_3', 'quaternius/Pine_2', 'kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA',
   'kenney/mushroom_redGroup', 'kenney/rock_largeA', 'kenney/plant_bushLarge', 'custom/castle', 'castle/flag-banner-long', 'pets/animal-chick', 'pets/animal-bunny'];
 const A3_GRIMAUD = { model: 'kk-hood', hat: 'none', glasses: false, back: 'none', color: '#5a189a' };
 const A3_H = 2; // taille du petit sorcier (unités 3D)
@@ -14,10 +14,14 @@ const A3_H = 2; // taille du petit sorcier (unités 3D)
 const A3_REACH = 1.9; // (portée du jeu, bras tendu, en « torses du jeu » ; la portée de l'enfant est mesurée par les étoiles)
 const A3_NOSHADOW = { castShadow: false };
 // Décor de chaque jeu, et plan de caméra : de face (miroir) ou de dos (course vers le nuage, balai)
+// (noHands : on ne touche rien avec les mains ; pas de mains magiques ni de rayons qui suivraient des bras agités en tous sens)
 const A3_GAMES = {
   mur: { room: 'corridor' }, soleil: { room: 'meadow', back: true }, pimprenelle: { room: 'hall' }, neige: { room: 'snow' },
-  potions: { room: 'lab' }, duel: { room: 'arena' }, corde: { room: 'meadow' }, equilibre: { room: 'rope' }, balai: { room: 'sky', back: true }, photo: { room: 'studio' },
+  potions: { room: 'lab' }, duel: { room: 'arena' }, corde: { room: 'meadow', noHands: true }, equilibre: { room: 'rope', noHands: true }, balai: { room: 'sky', back: true }, photo: { room: 'studio' },
 };
+// Images d'effets (Kenney Particle Pack, CC0) : étoiles scintillantes, cœurs, onde de choc, petit nuage de fumée
+const A3_FX = { star: ['star_06', 'star_07', 'star_08', 'star_09', 'magic_05'], heart: ['symbol_01'], gem: ['symbol_02'], ring: ['circle_03'], smoke: ['smoke_04'] };
+const A3_FX_BASE = MODELS_BASE.replace(/models\/$/, 'fx/');
 const a3swap = (k) => k.replace(/left|right/, (x) => (x === 'left' ? 'right' : 'left'));
 
 class Arena3D {
@@ -46,6 +50,10 @@ class Arena3D {
     this.measure();
     // Mains lumineuses
     this.glowTex = this.glowTex || this.dotTex();
+    if (!this.fxTex) { // (chargées une fois ; tant qu'elles ne sont pas là, on garde les points lumineux)
+      const L = new T.TextureLoader(); this.fxTex = {};
+      for (const [k, names] of Object.entries(A3_FX)) this.fxTex[k] = names.map((n) => { const t = L.load(A3_FX_BASE + n + '.png', () => (t.userData.ok = true)); t.colorSpace = T.SRGBColorSpace; return t; });
+    }
     this.glows = [0, 1].map(() => { const s = new T.Sprite(new T.SpriteMaterial({ map: this.glowTex, color: '#ffd166', blending: T.AdditiveBlending, depthWrite: false, transparent: true })); s.scale.setScalar(0.55); scene.add(s); return s; });
     // Lumières : ciel + soleil (ombres si la qualité le permet)
     this.hemi = new T.HemisphereLight('#fff4e0', '#5b4e8c', 1.15); scene.add(this.hemi);
@@ -138,6 +146,18 @@ class Arena3D {
     if (shared) { this.gm = this.gm || new Map(); const k = c + op; if (!this.gm.has(k)) this.gm.set(k, this.glowMat(c, op)); return this.gm.get(k); }
     return new this.T.SpriteMaterial({ map: this.glowTex, color: c, blending: this.T.AdditiveBlending, depthWrite: false, transparent: true, opacity: op });
   }
+  // Sprite d'effet (une image du pack au hasard dans la famille), partagé par couleur ; repli : point lumineux
+  fxMat(kind, c) {
+    const list = (this.fxTex && this.fxTex[kind] || []).filter((t) => t.userData.ok); if (!list.length) return this.glowMat(c, 1, true);
+    const t = list[Math.floor(Math.random() * list.length)], k = kind + t.uuid + c; this.fm = this.fm || new Map();
+    if (!this.fm.has(k)) this.fm.set(k, new this.T.SpriteMaterial({ map: t, color: c, blending: kind === 'smoke' ? this.T.NormalBlending : this.T.AdditiveBlending, depthWrite: false, transparent: true }));
+    return this.fm.get(k);
+  }
+  // Onde de choc : un anneau lumineux qui s'agrandit et s'efface (réussite)
+  shock(pos, col = '#ffd166', size = 2.4) {
+    const s = new this.T.Sprite(this.fxMat('ring', col).clone()); s.position.copy(pos); s.scale.setScalar(0.2); this.scene.add(s);
+    this.parts.push({ o: s, v: new this.T.Vector3(), t0: performance.now(), life: 550, g: 0, s0: 0.2, spin: 0, grow: size, own: true });
+  }
   glow(c, size, op = 1) { const s = new this.T.Sprite(this.glowMat(c, op)); s.scale.setScalar(size); return s; }
 
   // Petites particules 3D : étincelles (sprites lumineux) ou morceaux (neige, briques)
@@ -148,7 +168,10 @@ class Arena3D {
       const a = Math.random() * Math.PI * 2, e = (Math.random() - 0.3) * Math.PI * 0.6, sp = (opts.speed || 3) * (0.4 + Math.random() * 0.8);
       let o;
       if (opts.chunk) { o = new T.Mesh(opts.chunk === 'box' ? this.G.box : this.G.ball, this.mat(cols[i % cols.length])); o.scale.setScalar((opts.size || 0.12) * (0.6 + Math.random() * 0.8)); o.castShadow = true; }
-      else { o = new T.Sprite(this.glowMat(cols[i % cols.length], 1, true)); o.scale.setScalar((opts.size || 0.22) * (0.6 + Math.random() * 0.8)); }
+      else { // (étincelles : surtout des étoiles qui scintillent, quelques points lumineux pour le volume)
+        const kind = opts.tex || (Math.random() < 0.65 ? 'star' : null), big = kind && kind !== 'star' ? 1.6 : kind ? 1.5 : 1;
+        o = new T.Sprite(kind ? this.fxMat(kind, cols[i % cols.length]) : this.glowMat(cols[i % cols.length], 1, true)); o.scale.setScalar((opts.size || 0.22) * big * (0.6 + Math.random() * 0.8));
+      }
       o.position.copy(pos); this.scene.add(o);
       this.parts.push({ o, v: new T.Vector3(Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp + (opts.up || 1.5), Math.sin(a) * Math.cos(e) * sp * 0.6), t0: now, life: opts.life || 900, g: opts.grav ?? 4, s0: o.scale.x, spin: opts.chunk ? (Math.random() - 0.5) * 12 : 0 });
     }
@@ -156,10 +179,11 @@ class Arena3D {
   updateParts(now, dt) {
     this.parts = this.parts.filter((p) => {
       const k = (now - p.t0) / p.life;
-      if (k >= 1) { this.scene.remove(p.o); return false; }
+      if (k >= 1) { this.scene.remove(p.o); if (p.own) p.o.material.dispose(); return false; }
       p.v.y -= p.g * dt; p.o.position.addScaledVector(p.v, dt);
       if (p.o.position.y < 0.02 && p.spin) { p.o.position.y = 0.02; p.v.multiplyScalar(0.5); p.v.y = Math.abs(p.v.y) * 0.3; }
       if (p.spin) { p.o.rotation.x += p.spin * dt; p.o.rotation.z += p.spin * dt * 0.7; }
+      if (p.grow) { p.o.scale.setScalar(p.s0 + (p.grow - p.s0) * (1 - (1 - k) ** 3)); p.o.material.opacity = 1 - k; return true; } // (onde de choc)
       const s = p.s0 * (p.o.isSprite ? 1 - k : Math.min(1, (1 - k) * 3)); p.o.scale.setScalar(Math.max(0.001, s));
       return true;
     });
@@ -203,12 +227,12 @@ class Arena3D {
           r.child[n].quaternion.identity();
           if (up && fo) { // (vrai coude / genou : l'avant-bras suit le poignet de l'enfant)
             const end = /arm/.test(n) ? (/left/.test(n) ? r.bones.handL : r.bones.handR) : r.bones[/left/.test(n) ? 'foot.l' : 'foot.r'];
-            if (end) { S.aimBone(r.child[n], end, fo, m.inner); const pq = this.boneQ.get(n + ':fo'); if (pq && P.smooth !== false) r.child[n].quaternion.copy(pq.slerp(r.child[n].quaternion, 0.5)); this.boneQ.set(n + ':fo', r.child[n].quaternion.clone()); }
+            if (end) { S.aimBone(r.child[n], end, fo, m.inner); const pq = this.boneQ.get(n + ':fo'); if (pq && P.smooth !== false) r.child[n].quaternion.copy(pq.slerp(r.child[n].quaternion, P.smoothK || 0.5)); this.boneQ.set(n + ':fo', r.child[n].quaternion.clone()); }
           }
         }
         // (mouvement doux : le bras rejoint la position de l'enfant en une fraction de seconde, sans tremblote)
         const prev = this.boneQ.get(n);
-        if (prev && P.smooth !== false) bone.quaternion.copy(prev.slerp(bone.quaternion, 0.5));
+        if (prev && P.smooth !== false) bone.quaternion.copy(prev.slerp(bone.quaternion, P.smoothK || 0.5));
         this.boneQ.set(n, bone.quaternion.clone());
       }
     }
@@ -227,7 +251,7 @@ class Arena3D {
   // Réactions : petite secousse de caméra, « coup » de zoom, le sorcier réagit (joie / aïe)
   shake(a = 0.08, ms = 300) { this.shakeT = performance.now(); this.shakeA = a; this.shakeMs = ms; }
   punch() { this.punchT = performance.now(); }
-  react(kind) { this.reactT = performance.now(); this.reactKind = kind; if (kind === 'win') { this.punch(); this.shake(0.04, 200); } if (kind === 'hurt') this.shake(0.18, 400); }
+  react(kind) { this.reactT = performance.now(); this.reactKind = kind; if (kind === 'win') { this.punch(); this.shake(0.04, 200); if (this.av && this.scene) { const p = this.av.group.position.clone().add(new this.T.Vector3(0, 1.3, 0.3)); this.shock(p); this.burst(p, 6, { tex: 'heart', cols: ['#ff70a6', '#ff8fab'], speed: 1.6, up: 2, grav: 1, size: 0.3, life: 1100 }); } } if (kind === 'hurt') this.shake(0.18, 400); }
 
   // Le corps vu à l'écran (comme arena.body) : directions des membres du joueur (ou du sorcier au clavier) -> petit sorcier 3D
   body(A, now, st) {
@@ -370,7 +394,7 @@ class Arena3D {
     this.camFx(A, now);
     const sync = this['sync3_' + this.game]; if (sync) sync.call(this, A.st, now, dt, B);
     // mains lumineuses (pas pendant le balai ni la course vers le nuage : on voit le sorcier de dos)
-    const showGlow = !this.cfg.back && B && this.hand3;
+    const showGlow = !this.cfg.back && !this.cfg.noHands && B && this.hand3;
     const hipY = B && B.J && B.J.hL ? B.J.hL.y : this.A.H;
     this.glows.forEach((g, i) => {
       const h = showGlow && this.hand3[i], hs = B && B.J && (i ? B.J.handR : B.J.handL); g.visible = !!h; if (!h) return;
@@ -558,7 +582,7 @@ class Arena3D {
     const path = this.tex(64, 256, (x, w, h) => { x.fillStyle = '#e6c28f'; x.fillRect(0, 0, w, h); for (let i = 0; i < 80; i++) { x.fillStyle = Math.random() < 0.5 ? '#d9b27c' : '#f0d3a6'; x.beginPath(); x.arc(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 0, 7); x.fill(); } }, 1, 20);
     const pm = new T.Mesh(this.geo(new T.PlaneGeometry(3.2, 120)), this.mat('#ffffff', { map: path, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); pm.rotation.x = -Math.PI / 2; pm.position.set(0, 0.02, -50); pm.receiveShadow = true; pm.userData.noOutline = true; scene.add(pm);
     this.pathMap = path;
-    const trees = ['kenney/tree_default', 'kenney/tree_oak', 'kenney/tree_fat', 'kenney/tree_pineRoundA'];
+    const trees = ['quaternius/CommonTree_1', 'quaternius/CommonTree_2', 'quaternius/CommonTree_3', 'quaternius/Pine_2'];
     for (let z = 8; z > -70; z -= 6) for (const s of [-1, 1]) {
       const x = s * (4.5 + Math.random() * 6);
       if (!this.model(trees[Math.floor(Math.random() * trees.length)], 3 + Math.random() * 2, x, 0, z + Math.random() * 2, Math.random() * 6)) { this.add(scene, G.cyl, '#8d5a3b', x, 0.8, z, 0.2, 1.6, 0.2); this.add(scene, G.ball, '#43aa8b', x, 2.4, z, 1.2); }
@@ -691,7 +715,7 @@ class Arena3D {
     const w = st.wall;
     if (this.wallObj && this.wallObj.ref !== w) { // (le mur est arrivé : il passe à travers, ou fait « bong » et tombe)
       const o = this.wallObj; o.endT = now; o.ok = !!o.ref.ok; this.wallOld.push(o); this.wallObj = null;
-      if (o.ok) this.burst(new this.T.Vector3(this.av.group.position.x, 1.3, 0.3), 50, { speed: 4 });
+      if (o.ok) { const p = new this.T.Vector3(this.av.group.position.x, 1.3, 0.3); this.burst(p, 50, { speed: 4 }); this.shock(p, '#b8f2a1', 3.2); Audio8.sample('glass', 0.5); }
       else { this.burst(new this.T.Vector3(this.av.group.position.x, 1.2, 0.4), 18, { chunk: 'box', cols: ['#6a4c93', '#7b5ea7'], speed: 3, size: 0.18, life: 1200 }); Audio8.crash(); this.react('hurt'); }
     }
     if (w && !this.wallObj) { this.wallObj = this.makeWall(w); Audio8.whoosh(); }
@@ -778,7 +802,7 @@ class Arena3D {
       const pop = Math.min(1, (now - m.t0) / 300);
       const aim = now - (m.aimT || 0) < 150; o.k = (o.k || 1) + ((aim ? 1.18 : 1) - (o.k || 1)) * 0.25; o.g.scale.setScalar(o.k);
       o.g.position.set(x, -1.5 * (1 - pop), z); o.g.rotation.y = Math.atan2(this.cam.position.x - x, this.cam.position.z - z) + Math.sin(now / 300 + m.slot) * 0.15;
-      if (m.hit && !o.boom) { o.boom = true; o.g.visible = false; Audio8.puff(); this.shake(0.05, 200); this.burst(new this.T.Vector3(x, 0.9, z), 26, { chunk: 'ball', cols: ['#ffffff', '#f1f6ff', '#f77f00'], speed: 3.5, size: 0.16, life: 1300 }); this.burst(new this.T.Vector3(x, 1, z), 16, { cols: ['#ffffff', '#bde0fe'] }); }
+      if (m.hit && !o.boom) { o.boom = true; o.g.visible = false; Audio8.puff(); this.shake(0.05, 200); this.burst(new this.T.Vector3(x, 0.9, z), 26, { chunk: 'ball', cols: ['#ffffff', '#f1f6ff', '#f77f00'], speed: 3.5, size: 0.16, life: 1300 }); this.burst(new this.T.Vector3(x, 1, z), 16, { cols: ['#ffffff', '#bde0fe'] }); this.burst(new this.T.Vector3(x, 0.9, z), 5, { tex: 'smoke', cols: ['#ffffff'], speed: 0.8, up: 0.6, grav: -0.3, size: 0.9, life: 900 }); }
       if (m.gone) o.g.position.y = -1.5 * Math.min(1, (now - m.gone) / 600);
     }
     const lb = new Set(st.balls);
@@ -912,13 +936,19 @@ class Arena3D {
     this.ropeMat = this.mat('#c77dff', { emissive: '#7b2cbf', emissiveIntensity: 0.4 });
     this.bow = this.emo('🎀', 0.5); scene.add(this.bow);
   }
-  pose3_corde(P, st, now) { const off = st.m * 1.1; P.x = -2.1 + off + (P.x || 0) * 0.3; P.rz = -0.08 - (now - st.burst < 1100 ? 0.1 : 0); }
-  cam3_corde(st) { const off = st.m * 1.1 * 0.6; this.camTo(off, 1.5, 7.2, off, 1.1, 0, 42, 0.15); }
+  // (les bras ne copient pas l'enfant : il les agite très vite, la détection suit mal et le sorcier partait dans tous les sens ;
+  // il tient la corde à deux mains et tire d'autant plus fort que l'enfant bouge)
+  pose3_corde(P, st, now) {
+    const off = st.m * 1.1, k = st.pull || 0, a = Math.sin(now / 140) * 0.25 * k;
+    P.x = -2.1 + off; P.rz = -0.08 - (now - st.burst < 1100 ? 0.1 : 0) - k * 0.08;
+    P.limbs = { 'arm-left': [0.8 - a, -0.15, 0.45], 'arm-right': [0.9 - a, -0.05, 0.3] }; P.smoothK = 0.3;
+  }
+  cam3_corde(st) { const off = st.m * 1.1 * 0.6; this.camTo(off, 1.5, 7.2, off, 1.1, 0, 42, 0.05); }
   sync3_corde(st, now) {
     const T = this.T, off = st.m * 1.1, strong = now - st.burst < 1100, cx = 2.6 + off;
-    if (st.burst && st.burst !== this.lastBurst) { this.lastBurst = st.burst; Audio8.whoosh(); this.shake(0.06, 400); }
+    if (st.burst && st.burst !== this.lastBurst) { this.lastBurst = st.burst; Audio8.whoosh(); this.shake(0.025, 300); }
     if (this.cloud) { this.cloud.group.position.set(cx + (strong ? Math.sin(now / 40) * 0.08 : 0), 0.35 + Math.sin(now / 500) * 0.06, 0); this.cloud.group.rotation.y = -0.6; this.cloud.animate(now, strong ? 'happy' : 'idle'); }
-    const h = this.hand3 && this.hand3.filter(Boolean); const a = h && h.length ? h.reduce((s, v) => s.add(v), new T.Vector3()).multiplyScalar(1 / h.length) : new T.Vector3(-2 + off, 1.1, 0.2);
+    const h = this.avHand3 && this.avHand3.filter(Boolean); const a = h && h.length ? h.reduce((s, v) => s.add(v), new T.Vector3()).multiplyScalar(1 / h.length) : new T.Vector3(-2 + off, 1.1, 0.2);
     const b = new T.Vector3(cx - 0.75, 1.0, 0.1), mid = a.clone().lerp(b, 0.5); mid.y -= 0.15 + Math.sin(now / 80) * 0.03;
     const curve = new T.QuadraticBezierCurve3(a, mid, b);
     if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh.geometry = new T.TubeGeometry(curve, 16, 0.05, 5); }
@@ -928,9 +958,11 @@ class Arena3D {
 
   // ----- L'équilibriste : sur la corde au-dessus des nuages ; le vent souffle, on avance en tenant bon
   pose3_equilibre(P, st, now) {
-    const k = Math.min(1, (st.held || 0) / st.n); P.x = -3.2 + k * 6.4; P.y = 0; P.rz = st.ok2 ? Math.sin(now / 700) * 0.04 : Math.sin(now / 110) * 0.22 + (st.gust ? st.side * -0.1 : 0);
+    const k = Math.min(1, (st.held || 0) / st.n); P.x = -3.2 + k * 6.4; P.y = 0; P.smoothK = 0.25; // (sur un pied, l'enfant vacille : bras et jambes suivent en douceur)
+    const tilt = st.ok2 ? Math.sin(now / 700) * 0.04 : Math.sin(now / 320) * 0.09 + (st.gust ? st.side * -0.06 : 0);
+    this.eqTilt = (this.eqTilt || 0) + (tilt - (this.eqTilt || 0)) * 0.1; P.rz = this.eqTilt; // (pas de saut de « ça tient » à « ça vacille »)
   }
-  cam3_equilibre() { const x = this.av.group.position.x; this.camTo(x * 0.6, 1.5, 6.2, x * 0.7, 1.0, 0, 42, 0.1); }
+  cam3_equilibre(st) { const x = -3.2 + Math.min(1, (st.held || 0) / st.n) * 6.4; this.camTo(x * 0.6, 1.5, 6.2, x * 0.7, 1.0, 0, 42, 0.05); } // (suit l'avancée, pas le sorcier qui vacille)
   sync3_equilibre(st, now, dt) {
     if (st.gust && st.gust !== this.lastGust) { this.lastGust = st.gust; Audio8.whoosh(); }
     for (const w of this.wind || []) {

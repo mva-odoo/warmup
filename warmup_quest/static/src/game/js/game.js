@@ -680,6 +680,14 @@ function updateCalib(now) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
     setCalibStage('back', 'Recule un peu 👣', 'Remplis la silhouette : on doit voir tes pieds · Les grands : posez l\'ordi plus bas (sur une chaise) et penchez l\'écran en arrière', 'Recule un peu, pour que je voie tes pieds ! Remplis bien la silhouette.');
+  } else if (!s.armsUp && tracker.bodies.every((b) => b.easy)) {
+    // (mode petit : pas besoin de lever les bras, il suffit d'être bien placé un moment ; bras levés = plus vite)
+    if (now - (calibState.autoLast || 0) > 400) calibState.autoT = now; calibState.autoLast = now; // (parti puis revenu : on recompte)
+    const p = Math.min(1, (now - calibState.autoT) / 3000);
+    setCalibStage('auto', 'Bravo, je te vois ! ✨', duo() ? 'On commence tout de suite…' : 'On commence tout de suite… (ou lève les bras)', duo() ? 'Je vous vois ! On commence !' : 'Je te vois ! On commence !');
+    $('calibBar').style.width = p * 100 + '%';
+    if (p >= 1) { tracker.calibrate(); afterCalib(); }
+    return;
   } else if (!s.armsUp) {
     calibState.holdStart = 0;
     $('calibBar').style.width = '0%';
@@ -703,6 +711,9 @@ function calibIssue(now) {
   if (!calibState.issue) calibState.issueT0 = now; // (le compteur des 10 s ne tourne que pendant un problème)
   return calibState.issue;
 }
+
+$('calibBack').onclick = goMenu;
+$('calibGo').onclick = () => { if (phase !== 'calib') return; tracker.calibrate(); afterCalib(); };
 
 function holdCalib(now) {
   if (!calibState.holdStart) calibState.holdStart = now;
@@ -2584,17 +2595,24 @@ function openRoom() {
   if (!el) {
     el = document.createElement('section');
     el.id = 'room'; el.className = 'screen hidden';
-    el.innerHTML = '<h2>🏠 Ma chambre</h2><canvas id="roomCanvas"></canvas><div class="row"><button class="btn" id="roomBack">← Retour</button></div>';
+    el.innerHTML = '<h2>🏠 Ma chambre</h2><p class="roomTip">👆 Touche les choses : les lits, la lampe, la fenêtre, les créatures, les trophées…</p>' +
+      '<canvas id="roomCanvas"></canvas><div class="row"><button class="btn" id="roomBack">← Retour</button></div><div id="roomPhoto" class="hidden"><img alt=""></div>';
     document.body.appendChild(el);
     $('roomBack').onclick = () => { scene3d.closeRoom(); show('room', false); show('menu'); };
+    $('roomPhoto').onclick = () => show('roomPhoto', false);
   }
   show('menu', false); show('room');
-  const carnet = Carnet.get(), look = trainerLooks()[0];
-  const c = WUQStore.getCompanion(0), cr = Progress.companionCreature(c);
+  // (à deux : chacun son lit, son dresseur, son compagnon, ses photos et ses gommettes)
+  const carnet = Carnet.get(), looks = trainerLooks(), players = WUQStore.players().slice(0, 2);
   const friends = CREATURES.filter((x) => carnet[x.id]).sort((a, b) => carnet[b.id] - carnet[a.id]).map((x) => ({ cr: x, evolved: carnet[x.id] >= EVOLVE_AT }));
-  const data = { look, companion: cr ? { cr, level: Progress.companionLevel(c) } : null, friends,
-    trophies: Progress.ordered().map((w) => Progress.stars(w)), photos: Photos.list(0), stickers: WUQStore.getStickers(0) };
-  const keys = [...lookKeys(look), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...(cr ? [cr] : [])]),
+  const kids = (players.length ? players : [{}]).map((p, i) => {
+    const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
+    return { name: p.name || '', color: players.length > 1 ? (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i]) : null, look: looks[i] || looks[0],
+      companion: cr ? { cr, level: Progress.companionLevel(c) } : null, photos: Photos.list(i), stickers: WUQStore.getStickers(i) };
+  });
+  const data = { kids, friends, trophies: Progress.ordered().map((w) => Progress.stars(w)),
+    onPhoto: (url) => { $('roomPhoto').querySelector('img').src = url; show('roomPhoto'); } };
+  const keys = [...kids.flatMap((k) => lookKeys(k.look)), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...kids.map((k) => k.companion && k.companion.cr).filter(Boolean)]),
     ...['fu-bed_single_A', 'fu-couch_pillows', 'fu-lamp_standing', 'fu-cactus_medium_A', 'fu-shelf_B_large_decorated', 'fu-rug_rectangle_stripes_A', 'fu-pillow_A'].map((n) => 'kaykit/' + n)];
   scene3d.load().then(() => scene3d.P.preload(keys)).then(() => scene3d.openRoom($('roomCanvas'), data)).catch((e) => console.warn(e));
   Audio8.theme('jardin3d');
@@ -2647,7 +2665,9 @@ function updateCamStatus(now) {
   $('camPerf').classList.toggle('slow', tracker.perf.fps > 0 && tracker.perf.fps < 15);
   if (phase === 'play') {
     updateTrackWarn(now);
-    if (!s.present) { if (!lostSince) lostSince = now; } else lostSince = 0;
+    // (sorti par le bas = accroupi ou couché : on attend qu'il se relève ; pause seulement s'il ne revient pas du tout)
+    const lowFor = s.low ? now - s.low : 0, gone = !s.present && (!s.low || lowFor > 15000);
+    if (gone) { if (!lostSince) lostSince = now; } else lostSince = 0;
     show('lost', lostSince && now - lostSince > 1200);
     if (lostSince && now - lostSince > 3000) pauseGame('lost');
   }

@@ -459,6 +459,9 @@ body.sim .next { bottom: 78px; }
 @keyframes photoIn { 0% { opacity: 0; transform: rotate(-20deg) scale(1.6); filter: brightness(3); } 100% { opacity: 1; transform: rotate(4deg) scale(1); filter: none; } }
 #room { background: radial-gradient(circle at 50% 30%, #4c3fb4, #1e1b4b 75%); color: #fff; gap: 10px; }
 #room h2 { margin: 0; font-size: clamp(30px, 4vw, 46px); }
+.roomTip { margin: 0; font-size: 20px; opacity: 0.9; }
+#roomPhoto { position: fixed; inset: 0; z-index: 70; background: rgba(13, 8, 48, 0.85); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+#roomPhoto img { max-width: 88vw; max-height: 82vh; border: 10px solid #fff; border-radius: 12px; box-shadow: var(--shadow); transform: rotate(-2deg); }
 #roomCanvas { width: min(1100px, 94vw); height: min(62vh, 620px); border-radius: 24px; border: 5px solid #fff; box-shadow: var(--shadow); }
 #results { gap: 6px; justify-content: flex-start; padding-top: 3vh; overflow-y: auto; }
 #results .stars { font-size: clamp(54px, 8vw, 92px); }
@@ -803,3 +806,6 @@ body { background: var(--night0); }
 #calib p#calibSub { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 60; max-width: 92vw; margin: 0;
   background: rgba(13, 8, 48, .88); color: #fff; padding: 8px 18px; border-radius: 16px; font-weight: 700; text-align: center; }
 #calib p#calibSub:empty { display: none; }
+/* (pour les parents : revenir au menu, ou lancer sans attendre les bras levés) */
+#calib .calibBtns { position: fixed; left: 14px; right: 14px; top: 14px; display: flex; justify-content: space-between; pointer-events: none; z-index: 61; }
+#calib .calibBtns .btn { pointer-events: auto; font-size: 22px; padding: 8px 22px; }

@@ -551,6 +551,9 @@ class AcademyHub {
     this.block = null; this.trips = this.trips || 0; this.moveK = 0; this.t0 = performance.now();
     this.hover = this.defaultHover(from); this.sideWas = 'center'; this.idle = 0;
     this.enterT = 0; this.lastSay = {};
+    // (on arrive souvent les bras encore en l'air : calibrage, « lève les bras pour continuer » ; ce geste-là ne doit pas
+    // lancer tout de suite le lieu choisi : il faut d'abord baisser les bras un instant)
+    this.needDown = true; this.downT = 0; this.downHint = false;
     S.mirror = false;
     // Au village, pas besoin de choisir : le petit sorcier part tout seul vers l'étape suivante (ou le pays suivant) après
     // quelques secondes ; un pas de côté annule, pour choisir autre chose. (Arrivée par le portail : on ne choisit qu'une fois)
@@ -635,7 +638,10 @@ class AcademyHub {
         if (side !== 'center') { this.move(side === 'left' ? -1 : 1); if (this.autoGo) { this.autoGo = null; this.hint('🙌 Bras levés : on y va · 👣 Pas de côté : changer'); } } // (on choisit soi-même)
       }
       else if (side !== 'center' && now - this.sideT > 1300) { this.sideT = now; this.move(side === 'left' ? -1 : 1); }
-      const up = this.armsUp() || (auto && now - this.t0 > 1500);
+      const raised = this.armsUp();
+      if (this.needDown) { if (raised) this.downT = 0; else if (!this.downT) this.downT = now; else if (now - this.downT > 400) { this.needDown = false; if (this.downHint) this.hint(this.autoGo ? '✨ On y va tout seul… · 👣 Pas de côté : choisir autre chose' : '🙌 Bras levés : on y va · 👣 Pas de côté : changer'); } }
+      if (this.needDown && raised && now - this.t0 > 2500) { this.downHint = true; this.hint('👇 Baisse les bras… puis lève-les pour y aller'); }
+      const up = (raised && !this.needDown) || (auto && now - this.t0 > 1500);
       if (up && this.hover) {
         this.charge = Math.min(1, this.charge + dt / (tracker.bodies.some((b) => b.easy) ? 0.6 : 0.8));
         if (now - (this.hum || 0) > 200) { this.hum = now; Audio8.sparkle(this.charge); }

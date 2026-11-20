@@ -1,0 +1,5 @@
+Warm-Up Quest - images d'effets (particules)
+
+Particle Pack (1.1) by Kenney Vleugels (www.kenney.nl)
+Licence : Creative Commons Zero (CC0) http://creativecommons.org/publicdomain/zero/1.0/
+Images réduites en 128 px (256 px pour circle_03).

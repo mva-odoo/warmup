@@ -1594,8 +1594,11 @@ class Scene3D extends DepthScene {
     });
   }
 
-  // ---------- Chambre du dresseur : une petite pièce en 3D avec sa collection
-  // data : { look, companion: {cr, level}, friends: [{cr, evolved}], trophies: [stars par monde], photos: [url], stickers: [émojis] }
+  // ---------- Chambre du dresseur : une petite pièce en 3D avec sa collection, où l'on touche les choses
+  // data : { kids: [{ name, color, look, companion: {cr, level}, photos: [url], stickers: [émojis] }] (1 ou 2 enfants : un lit chacun),
+  //          friends: [{cr, evolved}], trophies: [étoiles par monde], onPhoto(url) }
+  // On touche (souris, doigt, ou petite main des gestes) : le dresseur salue, les créatures sautent et chantent, le lit
+  // endort son dresseur (la nuit tombe), la lampe s'allume, les trophées tournent, l'affiche lance ses gommettes…
   openRoom(canvas, data) {
     const T = this.T;
     this.closeRoom();
@@ -1606,91 +1609,200 @@ class Scene3D extends DepthScene {
     r.setPixelRatio(Math.min(2, devicePixelRatio || 1));
     r.toneMapping = T.ACESFilmicToneMapping; r.outputColorSpace = T.SRGBColorSpace;
     r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
-    const scene = new T.Scene(); scene.background = new T.Color('#2b2160');
-    scene.add(new T.HemisphereLight('#fff4e0', '#6b5b95', 1.3));
+    const DAY = new T.Color('#2b2160'), NIGHT = new T.Color('#0b0a24');
+    const scene = new T.Scene(); scene.background = DAY.clone();
+    const hemi = new T.HemisphereLight('#fff4e0', '#6b5b95', 1.3); scene.add(hemi);
     const sun = new T.DirectionalLight('#fff1d6', 1.7); sun.position.set(4, 8, 6); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
     scene.add(sun);
-    const lamp = new T.PointLight('#ffcf8a', 6, 12, 1.5); lamp.position.set(-3, 4, 1); scene.add(lamp);
+    const lamp = new T.PointLight('#ffcf8a', 6, 12, 1.5); lamp.position.set(-5, 3.6, -3.4); scene.add(lamp);
     const lam = (c, o) => this.P.toon(c, o), box = new T.BoxGeometry(1, 1, 1);
     const add = (geo, c, x, y, z, sx, sy, sz, parent = scene) => { const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
+    const kids = (data.kids && data.kids.length ? data.kids : [{}]).slice(0, 2), duo = kids.length > 1;
+    // (objets à toucher : act(obj) appelé au toucher ; le plus proche sous le doigt gagne)
+    const acts = [], act = (o, f) => { o.userData.act = f; acts.push(o); return o; };
+    // Petites images flottantes (cœurs, étoiles, Zzz, gommettes) : sprites à partir d'émojis
+    const emoTex = new Map(), emo = (ch) => {
+      if (!emoTex.has(ch)) { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.font = '100px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 64, 70); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; emoTex.set(ch, t); }
+      return emoTex.get(ch);
+    };
+    const parts = [], puff = (pos, chars, n = 6, o = {}) => {
+      for (let i = 0; i < n; i++) {
+        const sp = new T.Sprite(new T.SpriteMaterial({ map: emo(chars[i % chars.length]), transparent: true, depthWrite: false })); sp.position.copy(pos); sp.scale.setScalar(o.size || 0.45); scene.add(sp);
+        const a = Math.random() * Math.PI * 2, v = o.speed ?? 1.4;
+        parts.push({ sp, v: new T.Vector3(Math.cos(a) * v * 0.6, (o.up ?? 2) + Math.random(), Math.sin(a) * v * 0.3), t0: performance.now(), life: o.life || 1400, g: o.grav ?? 2 });
+      }
+    };
+    const label = (txt, col) => {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 72; const g = c.getContext('2d');
+      g.fillStyle = col; g.beginPath(); g.roundRect(4, 4, 248, 64, 32); g.fill(); g.fillStyle = '#fff'; g.font = '800 40px "Baloo 2", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 128, 38);
+      const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; const sp = new T.Sprite(new T.SpriteMaterial({ map: t, transparent: true })); sp.scale.set(1.8, 0.5, 1); return sp;
+    };
     // Pièce : plancher, deux murs, tapis rond, fenêtre
     add(box, '#c98b5a', 0, -0.05, 0, 12, 0.1, 9);
     for (let i = -5; i <= 5; i++) add(box, '#b57a4c', i, 0.001, 0, 0.04, 0.01, 9);
     add(box, '#ffd6e0', 0, 3.5, -4.5, 12, 7, 0.2);
     add(box, '#ffe9b8', -6, 3.5, 0, 0.2, 7, 9);
     add(new T.CylinderGeometry(1, 1, 0.04, 40), '#7c8cff', 0, 0.03, 0.8, 2.4, 1, 2.4);
-    // Meubles (KayKit Furniture Bits) : lit, canapé, lampe, plante, étagère à livres
-    for (const [n, x, z, ry, s] of [['fu-bed_single_A', 4.2, -2.6, -Math.PI / 2, 1.3], ['fu-couch_pillows', -3.6, 1.6, Math.PI / 2, 1.2],
-      ['fu-lamp_standing', -5.2, -3.6, 0, 1.4], ['fu-cactus_medium_A', 5.2, 1.5, 0, 1], ['fu-shelf_B_large_decorated', -4.6, -3.9, 0, 1.3],
-      ['fu-rug_rectangle_stripes_A', 2.6, -1.4, 0, 1.6], ['fu-pillow_A', -1.6, 2.6, 0.4, 1]]) {
-      const m = this.P.model('kaykit/' + n); if (!m) continue;
-      m.position.set(x, 0, z); m.rotation.y = ry; m.scale.multiplyScalar(s); m.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); scene.add(m);
-    }
-    add(box, '#a7e3ff', -5.85, 4.2, 0.5, 0.05, 2, 2.6); add(box, '#ffffff', -5.82, 4.2, 0.5, 0.05, 0.08, 2.6);
+    // Meubles (KayKit Furniture Bits) : canapé, lampe, plante, étagère à livres ; un lit par enfant
+    const place = (n, x, z, ry, sc) => { const m = this.P.model('kaykit/' + n); if (!m) return null; m.position.set(x, 0, z); m.rotation.y = ry; m.scale.multiplyScalar(sc); m.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); scene.add(m); return m; };
+    place('fu-couch_pillows', -3.6, 1.6, Math.PI / 2, 1.2); place('fu-cactus_medium_A', 5.2, duo ? 3.4 : 1.5, 0, 1);
+    place('fu-shelf_B_large_decorated', -4.6, -3.9, 0, 1.3); place('fu-rug_rectangle_stripes_A', 2.6, -1.4, 0, 1.6); place('fu-pillow_A', -1.6, 2.6, 0.4, 1);
+    const lampM = place('fu-lamp_standing', -5.2, -3.6, 0, 1.4);
+    let lampOn = true;
+    if (lampM) act(lampM, () => { lampOn = !lampOn; Audio8.sample('click', 0.7) || Audio8.tick(); });
+    const win = add(box, '#a7e3ff', -5.85, 4.2, 0.5, 0.05, 2, 2.6); add(box, '#ffffff', -5.82, 4.2, 0.5, 0.05, 0.08, 2.6);
+    const winStars = [0, 1, 2, 3].map((i) => { const sp = new T.Sprite(new T.SpriteMaterial({ map: emo(i ? '⭐' : '🌙'), transparent: true, opacity: 0 })); sp.scale.setScalar(i ? 0.3 : 0.6); sp.position.set(-5.78, 3.6 + (i % 2) * 0.9 + (i ? 0 : 0.3), -0.4 + i * 0.6); scene.add(sp); return sp; });
+    let night = false; const sleeping = new Set();
+    const setNight = () => { const n = sleeping.size > 0 || night; if (n !== setNight.was) { setNight.was = n; if (n) Audio8.say(sleeping.size ? 'Chut… bonne nuit !' : 'La nuit tombe !'); } };
+    act(win, () => { night = !night; Audio8.spell(); setNight(); });
     // Étagères : créatures amies et trophées (or : 3 étoiles, argent : 2, bronze : 1)
     for (const y of [2.2, 4.0]) add(box, '#8d5a3b', 1.8, y, -4.1, 6.5, 0.15, 0.7);
+    const hops = []; // (créatures qui sautent quand on les touche)
+    const creature = (c, cr) => { act(c.group, () => { c.hopT = performance.now(); Audio8.cry(cr.id, true); Audio8.say(cr.name); puff(c.group.position.clone().add(new T.Vector3(0, 0.6, 0.2)), ['💖', '✨'], 5, { size: 0.35 }); }); c.cr = cr; c.base = c.group.position.y; hops.push(c); };
     data.friends.slice(0, 7).forEach((f, i) => {
       try {
         const c = buildCreature3D(this, f.cr, f.evolved);
         c.group.scale.multiplyScalar(0.55); c.group.position.set(-0.9 + i * 0.9, 2.28, -4.05); c.group.rotation.y = (Math.random() - 0.5) * 0.6;
-        for (let t = 0; t <= 600; t += 100) c.animate(t, 'idle'); scene.add(c.group);
+        for (let t = 0; t <= 600; t += 100) c.animate(t, 'idle'); scene.add(c.group); creature(c, f.cr);
       } catch (e) { /* (créature indisponible) */ }
     });
-    data.trophies.filter((s) => s > 0).slice(0, 8).forEach((s, i) => {
-      const col = s >= 3 ? '#ffd23f' : s === 2 ? '#d9e2ec' : '#d4884a', g = new T.Group();
+    const spins = [];
+    data.trophies.filter((st) => st > 0).slice(0, 8).forEach((st, i) => {
+      const col = st >= 3 ? '#ffd23f' : st === 2 ? '#d9e2ec' : '#d4884a', g = new T.Group();
       add(new T.CylinderGeometry(0.22, 0.08, 0.35, 16), col, 0, 0.42, 0, 1, 1, 1, g);
       add(new T.CylinderGeometry(0.05, 0.05, 0.18, 8), col, 0, 0.17, 0, 1, 1, 1, g);
       add(box, '#5b3a29', 0, 0.05, 0, 0.3, 0.1, 0.3, g);
       g.position.set(-1.1 + i * 0.78, 4.08, -4.05); scene.add(g);
+      act(g, () => { g.userData.spinT = performance.now(); Audio8.coin(); puff(g.position.clone().add(new T.Vector3(0, 0.7, 0.2)), ['⭐'], st, { size: 0.3, up: 1.6 }); }); spins.push(g);
     });
-    // Cadres photos au mur (souvenirs de fin de partie) et affiche de gommettes
+    // Cadres photos au mur (souvenirs de fin de partie, des deux enfants) : on les touche pour les voir en grand
     const loader = new T.TextureLoader();
-    data.photos.slice(0, 3).forEach((url, i) => {
-      add(box, '#ffffff', -4.2 + i * 0.05, 4.6 - i * 1.25, -4.35, 1.5, 0.95, 0.06);
+    kids.flatMap((k) => k.photos || []).slice(0, 3).forEach((url, i) => {
+      const fr = add(box, '#ffffff', -4.2 + i * 0.05, 4.6 - i * 1.25, -4.35, 1.5, 0.95, 0.06);
       const tex = loader.load(url); tex.colorSpace = T.SRGBColorSpace;
       const p = new T.Mesh(new T.PlaneGeometry(1.36, 0.8), new T.MeshBasicMaterial({ map: tex }));
       p.position.set(-4.2 + i * 0.05, 4.6 - i * 1.25, -4.31); scene.add(p);
+      const show = () => { Audio8.photo(); if (data.onPhoto) data.onPhoto(url); }; act(fr, show); act(p, show);
     });
-    if (data.stickers.length) {
+    // Affiche de gommettes (une par enfant, sur le mur de gauche) : on la touche, les gommettes s'envolent
+    kids.forEach((k, ki) => {
+      const st = k.stickers || []; if (!st.length) return;
       const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384;
       const g = cv.getContext('2d'); g.fillStyle = '#fff8e7'; g.fillRect(0, 0, 512, 384);
       g.font = '60px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      data.stickers.slice(0, 20).forEach((st, i) => g.fillText(st, 52 + (i % 5) * 102, 48 + Math.floor(i / 5) * 96));
+      st.slice(0, 20).forEach((e, i) => g.fillText(e, 52 + (i % 5) * 102, 48 + Math.floor(i / 5) * 96));
+      if (duo) { g.fillStyle = k.color || '#ffd166'; g.fillRect(0, 0, 512, 14); }
       const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
       const p = new T.Mesh(new T.PlaneGeometry(1.8, 1.35), new T.MeshBasicMaterial({ map: tex }));
-      p.position.set(-5.85, 2.2, -2.3); p.rotation.y = Math.PI / 2; scene.add(p);
+      p.position.set(-5.85, 2.2, duo ? -2.9 + ki * 2.2 : -2.3); p.rotation.y = Math.PI / 2; scene.add(p);
+      act(p, () => { Audio8.boing(); puff(p.position.clone().add(new T.Vector3(0.4, 0, 0)), st.slice(0, 8), 8, { size: 0.4, up: 2.4 }); });
+    });
+    // Les dresseurs (ils saluent quand on les touche), chacun avec son compagnon et son lit (couverture de sa couleur)
+    const people = kids.map((k, i) => {
+      const hx = duo ? -2.0 + i * 1.9 : 0.2, look = k.look || {};
+      const hero = this.makeHumanHero({ body: look.color || k.color }, false, look);
+      hero.group.rotation.y = Math.PI + 0.25; hero.group.position.set(hx, 0, 0.8); scene.add(hero.group);
+      const me = { k, hero, hx, waveT: 0, comp: null, bed: null, pivot: null };
+      act(hero.group, () => {
+        if (sleeping.has(i)) return wake(me, i);
+        me.waveT = performance.now(); Audio8.say(k.name ? `Coucou ${k.name} !` : 'Coucou !'); Audio8.good();
+        puff(hero.group.position.clone().add(new T.Vector3(0, 2.4, 0.3)), ['💖', '⭐', '✨'], 6);
+      });
+      if (k.companion) {
+        try {
+          const c = buildCreature3D(this, k.companion.cr, k.companion.level >= COMPANION_MAX);
+          c.group.scale.multiplyScalar(0.5 + k.companion.level * 0.07); c.group.position.set(hx + (duo ? 0.95 : 1.4), 0, duo ? 1.9 : 1.3); c.group.rotation.y = -0.4; scene.add(c.group);
+          me.comp = c; creature(c, k.companion.cr);
+        } catch (e) { me.comp = null; }
+      }
+      // le lit : couverture et oreiller de sa couleur, son prénom au-dessus ; le toucher = au dodo (ou debout)
+      // (seul : le long du mur de droite ; à deux : tête contre le mur du fond, côte à côte, avec un passage entre les deux)
+      const bed = duo ? place('fu-bed_single_A', 1.9 + i * 3.3, 0, 0, 1.1) : place('fu-bed_single_A', 4.2, -2.6, -Math.PI / 2, 1.3);
+      if (bed) {
+        let bb = new T.Box3().setFromObject(bed);
+        if (duo) { bed.position.z += -4.35 - bb.min.z; bb = new T.Box3().setFromObject(bed); }
+        const sz = bb.getSize(new T.Vector3()), c = bb.getCenter(new T.Vector3()), top = bb.min.y + sz.y * 0.5;
+        // (tête du lit : vers la droite seul, vers le fond à deux ; la couverture et le dormeur suivent)
+        const along = duo ? new T.Vector3(0, 0, 1) : new T.Vector3(-1, 0, 0), len = duo ? sz.z : sz.x;
+        const bc = c.clone().addScaledVector(along, len * 0.12);
+        const blanket = add(box, k.color || look.color || '#7c8cff', bc.x, top + 0.04, bc.z, duo ? sz.x * 0.9 : sz.x * 0.62, 0.08, duo ? sz.z * 0.62 : sz.z * 0.9);
+        if (k.name || duo) { const lb = label(k.name || `Joueur ${i + 1}`, k.color || '#7b2cbf'); lb.position.set(c.x, duo ? top + 0.45 : bb.max.y + 0.5, duo ? bb.max.z + 0.1 : c.z); scene.add(lb); } // (à deux : prénom au pied du lit, sous l'étagère)
+        const pc = c.clone().addScaledVector(along, len * 0.5 - 0.35), pivot = new T.Group(); pivot.position.set(pc.x, top + 0.3, pc.z); pivot.rotation.y = duo ? Math.PI : Math.PI / 2; // (tête vers l'oreiller ; repère du dormeur, hors scène)
+        me.bed = bed; me.pivot = pivot;
+        const go = () => (sleeping.has(i) ? wake(me, i) : sleep(me, i)); act(bed, go); act(blanket, go);
+      }
+      return me;
+    });
+    function sleep(me, i) {
+      sleeping.add(i); // (couché sur le lit : placé à chaque image, au pied du lit, la tête vers l'oreiller)
+      Audio8.say(me.k.name ? `Bonne nuit ${me.k.name} !` : 'Bonne nuit !'); setNight(); me.zT = 0;
     }
-    // Le dresseur au milieu (il salue), et son compagnon à côté
-    const hero = this.makeHumanHero({ body: data.look.color }, false, data.look);
-    hero.group.rotation.y = Math.PI + 0.25; hero.group.position.set(0.2, 0, 0.8);
-    scene.add(hero.group);
-    let comp = null;
-    if (data.companion) {
-      try { comp = buildCreature3D(this, data.companion.cr, data.companion.level >= COMPANION_MAX); comp.group.scale.multiplyScalar(0.5 + data.companion.level * 0.07); comp.group.position.set(1.7, 0, 1.2); comp.group.rotation.y = -0.4; scene.add(comp.group); } catch (e) { comp = null; }
+    function wake(me, i) {
+      sleeping.delete(i); me.hero.group.rotation.set(0, Math.PI + 0.25, 0, 'XYZ'); me.waveT = performance.now();
+      Audio8.say('Debout !'); Audio8.perfect(); puff(new T.Vector3(me.hx, 2.4, 1), ['☀️', '⭐'], 6); setNight();
     }
-    const cam = new T.PerspectiveCamera(45, 1, 0.1, 60);
+    // Toucher : rayon depuis la caméra (souris, doigt) ; la petite main des gestes « clique » à sa position
+    const ray = new T.Raycaster(), cam = new T.PerspectiveCamera(45, 1, 0.1, 60);
+    const pick = (cx, cy) => {
+      const rc = canvas.getBoundingClientRect(); if (cx < rc.left || cx > rc.right || cy < rc.top || cy > rc.bottom) return null;
+      ray.setFromCamera(new T.Vector2(((cx - rc.left) / rc.width) * 2 - 1, -((cy - rc.top) / rc.height) * 2 + 1), cam);
+      for (const h of ray.intersectObjects(acts, true)) { let o = h.object; while (o && !o.userData.act) o = o.parent; if (o) return o; }
+      return null;
+    };
+    const onClick = (e) => {
+      const g = typeof Gestures !== 'undefined' && Gestures.on && !e.isTrusted; // (clic de la petite main : à sa position)
+      const o = pick(g ? Gestures.x : e.clientX, g ? Gestures.y : e.clientY); if (o) o.userData.act(o);
+    };
+    const onMove = (e) => { canvas.style.cursor = pick(e.clientX, e.clientY) ? 'pointer' : 'default'; };
+    canvas.addEventListener('click', onClick); canvas.addEventListener('pointermove', onMove);
+    canvas.classList.add('gTarget'); canvas.gestureHit = (x, y) => pick(x, y); // (la petite main ne se remplit que sur un objet)
     const t0 = performance.now(), fake = { lane: 0, y: 0, holdPose: null };
+    let lastT = t0, nightK = 0;
     const loop = () => {
       if (gone()) return this.closeRoom();
-      const now = performance.now(), t = (now - t0) / 1000;
+      const now = performance.now(), t = (now - t0) / 1000, dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
       const w = canvas.clientWidth, h = canvas.clientHeight;
       if (canvas.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
-      cam.position.set(Math.sin(t * 0.25) * 1.6 + 1, 3.0, 8.2); cam.lookAt(0, 2.0, -1);
+      cam.position.set(Math.sin(t * 0.25) * 1.2 + 1, duo ? 3.4 : 3.0, duo ? 9.6 : 8.4); cam.lookAt(duo ? 0.8 : 0, 2.0, -1);
+      // nuit : la pièce s'assombrit, la lampe garde une lumière douce, la lune et les étoiles à la fenêtre
+      nightK += ((sleeping.size || night ? 1 : 0) - nightK) * Math.min(1, dt * 2.5);
+      scene.background.copy(DAY).lerp(NIGHT, nightK); hemi.intensity = 1.3 - nightK * 0.95; sun.intensity = 1.7 * (1 - nightK * 0.9);
+      lamp.intensity += ((lampOn ? 6 + nightK * 4 : 0) - lamp.intensity) * Math.min(1, dt * 8);
+      win.material.color.set('#a7e3ff').lerp(new T.Color('#1d2b64'), nightK); winStars.forEach((sp) => (sp.material.opacity = nightK));
       const save = this.heroY3; this.heroY3 = () => 0;
-      try { this.applyHumanPose(fake, hero, Math.floor(t / 4) % 2 ? 'happy' : 'idle', now); } finally { this.heroY3 = save; }
-      hero.group.position.set(0.2, 0, 0.8); hero.ring.visible = false;
-      if (comp) comp.animate(now, Math.floor(t / 3) % 2 ? 'happy' : 'idle');
+      try {
+        for (const [i, me] of people.entries()) {
+          const zz = sleeping.has(i), waving = now - me.waveT < 1600;
+          this.applyHumanPose(fake, me.hero, zz ? 'idle' : waving ? 'happy' : Math.floor(t / 4 + i) % 2 ? 'happy' : 'idle', now);
+          if (zz) { me.hero.group.position.copy(me.pivot.position); me.hero.group.rotation.set(Math.PI / 2, me.pivot.rotation.y, 0, 'YXZ'); me.hero.group.updateMatrixWorld(true); }
+          if (zz) { if (now - (me.zT || 0) > 1100) { me.zT = now; const p = me.pivot.getWorldPosition(new T.Vector3()); puff(p.add(new T.Vector3(0.6, 0.6, 0)), ['💤'], 1, { size: 0.5, up: 0.7, speed: 0.2, grav: 0, life: 2000 }); } }
+          else me.hero.group.position.set(me.hx, waving ? Math.abs(Math.sin((now - me.waveT) / 160)) * 0.25 : 0, 0.8);
+          me.hero.ring && (me.hero.ring.visible = false);
+        }
+      } finally { this.heroY3 = save; }
+      for (const c of hops) {
+        const k = (now - (c.hopT || 0)) / 700, on = k < 1;
+        c.group.position.y = c.base + (on ? Math.sin(k * Math.PI) * 0.6 : 0);
+        if (on) c.group.rotation.y += dt * 9;
+        c.animate(now, on || (people.some((p) => p.comp === c) && Math.floor(t / 3) % 2) ? 'happy' : 'idle');
+      }
+      for (const g of spins) { const k = (now - (g.userData.spinT || 0)) / 900; g.rotation.y = k < 1 ? (1 - (1 - k) ** 3) * Math.PI * 2 : 0; }
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const p = parts[j], k = (now - p.t0) / p.life;
+        if (k >= 1) { scene.remove(p.sp); p.sp.material.dispose(); parts.splice(j, 1); continue; }
+        p.v.y -= p.g * dt; p.sp.position.addScaledVector(p.v, dt); p.sp.material.opacity = Math.min(1, (1 - k) * 2.5);
+      }
       r.render(scene, cam);
       this.roomRAF = requestAnimationFrame(loop);
     };
-    this.room = { r, scene };
+    this.room = { r, scene, people, sleeping, off: () => { canvas.removeEventListener('click', onClick); canvas.removeEventListener('pointermove', onMove); canvas.gestureHit = null; for (const t of emoTex.values()) t.dispose(); } };
     loop();
   }
 
   closeRoom() {
     if (this.roomRAF) cancelAnimationFrame(this.roomRAF);
-    if (this.room) { this.freeRes(this.room.scene); this.room.r.dispose(); this.room = null; }
+    if (this.room) { if (this.room.off) this.room.off(); this.freeRes(this.room.scene); this.room.r.dispose(); this.room = null; }
   }
 
   // ---------- Ballon de la passe à deux : il vole en cloche d'un dresseur à l'autre

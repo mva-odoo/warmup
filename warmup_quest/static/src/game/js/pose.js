@@ -71,7 +71,7 @@ function drawTarget(ctx, w, h, sh, T, pose) {
 function emptyState() {
   return {
     present: false, upperBody: false, fullBody: false, kneesOK: false, anklesOK: false,
-    side: 'center', squat: false, jumpUp: false,
+    side: 'center', squat: false, jumpUp: false, low: 0,
     armsUp: false, airplane: false, star: false, flamingo: false, crossed: false, handsTogether: false,
   };
 }
@@ -107,6 +107,12 @@ class Body {
     this.mode = this.state.anklesOK ? 'full' : this.state.kneesOK ? 'knees' : 'upper';
   }
 
+  // Vient-il de disparaître par le bas ? (déjà accroupi, épaules descendues, ou épaules dans le bas de l'image)
+  goingDown(now) {
+    const L = this.lastSeen; if (!L || now - L.t > 700) return false;
+    return L.squat || L.dy > 0.12 || L.shY > 0.62;
+  }
+
   // Points lissés (filtre One-Euro par point et par axe) ; la visibilité reste celle de la détection
   smooth(lm, now) {
     const t = now / 1000;
@@ -122,7 +128,12 @@ class Body {
     else this.wlm = null;
     this.lm = lm || null;
     // (enfant perdu : ses poses ne restent pas figées — sinon une pose se validerait toute seule, ou à deux par l'enfant absent)
-    const lost = () => { s.present = s.upperBody = s.fullBody = false; for (const k of [...POSE_NAMES, 'starArms', 'handsTogether', 'crossed']) s[k] = false; };
+    // (sauf s'il est sorti par le bas : il s'est accroupi, ou couché par terre — il reste « accroupi » jusqu'à ce qu'on le revoie)
+    const lost = () => {
+      if (!s.low && this.goingDown(now)) { s.low = now; if (!s.squat) { s.squat = true; emit('squat'); } }
+      s.present = s.upperBody = s.fullBody = false; for (const k of [...POSE_NAMES, 'starArms', 'handsTogether', 'crossed']) s[k] = false;
+      if (!s.low) s.squat = false;
+    };
     if (!lm) { lost(); return; }
     const vis = (i) => (lm[i].visibility == null ? 1 : lm[i].visibility);
     const inFrame = (i) => lm[i].x > 0 && lm[i].x < 1 && lm[i].y > 0 && lm[i].y < 1;
@@ -134,6 +145,7 @@ class Body {
     s.upperBody = shOK && hipOK && vis(0) > 0.5 && inFrame(0);
     s.fullBody = s.upperBody && s.anklesOK;
     if (!s.present) { lost(); return; }
+    if (s.low) { s.low = 0; this.prevLm = null; this.prevShY = null; } // (revu : on reprend la détection normale, l'accroupi se lève tout seul)
 
     const sh = mid(lm[11], lm[12]);
     const hip = mid(lm[23], lm[24]);
@@ -144,6 +156,7 @@ class Body {
       this.motion += (m / 7 / this.T - this.motion) * 0.3;
     }
     this.prevLm = lm;
+    this.lastSeen = { t: now, shY: sh.y, dy: this.base != null && this.T ? (sh.y - this.base) / this.T : 0, squat: s.squat };
     const Tnow = hipOK ? dist(sh, hip) : this.T;
     if (this.T == null) this.T = Tnow || 0.2;
     if (this.base == null) this.base = sh.y;
@@ -301,6 +314,7 @@ class Tracker {
     const every = (k) => all.every((s) => s[k]);
     const m = emptyState();
     for (const k of ['present', 'upperBody', 'fullBody', 'kneesOK', 'anklesOK', 'squat', ...POSE_NAMES]) m[k] = every(k);
+    m.low = all.some((s) => s.low) && all.every((s) => s.present || s.low); // (accroupis hors de l'image : pas « perdus »)
     m.side = all.every((s) => s.side === all[0].side) ? all[0].side : 'center';
     m.someone = all.some((s) => s.present);
     m.crossed = all.some((s) => s.crossed); // un seul enfant suffit pour faire pause

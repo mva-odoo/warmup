@@ -1,6 +1,11 @@
 // Effets sonores (WebAudio) et voix (synthèse vocale en français).
 
 const Audio8 = (() => {
+  // Bruitages enregistrés (Kenney, CC0) : des chocs plus vrais, mêlés aux sons fabriqués (qui restent dans le ton du monde)
+  const SFX_BASE = (document.currentScript && document.currentScript.src) ? document.currentScript.src.replace(/js\/[^/]*$/, 'sfx/') : 'sfx/';
+  const SFX = { wood: ['impactWood_heavy_000', 'impactWood_heavy_001', 'impactWood_heavy_002'], soft: ['impactSoft_heavy_000', 'impactSoft_heavy_001', 'impactSoft_heavy_002'],
+    punch: ['impactPunch_medium_000', 'impactPunch_medium_001', 'impactPunch_medium_002'], glass: ['glass_001', 'glass_002'], click: ['switch_002'] };
+  const bufs = {};
   let ctx = null;
   let lastSaid = '', lastSaidAt = 0;
   const ac = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
@@ -280,8 +285,24 @@ const Audio8 = (() => {
     speechSynthesis.speak(u);
   }
 
+  // (chargés au premier geste ; un navigateur qui ne lit pas l'OGG garde simplement les sons fabriqués)
+  function loadSfx() {
+    if (loadSfx.done) return; loadSfx.done = true;
+    for (const [k, names] of Object.entries(SFX)) bufs[k] = [];
+    for (const [k, names] of Object.entries(SFX)) for (const n of names) {
+      fetch(SFX_BASE + n + '.ogg').then((r) => (r.ok ? r.arrayBuffer() : Promise.reject())).then((a) => ac().decodeAudioData(a)).then((b) => bufs[k].push(b)).catch(() => {});
+    }
+  }
+  function sample(k, v = 0.6, rate = 1) {
+    const l = bufs[k]; if (!l || !l.length) return false;
+    graph(); const c = ac(), src = c.createBufferSource(), g = c.createGain();
+    src.buffer = l[Math.floor(Math.random() * l.length)]; src.playbackRate.value = rate * (0.94 + Math.random() * 0.12); g.gain.value = v;
+    src.connect(g).connect(sfxBus); src.start(); return true;
+  }
+
   return {
-    unlock() { ac().resume(); },
+    unlock() { ac().resume(); loadSfx(); },
+    sample,
     // opts.slow : voix plus lente (tuto)
     say(text, opts = {}) {
       if (!text) return;
@@ -350,7 +371,7 @@ const Audio8 = (() => {
       env(g, t, 0.005, 0.3, 0.15); src.connect(f).connect(g).connect(sfxBus); src.start(t); src.stop(t + 0.25);
       play('marimba', deg(3, 2), 0.03, 0.15, 0.18);
     },
-    hit() { play('kick', 0, 0, 0, 0.45); play('bell', chordNote(Math.floor(Math.random() * 3), 2), 0.01, 0.25, 0.12); },
+    hit() { sample('punch', 0.5); play('kick', 0, 0, 0, 0.45); play('bell', chordNote(Math.floor(Math.random() * 3), 2), 0.01, 0.25, 0.12); },
     pop() { play('marimba', deg(5 + Math.floor(Math.random() * 4), 2), 0, 0.1, 0.16); },
     // Musique de fond du monde (world = id du monde ; null = silence)
     theme(world) { theme = world ? { style: WORLD_STYLE[world] || 'adventure', seed: world } : null; refresh(); },
@@ -380,13 +401,13 @@ const Audio8 = (() => {
     spell() { [0, 2, 4, 7, 9].forEach((d, i) => play('bell', deg(d + 2, 3), i * 0.04, 0.35, 0.07)); play('noise', 7000, 0, 0.5, 0.05); },
     // Photo : déclic d'appareil
     // Jeux miroir : briques qui s'écroulent, neige qui éclate, sort lancé, sort qui se charge, entrée en scène, victoire
-    crash() { graph(); const t = ac().currentTime; INST.noise(1400, t, 0.5, 0.45, sfxBus, 'lowpass'); INST.kick(0, t, 0, 0.55, sfxBus); [0, 1, 2].forEach((i) => INST.marimba(deg(i, 0), t + 0.05 + i * 0.06, 0.2, 0.2, sfxBus)); },
-    puff() { graph(); const t = ac().currentTime; INST.noise(1100, t, 0.22, 0.35, sfxBus, 'bandpass'); INST.marimba(deg(5 + Math.floor(Math.random() * 3), 2), t, 0.1, 0.12, sfxBus); },
+    crash() { sample('wood', 0.7); graph(); const t = ac().currentTime; INST.noise(1400, t, 0.5, 0.45, sfxBus, 'lowpass'); INST.kick(0, t, 0, 0.55, sfxBus); [0, 1, 2].forEach((i) => INST.marimba(deg(i, 0), t + 0.05 + i * 0.06, 0.2, 0.2, sfxBus)); },
+    puff() { sample('soft', 0.6, 1.2); graph(); const t = ac().currentTime; INST.noise(1100, t, 0.22, 0.35, sfxBus, 'bandpass'); INST.marimba(deg(5 + Math.floor(Math.random() * 3), 2), t, 0.1, 0.12, sfxBus); },
     zap() { tone(1200, 0.28, 'sawtooth', 0.05, 0, 180); play('noise', 6000, 0, 0.18, 0.08); },
     charge() { tone(180, 0.9, 'triangle', 0.06, 0, 900); },
     sting() { graph(); const t = ac().currentTime; INST.kick(0, t, 0, 0.5, sfxBus); [0, 2, 4, 7].forEach((d, i) => INST.bell(deg(d, 2), t + i * 0.07, 0.6, 0.13, sfxBus)); INST.noise(7000, t + 0.25, 0.4, 0.05, sfxBus); },
     tada() { graph(); const t = ac().currentTime; [0, 2, 4].forEach((i) => INST.bell(chordNote(i, 2), t, 0.9, 0.12, sfxBus)); [0, 2, 4, 7, 9].forEach((d, i) => INST.bell(deg(d, 3), t + 0.18 + i * 0.05, 0.4, 0.08, sfxBus)); INST.kick(0, t, 0, 0.4, sfxBus); INST.noise(8000, t + 0.1, 0.6, 0.06, sfxBus); },
-    photo() { play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
+    photo() { if (sample('click', 0.7)) return; play('noise', 3000, 0, 0.05, 0.25); play('noise', 1500, 0.08, 0.08, 0.2); },
     // Combo : petite montée de notes, et la musique s'emballe (charleston rapide, arpèges doublés) quelques mesures
     combo(lvl = 1) {
       for (let i = 0; i < 3 + lvl * 2; i++) play('bell', deg(i + 2, 2), i * 0.06, 0.3, 0.1);

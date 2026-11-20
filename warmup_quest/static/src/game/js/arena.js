@@ -16,6 +16,9 @@ const AR_SHAPES = { ...TARGET_POSES, stand: AR_STAND, squat: AR_SQUAT,
 const AR_HEAD = (shape) => (shape === AR_SQUAT ? [0, 0.15] : [0, -0.45]);
 const AR_POSE_NAMES = { armsUp: 'les bras en l\'air', airplane: 'l\'avion', star: 'l\'étoile', flamingo: 'sur un pied', squat: 'accroupi', left: 'à gauche', right: 'à droite' };
 // Musique de chaque jeu miroir (styles d'audio.js ; un morceau à lui, tiré de son nom)
+// Consigne dite à voix haute quand un mur arrive (les petits ne lisent pas ; gauche / droite : on suit la flèche)
+const AR_POSE_TIPS = { armsUp: 'Lève les bras tout en haut !', airplane: 'Fais l\'avion, les bras sur les côtés !', star: 'Fais l\'étoile, bras et jambes écartés !',
+  flamingo: 'Lève un pied, comme un flamant rose !', squat: 'Accroupis-toi, tout petit !', left: 'Va du côté de la flèche !', right: 'Va du côté de la flèche !' };
 const AR_MUSIC = { mur: 'dance', soleil: 'fun', pimprenelle: 'fun', neige: 'candy', potions: 'water', duel: 'karate', corde: 'karate', equilibre: 'space', balai: 'adventure', photo: 'dance' };
 const AR_INGREDIENTS = [['🍄', 'Champignon'], ['🌸', 'Fleur'], ['💧', 'Rosée'], ['⭐', 'Poussière d\'étoile'], ['🍓', 'Baie'], ['🪶', 'Plume'], ['🌙', 'Clair de lune']];
 
@@ -193,13 +196,14 @@ class Arena {
       if (this.cal) this.hudCal(now);
       else if (this.intro) this.hudIntro(now);
       else if (this.outro) this.hudOutro(now);
-      else { const hud = this['hud_' + this.s.game]; if (hud) hud.call(this, this.st, now, B); if (this.introEnd && now - this.introEnd < 700) this.hudGo(now - this.introEnd); }
+      else { const hud = this['hud_' + this.s.game]; if (hud) hud.call(this, this.st, now, B); this.duoBadges(now); if (this.introEnd && now - this.introEnd < 700) this.hudGo(now - this.introEnd); }
       this.drawFx(now); ctx.restore(); return;
     }
     ctx.save();
     if (this.s.game === 'balai') this.drawSky(now);
     else this.drawMirror(now, B);
     const dr = this['draw_' + this.s.game]; if (dr) dr.call(this, this.st, now, B);
+    if (!this.intro && !this.outro && !this.cal) this.duoBadges(now);
     this.drawFx(now);
     ctx.restore();
   }
@@ -367,6 +371,37 @@ class Arena {
     this.pill(['↖️ Tends le bras vers l\'étoile, en haut !', '↗️ Et l\'autre étoile, en haut !', '⬅️ Tends le bras sur le côté !', 'Et de l\'autre côté ! ➡️'][cal.i] || '', '#ffffff');
   }
 
+  // ---------- À deux : ce que le jeu demande à CHAQUE enfant, et qui l'a déjà fait (les deux doivent le faire ensemble)
+  wanted() {
+    const st = this.st, g = this.s.game;
+    if (g === 'mur') return st.wall ? { pose: st.wall.pose } : null;
+    if (g === 'equilibre') return { pose: st.gust ? 'airplane' : tracker.mode === 'upper' ? 'airplane' : 'flamingo' };
+    if (g === 'duel' && st.phase === 'counter') return { pose: 'armsUp' };
+    if (g === 'pimprenelle' && st.cur && st.cur.simon && !/jump|smash/.test(st.cur.o.g)) return { pose: st.cur.o.g };
+    if (g === 'corde' || (g === 'soleil' && st.phase === 'dos')) return { move: true };
+    if (g === 'soleil' && st.phase === 'regarde') return { still: true };
+    return null;
+  }
+  // Une pastille par enfant, de son côté de l'écran (sa couleur, son prénom) : ✅ c'est bon, 👉 « à toi ! »
+  duoBadges(now) {
+    if (typeof duo !== 'function' || !duo() || tracker.sim || !this.st) return;
+    const want = this.wanted(), ctx = this.ctx, W = this.W, H = this.H, r = H * 0.055;
+    tracker.bodies.forEach((b, i) => {
+      if (b.away) return;
+      const left = b.center ? 1 - b.center.x < 0.5 : i === 0, x = left ? W * 0.07 : W * 0.93, y = H * 0.2;
+      const s = b.state, seen = s.present || s.low;
+      const ok = !want || !seen ? null : want.pose ? this.poseOk({ st: s }, want.pose) : want.move ? (b.motion || 0) > 0.02 : (b.motion || 0) < 0.03;
+      const name = (team[i] && team[i].name) || (i ? 'Joueur 2' : 'Joueur 1');
+      ctx.save(); ctx.fillStyle = colors[i] || '#ffd166'; ctx.strokeStyle = ok ? '#4ade80' : '#ffffff'; ctx.lineWidth = r * (ok ? 0.22 : 0.12);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.29); ctx.fill(); ctx.stroke(); ctx.restore();
+      this.text(name.charAt(0).toUpperCase(), x, y + r * 0.05, r * 1.1);
+      this.text(name, x, y + r * 1.55, H * 0.032);
+      const tag = !seen ? '👀' : ok == null ? '' : ok ? '✅' : '👉 à toi !';
+      if (tag) this.text(tag, x, y + r * 2.45 + (ok === false ? Math.sin(now / 150) * H * 0.006 : 0), H * 0.036, ok ? '#b8f2a1' : '#ffd166');
+    });
+    if (want && (want.pose || want.move)) this.text('👫 Tous les deux en même temps !', W / 2, H * 0.13, H * 0.035, '#ffffff');
+  }
+
   // ---------- L'enfant imaginaire (mode test) : fait ce que le jeu demande, avec un temps de réaction
   autoPlay(now, evs) {
     const st = this.st, g = this.s.game, f = (this.fake = {});
@@ -391,11 +426,15 @@ class Arena {
     st.k = 0; st.next = now + 1800 * Math.min(1, this.g.mul); st.wall = null;
   }
   up_mur(st, now, dt, B) {
-    if (!st.wall && st.k < st.n && now > st.next) st.wall = { pose: st.seq[st.k], t0: now, dur: Math.max(2.4, 4 - st.k * 0.18) * 1000 * Math.min(1.3, this.g.mul), ok: false };
+    const easy = tracker.bodies.some((b) => b.easy); // (mode petit : murs plus lents, et la pose compte plus tôt)
+    if (!st.wall && st.k < st.n && now > st.next) {
+      st.wall = { pose: st.seq[st.k], t0: now, dur: Math.max(2.4, 4 - st.k * 0.18) * 1000 * Math.min(1.3, this.g.mul) * (easy ? 1.4 : 1), ok: false };
+      this.say(AR_POSE_TIPS[st.wall.pose], 0);
+    }
     const w = st.wall; if (!w) return;
     const q = (now - w.t0) / w.dur;
     w.match = this.poseOk(B, w.pose);
-    if (q > 0.62 && w.match) w.ok = true;
+    if (q > (easy ? 0.4 : 0.62) && w.match) w.ok = true;
     if (q >= 1) {
       st.k++; st.wall = null; st.next = now + 900 * Math.min(1, this.g.mul);
       if (w.ok) { this.win(ARENA.mur.pts, 'SUPER !', B.sh.x, B.sh.y); this.say('Super, le mur est passé !', 0); this.fx.push({ k: 'shatter', t: now }); }
@@ -407,6 +446,7 @@ class Arena {
   draw_mur(st, now, B) {
     const w = st.wall, ctx = this.ctx, W = this.W, H = this.H;
     if (!w) { if (st.k < st.n) this.text(`Mur ${st.k + 1} / ${st.n}`, W / 2, H * 0.86, H * 0.05, '#ffd166'); return; }
+    this.poseGhost(w.pose, B, w.match, now);
     const q = Math.min(1, (now - w.t0) / w.dur), sc = 0.18 + 0.82 * q ** 1.6;
     const G = AR_SHAPES[w.pose], T = B.T * sc, cx = W / 2 + (B.sh.x - W / 2) * q, cy = H * 0.42 + (B.sh.y - H * 0.42) * q;
     // le mur (sur un calque à part : on y découpe le trou en forme de pose)
@@ -675,6 +715,7 @@ class Arena {
     if (this.has(evs, 'jump', 'smash')) st.keyPull = 1;
     if (now > st.nextBurst) { st.burst = now; st.nextBurst = now + 4500 + Math.random() * 2500; this.say('Il tire fort !', 0); }
     const cloud = now - st.burst < 1100 ? 0.32 : 0.1;
+    st.pull = (st.pull || 0) + (Math.max(pull, st.keyPull || 0) - (st.pull || 0)) * Math.min(1, dt * 4); // (pour le sorcier 3D : force lissée)
     st.m = Math.min(0.9, st.m + (cloud - Math.max(pull, st.keyPull || 0) * 0.3) * dt);
     st.ratio = Math.max(0, Math.min(1, (1 - st.m) / 2));
     if (now - (st.detT || 0) > 300) { st.detT = now; ui.setDetail(this.g.detail(this.c)); if (pull > 0.5 && now - (st.cheerT || 0) > 5000) { st.cheerT = now; this.say('Tire, tire !', 0); } }
@@ -849,10 +890,28 @@ class Arena {
     ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, W / 2 + pw / 2, y + H * 0.004, w - pw - H * 0.04);
     ctx.restore();
   }
+  // Silhouette jaune de la pose à prendre, posée sur le petit sorcier (verte quand c'est bon) : on voit tout de suite
+  // où mettre les bras et les jambes, bien avant que le mur arrive. Calée sur la place « debout » de l'enfant.
+  poseGhost(pose, B, match, now) {
+    const ctx = this.ctx, G = AR_SHAPES[pose]; if (!G || !B || !B.sh || !B.T) return;
+    if (!B.st.squat || !this.ghostRef) this.ghostRef = this.ghostRef ? { x: this.ghostRef.x + (B.sh.x - this.ghostRef.x) * 0.15, y: this.ghostRef.y + (B.sh.y - this.ghostRef.y) * 0.15 } : { ...B.sh };
+    const T = B.T, o = this.ghostRef, pt = (k) => [o.x - G[k][0] * T, o.y + G[k][1] * T], col = match ? '#4ade80' : '#ffd166';
+    ctx.save(); ctx.globalAlpha = match ? 0.55 : 0.4 + 0.15 * Math.sin(now / 180);
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineCap = ctx.lineJoin = 'round'; ctx.lineWidth = T * 0.3;
+    ctx.beginPath(); for (const [a, b] of TARGET_BONES) { if (!G[a] || !G[b]) continue; ctx.moveTo(...pt(a)); ctx.lineTo(...pt(b)); } ctx.stroke();
+    const hd = AR_HEAD(G); ctx.beginPath(); ctx.arc(o.x - hd[0] * T, o.y + hd[1] * T, T * 0.3, 0, 6.29); ctx.fill();
+    ctx.globalAlpha = 1;
+    // aides : flèche vers le côté (pas de côté), flèche vers le bas (accroupi)
+    const bob = Math.sin(now / 150) * T * 0.12;
+    if (pose === 'left' || pose === 'right') { const d = pose === 'left' ? -1 : 1; this.text(d < 0 ? '⬅️' : '➡️', o.x + d * (T * 1.9 + bob), o.y + T * 0.4, T * 0.9); }
+    if (pose === 'squat') this.text('⬇️', o.x + T * 1.3, o.y + T * 0.4 + bob, T * 0.8);
+    ctx.restore();
+  }
   posePicto(p) { return p === 'squat' ? { m: 'squat' } : p === 'left' || p === 'right' ? { m: p } : { m: 'pose', pose: p }; }
-  hud_mur(st, now) {
+  hud_mur(st, now, B) {
     const w = st.wall;
     if (!w) { if (st.k < st.n) this.pill(`Mur ${st.k + 1} / ${st.n} : regarde le trou !`, '#ffd166'); return; }
+    this.poseGhost(w.pose, B, w.match, now);
     this.pill((w.match ? '✅ Parfait, garde la pose : ' : 'Fais la pose du trou : ') + AR_POSE_NAMES[w.pose], w.match ? '#b8f2a1' : '#ffd166', this.posePicto(w.pose));
   }
   hud_soleil(st, now) {

@@ -97,9 +97,12 @@ const Gestures = {
     const under = document.elementFromPoint(this.x, this.y);
     this.el.style.visibility = '';
     const t = under && under.closest(GESTURE_TARGETS);
-    const ok = t && t.offsetParent !== null && !t.closest('.hidden');
+    // (scène 3D, comme la chambre : la toile dit elle-même si la main est sur un objet à toucher, et lequel)
+    const sub = t && t.gestureHit ? t.gestureHit(this.x, this.y) : true;
+    const ok = t && sub && t.offsetParent !== null && !t.closest('.hidden');
     if (!ok) { this.clearTarget(); return; }
-    if (t !== this.target) {
+    if (t !== this.target || sub !== this.sub) {
+      this.sub = sub;
       this.clearTarget();
       this.target = t; this.since = now;
       t.classList.add('gHover');
