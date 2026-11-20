@@ -28,6 +28,7 @@ const pictoCtx = $('cardPicto').getContext('2d');
 const DUO_COLORS = ['#ff6b35', '#4ea8ff'];
 // Épreuves où le héros imite en direct les bras et les jambes de son joueur
 // Fruits et cubes : emplacements autour du dresseur, au bout de ses bras (unités des bulles : ~ demi-mètre, v vers le bas)
+const SLICE_GAIN = 1.85; // (fruits ninja sans héros qui imite : portée des mains, voir updateSlice)
 const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1.1 }, { u: 0, v: -1.7 }, { u: 1.6, v: -1.1 }, { u: 2.2, v: -0.1 }, { u: 2.0, v: 0.9 }];
 // Produits du supermarché (Food Kit de Kenney)
 const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tomato', 'broccoli', 'carton', 'soda-bottle', 'can',
@@ -1423,7 +1424,9 @@ class Game {
 
   // ---------- Fruits ninja : des fruits sautent autour du héros, on les coupe d'un geste vif de la main
   updateSlice(c, now) {
-    const s = c.s, hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    // (fruits répartis sur tout l'écran : sans héros 3D qui imite, les mains de l'enfant comptent « plus loin » — comme les
+    // mains magiques des jeux miroir — pour qu'un bras tendu atteigne le bord ; avant, tout se jouait au milieu)
+    const s = c.s, hands = tracker.bodies.map((b, i) => { const h = this.handsOf(b, i); return h && !this.avatarReach(i) ? h.map((p) => ({ ...p, u: p.u * SLICE_GAIN, v: p.v * SLICE_GAIN, ...(p.su != null ? { su: p.su * SLICE_GAIN, sv: p.sv * SLICE_GAIN } : {}) })) : h; });
     scene.hands = hands;
     const dur = 2700 * Math.min(1.3, this.mul), gap = 1250 * Math.min(1.3, this.mul);
     // Nouveau fruit (2 en l'air au maximum par joueur), lancé d'en bas, il s'arrête au bout des bras
@@ -1434,7 +1437,7 @@ class Game {
         // jamais deux fois de suite le même ; départ d'en bas, d'un côté ou de l'autre
         // (le dresseur est caché pendant les fruits : ce sont les mains de l'enfant qui coupent, à portée de ses bras)
         const far = this.avatarReach(i);
-        const spots = far ? FRUIT_SPOTS : FRUIT_SPOTS.map((p) => ({ u: p.u * 0.62, v: p.v * 0.62 }));
+        const spots = FRUIT_SPOTS.map((p) => ({ u: p.u * (far ? 1.05 : 1.15), v: p.v }));
         let si; do { si = Math.floor(Math.random() * spots.length); } while (si === c.fruitSpot && spots.length > 1);
         c.fruitSpot = si;
         const top = spots[si], from = top.u + (Math.random() - 0.5) * 3.2;
@@ -1444,7 +1447,7 @@ class Game {
         const fallPart = kind === 'fall' ? { fall: true, u0: top.u + (Math.random() - 0.5) * 1.2, u1: top.u + (Math.random() - 0.5) * 1.2, v0: top.v - 4.5, v1: top.v + 3.5 }
           : kind === 'left' || kind === 'right' ? { cross: true, u0: (kind === 'left' ? -1 : 1) * 4.6, u1: (kind === 'left' ? 1 : -1) * 4.6 + top.u * 0.4, av: top.v } : {};
         c.fruits.push({ hero: i, emoji, juice, born: now, dur, u0: from, u1: 2 * top.u - from, v0: top.v + 4.2, av: top.v, ...fallPart,
-          spin: (Math.random() - 0.5) * 6, r: far ? 0.62 : 0.45 });
+          spin: (Math.random() - 0.5) * 6, r: far ? 0.78 : 0.7 }); // (fruits bien gros)
         c.lastFruit = now;
       }
     }

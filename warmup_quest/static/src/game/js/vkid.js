@@ -277,8 +277,8 @@ const VKid = (() => {
       case 'slice': { // un coup de sabre à travers le fruit : la main passe d'un côté à l'autre du fruit, vite
         const f = (c.fruits || []).filter((x) => x.hero === idx && !x.cut).map((x) => ({ x, p: fruitPos(x, now) })).filter((o) => o.p.t > 0.25 && o.p.t < 1).sort((a, b) => a.x.born - b.x.born)[0];
         if (f) {
-          const b = tracker.bodies[idx], kk = b && b.reachK ? 1.1 / b.reachK : 1, left = f.p.u < 0, sw = (now % 360) < 180 ? 0.6 : -0.6;
-          const w = reach((f.p.u - (left ? -1 : 1) * L('shW') / TORSO + sw) / kk, (f.p.v - sw * 0.5) / kk, 0.95);
+          const b = tracker.bodies[idx], gn = typeof SLICE_GAIN !== 'undefined' && !(game && game.avatarReach && game.avatarReach(idx)) ? SLICE_GAIN : 1, kk = (b && b.reachK ? 1.1 / b.reachK : 1) * gn, left = f.p.u < 0, sw = ((now % 360) < 180 ? 0.6 : -0.6) * gn; // (portée des mains des fruits : SLICE_GAIN)
+          const w = reach((f.p.u + sw) / kk - (left ? -1 : 1) * L('shW') / TORSO, (f.p.v - sw * 0.5) / kk, 0.95);
           if (left) s.wL = w; else s.wR = w;
         }
         return s;

@@ -339,19 +339,20 @@ class Arena {
     const kids = duo() && this.v3 ? tracker.active.filter((b) => b.state.present && b.lm) : [];
     const sets = kids.length ? kids.map((b) => [b, this.v3.handVecs(this, now, this.B.st, b, true)]) : [[b0, (this.v3 && this.v3.lastVec) || []]];
     let hit = false;
+    const ready = now > (cal.wait || 0); // (petite pause entre deux étoiles : le temps de passer de l'autre côté)
     if (tracker.sim) { if (now - cal.st > 700) { hit = true; cal.best = 1; } }
-    else for (const [b, vec] of sets) for (const v of vec) {
+    else if (ready) for (const [b, vec] of sets) for (const v of vec) {
       if (!v) continue; const L = Math.hypot(v[0], v[1]); if (L < (b && b.easy ? 0.45 : 0.55)) continue; // (mode petit : bras moins tendu suffit)
-      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.8) { hit = true; cal.best = Math.max(cal.best, L); if (b) (cal.per = cal.per || new Map()).set(b, Math.max(cal.per.get(b) || 0, L)); }
+      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.7) { hit = true; cal.best = Math.max(cal.best, L); if (b) (cal.per = cal.per || new Map()).set(b, Math.max(cal.per.get(b) || 0, L)); }
     }
     cal.on = hit ? cal.on + dt : Math.max(0, cal.on - dt * 2);
     const next = (val) => {
       if (val) { cal.vals.push(val); Audio8.coin(); const p = this.calStar(cal.i); this.burst(p.x, p.y, 30); if (this.v3) this.v3.react('win'); }
-      cal.i++; cal.on = 0; cal.best = 0; cal.st = now;
+      cal.i++; cal.on = 0; cal.best = 0; cal.st = now; cal.wait = now + 1000;
       if (cal.i >= this.calDirs().length) this.endCal(now);
     };
     if (cal.on > 0.4) next(cal.best);
-    else if (now - cal.st > 6500) next(null); // (étoile trop difficile : on passe)
+    else if (now - cal.st > 12000) next(null); // (étoile trop difficile : on passe, mais on laisse le temps)
   }
   endCal(now) {
     const cal = this.cal, v = [...cal.vals].sort((a, b) => a - b), b0 = tracker.lead();
