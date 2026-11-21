@@ -343,7 +343,9 @@ class Arena {
     if (tracker.sim) { if (now - cal.st > 700) { hit = true; cal.best = 1; } }
     else if (ready) for (const [b, vec] of sets) for (const v of vec) {
       if (!v) continue; const L = Math.hypot(v[0], v[1]); if (L < (b && b.easy ? 0.45 : 0.55)) continue; // (mode petit : bras moins tendu suffit)
-      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.7) { hit = true; cal.best = Math.max(cal.best, L); if (b) (cal.per = cal.per || new Map()).set(b, Math.max(cal.per.get(b) || 0, L)); }
+      if ((v[0] * D[0] + v[1] * D[1]) / (L * Math.hypot(D[0], D[1])) > 0.7) { // (longueur lissée sur les images du geste : le maximum d'une image prenait les pics de la détection)
+        hit = true; cal.best = cal.best ? cal.best + (L - cal.best) * 0.3 : L; if (b) { const pm = (cal.per = cal.per || new Map()), o = pm.get(b); pm.set(b, o ? o + (L - o) * 0.3 : L); }
+      }
     }
     cal.on = hit ? cal.on + dt : Math.max(0, cal.on - dt * 2);
     const next = (val) => {
@@ -569,7 +571,8 @@ class Arena {
     const thrown = evs.some((e) => /^throw[LR]$/.test(e)); // (un lancer émet aussi « smash » : une seule boule par lancer)
     for (const e of evs) {
       if (!/^throw[LR]$|^smash$/.test(e) || (e === 'smash' && thrown)) continue;
-      const hand = e === 'throwL' ? B.J.handL : e === 'throwR' ? B.J.handR : B.J.handL;
+      const hand = (e === 'throwR' ? B.J.handR || B.J.handL : B.J.handL || B.J.handR) || B.sh; // (main pas vue à cet instant : l'autre, ou les épaules)
+      if (!hand) continue;
       const cand = st.men.filter((m) => !m.hit && !m.gone && !m.target).sort((a, b) => Math.abs(a.x - hand.x) - Math.abs(b.x - hand.x))[0];
       if (cand) { cand.target = true; st.balls.push({ x0: hand.x, y0: hand.y, m: cand, t0: now }); Audio8.soft(); }
     }
