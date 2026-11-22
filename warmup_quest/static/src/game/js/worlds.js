@@ -207,8 +207,9 @@ const MIMIC = {
   },
   karate: {
     coach: 'Maître Bambou', pal: { body: '#ffffff', belly: '#f1f1f1', limb: '#f4f4f4', accent: '#e63946' },
-    say: { armsUp: 'Parade !', airplane: 'Bras tendus !', star: "L'étoile du tigre !", flamingo: 'Coup de genou !',
-      squat: 'Position du cavalier !', left: 'Pas à gauche !', right: 'Pas à droite !', jump: 'Saut du tigre !', smash: 'Tranche !' },
+    // (le nom du geste, puis ce qu'il faut faire en mots simples : « Tranche ! » seul ne disait rien aux petits)
+    say: { armsUp: 'Parade ! Les bras en l\'air !', airplane: 'Bras tendus sur les côtés !', star: "L'étoile du tigre ! Bras et jambes écartés !", flamingo: 'Coup de genou ! Lève un genou !',
+      squat: 'Position du cavalier ! Accroupis-toi !', left: 'Un pas à gauche !', right: 'Un pas à droite !', jump: 'Saut du tigre ! Saute !', smash: 'Tranche ! Les mains en haut, puis en bas, vite !' },
   },
 };
 
@@ -353,7 +354,7 @@ function stepDuration(s) {
     case 'kick': return 2 + s.n * 4.5;
     case 'act': return 4 + s.n * ACTS[s.game].sec;
     case 'arena': return 5 + s.n * ARENA[s.game].sec;
-    case 'fork': return 9;
+    case 'fork': return 13; // (explication des deux chemins, puis décompte 3, 2, 1)
     case 'jump': return 1.8 + 1.0 * s.n;
     case 'squat': return 2.0 + 1.6 * s.n;
     case 'smash': return 2.0 + 1.2 * s.n;

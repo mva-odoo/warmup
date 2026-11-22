@@ -221,6 +221,25 @@ class DepthScene {
   }
 
   setCoach(c) { this.coach = c; }
+  // Grande carte du geste du coach (karaté, danse) : le dessin du geste, son nom, et un anneau qui montre le temps
+  // (le coach est petit, au loin : sans ça, « Position du cavalier », « Tranche »… n'étaient pas clairs)
+  drawCoachCard(now) {
+    const c = this.coach, m = c && c.move; if (!m) return;
+    const ctx = this.ctx, H = this.H, sz = H * 0.3, x = H * 0.04, y = H * 0.3;
+    this.coachPc = this.coachPc || Object.assign(document.createElement('canvas'), { width: 200, height: 200 });
+    const st = typeof POSES !== 'undefined' && POSES[m] ? { m: 'pose', pose: m } : { m };
+    try { drawPicto(this.coachPc.getContext('2d'), 200, 200, st, now, st.m === 'pose' ? null : m); } catch (e) { return; } // (pose : dessinée d'après st.pose)
+    const pop = Math.min(1, (now - (c.t0 || now)) / 220), k = 0.85 + 0.15 * pop;
+    ctx.save(); ctx.translate(x + sz / 2, y + sz / 2); ctx.scale(k, k); ctx.translate(-sz / 2, -sz / 2);
+    ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.strokeStyle = (c.pal && c.pal.accent) || '#e63946'; ctx.lineWidth = H * 0.008;
+    ctx.beginPath(); ctx.roundRect(0, 0, sz, sz * 1.18, sz * 0.12); ctx.fill(); ctx.stroke();
+    ctx.drawImage(this.coachPc, sz * 0.08, sz * 0.04, sz * 0.84, sz * 0.84);
+    const icon = typeof MIMIC_ICONS !== 'undefined' ? MIMIC_ICONS[m] || '' : '';
+    ctx.font = `800 ${sz * 0.16}px 'Baloo 2', system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1e1b4b';
+    const word = (typeof MIMIC !== 'undefined' && MIMIC[c.style] && MIMIC[c.style].say[m] || '').split(' !')[0];
+    ctx.fillText(icon + ' ' + word, sz / 2, sz * 1.02, sz * 0.92);
+    ctx.restore();
+  }
   setCue(c) { this.cue = c; }
 
   // Grand signe d'action (⬆️ saute, ⬇️ baisse-toi, ↔️ va à côté…) qui grossit quand c'est le moment
@@ -519,6 +538,7 @@ class DepthScene {
 
     this.drawMoles(now);
     this.drawFruits(now);
+    this.drawCoachCard(now);
     this.drawCubes(now);
     this.drawFoam(now);
     this.drawWand(now);
@@ -760,6 +780,11 @@ class DepthScene {
       const u = S * 0.06; ctx.beginPath(); ctx.moveTo(-u, -u * 0.45); ctx.lineTo(0, -u * 0.45); ctx.lineTo(0, -u); ctx.lineTo(u * 1.1, 0); ctx.lineTo(0, u); ctx.lineTo(0, u * 0.45); ctx.lineTo(-u, u * 0.45); ctx.closePath(); ctx.fill();
       ctx.restore();
       if (picked) { ctx.font = `${S * 0.08}px serif`; ctx.fillText('✅', cw * 0.38, -ch * 0.42); }
+      if (on && f.count && !f.chosen) { // décompte en grand sur le panneau choisi
+        const q = Math.min(1, (now - (f.countT || now)) / 300), z = 1.4 - 0.4 * q;
+        ctx.save(); ctx.scale(z, z); ctx.font = `900 ${S * 0.2}px 'Baloo 2', system-ui, sans-serif`; ctx.lineWidth = S * 0.02; ctx.strokeStyle = '#1e1b4b'; ctx.lineJoin = 'round';
+        ctx.strokeText(String(f.count), 0, -ch * 0.02); ctx.fillStyle = '#22c55e'; ctx.fillText(String(f.count), 0, -ch * 0.02); ctx.restore();
+      }
       ctx.restore();
     });
   }

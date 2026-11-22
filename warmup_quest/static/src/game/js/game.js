@@ -969,7 +969,7 @@ class Game {
     if (s.m === 'rope') dur = 3600 + s.n * ropePeriod + 700; // (3, 2, 1 avant le premier saut)
     const travel = 2600 * Math.min(1.3, this.mul), gapRep = 2400 * Math.min(1.3, this.mul);
     if (s.m === 'jump' || s.m === 'squat') dur = 600 + (s.n - 1) * gapRep + travel + 700;
-    const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
+    const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul) * (s.m === 'karate' && tracker.bodies.some((b) => b.easy) ? 1.35 : 1); // (mode petit : plus de temps par geste du maître)
     if (s.m === 'dance' || s.m === 'karate') dur = 2000 + s.moves.length * beat + 600;
     if (s.m === 'cubes') dur = 1500 + (s.n - 1) * (s.beat || 1.4) * 1000 * Math.min(1.3, this.mul) + cubeTravel(this.mul) + 900;
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
@@ -1687,14 +1687,16 @@ class Game {
 
   // ---------- Gardien de but : un copain créature tire ; on arrête le ballon avec les mains (haut du corps seulement)
   updateGoal(c, now) {
-    const s = c.s, easy = tracker.bodies.some((b) => b.easy), hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
+    // (sans héros qui imite : mains et tirs agrandis d'autant — même geste pour l'enfant, mais de grands bras à l'écran)
+    const s = c.s, easy = tracker.bodies.some((b) => b.easy), G = 1.5;
+    const hands = tracker.bodies.map((b, i) => { const h = this.handsOf(b, i); return h && !this.avatarReach(i) ? h.map((p) => ({ ...p, u: p.u * G, v: p.v * G, ...(p.su != null ? { su: p.su * G, sv: p.sv * G } : {}) })) : h; });
     scene.hands = hands;
     if (!c.shots) { c.shots = []; c.saved = 0; c.kickAt = now + 1800; }
     const travel = 1900 * Math.min(1.3, this.mul), auto = DEV.get('sportauto');
     const live = c.shots.find((b) => !b.done);
     if (!live && c.shots.length < s.n && now >= c.kickAt && (!tracker.sim || DEV.get('fakelimbs') || auto)) {
       const hero = c.shots.length % this.np, far = this.avatarReach(hero);
-      const spots = far ? [[-1.9, -0.9], [1.9, -0.9], [-2.1, 0.4], [2.1, 0.4], [0, -1.7]] : [[-1.0, -0.8], [1.0, -0.8], [-1.1, 0.4], [1.1, 0.4], [0, -1.3]];
+      const spots = far ? [[-1.9, -0.9], [1.9, -0.9], [-2.1, 0.4], [2.1, 0.4], [0, -1.7]] : [[-1.0, -0.8], [1.0, -0.8], [-1.1, 0.4], [1.1, 0.4], [0, -1.3]].map(([u, v]) => [u * G, v * G]);
       const k = (c.lastSpot = (c.lastSpot ?? -1) + 1 + Math.floor(Math.random() * (spots.length - 1))) % spots.length;
       c.shots.push({ hero, u: spots[k][0], v: spots[k][1], born: now, arrive: now + travel, done: null });
       scene.sportKick && scene.sportKick();
@@ -1703,7 +1705,7 @@ class Game {
     for (const b of c.shots) {
       if (b.done) continue;
       const p = (now - b.born) / (b.arrive - b.born);
-      if ((p > 0.55 && this.touches(hands[b.hero], b.u, b.v, 0.6 + (easy ? 0.3 : 0), b)) || (auto && p > 0.9)) {
+      if ((p > 0.55 && this.touches(hands[b.hero], b.u, b.v, (0.6 + (easy ? 0.3 : 0)) * (this.avatarReach(b.hero) ? 1 : G), b)) || (auto && p > 0.9)) {
         b.done = 'saved'; b.t = now; c.saved++;
         this.add(this.pts(80), '+80 🧤', b.hero); this.collect(); Audio8.boing(); scene.flash(b.hero, true);
         if (c.saved === 1 || Math.random() < 0.4) Audio8.say(pick(['Arrêté !', 'Quel gardien !', 'Super arrêt !', 'Bravo, il ne passe pas !']));
@@ -1820,8 +1822,14 @@ class Game {
     const sides = tracker.bodies.map((b) => b.state.side);
     const sel = dev || (sides[0] === 'left' || sides[0] === 'right' ? (sides[0] === 'left' ? -1 : 1) : sides.includes('left') ? -1 : sides.includes('right') ? 1 : 0);
     if (sel !== c.sel) { c.sel = sel; c.selT = now; if (sel) Audio8.tick && Audio8.tick(); }
-    const ready = now - c.start > 1800; // (le temps d'écouter les deux choix)
-    f.sel = sel; f.k = sel && ready ? Math.min(1, (now - Math.max(c.selT, c.start + 1800)) / 900) : 0;
+    // (le temps d'écouter les deux choix ; puis décompte « 3, 2, 1 » en restant du côté choisi : revenir au milieu annule —
+    // avant, 0,9 s suffisait et un pas de travers choisissait à la place de l'enfant)
+    const HOLD = 2400;
+    if (!c.readyAt && now - c.start > 2500 && (!(Audio8.speaking && Audio8.speaking()) || now - c.start > 7000)) c.readyAt = now; // (après l'explication des deux chemins)
+    const ready = !!c.readyAt;
+    f.sel = sel; f.k = sel && ready ? Math.min(1, (now - Math.max(c.selT, c.readyAt)) / HOLD) : 0;
+    const count = sel && ready && f.k < 1 ? 3 - Math.min(2, Math.floor(f.k * 3)) : 0;
+    if (count !== f.count) { f.count = count; f.countT = now; if (count) { Audio8.say(String(count), { interrupt: true }); Audio8.tick(); } }
     let pickSide = f.k >= 1 ? sel : 0;
     if (!pickSide && now > c.end - 500 && !DEV.get('hold')) pickSide = Math.random() < 0.5 ? -1 : 1; // (personne ne choisit : au hasard)
     if (!pickSide) return;

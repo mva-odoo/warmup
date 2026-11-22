@@ -2605,6 +2605,7 @@ class Scene3D extends DepthScene {
     this.drawEncounter3D(now);
     this.drawMoles(now);
     this.drawFruits(now);
+    this.drawCoachCard(now);
     this.drawBubbles(now);
     this.drawFoam(now);
     this.drawWand(now);

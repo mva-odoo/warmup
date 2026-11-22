@@ -297,7 +297,7 @@ const VKid = (() => {
         const left = f.x < 0.5, w = reach((f.x - 0.5) * 9, (f.y - 0.42) * 9, 0.97);
         if (left) s.wL = w; else s.wR = w; return s;
       }
-      case 'goal': { const b = (c.shots || []).find((x) => !x.done && x.hero === idx); if (b) { const r = reachTarget(b.u, b.v, G, s); if (r) return r; } return s; }
+      case 'goal': { const b = (c.shots || []).find((x) => !x.done && x.hero === idx); if (b) { const gk = G.avatarReach(idx) ? 1 : 1.5, r = reachTarget(b.u / gk, b.v / gk, G, s); if (r) return r; } return s; } // (mains du gardien agrandies ×1,5 : voir updateGoal)
       case 'basket': { const b = c.ball; if (b && b.hero === idx) { if (b.phase === 'catch') POSES.together(s); else if (b.phase === 'hold') POSES.up(s); } return s; }
       case 'kick': { const b = c.ball; if (b && b.hero === idx && b.phase === 'wait' && now - b.t0 > 500) { if (b.side < 0) s.kneeL = 1; else s.kneeR = 1; } return s; }
       default: return null;

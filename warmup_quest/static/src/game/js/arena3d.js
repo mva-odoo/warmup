@@ -1028,7 +1028,8 @@ class Arena3D {
     P.limbs = { 'leg-left': [-0.15, -0.45, -1], 'leg-right': [0.15, -0.45, -1], 'arm-left': arms ? [-0.4, 1, 0] : [0.1, -0.35, -1], 'arm-right': arms ? [0.4, 1, 0] : [-0.1, -0.35, -1] };
     const v = st.x - this.prevX; this.prevX = st.x; this.bank = (this.bank || 0) + (-v * 14 - (this.bank || 0)) * 0.15; P.rz = Math.max(-0.5, Math.min(0.5, this.bank - st.x * 0.12));
   }
-  cam3_balai() { const p = this.av.group.position; this.camTo(p.x * 0.55, p.y + 1.25, 7.4, p.x * 0.4, p.y + 0.7, -20, 50, 0.15); }
+  // (caméra presque fixe : elle ne suivait le sorcier en hauteur et sur les côtés, balancement compris — tout le ciel bougeait)
+  cam3_balai(st) { const x = (st.x || 0) * 2.6, y = 2.4 - (st.y || 0) * 1.5; this.camTo(x * 0.2, 2.4 + (y - 2.4) * 0.25 + 1.25, 7.4, x * 0.15, 3.1, -20, 50, 0.04); }
   sync3_balai(st, now) {
     const T = this.T, p = this.av.group.position, M = this.M;
     this.broom.position.set(p.x, p.y + M.hipY - 0.15, 0.1); this.broom.rotation.set(0.28, 0, this.av.group.rotation.z); // (balai penché : la paille part vers le bas, derrière)

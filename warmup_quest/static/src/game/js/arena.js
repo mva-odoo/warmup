@@ -765,7 +765,7 @@ class Arena {
   }
 
   // ----- La course de balais : se pencher (gauche / droite), bras levés (monter), accroupi (descendre) ; passer dans les anneaux
-  init_balai(st, now) { st.x = 0; st.y = 0; st.rings = []; st.spawned = 0; st.next = now + 1500; st.stars = Array.from({ length: 60 }, () => [Math.random(), Math.random() * 0.6, Math.random()]); }
+  init_balai(st, now) { st.settle = now + 1500; st.x = 0; st.y = 0; st.rings = []; st.spawned = 0; st.next = now + 1500; st.stars = Array.from({ length: 60 }, () => [Math.random(), Math.random() * 0.6, Math.random()]); }
   up_balai(st, now, dt, B) {
     // position voulue : décalage du corps (ou pas de côté), hauteur selon les bras / l'accroupi
     let tx = B.st.side === 'left' ? -1 : B.st.side === 'right' ? 1 : 0;
@@ -778,7 +778,9 @@ class Arena {
         const hipX = (b.lm[23].x + b.lm[24].x) / 2, lean0 = -((b.center.x - hipX) * camXS()) / (b.T * 0.35);
         let r = st.ref.get(b); if (!r) st.ref.set(b, (r = { cx: b.center.x, lean0 })); // (sa position de départ, là où il est au début du jeu)
         // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté)
-        r.cx += (b.center.x - r.cx) * Math.min(1, dt / 25); r.lean0 += (lean0 - r.lean0) * Math.min(1, dt / 25);
+        // (les 1,5 premières secondes, le milieu se cale vite sur l'enfant : pris sur une seule image, il partait d'un côté dès le début)
+        const kr = now < st.settle ? Math.min(1, dt * 6) : Math.min(1, dt / 25);
+        r.cx += (b.center.x - r.cx) * kr; r.lean0 += (lean0 - r.lean0) * kr;
         const v = Math.max(-1, Math.min(1, -((b.center.x - r.cx) * camXS()) / (b.T * 0.7) + (lean0 - r.lean0)));
         sum += v; n++; best = Math.max(-1, Math.min(1, n > 1 ? (sum / n) * 1.5 : sum));
       }
@@ -787,12 +789,13 @@ class Arena {
     const ty = B.st.armsUp ? -1 : B.st.squat ? 1 : 0;
     st.x += (tx - st.x) * Math.min(1, dt * 5); st.y += (ty - st.y) * Math.min(1, dt * 4);
     if (st.spawned < st.n && now > st.next) {
-      const gx = [-1, 0, 1][Math.floor(Math.random() * 3)], gy = [-1, 0, 1][Math.floor(Math.random() * 3)];
+      const easy = tracker.bodies.some((b) => b.easy), gx = [-1, 0, 1][Math.floor(Math.random() * 3)];
+      const gy = (easy ? [-1, 0, 0, -1, 0, 1] : [-1, 0, 1])[Math.floor(Math.random() * (easy ? 6 : 3))]; // (mode petit : peu d'anneaux en bas, s'accroupir en volant est dur)
       st.rings.push({ gx, gy, t0: now, dur: Math.max(1900, 3000 - st.spawned * 80) * Math.min(1.3, this.g.mul) }); st.spawned++; st.next = now + 1500;
     }
     for (const r of st.rings) {
       if (r.res || (now - r.t0) < r.dur) continue;
-      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < 0.7 * Math.max(1, Math.min(1.2, this.g.diffK || 1)); // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
+      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < (tracker.bodies.some((b) => b.easy) ? 0.95 : 0.82) * Math.max(1, Math.min(1.2, this.g.diffK || 1)); // (plus généreux : jugé difficile avec les enfants) // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
       r.res = pass ? 'ok' : 'miss'; r.t = now;
       if (pass) { this.win(ARENA.balai.pts, '+' + ARENA.balai.pts, ...this.ringXY(r.gx, r.gy)); if (st.ok % 3 === 0) this.say('Encore un !', 3000); } else Audio8.soft();
     }
