@@ -994,6 +994,47 @@ WORLDS.forEach((w, i) => {
   seq.splice(Math.round(n * 0.5), 0, M(12, 6));
   seq.splice(Math.round(n * 0.25), 0, U(4));
 });
+// ---------- Mini-jeux un par un : « Jouer tout de suite » (les six premiers, en grandes cartes) et le labo de test (tous)
+// step() : l'épreuve, assez longue pour une vraie petite partie (≈ 1 min)
+const MINI_GAMES = [
+  { id: 'slice', icon: '🍉', label: 'Fruits ninja', step: () => SL(40, 14) },
+  { id: 'bubbles', icon: '🫧', label: 'Bulles', step: () => B(40, 16) },
+  { id: 'mur', icon: '🧱', label: 'Mur magique', step: () => AR('mur', 8) },
+  { id: 'balai', icon: '🧹', label: 'Balai volant', step: () => AR('balai', 12) },
+  { id: 'dance', icon: '💃', label: 'Danse', step: () => DN('armsUp', 'star', 'left', 'right', 'squat', 'jump', 'airplane', 'armsUp', 'star', 'smash') },
+  { id: 'goal', icon: '⚽', label: 'Gardien de but', step: () => GO(8) },
+  { id: 'moles', icon: '🐹', label: 'Taupes', step: () => M(30, 10) },
+  { id: 'cubes', icon: '🟦', label: 'Cubes en musique', step: () => CU(12, 1.5) },
+  { id: 'catch', icon: '⭐', label: 'Étoiles qui tombent', step: () => K(30) },
+  { id: 'wand', icon: '🪄', label: 'Baguette magique', step: () => WA(30, 5) },
+  { id: 'foam', icon: '🧽', label: 'Mousse des singes', step: () => MO(30, 5) },
+  { id: 'freeze', icon: '🎵', label: 'Statues musicales', step: () => F(21) },
+  { id: 'rope', icon: '🪢', label: 'Corde à sauter', step: () => Q(6) },
+  { id: 'tunnel', icon: '🕳️', label: 'Tunnel', step: () => U(5) },
+  { id: 'posemix', icon: '🤸', label: 'Suite de poses', step: () => PM('armsUp', 'star', 'airplane', 'flamingo') },
+  { id: 'karate', icon: '🥋', label: 'Karaté', step: () => KA('armsUp', 'squat', 'left', 'right', 'smash', 'jump') },
+  { id: 'basket', icon: '🏀', label: 'Basket', step: () => BK(3) },
+  { id: 'kick', icon: '🥅', label: 'Penalty', step: () => KI(3) },
+  { id: 'run', icon: '🏃', label: 'Course (obstacles)', step: () => R(20) },
+  { id: 'soleil', icon: '☁️', label: '1, 2, 3 Nuage', step: () => AR('soleil', 1) },
+  { id: 'pimprenelle', icon: '🦉', label: 'Pimprenelle a dit', step: () => AR('pimprenelle', 7) },
+  { id: 'neige', icon: '⛄', label: 'Boules de neige', step: () => AR('neige', 10) },
+  { id: 'potions', icon: '🧪', label: 'Potions', step: () => AR('potions', 2) },
+  { id: 'duel', icon: '⚡', label: 'Duel de sorciers', step: () => AR('duel', 4) },
+  { id: 'corde', icon: '💪', label: 'Tir à la corde', step: () => AR('corde', 1) },
+  { id: 'equilibre', icon: '🎪', label: 'Équilibriste', step: () => AR('equilibre', 12) },
+  { id: 'photo', icon: '📸', label: 'Photo magique', step: () => AR('photo', 2) },
+];
+const QUICK_GAMES = MINI_GAMES.slice(0, 6);
+// Partie faite de mini-jeux choisis (monde « libre » : ne compte pas dans l'histoire ni les étoiles des îles).
+// loop : on enchaîne les parties sans s'arrêter (labo de test)
+function quickWorld(games, loop = false) {
+  const base = WORLDS.find((w) => w.id === 'jardin3d'), one = games.length === 1;
+  return { ...base, id: 'libre', quick: true, loop, noBoss: true, lessons: null, tutorial: false,
+    name: one ? games[0].label : '🧪 Labo des mini-jeux', tagline: '', collectible: one ? games[0].icon : '🧪', biomes: [base.biomes[0]],
+    endText: one ? `Bravo ! ${games[0].icon}` : 'Tour du labo terminé !',
+    sequence: [Z(3, one ? `${games[0].label} ! C'est parti !` : 'Le labo des mini-jeux ! C\'est parti !'), ...games.map((g) => g.step()), Z(2, 'Bravo ! Respire bien…')] };
+}
 // Gardien de fin de monde (avant la respiration finale), dans tous les mondes
 const BOSS_POSES = [['star', 'airplane', 'armsUp'], ['armsUp', 'star', 'airplane'], ['airplane', 'armsUp', 'star']];
 WORLDS.forEach((w, i) => { if (w.tutorial || w.noBoss) return; const seq = w.sequence; seq.splice(seq.length - 1, 0, BS(...BOSS_POSES[i % 3])); });

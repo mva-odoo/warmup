@@ -17,6 +17,7 @@ WORLDS = [
     ('espace', "Voyage dans l'Espace"),
     ('chateau', 'Le Château du Nuage Grognon'),
     ('defis', 'La Salle des Défis'),
+    ('libre', 'Jouer tout de suite (mini-jeux)'),
     ('turbo', 'Vallée Turbo (ancienne île)'),
     ('island', 'Île Bondissante (ancienne île)'),
     ('bonbons', 'Pays des Bonbons (ancienne île)'),

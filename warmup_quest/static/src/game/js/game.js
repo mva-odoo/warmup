@@ -351,7 +351,6 @@ function buildMenu() {
         if (pin) pin.getContext('2d').drawImage(scene3d.trainerThumb(menuLooks[0], 80), 0, 0, 80, 100);
       }).catch(() => {});
   }
-  show('hubBtn', store('3d') !== false); // (le parc n'existe qu'en 3D)
   const sp = $('speeds');
   sp.innerHTML = '';
   const saved = store('speed');
@@ -477,7 +476,7 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   if (phase === 'play' || phase === 'calib' || phase === 'countdown' || phase === 'paused') Rec.end(null); // (partie abandonnée, même depuis la pause : on garde quand même les mouvements)
-  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end(); show('mapPanel', false);
+  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end(); show('mapPanel', false); show('quickPanel', false); show('laboPanel', false);
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
   ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
   showMenuCam();
@@ -508,7 +507,7 @@ async function startWorld(w) {
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
   // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
-  if (!DEV.get('world') && !(DEV.get('hub') || DEV.get('village')) && !Rec.playing) {
+  if (!DEV.get('world') && !DEV.get('quick') && !DEV.get('labo') && !(DEV.get('hub') || DEV.get('village')) && !Rec.playing) {
     for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
@@ -567,7 +566,7 @@ async function startWorld(w) {
     show('loading', false);
   }
   // Déjà calibré (on vient du parc, ou on y retourne) : pas besoin de recommencer « Mets-toi bien »
-  if (tracker.calibrated && chain) { if (tracker.state.upperBody) tracker.calibrate(); if (!w.hub) recBegin(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
+  if (tracker.calibrated && (chain || (w.loop && phase === 'results'))) { if (tracker.state.upperBody) tracker.calibrate(); if (!w.hub) recBegin(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
   startCalib();
 }
 
@@ -639,7 +638,7 @@ function setCalibStage(stage, text, sub, speak) {
 
 function updateCalib(now) {
   const s = tracker.state;
-  if (tracker.sim && (DEV.get('world') || (DEV.get('hub') || DEV.get('village')))) { tracker.calibrate(); afterCalib(); return; }
+  if (tracker.sim && (DEV.get('world') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village')))) { tracker.calibrate(); afterCalib(); return; }
   if (tracker.sim) {
     setCalibStage('sim', `Monde : ${world.name}`, "Appuie sur Entrée (ou 1 pour lever les bras) pour commencer", null);
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
@@ -859,12 +858,12 @@ class Game {
     stageWanted = null;
     this.stage = nStages ? { k: kWant != null ? kWant % nStages : Stages.next(w), n: nStages } : null;
     this.steps = this.stage ? Stages.split(w, WUQStore.steps(w), this.stage.k)
-      : store('short') !== false && !w.tutorial ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
+      : store('short') !== false && !w.tutorial && !w.quick ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
     this.steps = this.steps.map((st) => ({ ...st })); // (copie : un carrefour ajoute une épreuve à CETTE partie, pas au programme du monde)
     for (const st of this.steps) if (st.m === 'arena' && (st.game === 'soleil' || st.game === 'corde')) st.n = 1; // (une seule manche : sinon chrono et score maximum multipliés pour rien)
     // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
     // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
-    if (!w.tutorial && !w.arenaMix && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
+    if (!w.tutorial && !w.arenaMix && !w.quick && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
     // Salle des Défis : trois jeux miroir au hasard à chaque visite (jamais les mêmes que la dernière fois)
     if (w.arenaMix && !DEV.get('step') && !Rec.playing) {
       const all = this.steps.slice(1, -1).filter((st) => st.m === 'arena'), last = WUQStore._get('defisLast') || [];
@@ -2398,6 +2397,7 @@ function celebrate() {
 
 let resultsAt = 0, againHold = 0, againSaid = false;
 function updateResults(now) {
+  if (world && world.loop && now - resultsAt > 3000) { $('againBtn').click(); return; } // (labo : on enchaîne tout de suite, sans lever les bras)
   if (now - resultsAt < 4000 || now < (resultsCeremonyEnd || 0)) return; // on laisse le temps de fêter (les bras en l'air !)
   if (!againSaid) { againSaid = true; Audio8.say(fromHub ? (duo() ? 'Levez les bras pour continuer !' : 'Lève les bras pour continuer !') : duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
   const s = tracker.state;
@@ -2736,9 +2736,9 @@ function draw(now) {
 
 // Mode test (développement) : ?world=ferme&step=rope lance directement un monde en mode clavier,
 // à partir de la première étape du type demandé (sert à vérifier le rendu sans caméra).
-if (DEV.get('world') || DEV.get('carnet') || (DEV.get('hub') || DEV.get('village'))) {
-  const vw = DEV.get('village') && WORLDS.find((x) => x.id === DEV.get('village'));
-  const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village'))) {
+  const vw = DEV.get('village') && WORLDS.find((x) => x.id === DEV.get('village')), qk = (DEV.get('quick') || DEV.get('labo') || '').split(',');
+  const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : qk[0] ? quickWorld(MINI_GAMES.filter((g) => qk.includes(g.id)), !!DEV.get('labo')) : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
   const vk = !!DEV.get('vkid'); // (?vkid=1 : enfant virtuel à la place du clavier, voir vkid.js)
   if (w) { $('simToggle').checked = !vk; store('sim', !vk); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
   if (DEV.get('duo') || DEV.get('vkid2')) WUQStore._set('duo', true); // (mode test) partie à deux (?vkid2=1 : deux enfants virtuels)
@@ -2784,11 +2784,40 @@ if (DEV.get('gems')) { WUQStore._set(WUQStore.slotKey('gems', 0), GEMS.slice(0, 
 if (DEV.get('taleend')) WUQStore._set(WUQStore.slotKey('diploma', 0), true); // (mode test) fin de l'histoire
 if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
 if (DEV.get('map')) setTimeout(() => $('mapBtn').click(), 600); // (mode test) la carte ouverte
+// (mode test) ?quick=slice : une partie « Jouer tout de suite » ; ?labo=slice,mur : le labo en boucle ; ?menu=quick|labo : le panneau ouvert
+if (DEV.get('menu')) setTimeout(() => $(DEV.get('menu') + 'Btn').click(), 600);
 if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0), () => {}, Number(DEV.get('talepage')) || 0), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
 $('storyBtn').onclick = () => openTaleBook();
-$('hubBtn').onclick = () => startWorld(HUB_WORLD);
-$('defisBtn').onclick = () => startWorld(WORLDS.find((w) => w.id === 'defis'));
-$('mapBtn').onclick = () => { show('mapPanel'); buildMenu(); Audio8.whoosh(); }; // (la carte : toutes les îles, page par page)
+$('hubBtn').onclick = () => (store('3d') === false ? $('mapBtn').click() : startWorld(HUB_WORLD)); // (sans 3D, pas de château : la carte des mondes)
+$('defisBtn').onclick = () => { show('quickPanel', false); startWorld(WORLDS.find((w) => w.id === 'defis')); };
+$('mapBtn').onclick = () => { $('parentsBox').open = false; show('mapPanel'); buildMenu(); Audio8.whoosh(); }; // (la carte : toutes les îles, page par page ; rangée chez les parents)
+// Jouer tout de suite : une grande carte par jeu (gros dessin, un mot), on touche et on joue
+$('quickBtn').onclick = () => {
+  const box = $('quickCards'); box.innerHTML = '';
+  for (const g of QUICK_GAMES) {
+    const b = document.createElement('button'); b.className = 'quickCard';
+    b.innerHTML = `<span class="qIcon">${g.icon}</span><b>${g.label}</b>`;
+    b.onclick = () => { show('quickPanel', false); startWorld(quickWorld([g])); };
+    box.appendChild(b);
+  }
+  show('quickPanel'); Audio8.whoosh(); Audio8.say('Choisis ton jeu !');
+};
+$('quickBack').onclick = () => show('quickPanel', false);
+// Labo (tests) : tous les mini-jeux, on coche ceux à enchaîner en boucle (choix gardé)
+$('laboBtn').onclick = () => {
+  const keep = new Set(store('labo') || QUICK_GAMES.map((g) => g.id)), box = $('laboList'); box.innerHTML = '';
+  for (const g of MINI_GAMES) box.insertAdjacentHTML('beforeend', `<label class="laboItem"><input type="checkbox" value="${g.id}"${keep.has(g.id) ? ' checked' : ''}> ${g.icon} ${g.label}</label>`);
+  $('parentsBox').open = false; show('laboPanel');
+};
+const laboChecks = () => [...$('laboList').querySelectorAll('input')];
+$('laboAll').onclick = () => laboChecks().forEach((c) => (c.checked = true));
+$('laboNone').onclick = () => laboChecks().forEach((c) => (c.checked = false));
+$('laboBack').onclick = () => show('laboPanel', false);
+$('laboGo').onclick = () => {
+  const ids = laboChecks().filter((c) => c.checked).map((c) => c.value); if (!ids.length) return;
+  store('labo', ids); show('laboPanel', false);
+  startWorld(quickWorld(MINI_GAMES.filter((g) => ids.includes(g.id)), true));
+};
 $('mapBack').onclick = () => show('mapPanel', false);
 $('hubExit').onclick = goMenu;
 
@@ -2822,7 +2851,7 @@ if (DEV.get('room')) { // (mode test) chambre remplie
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || (DEV.get('hub') || DEV.get('village'))) {
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village'))) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   if (DEV.get('vkid')) setInterval(() => draw(performance.now()), 33); // (enfant virtuel : capture sans fenêtre = ~2 images/s seulement ; le héros 3D doit suivre les gestes comme sur un vrai écran)

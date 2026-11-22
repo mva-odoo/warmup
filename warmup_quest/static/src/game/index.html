@@ -21,15 +21,28 @@
       <h1>Warm-Up <span>Quest</span></h1>
       <p class="subtitle">Bouge pour apprendre la magie !</p>
     </header>
-    <div class="homeTiles">
-      <button class="tile tilePlay" id="hubBtn"><span class="tileIcon">🏰</span><b>Jouer</b><small>Le château de l'Académie</small></button>
-      <button class="tile tileDefis" id="defisBtn"><span class="tileIcon">🏆</span><b>Salle des Défis</b><small>Trois défis : bats ton record !</small></button>
-      <button class="tile tileMap" id="mapBtn"><span class="tileIcon">🗺️</span><b>La carte</b><small>Tous les cours et les aventures</small></button>
+    <!-- Deux portes seulement : l'aventure (avec l'histoire) ou un jeu tout de suite -->
+    <div class="homeTiles two">
+      <button class="tile tilePlay" id="hubBtn"><span class="tileIcon">🏰</span><b>L'aventure</b><small>Le château et l'histoire</small></button>
+      <button class="tile tileQuick" id="quickBtn"><span class="tileIcon">⚡</span><b>Jouer tout de suite</b><small>Un jeu, et c'est parti !</small></button>
     </div>
     <div class="menuBottom">
       <button class="btn small ghost" id="storyBtn">📜 L'histoire</button>
       <button class="btn small ghost" id="carnetBtn">📖 Mon grimoire</button>
       <button class="btn small ghost" id="roomBtn">🏠 Ma chambre</button>
+    </div>
+    <!-- Jouer tout de suite : six grandes cartes, une par jeu -->
+    <div id="quickPanel" class="mapPanel hidden">
+      <div class="mapHead"><button class="btn small ghost" id="quickBack">◀ Retour</button><h2>⚡ Choisis ton jeu !</h2></div>
+      <div id="quickCards" class="quickCards"></div>
+      <div class="quickMore"><button class="btn ghost" id="defisBtn">🏆 Salle des Défis</button></div>
+    </div>
+    <!-- Labo des mini-jeux (parents, tests) : on coche, et ça tourne en boucle -->
+    <div id="laboPanel" class="mapPanel hidden">
+      <div class="mapHead"><button class="btn small ghost" id="laboBack">◀ Retour</button><h2>🧪 Labo des mini-jeux</h2></div>
+      <p class="laboTip">Coche les jeux à tester : ils s'enchaînent en boucle (pause ou ⏸ pour arrêter).</p>
+      <div id="laboList" class="laboList"></div>
+      <div class="quickMore"><button class="btn small ghost" id="laboAll">Tout</button><button class="btn small ghost" id="laboNone">Rien</button><button class="btn" id="laboGo">▶ Lancer en boucle</button></div>
     </div>
     <!-- La carte de l'Académie (toutes les îles), dans un panneau -->
     <div id="mapPanel" class="mapPanel hidden">
@@ -49,6 +62,7 @@
       </div>
       <p id="voiceTip" class="voiceTip hidden">💡 Pour une voix bien plus naturelle, ouvre le jeu avec <b>Microsoft Edge</b> (voix « Natural »).</p>
       <div class="duoRow" id="duoRow"></div>
+      <div class="parentsBtns"><button class="btn small" id="mapBtn">🗺️ Tous les mondes</button><button class="btn small" id="laboBtn">🧪 Labo des mini-jeux (test en boucle)</button></div>
       <label class="sim"><input type="checkbox" id="simToggle"> Mode clavier (test sans caméra)</label>
       <label class="sim" title="Seulement les points du corps (pas d'image) : un fichier est téléchargé à la fin de la partie, pour régler la détection des mouvements."><input type="checkbox" id="recToggle"> 🎥 Enregistrer les mouvements (pour régler le jeu)</label>
       </div>
