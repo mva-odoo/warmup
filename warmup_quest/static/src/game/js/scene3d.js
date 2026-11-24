@@ -444,7 +444,10 @@ class Scene3D extends DepthScene {
     for (const c of this.clouds) c.visible = !night && !water && !kit.flat; // (pas de nuages dans le supermarché)
     this.disc.visible = !water;
     if (water) this.skyU.glow.value = 0.2; // (lumière diffuse sous l'eau)
-    this.colorTerrain(b, !!kit.grass);
+    this.colorTerrain(b, !!kit.grass, !!kit.tiles);
+    // Carrelage au sol (Le Bain) : texture de carreaux sur le terrain, qui défile avec lui
+    const tileMap = kit.tiles ? this.tileTex() : null;
+    if (this.terMat && this.terMat.map !== tileMap) { this.terMat.map = tileMap; this.terMat.needsUpdate = true; }
     this.flatK = kit.flat ? 0.04 : 1; // (supermarché : le sol est plat)
     if (this.chunks) for (const c of this.chunks) c.mesh.scale.y = this.flatK;
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
@@ -493,6 +496,15 @@ class Scene3D extends DepthScene {
     const grad = g.createLinearGradient(0, 0, 0, N);
     grad.addColorStop(0, b.path); grad.addColorStop(0.5, b.path2); grad.addColorStop(1, b.path);
     g.fillStyle = grad; g.fillRect(0, 0, N, N);
+    if ((KITS[this.kitName] || {}).tiles) { // Le Bain : grand tapis de bain moelleux (carreaux de couleur, bords à franges, pointillés des couloirs)
+      const sz = N / 6;
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { g.fillStyle = (i + j) % 2 ? shade(b.path, 0.12) : shade(b.path2, 0.04); g.beginPath(); g.roundRect(i * sz + 3, j * sz + 3, sz - 6, sz - 6, 6); g.fill(); }
+      for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(rnd() * N, rnd() * N, 2 + rnd() * 5, 0, Math.PI * 2); g.fill(); } // (petites bulles)
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      for (const x of [N / 3, (2 * N) / 3]) { g.beginPath(); g.roundRect(x - 3, 30, 6, 70, 3); g.fill(); }
+      this.pathTex.anisotropy = 4; this.pathTex.needsUpdate = true;
+      return;
+    }
     // Grain de la terre
     for (let i = 0; i < 1400; i++) {
       g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)';
@@ -523,6 +535,7 @@ class Scene3D extends DepthScene {
     const T = this.T, scene = this.s3;
     this.windU = { value: 0 };
     const terMat = this.lam('#ffffff', { vertexColors: true });
+    this.terMat = terMat; // (Le Bain : on y pose la texture du carrelage)
     // Brin d'herbe : petit triangle effilé ; il ondule (plus le haut que le bas) selon le temps et sa position
     const blade = new T.PlaneGeometry(0.1, 0.6, 1, 3); blade.translate(0, 0.3, 0);
     const bp = blade.attributes.position;
@@ -567,7 +580,7 @@ class Scene3D extends DepthScene {
   }
 
   // Couleurs du terrain (taches plus claires / plus foncées) et de l'herbe pour ce paysage
-  colorTerrain(b, grassy) {
+  colorTerrain(b, grassy, tiles = false) {
     const T = this.T, base = new T.Color(b.grass), light = new T.Color(shade(b.grass, 0.12)), dark = new T.Color(shade(b.grass, -0.14));
     const c = new T.Color();
     for (const { mesh, grass } of this.chunks) {
@@ -575,7 +588,7 @@ class Scene3D extends DepthScene {
       for (let i = 0; i < p.count; i++) {
         const x = p.getX(i), z = p.getZ(i);
         const v = Math.sin(x * 0.21 + z * 0.13) * 0.5 + Math.sin(x * 0.07 - z * 0.31 + 1.7) * 0.5;
-        c.copy(base).lerp(v > 0 ? light : dark, Math.abs(v) * 0.8);
+        c.copy(base).lerp(v > 0 ? light : dark, Math.abs(v) * (tiles ? 0.25 : 0.8)); // (carrelage : couleur presque unie)
         col.setXYZ(i, c.r, c.g, c.b);
       }
       col.needsUpdate = true;
@@ -588,6 +601,20 @@ class Scene3D extends DepthScene {
         grass.instanceColor.needsUpdate = true;
       }
     }
+  }
+
+  // Carreaux du sol (Le Bain) : carreaux blancs, joints gris clair, un carreau coloré de temps en temps (créée une fois)
+  tileTex() {
+    if (this._tileTex && this._tileFor === this.terMat) return this._tileTex; // (une par sol : libérée avec lui)
+    const T = this.T, cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const x = cv.getContext('2d'), n = 2, s = 128 / n;
+    x.fillStyle = '#c9d6e3'; x.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { x.fillStyle = (i + j) % 2 ? '#ffffff' : '#f3f8fc'; x.fillRect(i * s + 3, j * s + 3, s - 6, s - 6); }
+    x.fillStyle = 'rgba(255,255,255,.7)'; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) x.fillRect(i * s + 8, j * s + 8, s * 0.3, 4); // (reflet)
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping;
+    tex.repeat.set(120 / n, TER_PERIOD / 2 / n); tex.anisotropy = 4;
+    this._tileTex = tex; this._tileFor = this.terMat;
+    return tex;
   }
 
   // Hauteur du sol à une position du monde (pour poser le décor sur les collines)
@@ -619,7 +646,7 @@ class Scene3D extends DepthScene {
     }
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const nm = d.userData.name || '';
-    const big = /ship|tower|hangar/.test(nm) ? 7 : /dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|cherry-tree|torii|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
+    const big = /ship|tower|hangar/.test(nm) ? 7 : /bathtub|dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|cherry-tree|torii|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;
     d.position.set(side * (LANE * 1.5 + 2.0 + big + Math.random() * 10), 0, z);
   }
 
@@ -631,12 +658,21 @@ class Scene3D extends DepthScene {
     geo.setAttribute('position', new T.BufferAttribute(pos, 3));
     const look = {
       snow: ['#ffffff', 0.18], bubbles: ['#e0f7ff', 0.14], fireflies: ['#fff59d', 0.26],
-      petals: ['#ffafcc', 0.2], embers: ['#ff8c42', 0.18],
+      petals: ['#ffafcc', 0.2], embers: ['#ff8c42', 0.18], soap: ['#ffffff', 0.55],
     }[kind] || ['#ffffff', 0.15];
-    const points = new T.Points(geo, new T.PointsMaterial({ color: look[0], size: look[1], transparent: true, opacity: 0.9, depthWrite: false }));
+    const points = new T.Points(geo, new T.PointsMaterial({ color: look[0], size: look[1], transparent: true, opacity: 0.9, depthWrite: false, ...(kind === 'soap' ? { map: this.soapTex(), alphaTest: 0.02 } : {}) }));
     this.s3.add(points);
-    const vel = { snow: [0.3, -1.2], bubbles: [0.2, 1.0], fireflies: [0.6, 0.15], petals: [0.5, -0.8], embers: [0.3, 1.4] }[kind] || [0.2, -0.5];
+    const vel = { snow: [0.3, -1.2], bubbles: [0.2, 1.0], fireflies: [0.6, 0.15], petals: [0.5, -0.8], embers: [0.3, 1.4], soap: [0.4, 0.45] }[kind] || [0.2, -0.5];
     return { points, kind, vel };
+  }
+  // Bulle de savon (Le Bain) : anneau irisé et reflet, transparente au milieu
+  soapTex() {
+    const T = this.T, c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 18, 32, 32, 30);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(0.7, 'rgba(190,230,255,0.45)'); g.addColorStop(0.88, 'rgba(255,170,230,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(32, 32, 30, 0, Math.PI * 2); x.fill();
+    x.fillStyle = 'rgba(255,255,255,0.95)'; x.beginPath(); x.ellipse(22, 20, 7, 4, -0.6, 0, Math.PI * 2); x.fill();
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; return t;
   }
 
   makeStars() {
@@ -1578,8 +1614,9 @@ class Scene3D extends DepthScene {
     } else if (hz.kind === 'thief' && !ok) {
       this.cartSteal();
     } else if (ok) {
-      const p = this.project(hz.kind === 'rock' ? hz.lane * LANE : 0, 0.8, 0.4);
-      this.burst(p.x, p.y, 14, ['#ffffff', '#ffe066', '#4ade80']);
+      const p = this.project(hz.kind === 'rock' || hz.kind === 'cone' ? hz.lane * LANE : 0, hz.kind === 'giant' ? 1.8 : 0.8, 0.4);
+      this.burst(p.x, p.y, 14, hz.kind === 'tackle' || hz.kind === 'giant' ? ['#ffffff', '#e63946', '#ffe066', '#4ade80'] : ['#ffffff', '#ffe066', '#4ade80']);
+      if (hz.kind === 'tackle' || hz.kind === 'giant') this.emojiPop(p.x, p.y - this.size * 0.4, 1, '⚽');
     }
   }
 
@@ -1613,6 +1650,79 @@ class Scene3D extends DepthScene {
     const beam = new T.Mesh(new T.BoxGeometry(LANE * 3 + 1, 0.25, 0.3), wood); beam.position.y = 1.85; m.add(beam);
     for (let i = 0; i < 9; i++) { const l = new T.Mesh(this.geo.ball, this.mat.leaf2); l.scale.setScalar(0.25); l.position.set(-2.6 + i * 0.65, 1.68, 0.1); m.add(l); }
     return this.shadow(m);
+  }
+
+  // ---------- Stade : joueurs de l'équipe rouge (obstacles de la course) et plots
+  // Joueur : un petit humain (comme les dresseurs) en maillot rouge, tourné vers l'enfant ; repli : bonhomme simple
+  makeFootPlayer(pose = 'idle', legs = null) {
+    const T = this.T, models = typeof FOOT_PLAYER_MODELS !== 'undefined' ? FOOT_PLAYER_MODELS : ['male-a'];
+    this.footN = (this.footN || 0) + 1;
+    const look = { model: models[this.footN % models.length], hat: 'none', glasses: false, back: 'none', color: '#e63946' };
+    const loaded = (lk) => this.P.models && lookKeys(lk).every((k) => this.P.models.has(k));
+    const lk = loaded(look) ? look : loaded(DEFAULT_LOOK) ? { ...DEFAULT_LOOK, hat: 'none', back: 'none', color: '#e63946' } : null;
+    if (!lk) { // (personnages pas chargés : bonhomme rouge en formes simples)
+      const g = new T.Group(), red = this.lam('#e63946'), skin = this.lam('#ffcf9e'), dark = this.lam('#1e1b4b');
+      const body = new T.Mesh(this.geo.sphere, red); body.scale.set(0.42, 0.55, 0.32); body.position.y = 1.15; g.add(body);
+      const head = new T.Mesh(this.geo.sphere, skin); head.scale.setScalar(0.3); head.position.y = 1.9; g.add(head);
+      for (const sg of [-1, 1]) {
+        const leg = new T.Mesh(this.geo.trunk, dark); leg.scale.set(0.7, 0.75, 0.7); leg.position.set(sg * 0.18 + (legs ? sg * 0.15 : 0), 0.4, 0); leg.rotation.z = legs ? sg * 0.35 : 0; g.add(leg);
+        const arm = new T.Mesh(this.geo.trunk, red); arm.scale.set(0.5, 0.7, 0.5);
+        if (pose === 'airplane') { arm.position.set(sg * 0.75, 1.4, 0); arm.rotation.z = sg * Math.PI / 2; } else { arm.position.set(sg * 0.5, 1.05, 0); arm.rotation.z = sg * 0.25; }
+        g.add(arm);
+      }
+      return { group: this.shadow(g), human: false };
+    }
+    const m = this.makeHumanHero({ body: '#e63946' }, false, lk);
+    m.isGhost = true; // (pas de fantôme de pose, pas d'imitation de l'enfant)
+    if (m.wandTip && m.wandTip.parent) m.wandTip.parent.visible = false; // (pas de baguette : c'est un footballeur)
+    this.poseHumanStill(m, pose);
+    const r = m.human;
+    if (legs) for (const [n, d] of Object.entries(legs)) this.aimBone(r.bones[n], r.kay ? r.child[n] : null, d, m.inner, HUMAN_AXIS[n]);
+    // Maillot rouge de l'équipe adverse (bande blanche) par-dessus le torse
+    if (r.bones.torso) {
+      const B = this.measureHuman(r.obj, r.bones, lk).torso, d = Math.max(0.05, B.front - B.back);
+      const RB = this.RoundedBox, geo = RB ? new RB(B.w * 1.16, B.h * 1.12, d * 1.25, 3, Math.min(B.w, d) * 0.2) : new T.BoxGeometry(B.w * 1.16, B.h * 1.12, d * 1.25);
+      const shirt = new T.Mesh(geo, this.lam('#e63946')); shirt.position.set(B.cx, B.cy, (B.front + B.back) / 2); shirt.castShadow = true; r.bones.torso.add(shirt);
+      const band = new T.Mesh(new T.BoxGeometry(B.w * 1.18, B.h * 0.18, d * 1.28), this.lam('#ffffff')); band.position.copy(shirt.position); band.position.y += B.h * 0.12; r.bones.torso.add(band);
+    }
+    m.group.rotation.y = Math.PI; // (de face : il vient vers l'enfant)
+    return m;
+  }
+  // Tacle : un joueur glisse au ras du sol, couché en travers du chemin, jambe tendue ; une gerbe d'herbe sur toute la largeur
+  makeTackle() {
+    const T = this.T, g = new T.Group(), p = this.makeFootPlayer('idle', { 'leg-left': [0.15, -1, -0.9], 'leg-right': [-0.1, -1, 0.15] });
+    const pl = p.group; pl.scale.multiplyScalar(1.2);
+    pl.rotation.set(0, Math.PI, Math.PI / 2 * 0.92); // (couché sur le côté, la tête vers un bord du chemin)
+    const wrap = new T.Group(); wrap.add(pl); pl.updateMatrixWorld(true);
+    const box = new T.Box3().setFromObject(pl), c = box.getCenter(new T.Vector3());
+    pl.position.set(-c.x, -box.min.y + 0.02, -c.z);
+    g.add(wrap); g.userData.slider = wrap;
+    // gerbe d'herbe et de terre soulevée, d'un bord à l'autre du chemin (on saute par-dessus tout ça)
+    const greens = ['#6fbf73', '#8fd97c', '#ffffff', '#c49a6c'], clumps = [];
+    for (let i = 0; i < 22; i++) {
+      const b = new T.Mesh(this.geo.ball, this.lam(greens[i % 4])); const x = -LANE * 1.5 - 0.2 + (i / 21) * (LANE * 3 + 0.4);
+      b.scale.setScalar(0.09 + Math.random() * 0.08); b.position.set(x, 0.15 + Math.random() * 0.35, 0.35 + Math.random() * 0.3); g.add(b); clumps.push([b, b.position.y, Math.random() * 6]);
+    }
+    const line = new T.Mesh(new T.BoxGeometry(LANE * 3 + 0.6, 0.05, 0.5), this.lam('#ffffff', { transparent: true, opacity: 0.6 })); line.position.set(0, 0.03, 0.2); g.add(line); // (trace blanche)
+    const ball = new T.Mesh(this.geo.sphere, this.lam('#ffffff')); ball.scale.setScalar(0.22); ball.position.set(0.9, 0.22, 0.7); g.add(ball);
+    for (let i = 0; i < 5; i++) { const sp = new T.Mesh(this.geo.sphere, this.lam('#1e1b4b')); sp.scale.setScalar(0.3); const a = i * 1.26; sp.position.set(Math.cos(a) * 0.85, Math.sin(a) * 0.85, 0.3); ball.add(sp); }
+    g.userData.clumps = clumps; g.userData.ball = ball;
+    return this.shadow(g);
+  }
+  // Grand joueur (1,6 fois plus grand) bras grands écartés, jambes ouvertes : on passe dessous en se baissant
+  makeGiant() {
+    const T = this.T, g = new T.Group(), p = this.makeFootPlayer('airplane', { 'leg-left': [-0.38, -1, 0], 'leg-right': [0.38, -1, 0] });
+    p.group.scale.multiplyScalar(1.6);
+    g.add(p.group); g.userData.giant = p.group;
+    return this.shadow(g);
+  }
+  // Plot orange (à rayures blanches, socle noir) dans un couloir : on change de couloir
+  makeCone() {
+    const T = this.T, g = new T.Group();
+    const base = new T.Mesh(this.geo.box, this.lam('#1e1b4b')); base.scale.set(0.8, 0.08, 0.8); base.position.y = 0.04; g.add(base);
+    const cone = new T.Mesh(new T.ConeGeometry(0.34, 1.05, 20), this.lam('#ff7b00')); cone.position.y = 0.6; g.add(cone);
+    for (const [y, r] of [[0.45, 0.27], [0.75, 0.17]]) { const st = new T.Mesh(new T.CylinderGeometry(r * 0.92, r * 1.08, 0.12, 20), this.lam('#ffffff')); st.position.y = y; g.add(st); }
+    return this.shadow(g);
   }
 
   makeRock(r = 0.65) {
@@ -2319,6 +2429,9 @@ class Scene3D extends DepthScene {
   makeHazard(hz) {
     if (hz.kind === 'log') return this.makeLog();
     if (hz.kind === 'arch') return this.makeArch();
+    if (hz.kind === 'tackle') return this.makeTackle();
+    if (hz.kind === 'giant') return this.makeGiant();
+    if (hz.kind === 'cone') { const g = this.makeCone(); g.position.x = hz.lane * LANE; return g; }
     if (hz.kind === 'star') { const g = new this.T.Group(); const s = this.emojiSprite(this.theme.collectible, 1.1); s.position.set(hz.lane * LANE, 1.1, 0); g.add(s); return g; }
     if (hz.kind === 'item') { // produit qui arrive en tournant, posé sur un petit halo
       const g = new this.T.Group(), m = this.P.model('food/' + hz.prod) || this.emojiSprite('🛒', 1);
@@ -2550,6 +2663,16 @@ class Scene3D extends DepthScene {
       mesh.scale.setScalar(k);
       if (hz.kind === 'star') mesh.position.y = Math.sin(now * 0.006) * 0.1 + (hz.t0 ? (1 - k) * 1.5 : 0);
       if (hz.kind === 'item' && mesh.userData.item) { mesh.userData.item.rotation.y = now * 0.003; mesh.userData.item.position.y = 0.9 + Math.sin(now * 0.006) * 0.12; }
+      if (hz.kind === 'tackle' && mesh.userData.slider) { // (il glisse : petites secousses, l'herbe vole, le ballon roule)
+        mesh.userData.slider.position.x = Math.sin(now * 0.03) * 0.05;
+        for (const [b, y, p] of mesh.userData.clumps) b.position.y = y + Math.abs(Math.sin(now * 0.012 + p)) * 0.25;
+        mesh.userData.ball.rotation.x -= 0.2;
+        if (hz.state === 'cleared') mesh.userData.slider.rotation.y = (1 - k) * 0.6;
+      }
+      if (hz.kind === 'giant' && mesh.userData.giant) { // (se dandine, bras écartés ; raté : il saute de joie)
+        const gp = mesh.userData.giant; gp.rotation.z = Math.sin(now * 0.004) * 0.06;
+        gp.position.y = hz.state === 'hit' ? Math.abs(Math.sin((now - hz.t0) * 0.012)) * 0.5 : 0;
+      }
       if (hz.kind === 'thief' && mesh.userData.pet) { mesh.userData.pet.animate(now, hz.t0 && hz.state === 'hit' ? 'happy' : 'run'); mesh.rotation.y = hz.state === 'cleared' ? Math.PI : 0; }
     }
 

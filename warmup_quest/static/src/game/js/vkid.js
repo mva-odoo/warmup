@@ -198,29 +198,19 @@ const VKid = (() => {
     const st = A.st, g = A.s.game, obey = rnd() < 0.5 + SKILL * 0.5;
     if (A.cal) { const d = A.calDirs()[A.cal.i], n = Math.hypot(d[0], d[1]), w = reach(d[0] / n * 9, d[1] / n * 9, 0.86 + SKILL * 0.1); if (d[0] < 0) s.wL = w; else s.wR = w; return s; }
     if (A.intro || A.outro) return s;
-    if (g === 'potions') {
-      if (st.phase === 'pick') { const it = (st.items || []).find((x) => !x.taken && !x.bad && x.x != null); if (it) touch(s, now, A, it.x, it.y, it); }
-      else { stirA += 0.11; s.wR = V(-L('shW') + Math.cos(stirA) * ARM * 0.6, Math.sin(stirA) * ARM * 0.6, 0.15); }
-    } else if (g === 'neige') {
+    if (g === 'neige') {
       const m = (st.men || []).find((x) => !x.hit && !x.gone && x.x != null && now - x.t0 > 400);
       if (m && (!throwS || now - throwS.t > 1400)) throwS = { t: now, left: m.x < A.B.sh.x };
       if (throwS) { const k = now - throwS.t, w = k < 450 ? V(0.05, ARM * 0.95, 0) : k < 800 ? V(0.05, -ARM * 0.6, ARM * 0.6) : null; if (w) { if (throwS.left) s.wL = V(w.x + L('shW') * 0, w.y, w.z); else s.wR = V(-w.x, w.y, w.z); } }
-    } else if (g === 'duel') {
-      if ((st.phase === 'charge' || st.phase === 'cast') && st.kind === 'shield') POSES.together(s);
-      if (st.phase === 'cast' && st.kind === 'dodge') s.bx = home + 0.42;
-      if (st.phase === 'counter') POSES.up(s);
     } else if (g === 'mur') { const w = st.wall; if (w && (now - w.t0) / w.dur > 0.3 && obey) pose(s, w.pose); }
     else if (g === 'pimprenelle') {
       const c = st.cur;
       if (c && now - c.t0 > 900 && (c.simon ? obey : rnd() < 0.02 * (1 - SKILL))) {
         if (c.o.g === 'jump') { if (now - jumpT > 900) jumpT = now; } else if (c.o.g === 'smash') { const k = (now - c.t0) % 900; s.wR = k < 450 ? V(-0.05, ARM * 0.95, 0) : V(-0.05, -ARM * 0.6, ARM * 0.6); } else pose(s, c.o.g);
       }
-    } else if (g === 'soleil') {
-      if (st.phase === 'dos' && now - st.at > LAG) { const k = Math.sin(now / 160); s.kneeL = Math.max(0, k) * 0.6; s.kneeR = Math.max(0, -k) * 0.6; s.wL = V(0.15, -ARM * (0.6 - k * 0.25), k * 0.25); s.wR = V(-0.15, -ARM * (0.6 + k * 0.25), -k * 0.25); }
-    } else if (g === 'corde') { const k = Math.sin(now / 110); s.wL = V(L('shW') * 0.2, k * ARM * 0.7, ARM * 0.5); s.wR = V(-L('shW') * 0.2, -k * ARM * 0.7, ARM * 0.5); }
-    else if (g === 'equilibre') { s.kneeL = 1; if (st.gust || tracker.mode === 'upper') POSES.plane(s); }
-    else if (g === 'balai') { const r = (st.rings || []).find((x) => !x.res); if (r) { s.bx = home - r.gx * 0.15; s.lean = -r.gx; if (r.gy < 0) POSES.up(s); if (r.gy > 0) s.drop = 1; } }
-    else if (g === 'photo') POSES.star(s);
+    } else if (g === 'course') { // courir sur place : genoux et bras qui alternent (moins vite pour un « petit »)
+      const k = Math.sin(now / (160 + (1 - SKILL) * 80)); s.kneeL = Math.max(0, k) * 0.6; s.kneeR = Math.max(0, -k) * 0.6; s.wL = V(0.15, -ARM * (0.6 - k * 0.25), k * 0.25); s.wR = V(-0.15, -ARM * (0.6 + k * 0.25), -k * 0.25);
+    }
     return s;
   }
 
@@ -239,7 +229,6 @@ const VKid = (() => {
     if (t < LAG) return null;
     const lane = (l) => { s.bx = home + (l < 0 ? 0.42 : l > 0 ? -0.42 : 0); }; // (couloir -1 = gauche de l'écran = gauche de l'enfant)
     switch (m) {
-      case 'rope': { const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod; if (pass - now < 380 && pass - now > 0) hop(now, 500); return s; }
       case 'tunnel': s.drop = 1; return s;
       case 'jump': case 'squat': { // un tronc / une branche arrive : on saute ou on se baisse au bon moment (pas avant)
         const hz = (c.hazards || []).filter((h) => !h.done).sort((a, b) => a.arrive - b.arrive)[0];
@@ -249,29 +238,26 @@ const VKid = (() => {
       case 'smash': smash(s, now); return s;
       case 'left': case 'right': lane(m === 'left' ? -1 : 1); return s;
       case 'pose': pose(s, st.pose); return s;
-      case 'posemix': case 'boss': pose(s, st.poses[Math.min(c.pi || 0, st.poses.length - 1)]); return s;
-      case 'combo': { const p = (st.parts || [])[(c.parts && c.parts[idx]) || 0]; if (p === 'jump') hop(now, 1000); else if (p === 'squat') { if ((t % 1900) < 950) s.drop = 1; } else if (p === 'smash') smash(s, now); else if (p === 'left' || p === 'right') lane(p === 'left' ? -1 : 1); return s; } // (la suite : le geste qu'il reste à faire)
       case 'run': case 'shop': {
         const hz = (c.hazards || []).filter((h) => h.arrive > now - 200).sort((a, b) => a.arrive - b.arrive)[0];
         if (hz && hz.arrive - now < 1300) {
-          if (hz.kind === 'log') { if (hz.arrive - now < 650) hop(now, 800); }
-          else if (hz.kind === 'arch') { if (hz.arrive - now < 900) s.drop = 1; }
+          if (hz.kind === 'log' || hz.kind === 'tackle') { if (hz.arrive - now < 650) hop(now, 800); }
+          else if (hz.kind === 'arch' || hz.kind === 'giant') { if (hz.arrive - now < 900) s.drop = 1; }
           else if (hz.kind === 'item') lane(hz.lane);
-          else lane(hz.lane === 0 ? (idx ? 1 : -1) : 0); // (rocher, chapardeur : on change de couloir)
+          else lane(hz.lane === 0 ? (idx ? 1 : -1) : 0); // (rocher, plot, chapardeur : on change de couloir)
         }
         return s;
       }
       case 'catch': { const it = (c.hazards || []).filter((h) => !h.t0 && h.arrive > now).sort((a, b) => a.arrive - b.arrive)[0]; if (it) lane(Math.round(it.lane)); return s; }
       case 'freeze': if (c.phase !== 'freeze') { const k = Math.sin(now / 150); s.wL = V(0.3, k * ARM * 0.6, 0.2); s.wR = V(-0.3, -k * ARM * 0.6, 0.2); s.bx = home + k * 0.08; } return s;
-      case 'dance': case 'karate': { const mv = st.moves[Math.max(0, Math.min(st.moves.length - 1, c.showI ?? 0))]; if (mv === 'jump') hop(now, 1000); else if (mv === 'squat') s.drop = 1; else if (mv === 'smash') smash(s, now); else pose(s, mv); return s; }
+      case 'dance': { const mv = st.moves[Math.max(0, Math.min(st.moves.length - 1, c.showI ?? 0))]; if (mv === 'jump') hop(now, 1000); else if (mv === 'squat') s.drop = 1; else if (mv === 'smash') smash(s, now); else pose(s, mv); return s; }
       case 'act': {
         const a = c.act || {}, g = st.game;
-        if (g === 'grow') { if (a.phase === 0) s.drop = 1; else POSES.up(s); }
+        if (g === 'shelf') { if (a.phase === 0) s.drop = 1; else POSES.up(s); }
         else if (g === 'clap') { if ((now % 500) < 250) POSES.together(s); else { s.wL = V(ARM * 0.6, 0, 0.4); s.wR = V(-ARM * 0.6, 0, 0.4); } }
         else if (g === 'swim') { const up = (now % 900) < 450; s.wL = up ? V(0.1, ARM * 0.95, 0) : V(0.2, -ARM * 0.8, 0.2); s.wR = up ? V(-0.2, -ARM * 0.8, 0.2) : V(-0.1, ARM * 0.95, 0); }
         else if (g === 'launch') { if (a.phase === 0) s.drop = 1; else hop(now, 1000); }
         else if (g === 'stomp') { const k = (now % 1300) < 650; s.kneeL = k ? 1 : 0; s.kneeR = k ? 0 : 1; }
-        else if (g === 'animals') { const an = a.seq && a.seq[a.reps]; if (an) { if (an.need === 'jump') hop(now, 1000); else if (an.need === 'smash') smash(s, now); else pose(s, an.need); } }
         return s;
       }
       case 'slice': { // un coup de sabre à travers le fruit : la main passe d'un côté à l'autre du fruit, vite
@@ -292,13 +278,7 @@ const VKid = (() => {
         }
         return s;
       }
-      case 'wand': { // il pointe le bras vers la créature grognonne (part de l'écran)
-        const f = (c.foes || []).find((x) => x.state === 'grumpy'); if (!f) return s;
-        const left = f.x < 0.5, w = reach((f.x - 0.5) * 9, (f.y - 0.42) * 9, 0.97);
-        if (left) s.wL = w; else s.wR = w; return s;
-      }
       case 'goal': { const b = (c.shots || []).find((x) => !x.done && x.hero === idx); if (b) { const gk = G.avatarReach(idx) ? 1 : 1.5, r = reachTarget(b.u / gk, b.v / gk, G, s); if (r) return r; } return s; } // (mains du gardien agrandies ×1,5 : voir updateGoal)
-      case 'basket': { const b = c.ball; if (b && b.hero === idx) { if (b.phase === 'catch') POSES.together(s); else if (b.phase === 'hold') POSES.up(s); } return s; }
       case 'kick': { const b = c.ball; if (b && b.hero === idx && b.phase === 'wait' && now - b.t0 > 500) { if (b.side < 0) s.kneeL = 1; else s.kneeR = 1; } return s; }
       default: return null;
     }
@@ -352,7 +332,7 @@ const VKid = (() => {
     if (G && G.cur && G.cur !== stats.stepCur && stats.stepCur && stats.stepCur.vkFlags && stats.stepCur.rating) stats.poseMiss = stats.stepCur.vkFlags;
     if (G && G.cur && G.cur !== stats.stepCur) { // résultat de chaque épreuve du chemin (pour les parcours complets)
       const prev = stats.stepCur; stats.stepCur = G.cur;
-      if (prev && !['rest', 'learn', 'fork', 'arena'].includes(prev.s.m)) stats.steps.push(prev.s.m + (prev.s.pose ? '(' + prev.s.pose + ')' : '') + (prev.rating ? ':' + prev.rating : ''));
+      if (prev && !['rest', 'arena'].includes(prev.s.m)) stats.steps.push(prev.s.m + (prev.s.pose ? '(' + prev.s.pose + ')' : '') + (prev.rating ? ':' + prev.rating : ''));
     }
     if (G && G.cur && ['bubbles', 'moles', 'cubes'].includes(G.cur.s.m)) {
       const c = G.cur; if (c !== stats.pathCur) { stats.pathCur = c; stats.pathT0 = now; }

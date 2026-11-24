@@ -298,7 +298,8 @@ class DepthScene {
     });
   }
 
-  // --- Obstacles à éviter : { kind: 'rock' | 'log' | 'arch', lane, born, dur }
+  // --- Obstacles à éviter : { kind: 'rock' | 'log' | 'arch' | 'tackle' | 'giant' | 'cone', lane, born, dur }
+  // (Stade : tackle = joueur qui tacle, on saute ; giant = grand joueur bras écartés, on se baisse ; cone = plot dans un couloir)
   addHazard(hz) { hz.state = 'coming'; this.hazards.push(hz); }
   hazardZ(hz, now) {
     const p = (now - hz.born) / hz.dur;
@@ -313,7 +314,7 @@ class DepthScene {
       this.burst(p.x, p.y - this.size * 0.8, 14, ['#fff', '#ffe066', '#ffd166']);
       hz.t0 = hz.t0 - 500; // disparaît tout de suite
     } else if (ok) {
-      const z = this.heroZ() + 0.3, x = this.sx(hz.kind === 'rock' ? hz.lane : 0, z);
+      const z = this.heroZ() + 0.3, x = this.sx(hz.kind === 'rock' || hz.kind === 'cone' ? hz.lane : 0, z);
       this.burst(x, this.sy(z) - this.size * 0.4, 14, ['#ffffff', '#ffe066', '#4ade80']);
     }
   }
@@ -1022,22 +1023,27 @@ class DepthScene {
     ctx.save();
     if (game === 'stomp' && now - a.shake < 180) ctx.translate((Math.random() - 0.5) * S * 0.02, (Math.random() - 0.5) * S * 0.015); // (boum : tout tremble)
     switch (game) {
-      case 'grow': { // des pots : on plante la graine (accroupi), la fleur pousse (bras levés)
-        const flowers = ['🌷', '🌻', '🌸', '🌼', '🌺'];
+      case 'shelf': { // Range les rayons : se baisser pour prendre un produit sur le rayon du bas, lever les bras pour le poser en haut
+        const goods = ['🥫', '🧃', '🍞', '🧀', '🥛', '🍪', '🍫', '🧻'], yLow = H * 0.9, yHigh = H * 0.42, gs = S * 0.075;
+        // deux étagères (une de chaque côté du petit sorcier) : montants, tablette du bas, tablette du haut
+        for (const side of [-1, 1]) {
+          const x0 = W / 2 + side * W * 0.16, x1 = W / 2 + side * W * 0.47, xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+          ctx.fillStyle = 'rgba(47,62,70,.3)'; ctx.fillRect(xa, yHigh - gs * 0.9, xb - xa, yLow - yHigh + gs * 0.9);
+          ctx.fillStyle = '#adb5bd'; for (const y of [yHigh, yLow]) ctx.fillRect(xa - S * 0.01, y + gs * 0.45, xb - xa + S * 0.02, S * 0.018);
+          ctx.fillStyle = side < 0 ? '#ef476f' : '#118ab2'; ctx.fillRect(xa - S * 0.012, yHigh - gs * 1.1, S * 0.014, yLow - yHigh + gs * 1.7); ctx.fillRect(xb - S * 0.002, yHigh - gs * 1.1, S * 0.014, yLow - yHigh + gs * 1.7);
+          emo('⬆️', (xa + xb) / 2, yHigh - gs * 1.5, S * 0.03, 0, 0.5);
+        }
         for (let i = 0; i < n; i++) {
-          const p = slot(i), pw = S * 0.075;
-          ctx.fillStyle = '#c8553d'; ctx.beginPath(); ctx.moveTo(p.x - pw, p.y - pw * 0.9); ctx.lineTo(p.x + pw, p.y - pw * 0.9); ctx.lineTo(p.x + pw * 0.75, p.y + pw * 0.4); ctx.lineTo(p.x - pw * 0.75, p.y + pw * 0.4); ctx.closePath(); ctx.fill();
-          ctx.fillStyle = '#a4402c'; ctx.fillRect(p.x - pw * 1.1, p.y - pw * 1.05, pw * 2.2, pw * 0.3);
-          ctx.fillStyle = '#5a3e2b'; ctx.beginPath(); ctx.ellipse(p.x, p.y - pw * 0.95, pw * 0.95, pw * 0.18, 0, 0, 6.29); ctx.fill();
-          const stem = (h) => { ctx.strokeStyle = '#2d6a4f'; ctx.lineWidth = Math.max(3, S * 0.008); ctx.beginPath(); ctx.moveTo(p.x, p.y - pw); ctx.quadraticCurveTo(p.x + Math.sin(now / 500 + i) * pw * 0.3, p.y - pw - h / 2, p.x, p.y - pw - h); ctx.stroke(); };
-          if (i < a.reps) { // fleur ouverte
-            const g = i === a.reps - 1 ? Math.min(1, since / 400) : 1, h = S * 0.13 * g;
-            stem(h); emo(flowers[i % flowers.length], p.x, p.y - pw - h, S * 0.1 * (0.6 + 0.4 * g) * (1 + 0.05 * Math.sin(now / 300 + i)));
-            if (i === a.reps - 1 && popped) burstAt(p.x, p.y - pw - h);
-          } else if (i === a.reps) { // le pot du moment
-            if (a.phase === 0) { emo('🌰', p.x, p.y - pw * 1.6 - Math.abs(Math.sin(now / 250)) * pw * 0.6, S * 0.045); emo('⬇️', p.x, p.y - pw * 2.8, S * 0.05); }
-            else { const h = S * 0.13 * Math.min(1, a.hold / 450); stem(h); emo('🌱', p.x, p.y - pw - h, S * 0.06); emo('🙌', p.x, p.y - pw * 3.2 - h, S * 0.05); }
-          }
+          const p = slot(i, yLow), x = p.x, g = goods[i % goods.length];
+          if (i < a.reps) { // déjà rangé sur le rayon du haut
+            const k = i === a.reps - 1 ? Math.min(1, since / 350) : 1;
+            emo(g, x, yHigh + (1 - k) * (yLow - yHigh) * 0.2, gs * (1 + 0.15 * Math.sin(Math.min(1, k) * Math.PI)));
+            if (i === a.reps - 1 && popped) burstAt(x, yHigh);
+            emo('✨', x + gs * 0.6, yHigh - gs * 0.5, S * 0.025, 0, 0.7 + 0.3 * Math.sin(now / 200 + i));
+          } else if (i === a.reps) { // le produit du moment
+            if (a.phase === 0) { emo(g, x, yLow - Math.abs(Math.sin(now / 250)) * gs * 0.3, gs * 1.1); emo('⬇️', x, yLow - gs * 1.5, S * 0.05); emo('✋', x - gs * 0.8, yLow - gs * 0.2, S * 0.04, 0, 0.8); }
+            else { const k = Math.min(1, a.hold / 450), y = yLow + (yHigh - yLow) * (0.25 + 0.75 * k); emo(g, x, y, gs * 1.15); emo('🙌', x, y - gs * 1.2, S * 0.05); }
+          } else emo(g, x, yLow, gs, 0, 0.85); // (encore sur le rayon du bas)
         }
         break;
       }
@@ -1114,24 +1120,6 @@ class DepthScene {
           }
         }
         if (now - a.shake < 400 && a.shake) { const q = (now - a.shake) / 400; txt('BOUM !', W / 2, H * 0.88 - q * S * 0.05, S * 0.07 * (1 + q * 0.3), '#ffd166'); for (const sx of [-1, 1]) { ctx.fillStyle = `rgba(222,203,164,${0.7 * (1 - q)})`; ctx.beginPath(); ctx.arc(W / 2 + sx * S * (0.08 + q * 0.12), H * 0.95, S * (0.03 + q * 0.04), 0, 6.29); ctx.fill(); } }
-        break;
-      }
-      case 'animals': { // la grande carte de l'animal à imiter, et ceux déjà imités
-        const an = a.seq[Math.min(a.reps, n - 1)], cw = S * 0.34, ch = S * 0.44, cx = W - cw / 2 - W * 0.04, cy = H * 0.55;
-        const flip = a.pop && since < 350 ? Math.abs(Math.cos((since / 350) * Math.PI)) : 1;
-        if (a.reps < n) {
-          ctx.save(); ctx.translate(cx, cy); ctx.scale(Math.max(0.05, flip), 1);
-          ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = S * 0.012; ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, S * 0.04); ctx.fill(); ctx.stroke();
-          emo(an.icon, 0, -ch * 0.1 + Math.sin(now / 250) * S * 0.01, S * 0.19);
-          ctx.font = `800 ${S * 0.042}px 'Baloo 2', system-ui, sans-serif`; ctx.fillStyle = '#1e1b4b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(an.name, 0, ch * 0.32, cw * 0.9);
-          if (an.need !== 'jump' && an.need !== 'smash') { // (pose à tenir : l'anneau se remplit)
-            ctx.strokeStyle = '#e9ecef'; ctx.lineWidth = S * 0.012; ctx.beginPath(); ctx.arc(0, -ch * 0.1, S * 0.13, 0, 6.29); ctx.stroke();
-            ctx.strokeStyle = '#06d6a0'; ctx.beginPath(); ctx.arc(0, -ch * 0.1, S * 0.13, -Math.PI / 2, -Math.PI / 2 + Math.min(1, a.hold / 800) * 6.29); ctx.stroke();
-          }
-          ctx.restore();
-        }
-        for (let i = 0; i < n; i++) { const y = H * (0.3 + i * 0.12); emo(a.seq[i].icon, W * 0.07, y, S * (i < a.reps ? 0.065 : 0.045), 0, i < a.reps ? 1 : 0.3); if (i < a.reps) emo('✅', W * 0.07 + S * 0.045, y + S * 0.025, S * 0.03); }
-        if (popped) burstAt(cx, cy);
         break;
       }
     }
@@ -1389,6 +1377,9 @@ class DepthScene {
     ctx.globalAlpha = alpha;
     if (hz.kind === 'log') this.drawLog(z, s, gy);
     else if (hz.kind === 'arch') this.drawArch(z, s, gy);
+    else if (hz.kind === 'tackle') this.drawTackle(z, s, gy, now);
+    else if (hz.kind === 'giant') this.drawGiant(z, s, gy, now, hz);
+    else if (hz.kind === 'cone') this.drawCone(this.sx(hz.lane, z), s, gy);
     else if (hz.kind === 'star') {
       // Étoile qui arrive dans un couloir : se mettre dessous pour l'attraper
       const x = this.sx(hz.lane, z), y = gy - s * 0.7 + Math.sin(now * 0.008) * s * 0.05;
@@ -1420,6 +1411,46 @@ class DepthScene {
     ctx.fillStyle = '#7a5432'; ctx.fillRect(xl, barY - s * 0.1, xr - xl, s * 0.18);
     ctx.font = `${s * 0.3}px serif`; ctx.textAlign = 'center';
     for (let i = 0; i <= 6; i++) ctx.fillText(i % 2 ? '🍃' : '🌿', xl + (xr - xl) * (i / 6), barY + s * 0.05);
+  }
+
+  // Footballeur dessiné (maillot rouge à bande blanche, short, chaussettes) : debout, ou couché pour le tacle
+  drawPlayer(x, gy, h, opts = {}) {
+    const ctx = this.ctx, u = h / 10, arms = opts.arms ? 1 : 0;
+    ctx.save(); ctx.translate(x, gy);
+    if (opts.lying) ctx.rotate(-Math.PI / 2 * 0.92);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = u * 1.2; // jambes
+    const sp = opts.legsOpen ? u * 1.8 : u * 0.6;
+    for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sg * u * 0.6, -u * 4.2); ctx.lineTo(sg * sp, -u * 0.4); ctx.stroke(); }
+    ctx.strokeStyle = '#e63946'; ctx.lineWidth = u * 1.1; // bras
+    for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sg * u * 1.2, -u * 7.3); ctx.lineTo(sg * (arms ? u * 4.6 : u * 1.8), arms ? -u * 7.4 : -u * 4.6); ctx.stroke(); }
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-u * 1.3, -u * 5, u * 2.6, u * 1.0); // short
+    ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.roundRect(-u * 1.4, -u * 7.8, u * 2.8, u * 3.2, u * 0.6); ctx.fill(); // maillot
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-u * 1.4, -u * 6.9, u * 2.8, u * 0.5);
+    ctx.fillStyle = '#ffcf9e'; ctx.beginPath(); ctx.arc(0, -u * 8.8, u * 1.1, 0, Math.PI * 2); ctx.fill(); // tête
+    ctx.fillStyle = '#5a3e2b'; ctx.beginPath(); ctx.arc(0, -u * 9.2, u * 1.1, Math.PI, 0); ctx.fill();
+    ctx.restore();
+  }
+  // Tacle : le joueur glisse en travers du chemin, gerbe d'herbe d'un bord à l'autre (sauter)
+  drawTackle(z, s, gy, now) {
+    const ctx = this.ctx, xl = this.sx(-1.55, z), xr = this.sx(1.55, z);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(xl, gy - s * 0.04, xr - xl, s * 0.06);
+    for (let i = 0; i <= 14; i++) { const x = xl + (xr - xl) * (i / 14), j = Math.abs(Math.sin(now * 0.012 + i)) * s * 0.12; ctx.fillStyle = ['#6fbf73', '#8fd97c', '#c49a6c'][i % 3]; ctx.beginPath(); ctx.arc(x, gy - s * 0.08 - j, s * 0.04, 0, Math.PI * 2); ctx.fill(); }
+    this.drawPlayer((xl + xr) / 2 + Math.sin(now * 0.03) * s * 0.02, gy - s * 0.02, s * 1.1, { lying: true });
+    ctx.font = `${s * 0.22}px serif`; ctx.textAlign = 'center'; ctx.fillText('⚽', xr - (xr - xl) * 0.2, gy - s * 0.03);
+  }
+  // Grand joueur bras écartés au milieu du chemin (se baisser pour passer dessous)
+  drawGiant(z, s, gy, now, hz) {
+    const hop = hz.state === 'hit' && hz.t0 ? Math.abs(Math.sin((now - hz.t0) * 0.012)) * s * 0.2 : 0;
+    this.drawPlayer(this.sx(0, z), gy - hop, s * 1.6 * 0.95, { arms: true, legsOpen: true });
+  }
+  // Plot orange à rayures blanches
+  drawCone(x, s, gy) {
+    const ctx = this.ctx, w = s * 0.32, h = s * 0.62;
+    ctx.fillStyle = '#1e1b4b'; ctx.fillRect(x - w * 1.2, gy - s * 0.05, w * 2.4, s * 0.06);
+    ctx.fillStyle = '#ff7b00'; ctx.beginPath(); ctx.moveTo(x - w, gy - s * 0.04); ctx.lineTo(x - w * 0.15, gy - h); ctx.lineTo(x + w * 0.15, gy - h); ctx.lineTo(x + w, gy - s * 0.04); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    for (const [a, b] of [[0.28, 0.4], [0.58, 0.68]]) { const wa = w * (1 - a * 0.85), wb = w * (1 - b * 0.85); ctx.beginPath(); ctx.moveTo(x - wa, gy - h * a); ctx.lineTo(x - wb, gy - h * b); ctx.lineTo(x + wb, gy - h * b); ctx.lineTo(x + wa, gy - h * a); ctx.closePath(); ctx.fill(); }
   }
 
   drawRock(x, s, gy) {

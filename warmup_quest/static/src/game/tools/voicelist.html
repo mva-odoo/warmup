@@ -25,43 +25,33 @@
   };
   // 1. Phrases écrites telles quelles dans le code (relevées par make_voice.py)
   for (const [t, c, e] of await (await fetch('literals.json?' + Date.now())).json()) add(t, c, e);
-  // 2. Consignes de toutes les épreuves de tous les mondes (+ carrefours, chemins secrets, nombres de répétitions)
+  // 2. Consignes de toutes les épreuves de tous les mondes (+ nombres de répétitions, chemin du Stade)
   const BASIC = ['jump', 'squat', 'smash', 'left', 'right', 'run', 'pose', 'bubbles', 'catch', 'moles', 'slice'];
   const steps = [];
-  WORLDS.forEach((w) => w.sequence.forEach((s) => steps.push([s, !!w.tutorial])));
-  [...FORK_POOL, ...SECRET_POOL].forEach((s) => steps.push([s, false]));
-  for (let n = 1; n <= 12; n++) for (const m of ['jump', 'squat', 'smash', 'rope']) steps.push([{ m, n }, false]);
-  for (const [s, tuto] of steps) {
-    if (s.m === 'learn') { add(tutoText(s.of), 'tuto'); continue; }
-    if (s.m === 'fork' || s.m === 'combo' && !s.parts) continue;
-    add(stepSpeech(s), tuto ? 'tuto' : 'consigne', BASIC.includes(s.m) && (!s.n || s.n <= 3));
-    add(tutoText(s), 'tuto');
-  }
+  WORLDS.forEach((w) => w.sequence.forEach((s) => steps.push(w.obstacles && s.m === 'run' ? { ...s, foot: true } : s)));
+  for (let n = 1; n <= 12; n++) for (const m of ['jump', 'squat', 'smash']) steps.push({ m, n });
+  for (const s of steps) add(stepSpeech(s), 'consigne', BASIC.includes(s.m) && (!s.n || s.n <= 3));
   for (const p of Object.values(POSES)) { add(p.say, 'consigne', true); add(p.label, 'consigne'); }
   for (const g of Object.values(ACTS)) for (const t of g.cheer) add(t, 'jeu'); // (jeux sur place : encouragements)
-  for (const an of ANIMALS) add(an.say, 'consigne'); // (imite les animaux : une phrase par carte)
   for (const t of ARENA_LINES) add(t, 'jeu'); // (jeux miroir : phrases dites pendant le jeu)
   for (const o of SIMON_ORDERS) { add(o.yes, 'consigne'); add(o.no, 'consigne'); } // (Pimprenelle a dit)
   if (typeof SETUP_TIPS !== 'undefined') for (const t of Object.values(SETUP_TIPS)) add(t.say, 'consigne'); // (conseils d'installation)
   for (const st of Object.values(MIMIC)) for (const t of Object.values(st.say)) add(t, 'consigne');
-  // 3. Carrefours
-  add('Un carrefour !', 'consigne'); add('Fais un grand pas du côté que tu veux !', 'consigne');
-  const forkNames = [...Object.values(FORK_NAMES), 'un chemin secret'];
-  for (const n of forkNames) for (const side of ['À gauche', 'À droite']) { add(`${side} : ${n}.`, 'jeu'); add(`${side} : ${n} !`, 'jeu'); }
-  add('Le chemin secret !', 'jeu'); add('Et peut-être un trésor…', 'jeu');
-  for (const n of Object.values(FORK_NAMES)) add(`Il cache… ${n} !`, 'jeu');
-  // 4. Créatures (amis, compagnons, gardiens)
+  for (const g of Object.values(ACTS)) add(g.say, 'consigne');
+  for (const g of Object.values(ARENA)) add(g.say, 'consigne');
+  for (const t of ['Évite le plot !', 'Il tacle : saute !', 'Baisse-toi sous ses bras !']) add(t, 'jeu'); // (chemin du Stade)
+  // 3. Créatures (amis, compagnons, gardiens)
   add('Surprise du jour !', 'jeu'); add('pour devenir son ami !', 'jeu');
   for (const cr of CREATURES) {
     const n = cr.name;
     add(`Oh ! ${n} arrive !`, 'jeu'); add(`Super ! ${n} va courir avec toi !`, 'bravo');
     add(`Bravo ! ${n} est ton ami !`, 'bravo'); add(`Incroyable ! ${n} a évolué !`, 'bravo'); add(`${n} a grandi !`, 'bravo');
-    add(`${n} est ton nouveau compagnon !`, 'bravo'); add(`Bravo ! ${n}, le gardien du monde, devient ton ami !`, 'bravo');
+    add(`${n} est ton nouveau compagnon !`, 'bravo');
     for (const p of Object.values(POSES)) add(`${n} arrive ! ${p.say} pour devenir son ami !`, 'jeu');
   }
-  add(`Choisis ton compagnon : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`, 'jeu');
-  // 5. Carte, résultats, tours, décompte
-  for (const w of WORLDS) add(`Gagne une étoile dans ${w.name} pour ouvrir cette île !`, 'jeu');
+  add(`Choisis ton compagnon, une petite créature qui joue avec toi : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`, 'jeu');
+  // 4. Menu, résultats, tours, décompte
+  for (const w of WORLDS) add(`${w.name} !`, 'jeu');
   add('Bravo !', 'bravo', true);
   for (let n = 1; n <= 3; n++) for (const who of ['Tu as', 'Vous avez']) add(`${who} gagné ${n} étoile${n > 1 ? 's' : ''} et ${who === 'Vous avez' ? 'des nouvelles gommettes' : 'une nouvelle gommette'} !`, 'bravo', true, true);
   add('À toi joueur un !', 'jeu'); add('À toi joueur deux !', 'jeu');

@@ -1,20 +1,19 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .warmup_constants import ACT_SECONDS, ARENA_SECONDS, COMBO_PARTS, MIMIC_MOVES, MOVES, POSES, WORLDS
+from .warmup_constants import ACT_SECONDS, ACTIVE_WORLD_IDS, ARENA_SECONDS, MIMIC_MOVES, MOVES, POSES, WORLDS
 
 # Jeux miroir qui ne se jouent qu'en une manche (même règle que game.js)
-SINGLE_ROUND_ARENAS = ('arena_soleil', 'arena_corde')
+SINGLE_ROUND_ARENAS = ('arena_course',)
+
 
 # Durée d'une étape en secondes (même formule que le jeu, vitesse « Normal »)
 def _step_seconds(step):
     m = step.move
-    if m in ('run', 'shop', 'foam', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice', 'wand'):
+    if m in ('run', 'shop', 'foam', 'rest', 'bubbles', 'freeze', 'catch', 'moles', 'slice'):
         return step.duration or 0
     if m == 'goal':
         return 2.5 + 3.0 * max(1, step.count)
-    if m == 'basket':
-        return 3 + 7 * max(1, step.count)
     if m == 'kick':
         return 2 + 4.5 * max(1, step.count)
     if m and m.startswith('act_'):
@@ -25,16 +24,8 @@ def _step_seconds(step):
         return 1.5 + (step.hold or 1.4) * max(1, step.count) + 3
     if m == 'tunnel':
         return 3 + (step.duration or 0)
-    if m == 'posemix':
-        return 2 + 3 * len(step._combo_parts())
-    if m == 'boss':
-        return 4 + 4 * len(step._combo_parts())
-    if m == 'ball':
-        return 3 + 2.2 * max(1, step.count)
-    if m in ('dance', 'karate'):
+    if m == 'dance':
         return 2.6 + (step.hold or 1.8) * len(step._combo_parts())
-    if m == 'rope':
-        return 1.8 + 1.7 * max(1, step.count)
     if m == 'jump':
         return 1.8 + 1.0 * max(1, step.count)
     if m == 'squat':
@@ -45,8 +36,6 @@ def _step_seconds(step):
         return 2.6
     if m == 'pose':
         return 3 + (step.hold or 1.5)
-    if m == 'combo':
-        return 1.5 + 1.7 * len(step._combo_parts())
     return 0
 
 
@@ -85,6 +74,12 @@ class WarmupSequence(models.Model):
         steps = [s._to_game() for s in self.step_ids]
         return {'id': self.id, 'name': self.name, 'steps': [s for s in steps if s]}
 
+    @api.constrains('world')
+    def _check_world(self):
+        for seq in self:
+            if seq.world not in ACTIVE_WORLD_IDS:
+                raise ValidationError("Ce monde n'existe plus dans le jeu : choisis un des 8 mondes.")
+
     def action_play(self):
         return {'type': 'ir.actions.act_url', 'url': '/warmup', 'target': 'new'}
 
@@ -104,10 +99,10 @@ class WarmupStep(models.Model):
                             help='Durée pour « Éviter les obstacles », « Pause / respiration », '
                                  '« Éclater des bulles » et « Statues musicales » (une manche ≈ 7 s).')
     pose = fields.Selection(POSES, default='armsUp')
-    hold = fields.Float(string='Tenir (s)', default=1.5, help='Temps pendant lequel la pose doit être tenue (cubes : temps entre deux cubes ; danse / karaté : temps par geste).')
+    hold = fields.Float(string='Tenir (s)', default=1.5, help='Temps pendant lequel la pose doit être tenue (cubes : temps entre deux cubes ; danse : temps par geste).')
     combo = fields.Char(string='Enchaînement',
-                        help="Mouvements séparés par des virgules parmi : jump, squat, smash, left, right. "
-                             "Exemple : jump,squat,smash")
+                        help="Danse : gestes séparés par des virgules parmi : " + ', '.join(MIMIC_MOVES) + ". "
+                             "Exemple : armsUp,squat,left,right")
     text = fields.Char(string='Message', translate=True, help='Texte affiché pendant une pause.')
     summary = fields.Char(string='Résumé', compute='_compute_summary')
 
@@ -119,13 +114,9 @@ class WarmupStep(models.Model):
             if s.move == 'run':
                 s.summary = f"Éviter les obstacles pendant {s.duration:g} s"
             elif s.move == 'foam':
-                s.summary = f"Laver {max(1, min(3, round(s.count / 5)))} vitre(s) pleine(s) de mousse en {s.duration:g} s"
-            elif s.move == 'wand':
-                s.summary = f"Libérer {max(1, s.count)} créatures ensorcelées en {s.duration:g} s (baguette magique)"
+                s.summary = f"Nettoyer la mousse des singes pendant {s.duration:g} s"
             elif s.move == 'goal':
                 s.summary = f"Arrêter les tirs (gardien de but) : {max(1, s.count)} ballons"
-            elif s.move == 'basket':
-                s.summary = f"Marquer {max(1, s.count)} paniers (attraper puis tirer)"
             elif s.move == 'kick':
                 s.summary = f"Marquer {max(1, s.count)} buts (penalty)"
             elif s.move and s.move.startswith('arena_'):
@@ -138,16 +129,12 @@ class WarmupStep(models.Model):
                 s.summary = f"{moves[s.move]} ×{max(1, s.count)}"
             elif s.move == 'pose':
                 s.summary = f"{poses.get(s.pose, '')} pendant {s.hold:g} s"
-            elif s.move == 'combo':
-                s.summary = 'Combo : ' + ' → '.join(s._combo_parts())
             elif s.move == 'rest':
                 s.summary = f"Pause {s.duration:g} s : {s.text or ''}"
             elif s.move == 'bubbles':
                 s.summary = f"Éclater {max(1, s.count)} bulles en {s.duration:g} s"
             elif s.move == 'catch':
                 s.summary = f"Attraper les étoiles pendant {s.duration:g} s"
-            elif s.move == 'rope':
-                s.summary = f"Sauter {max(1, s.count)} fois à la corde"
             elif s.move == 'tunnel':
                 s.summary = f"Rester baissé {s.duration:g} s dans le tunnel"
             elif s.move == 'moles':
@@ -156,24 +143,15 @@ class WarmupStep(models.Model):
                 s.summary = f"Couper {max(1, s.count)} fruits en {s.duration:g} s"
             elif s.move == 'cubes':
                 s.summary = f"Taper {max(1, s.count)} cubes en rythme (un toutes les {s.hold:g} s)"
-            elif s.move == 'boss':
-                labels = dict(POSES)
-                s.summary = 'Gardien : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
-            elif s.move == 'ball':
-                s.summary = f"Passe de ballon ×{max(1, s.count)} (à deux)"
-            elif s.move == 'posemix':
-                labels = dict(POSES)
-                s.summary = 'Poses : ' + ' → '.join(labels.get(p, p) for p in s._combo_parts())
-            elif s.move in ('dance', 'karate'):
-                s.summary = ('Danse : ' if s.move == 'dance' else 'Karaté : ') + \
-                    ' → '.join(MIMIC_MOVES.get(p, p) for p in s._combo_parts())
+            elif s.move == 'dance':
+                s.summary = 'Danse : ' + ' → '.join(MIMIC_MOVES.get(p, p) for p in s._combo_parts())
             elif s.move == 'freeze':
                 s.summary = f"Statues musicales {s.duration:g} s"
             else:
                 s.summary = moves.get(s.move, '')
 
     def _arena_count(self):
-        """Nombre de manches d'un jeu miroir (1, 2, 3 Nuage Grognon et tir à la corde : toujours une seule)."""
+        """Nombre de manches d'un jeu miroir (la grande course : toujours une seule)."""
         self.ensure_one()
         return 1 if self.move in SINGLE_ROUND_ARENAS else max(1, self.count)
 
@@ -182,19 +160,8 @@ class WarmupStep(models.Model):
         return [p.strip() for p in (self.combo or '').split(',') if p.strip()]
 
     @api.constrains('move', 'combo')
-    def _check_posemix(self):
-        for s in self.filtered(lambda r: r.move in ('posemix', 'boss')):
-            parts = s._combo_parts()
-            if len(parts) < 2:
-                raise ValidationError("Une suite de poses doit contenir au moins 2 poses (ex. : armsUp,star,airplane).")
-            bad = [p for p in parts if p not in dict(POSES)]
-            if bad:
-                raise ValidationError(
-                    "Pose inconnue : %s. Autorisées : %s." % (', '.join(bad), ', '.join(dict(POSES))))
-
-    @api.constrains('move', 'combo')
     def _check_mimic(self):
-        for s in self.filtered(lambda r: r.move in ('dance', 'karate')):
+        for s in self.filtered(lambda r: r.move == 'dance'):
             parts = s._combo_parts()
             if len(parts) < 2:
                 raise ValidationError("Il faut au moins 2 gestes (ex. : armsUp,squat,left,right).")
@@ -203,27 +170,16 @@ class WarmupStep(models.Model):
                 raise ValidationError(
                     "Geste inconnu : %s. Autorisés : %s." % (', '.join(bad), ', '.join(MIMIC_MOVES)))
 
-    @api.constrains('move', 'combo')
-    def _check_combo(self):
-        for s in self.filtered(lambda r: r.move == 'combo'):
-            parts = s._combo_parts()
-            if len(parts) < 2:
-                raise ValidationError("Un combo doit contenir au moins 2 mouvements (ex. : jump,squat).")
-            bad = [p for p in parts if p not in COMBO_PARTS]
-            if bad:
-                raise ValidationError(
-                    "Mouvement inconnu dans le combo : %s. Autorisés : %s." % (', '.join(bad), ', '.join(COMBO_PARTS)))
-
     @api.constrains('count', 'duration', 'hold')
     def _check_values(self):
         for s in self:
-            if s.move in ('jump', 'squat', 'smash', 'rope') and not 1 <= s.count <= 10:
+            if s.move in ('jump', 'squat', 'smash') and not 1 <= s.count <= 10:
                 raise ValidationError('Le nombre de répétitions doit être entre 1 et 10.')
-            if s.move in ('bubbles', 'moles', 'slice', 'foam', 'wand') and not 1 <= s.count <= 30:
-                raise ValidationError('Le nombre de bulles ou de taupes doit être entre 1 et 30.')
+            if s.move in ('bubbles', 'moles', 'slice', 'foam') and not 1 <= s.count <= 30:
+                raise ValidationError('Le nombre de bulles, de taupes ou de fruits doit être entre 1 et 30.')
             if s.move in ('run', 'shop', 'rest') and not 1 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 1 et 60 secondes.')
-            if s.move in ('bubbles', 'freeze', 'catch', 'moles', 'slice', 'foam', 'wand') and not 5 <= s.duration <= 60:
+            if s.move in ('bubbles', 'freeze', 'catch', 'moles', 'slice', 'foam') and not 5 <= s.duration <= 60:
                 raise ValidationError('La durée doit être entre 5 et 60 secondes.')
             if s.move == 'tunnel' and not 2 <= s.duration <= 20:
                 raise ValidationError('La durée du tunnel doit être entre 2 et 20 secondes.')
@@ -233,11 +189,9 @@ class WarmupStep(models.Model):
                 raise ValidationError('Le temps entre deux cubes doit être entre 0,8 et 3 secondes.')
             if s.move and (s.move.startswith('act_') or s.move.startswith('arena_')) and not 1 <= s.count <= 30:
                 raise ValidationError('Le nombre de réussites doit être entre 1 et 30.')
-            if s.move in ('goal', 'basket', 'kick') and not 1 <= s.count <= 20:
+            if s.move in ('goal', 'kick') and not 1 <= s.count <= 20:
                 raise ValidationError('Le nombre de ballons doit être entre 1 et 20.')
-            if s.move == 'ball' and not 1 <= s.count <= 30:
-                raise ValidationError('Le nombre de passes doit être entre 1 et 30.')
-            if s.move in ('pose', 'posemix', 'boss', 'dance', 'karate') and not 0.5 <= s.hold <= 10:
+            if s.move in ('pose', 'dance') and not 0.5 <= s.hold <= 10:
                 raise ValidationError('Le temps de pose doit être entre 0,5 et 10 secondes.')
 
     def _to_game(self):
@@ -247,9 +201,7 @@ class WarmupStep(models.Model):
             return {'m': 'run', 't': self.duration or 6}
         if m == 'foam':
             return {'m': 'foam', 't': self.duration or 16, 'n': max(1, self.count)}
-        if m == 'wand':
-            return {'m': 'wand', 't': self.duration or 16, 'n': max(1, self.count)}
-        if m in ('goal', 'basket', 'kick'):
+        if m in ('goal', 'kick'):
             return {'m': m, 'n': max(1, self.count)}
         if m and m.startswith('act_') and m[4:] in ACT_SECONDS:
             return {'m': 'act', 'game': m[4:], 'n': max(1, self.count)}
@@ -263,9 +215,6 @@ class WarmupStep(models.Model):
             return {'m': m}
         if m == 'pose':
             return {'m': 'pose', 'pose': self.pose or 'armsUp', 'hold': self.hold or 1.5}
-        if m == 'combo':
-            parts = self._combo_parts()
-            return {'m': 'combo', 'parts': parts} if len(parts) >= 2 else None
         if m == 'rest':
             return {'m': 'rest', 't': self.duration or 3, 'text': self.text or 'Respire…'}
         if m == 'bubbles':
@@ -274,8 +223,6 @@ class WarmupStep(models.Model):
             return {'m': 'freeze', 't': self.duration or 14}
         if m == 'catch':
             return {'m': 'catch', 't': self.duration or 10}
-        if m == 'rope':
-            return {'m': 'rope', 'n': max(1, self.count)}
         if m == 'tunnel':
             return {'m': 'tunnel', 't': self.duration or 4}
         if m == 'moles':
@@ -284,12 +231,7 @@ class WarmupStep(models.Model):
             return {'m': 'slice', 't': self.duration or 14, 'n': max(1, self.count)}
         if m == 'cubes':
             return {'m': 'cubes', 'n': max(2, self.count), 'beat': self.hold or 1.4}
-        if m in ('dance', 'karate'):
+        if m == 'dance':
             parts = [p for p in self._combo_parts() if p in MIMIC_MOVES]
-            return {'m': m, 'moves': parts, 'beat': self.hold or 1.8} if len(parts) >= 2 else None
-        if m in ('posemix', 'boss'):
-            parts = [p for p in self._combo_parts() if p in dict(POSES)]
-            return {'m': m, 'poses': parts, 'hold': self.hold or 0.8} if len(parts) >= 2 else None
-        if m == 'ball':
-            return {'m': 'ball', 'n': max(1, self.count)}
+            return {'m': 'dance', 'moves': parts, 'beat': self.hold or 1.8} if len(parts) >= 2 else None
         return None

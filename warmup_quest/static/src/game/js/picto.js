@@ -117,15 +117,6 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       stickFigure(ctx, { ...base, x: gx + lane * S * 0.32 * Math.min(1, k * 2), armL: 2.6, armR: 2.6 });
       break;
     }
-    case 'rope': { // la corde passe sous les pieds : on saute
-      const k = cyc(1200), phi = k * Math.PI * 2;
-      const jump = Math.max(0, Math.cos(phi)) ** 2;
-      stickFigure(ctx, { ...base, lift: jump * S * 0.18, armL: 1.0, armR: 1.0 });
-      const cy = gy - S * 0.45 + Math.cos(phi) * S * 0.5;
-      ctx.strokeStyle = '#e63946'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(gx - S * 0.35, gy - S * 0.45); ctx.quadraticCurveTo(gx, 2 * cy - (gy - S * 0.45), gx + S * 0.35, gy - S * 0.45); ctx.stroke();
-      break;
-    }
     case 'tunnel': { // accroupi sous les arceaux
       ctx.strokeStyle = '#ff595e'; ctx.lineWidth = 6;
       ctx.beginPath(); ctx.ellipse(gx, gy, S * 0.42, S * 0.6, 0, Math.PI, 0); ctx.stroke();
@@ -143,14 +134,6 @@ function drawPicto(ctx, W, H, s, t, move = null) {
     case 'pose': {
       const f = POSE_FIGURES[s.pose] || POSE_FIGURES.armsUp;
       stickFigure(ctx, { ...base, lift: Math.sin(t * 0.004) * S * 0.01, ...f }, '#16a34a');
-      break;
-    }
-    case 'fork': { // deux flèches : un grand pas d'un côté ou de l'autre
-      const side = Math.floor(t / 1400) % 2 ? 1 : -1, k = Math.min(1, cyc(1400) * 2.5);
-      ctx.font = `${S * 0.2}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = side < 0 ? 1 : 0.35; ctx.fillText('⬅️', gx - S * 0.42, gy - S * 0.62);
-      ctx.globalAlpha = side > 0 ? 1 : 0.35; ctx.fillText('➡️', gx + S * 0.42, gy - S * 0.62); ctx.globalAlpha = 1;
-      stickFigure(ctx, { ...base, x: gx + side * k * S * 0.2 });
       break;
     }
     case 'foam': { // une tache de mousse, la main-raclette passe dessus et elle disparaît
@@ -172,34 +155,12 @@ function drawPicto(ctx, W, H, s, t, move = null) {
       ctx.textBaseline = 'alphabetic';
       break;
     }
-    case 'basket': { // mains jointes pour attraper, puis bras levés : le ballon part dans le panier
-      const k = cyc(2200), up = k > 0.45;
-      ctx.font = `${S * 0.16}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.strokeStyle = '#f76707'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(gx + S * 0.36, gy - S * 0.9, S * 0.08, S * 0.025, 0, 0, 6.29); ctx.stroke();
-      const q = Math.max(0, (k - 0.5) / 0.4);
-      ctx.fillText('🏀', k < 0.5 ? gx : gx + q * S * 0.36, k < 0.5 ? gy - S * 0.5 : gy - S * (0.85 + Math.sin(Math.min(1, q) * Math.PI) * 0.25 - Math.max(0, q - 1) * 0.3));
-      stickFigure(ctx, { ...base, armL: up ? 2.8 : 1.1, armR: up ? 2.8 : 1.1 });
-      ctx.textBaseline = 'alphabetic';
-      break;
-    }
     case 'kick': { // un genou se lève : le ballon part
       const k = cyc(1800), side = Math.floor(t / 1800) % 2 ? 1 : -1, kick = k > 0.3 && k < 0.6;
       ctx.font = `${S * 0.12}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const q = Math.max(0, (k - 0.4) / 0.6);
       ctx.fillText('⚽', gx + side * S * (0.16 + q * 0.2), gy - S * (0.06 + q * 0.7));
       stickFigure(ctx, { ...base, kneeUp: kick ? (side < 0 ? 'L' : 'R') : null, armL: 0.7, armR: 0.7 });
-      ctx.textBaseline = 'alphabetic';
-      break;
-    }
-    case 'wand': { // le bras pointe une créature grognonne : un rayon, le nuage noir disparaît, un cœur apparaît
-      const k = cyc(2000), side = Math.floor(t / 2000) % 2 ? 1 : -1, cx = gx + side * S * 0.36, cy = gy - S * 0.78;
-      stickFigure(ctx, { ...base, armL: side < 0 ? 2.2 : 0.3, armR: side > 0 ? 2.2 : 0.3 });
-      const hx = gx + side * S * 0.2, hy = gy - S * 0.62;
-      if (k > 0.2 && k < 0.7) { ctx.strokeStyle = '#ffd166'; ctx.lineWidth = Math.max(3, S * 0.025); ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(cx, cy); ctx.stroke(); }
-      ctx.font = `${S * 0.17}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(k < 0.7 ? '😠' : '😊', cx, cy);
-      if (k < 0.7) { ctx.globalAlpha = 1 - Math.max(0, k - 0.45) * 4; ctx.font = `${S * 0.13}px serif`; ctx.fillText('🌩️', cx, cy - S * 0.14); ctx.globalAlpha = 1; }
-      else { ctx.font = `${S * 0.1}px serif`; ctx.fillText('💖', cx + S * 0.1, cy - S * 0.12 - (k - 0.7) * S * 0.3); }
       ctx.textBaseline = 'alphabetic';
       break;
     }
@@ -266,7 +227,7 @@ function drawPicto(ctx, W, H, s, t, move = null) {
     case 'act': { // jeux sur place : le geste à faire, et ce qu'il fait (fleur, clap, nage, fusée, pas de dino, animal)
       const k = cyc(1800), half = k > 0.5;
       const emo = (ch, x, y, sz) => { ctx.font = `${sz}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, x, y); ctx.textBaseline = 'alphabetic'; };
-      if (s.game === 'grow') { stickFigure(ctx, { ...base, crouch: half ? 0 : 1, armL: half ? 2.9 : 0.5, armR: half ? 2.9 : 0.5 }); emo(half ? '🌷' : '🌱', gx + S * 0.36, gy - S * (half ? 0.25 : 0.1), S * 0.16); }
+      if (s.game === 'shelf') { stickFigure(ctx, { ...base, crouch: half ? 0 : 1, armL: half ? 2.9 : 0.5, armR: half ? 2.9 : 0.5 }); emo(half ? '🌷' : '🌱', gx + S * 0.36, gy - S * (half ? 0.25 : 0.1), S * 0.16); }
       else if (s.game === 'clap') { const tog = cyc(700) > 0.5; stickFigure(ctx, { ...base, armL: tog ? 1.25 : 0.9, armR: tog ? 1.25 : 0.9 }); if (tog) emo('👏', gx, gy - S * 0.62, S * 0.14); emo('🐧', gx + S * 0.38, gy - S * 0.1, S * 0.16); }
       else if (s.game === 'swim') { stickFigure(ctx, { ...base, armL: half ? 2.9 : 0.4, armR: half ? 0.4 : 2.9 }); emo('🐬', gx + S * 0.38, gy - S * (0.15 + Math.sin(k * 6.28) * 0.06), S * 0.16); }
       else if (s.game === 'launch') { const up = k > 0.65; stickFigure(ctx, { ...base, crouch: up ? 0 : 1, lift: up ? S * 0.12 : 0, armL: up ? 2.9 : 0.6, armR: up ? 2.9 : 0.6 }); emo('🚀', gx + S * 0.36, gy - S * (0.15 + (up ? (k - 0.65) * 1.6 : 0)), S * 0.16); }

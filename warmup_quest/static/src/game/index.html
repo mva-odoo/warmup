@@ -12,42 +12,24 @@
   <canvas id="scene"></canvas>
   <canvas id="arena" class="hidden"></canvas>
 
-  <!-- Accueil : trois grandes tuiles (le château, la Salle des Défis, la carte), le reste en petit -->
+  <!-- Accueil : les 8 mondes en carrousel (bras tendu à gauche / à droite pour choisir, bras levés pour jouer) -->
   <section id="menu" class="screen">
-    <div class="homeSky" aria-hidden="true"><div class="homeCastle"></div></div>
     <div id="menuExtra"></div>
     <header class="homeTitle">
-      <div class="homeKicker">🪄 Académie des Petits Mages</div>
       <h1>Warm-Up <span>Quest</span></h1>
-      <p class="subtitle">Bouge pour apprendre la magie !</p>
     </header>
-    <!-- Deux portes seulement : l'aventure (avec l'histoire) ou un jeu tout de suite -->
-    <div class="homeTiles two">
-      <button class="tile tilePlay" id="hubBtn"><span class="tileIcon">🏰</span><b>L'aventure</b><small>Le château et l'histoire</small></button>
-      <button class="tile tileQuick" id="quickBtn"><span class="tileIcon">⚡</span><b>Jouer tout de suite</b><small>Un jeu, et c'est parti !</small></button>
+    <div id="carousel" class="carousel">
+      <button class="carArrow" id="carPrev" title="Monde précédent">◀</button>
+      <div id="carTrack" class="carTrack"></div>
+      <button class="carArrow" id="carNext" title="Monde suivant">▶</button>
+    </div>
+    <p id="carTag" class="carTag"></p>
+    <div id="carHint" class="carHint hidden">
+      <span class="armL">👈 bras à gauche</span><span class="armUp">🙌 bras levés : on joue !<span class="holdbar"><span id="carBar"></span></span></span><span class="armR">bras à droite 👉</span>
     </div>
     <div class="menuBottom">
-      <button class="btn small ghost" id="storyBtn">📜 L'histoire</button>
-      <button class="btn small ghost" id="carnetBtn">📖 Mon grimoire</button>
+      <button class="btn small ghost" id="carnetBtn">📖 Mon album</button>
       <button class="btn small ghost" id="roomBtn">🏠 Ma chambre</button>
-    </div>
-    <!-- Jouer tout de suite : six grandes cartes, une par jeu -->
-    <div id="quickPanel" class="mapPanel hidden">
-      <div class="mapHead"><button class="btn small ghost" id="quickBack">◀ Retour</button><h2>⚡ Choisis ton jeu !</h2></div>
-      <div id="quickCards" class="quickCards"></div>
-      <div class="quickMore"><button class="btn ghost" id="defisBtn">🏆 Salle des Défis</button></div>
-    </div>
-    <!-- Labo des mini-jeux (parents, tests) : on coche, et ça tourne en boucle -->
-    <div id="laboPanel" class="mapPanel hidden">
-      <div class="mapHead"><button class="btn small ghost" id="laboBack">◀ Retour</button><h2>🧪 Labo des mini-jeux</h2></div>
-      <p class="laboTip">Coche les jeux à tester : ils s'enchaînent en boucle (pause ou ⏸ pour arrêter).</p>
-      <div id="laboList" class="laboList"></div>
-      <div class="quickMore"><button class="btn small ghost" id="laboAll">Tout</button><button class="btn small ghost" id="laboNone">Rien</button><button class="btn" id="laboGo">▶ Lancer en boucle</button></div>
-    </div>
-    <!-- La carte de l'Académie (toutes les îles), dans un panneau -->
-    <div id="mapPanel" class="mapPanel hidden">
-      <div class="mapHead" id="mapHead"><button class="btn small ghost" id="mapBack">◀ Retour</button><h2>🗺️ La carte de l'Académie</h2></div>
-      <div id="worlds" class="worlds"></div>
     </div>
     <!-- Réglages pour les grands, repliés par défaut -->
     <details class="parents" id="parentsBox">
@@ -62,7 +44,6 @@
       </div>
       <p id="voiceTip" class="voiceTip hidden">💡 Pour une voix bien plus naturelle, ouvre le jeu avec <b>Microsoft Edge</b> (voix « Natural »).</p>
       <div class="duoRow" id="duoRow"></div>
-      <div class="parentsBtns"><button class="btn small" id="mapBtn">🗺️ Tous les mondes</button><button class="btn small" id="laboBtn">🧪 Labo des mini-jeux (test en boucle)</button></div>
       <label class="sim"><input type="checkbox" id="simToggle"> Mode clavier (test sans caméra)</label>
       <label class="sim" title="Seulement les points du corps (pas d'image) : un fichier est téléchargé à la fin de la partie, pour régler la détection des mouvements."><input type="checkbox" id="recToggle"> 🎥 Enregistrer les mouvements (pour régler le jeu)</label>
       </div>
@@ -71,7 +52,7 @@
 
   <!-- Grimoire (carnet des créatures) -->
   <section id="carnet" class="screen hidden">
-    <h2>📖 Mon grimoire : créatures et gommettes</h2>
+    <h2>📖 Mon album : créatures et gommettes</h2>
     <p id="carnetInfo" class="subtitle"></p>
     <h3 class="albumTitle">🌟 Mes gommettes</h3>
     <div id="stickerAlbum"></div>
@@ -109,8 +90,8 @@
       </div>
       <div class="pill score"><span id="hudScore">0</span> pts</div>
       <div class="pill collect"><span id="hudCollect"></span> <span id="hudStreak" class="streak"></span></div>
-      <span class="pill gestureHint" title="Croise les bras pour faire pause">✖️ = ⏸</span>
-      <button class="btn roundBtn" id="pauseBtn" title="Pause (ou croise les bras)">⏸</button>
+      <span class="pill gestureHint" title="Fais l'étoile pour faire pause">⭐ = ⏸</span>
+      <button class="btn roundBtn" id="pauseBtn" title="Pause (ou fais l'étoile)">⏸</button>
     </div>
     <div id="card" class="card">
       <canvas id="cardPicto" class="icon picto" width="150" height="150"></canvas>
@@ -133,7 +114,7 @@
     <h2>⏸ Pause</h2>
     <p id="pauseReason" class="subtitle"></p>
     <p class="subtitle">Lève les deux bras 🙌 pour reprendre</p>
-    <p class="hint">Pendant le jeu : croise les bras ✖️ pour faire pause</p>
+    <p class="hint">Pendant le jeu : fais l'étoile ⭐ pour faire pause</p>
     <div class="holdbar"><div id="pauseBar"></div></div>
     <div class="row">
       <button class="btn" id="resumeBtn">▶ Reprendre</button>
@@ -159,18 +140,10 @@
       <button class="btn huge" id="againBtn">🔁 Encore !</button>
       <button class="btn huge ghost" id="menuBtn" title="Retour">🏠</button>
     </div>
-    <p class="subtitle resLater" id="againHint">🙌 Lève les bras pour rejouer</p>
+    <p class="subtitle resLater" id="againHint">🙌 Lève les bras pour rejouer · 👈 bras à gauche : menu</p>
     <div class="holdbar resLater"><div id="againBar"></div></div>
     <p class="parentInfo"><span id="resScore">0</span> points · <span id="resDetail"></span> · <span id="resBest"></span> <button class="btn small ghost hidden" id="recDl">💾 Mouvements</button></p>
   </section>
-
-  <!-- Parc de l'Académie : consigne en haut, bouton pour sortir -->
-  <div id="hubHud" class="hidden">
-    <div class="hubTitle">🏰 Château de l'Académie</div>
-    <div id="hubHint" class="hubHint"></div>
-    <div id="hubGems" class="taleStars small" title="Étoiles de l'arc-en-ciel"></div>
-    <button class="btn small ghost hubExit" id="hubExit" title="Retour au menu">✖</button>
-  </div>
 
   <!-- Caméra -->
   <div id="camBox" class="hidden">
@@ -202,8 +175,6 @@
   <script src="js/scene3d.js"></script>
   <script src="js/trainer.js"></script>
   <script src="js/progress.js"></script>
-  <script src="js/story.js"></script>
-  <script src="js/hub.js"></script>
   <script src="js/arena3d.js"></script>
   <script src="js/arena.js"></script>
   <script src="js/gestures.js"></script>

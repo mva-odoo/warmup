@@ -1,29 +1,12 @@
-// Choisir avec les mouvements : la main levée de l'enfant déplace une petite main à l'écran ;
-// on la garde sur un bouton (ou un monde, une vignette…) pendant 1,5 s et il s'active tout seul.
-// Marche dans le menu, la carte, le carnet, la chambre, la fenêtre « Mon dresseur » et l'écran de fin.
-
-const GESTURE_DWELL = 1500;   // temps à rester sur un bouton pour le choisir (ms)
-const GESTURE_TARGETS = 'button:not([disabled]), .worldCard, [role="button"], .trTile:not(.locked), .trPiece, .trSwatch, .starterCard, a.btn, .gTarget';
-
+// Commandes aux bras, hors du jeu (menu, écran de fin) : un bras tendu à gauche / à droite = gauche / droite,
+// les deux bras levés (tenus un moment) = valider. Pendant le jeu, l'étoile tenue = pause (game.js : updatePauseGesture).
+// La caméra est la même que pour le jeu : une fois allumée dans le menu, la partie démarre sans attendre.
 const Gestures = {
   on: false,
-  x: 0, y: 0, seen: false,
-  target: null, since: 0, cooldown: 0,
-  el: null,
+  hold: { side: null, sideT: 0, upT: 0, armed: false, repeatAt: 0 },
 
-  // Petite main lumineuse + anneau qui se remplit
-  ensureCursor() {
-    if (this.el) return;
-    const el = document.createElement('div');
-    el.id = 'gCursor';
-    el.innerHTML = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="gTrack"/><circle cx="50" cy="50" r="44" class="gFill"/></svg><span>🖐️</span>`;
-    document.body.appendChild(el);
-    this.el = el;
-  },
-
-  // Active les gestes (allume la caméra si besoin). progress : texte de chargement (optionnel)
+  // Allume la caméra (si besoin) et active les commandes. progress : texte de chargement (optionnel)
   async enable(progress = () => {}) {
-    this.ensureCursor();
     this.on = true;
     store('gestures', true);
     tracker.setPlayers(1);
@@ -32,7 +15,6 @@ const Gestures = {
       try { await tracker.start(video, progress); } catch (e) {
         console.warn(e);
         this.disable();
-        Audio8.say('La caméra ne marche pas. Demande à un grand !');
         return false;
       }
     }
@@ -44,137 +26,34 @@ const Gestures = {
     this.on = false;
     store('gestures', false);
     document.body.classList.remove('gestures');
-    if (this.el) this.el.classList.remove('show');
-    this.clearTarget();
+    this.reset();
   },
 
-  clearTarget() {
-    if (this.target) this.target.classList.remove('gHover');
-    this.target = null; this.since = 0;
-    if (this.el) this.el.style.setProperty('--p', 0);
-  },
+  reset() { this.hold = { side: null, sideT: 0, upT: 0, armed: false, repeatAt: 0 }; },
 
-  // Position de la main à l'écran : la main la plus haute, en miroir ; épaules = milieu de l'écran,
-  // bras tendu = bord de l'écran. Sans main levée (sous la taille), pas de curseur.
-  handPoint() {
-    const fake = typeof DEV !== 'undefined' && DEV.get('gpoint'); // (mode test) gpoint=0.5,0.4
-    if (fake) { const [fx, fy] = fake.split(',').map(Number); return { x: fx * innerWidth, y: fy * innerHeight }; }
-    const b = tracker.bodies[0];
-    if (!b || !b.lm || !b.T || !b.state.present) return null;
-    const lm = b.lm, sh = mid(lm[11], lm[12]), T = b.T;
-    const hands = [15, 16].map((k) => armPoint(b, k, 0.4)).filter((p) => p && p.wy < sh.y + T * 0.75);
-    if (!hands.length) return null;
-    const p = hands.reduce((a, h) => (h.wy < a.wy ? h : a));
-    return { x: Math.max(0, Math.min(1, p.x)) * innerWidth, y: Math.max(0, Math.min(1, p.y)) * innerHeight };
-  },
-
-  // Grand geste de la main vers la gauche ou la droite (comme pour tourner une page) : appelle onSwipe(-1 | 1)
-  onSwipe: null,
-  checkSwipe(now, p) {
-    const h = (this.hist = (this.hist || []).filter((q) => now - q.t < 450));
-    h.push({ x: p.x, y: p.y, t: now });
-    if (now < (this.swipeT || 0) || h.length < 3) return false;
-    const dx = p.x - h[0].x, dy = p.y - h[0].y;
-    if (Math.abs(dx) > innerWidth * 0.32 && Math.abs(dy) < Math.abs(dx) * 0.6) {
-      this.swipeT = now + 1000; this.hist = [];
-      if (this.onSwipe) { this.clearTarget(); this.onSwipe(dx < 0 ? 1 : -1); return true; } // (main vers la gauche = page suivante)
+  // À appeler à chaque image : renvoie ce qui vient d'être déclenché et l'avancée des gestes en cours.
+  // { side: 'left' | 'right' | null, ok: bool, upP: 0..1 (bras levés), sideP: 0..1 (bras sur le côté) }
+  // Entre deux commandes, il faut revenir les bras au repos (pas de répétition involontaire) ; un bras gardé sur
+  // le côté fait défiler doucement.
+  read(now, { upMs = 1200, sideMs = 450, repeatMs = 1100 } = {}) {
+    const s = tracker.state, h = this.hold, out = { side: null, ok: false, upP: 0, sideP: 0 };
+    if (!this.on || !s.present) { this.reset(); h.armed = !!this.on; return out; }
+    const side = !s.armsUp && s.armSide ? s.armSide : null;
+    if (!s.armsUp && !side) { h.armed = true; h.upT = 0; h.side = null; return out; }
+    if (s.armsUp) {
+      h.side = null;
+      if (!h.armed) return out;
+      h.upT = h.upT || now;
+      out.upP = Math.min(1, (now - h.upT) / upMs);
+      if (out.upP >= 1) { out.ok = true; h.armed = false; h.upT = 0; }
+      return out;
     }
-    return false;
-  },
-
-  update(now) {
-    if (!this.on || !this.el) return;
-    const p = this.handPoint();
-    if (!p) { this.el.classList.remove('show'); this.clearTarget(); this.seen = false; this.hist = []; return; }
-    if (this.checkSwipe(now, p)) return;
-    // (lissage : la petite main ne tremble pas)
-    if (!this.seen) { this.x = p.x; this.y = p.y; this.seen = true; }
-    this.x += (p.x - this.x) * 0.35; this.y += (p.y - this.y) * 0.35;
-    this.el.classList.add('show');
-    this.el.style.transform = `translate(${this.x}px, ${this.y}px)`;
-    if (now < this.cooldown) return;
-    this.el.style.visibility = 'hidden';
-    const under = document.elementFromPoint(this.x, this.y);
-    this.el.style.visibility = '';
-    const t = under && under.closest(GESTURE_TARGETS);
-    // (scène 3D, comme la chambre : la toile dit elle-même si la main est sur un objet à toucher, et lequel)
-    const sub = t && t.gestureHit ? t.gestureHit(this.x, this.y) : true;
-    const ok = t && sub && t.offsetParent !== null && !t.closest('.hidden');
-    if (!ok) { this.clearTarget(); return; }
-    if (t !== this.target || sub !== this.sub) {
-      this.sub = sub;
-      this.clearTarget();
-      this.target = t; this.since = now;
-      t.classList.add('gHover');
-      Audio8.tick();
-    }
-    const k = Math.min(1, (now - this.since) / GESTURE_DWELL);
-    this.el.style.setProperty('--p', k);
-    if (k >= 1) {
-      const el = this.target;
-      this.clearTarget();
-      this.cooldown = now + 900;
-      Audio8.pop();
-      el.classList.add('gClicked'); setTimeout(() => el.classList.remove('gClicked'), 400);
-      el.click();
-    }
-  },
-
-  // ---------- Tuto : apprendre à choisir avec la main (trois cibles l'une après l'autre)
-  tutorial() {
-    return new Promise((resolve) => {
-      if (document.getElementById('gTuto')) return resolve();
-      const bg = document.createElement('div');
-      bg.id = 'gTuto';
-      bg.className = 'gTutoBg';
-      bg.innerHTML = `<div class="gTutoTop"><h2>🖐️ Choisis avec ta main !</h2><p class="gTutoSay"></p></div>
-        <div class="gTutoDemo"><canvas width="260" height="200"></canvas></div><div class="gTutoArea"></div>
-        <button class="btn ghost gTutoSkip">✖</button>`;
-      document.body.appendChild(bg);
-      const area = bg.querySelector('.gTutoArea'), say = bg.querySelector('.gTutoSay');
-      const demo = bg.querySelector('.gTutoDemo canvas').getContext('2d');
-      const STEPS = [
-        { icon: '⭐', x: 0.5, y: 0.5, text: 'Lève une main bien haut. Tu vois la petite main sur l\'écran ? Elle bouge comme ta main ! Pose-la sur l\'étoile, et ne bouge plus.' },
-        { icon: '🍎', x: 0.2, y: 0.45, text: 'Super ! Maintenant, va chercher la pomme, de l\'autre côté. Garde ta main dessus jusqu\'à ce que le rond soit plein.' },
-        { icon: '🎈', x: 0.8, y: 0.3, text: 'Bravo ! Et le ballon, tout en haut ! Lève bien ton bras.' },
-      ];
-      let i = -1, raf = 0, closed = false;
-      const close = () => { if (closed) return; closed = true; cancelAnimationFrame(raf); bg.remove(); resolve(); };
-      const next = () => {
-        if (closed) return; // (« ✖ » pendant la petite pause : pas d'étape fantôme)
-        i++;
-        area.innerHTML = '';
-        if (i >= STEPS.length) {
-          say.textContent = 'Tu sais tout choisir avec ta main ! 🎉';
-          Audio8.perfect();
-          Audio8.say('Génial ! Maintenant, tu sais tout choisir avec ta main : les cours, ton sorcier, rejouer… Garde ta main sur ce que tu veux !', { slow: true });
-          setTimeout(close, 6500);
-          return;
-        }
-        const st = STEPS[i];
-        say.textContent = st.text;
-        Audio8.say(st.text, { slow: true });
-        const b = document.createElement('div');
-        b.className = 'gTarget gTutoTarget';
-        b.setAttribute('role', 'button');
-        b.textContent = st.icon;
-        b.style.left = st.x * 100 + '%'; b.style.top = st.y * 100 + '%';
-        b.onclick = () => { if (b.dataset.done) return; b.dataset.done = '1'; scene.burst(innerWidth * st.x, innerHeight * st.y, 30, ['#ffd166', '#ffffff', '#4ade80']); Audio8.good(); setTimeout(next, 700); };
-        area.appendChild(b);
-      };
-      // Petit bonhomme qui montre : bras levé, la main va sur la cible et reste
-      const anim = (t) => {
-        if (!bg.isConnected) return;
-        const k = (t % 3000) / 3000, a = 1.6 + Math.min(1, k * 2) * 1.2;
-        demo.clearRect(0, 0, 260, 200);
-        demo.font = '40px serif'; demo.textAlign = 'center'; demo.fillText(STEPS[Math.max(0, Math.min(i, 2))].icon, 205, 50);
-        stickFigure(demo, { x: 110, y: 190, s: 170, armL: 0.4, armR: a }, '#16a34a');
-        if (k > 0.5) { demo.strokeStyle = '#22c55e'; demo.lineWidth = 6; demo.beginPath(); demo.arc(205, 38, 30, -Math.PI / 2, -Math.PI / 2 + (k - 0.5) * 2 * Math.PI * 2); demo.stroke(); }
-        raf = requestAnimationFrame(anim);
-      };
-      raf = requestAnimationFrame(anim);
-      bg.querySelector('.gTutoSkip').onclick = close;
-      next();
-    });
+    h.upT = 0;
+    if (h.side !== side) { h.side = side; h.sideT = now; h.repeatAt = 0; }
+    if (h.armed) {
+      out.sideP = Math.min(1, (now - h.sideT) / sideMs);
+      if (out.sideP >= 1) { out.side = side; h.armed = false; h.repeatAt = now + repeatMs; }
+    } else if (h.repeatAt && now >= h.repeatAt) { out.side = side; h.repeatAt = now + repeatMs; }
+    return out;
   },
 };

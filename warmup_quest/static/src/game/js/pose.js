@@ -71,7 +71,7 @@ function drawTarget(ctx, w, h, sh, T, pose) {
 function emptyState() {
   return {
     present: false, upperBody: false, fullBody: false, kneesOK: false, anklesOK: false,
-    side: 'center', squat: false, jumpUp: false, low: 0,
+    side: 'center', armSide: null, squat: false, jumpUp: false, low: 0,
     armsUp: false, airplane: false, star: false, flamingo: false, crossed: false, handsTogether: false,
   };
 }
@@ -131,7 +131,7 @@ class Body {
     // (sauf s'il est sorti par le bas : il s'est accroupi, ou couché par terre — il reste « accroupi » jusqu'à ce qu'on le revoie)
     const lost = () => {
       if (!s.low && this.goingDown(now)) { s.low = now; if (!s.squat) { s.squat = true; emit('squat'); } }
-      s.present = s.upperBody = s.fullBody = false; for (const k of [...POSE_NAMES, 'starArms', 'handsTogether', 'crossed']) s[k] = false;
+      s.present = s.upperBody = s.fullBody = false; for (const k of [...POSE_NAMES, 'starArms', 'handsTogether', 'crossed']) s[k] = false; s.armSide = null;
       if (!s.low) s.squat = false;
     };
     if (!lm) { lost(); return; }
@@ -202,14 +202,23 @@ class Body {
 
     // (écarts horizontaux ramenés à une image 4:3, celle avec laquelle les seuils ont été réglés)
     const XS = camXS();
-    // --- Gauche / droite (par rapport à la position de départ)
-    // Image non inversée : quand le joueur va à SA gauche, x augmente.
+    // --- Un bras tendu sur le côté (commande « gauche / droite » du menu, et raccourci pour changer de couloir) :
+    // le poignet loin de son épaule, à peu près à sa hauteur, l'autre bras baissé (sinon c'est l'avion)
+    // Image non inversée : vers SA gauche, x augmente.
+    {
+      const lw0 = lm[15], rw0 = lm[16];
+      const outL = (lw0.x - lm[11].x) * XS > 0.65 * T && Math.abs(lw0.y - lm[11].y) < 0.5 * T && rw0.y > sh.y + 0.3 * T;
+      const outR = (lm[12].x - rw0.x) * XS > 0.65 * T && Math.abs(rw0.y - lm[12].y) < 0.5 * T && lw0.y > sh.y + 0.3 * T;
+      s.armSide = outL && vis(15) > 0.5 ? 'left' : outR && vis(16) > 0.5 ? 'right' : null;
+    }
+    // --- Gauche / droite (par rapport à la position de départ ; un bras tendu sur le côté compte aussi)
     if (this.calib) {
       const dx = (sh.x - this.calib.cx) * XS;
       let side = s.side;
       if (dx > 0.5 * T) side = 'left';
       else if (dx < -0.5 * T) side = 'right';
       else if (Math.abs(dx) < 0.3 * T) side = 'center';
+      if (s.armSide) side = s.armSide;
       if (side !== s.side) { s.side = side; if (side !== 'center') emit(side); }
     }
 
@@ -318,7 +327,8 @@ class Tracker {
     m.side = all.every((s) => s.side === all[0].side) ? all[0].side : 'center';
     m.someone = all.some((s) => s.present);
     m.crossed = all.some((s) => s.crossed); // un seul enfant suffit pour faire pause
-    m.handsTogether = all.some((s) => s.handsTogether); // (taper dans les mains, attraper : un seul suffit, comme aux jeux miroir)
+    m.handsTogether = all.some((s) => s.handsTogether);
+    m.armSide = (all.find((s) => s.armSide) || {}).armSide || null; // (menu : un seul enfant suffit) // (taper dans les mains, attraper : un seul suffit, comme aux jeux miroir)
     return m;
   }
 

@@ -3,7 +3,7 @@
 # Usage : tools/vkid_worlds.sh                     -> tous les mondes, enfant normal
 #         tools/vkid_worlds.sh "verger dojo" pire   -> ces mondes, profil « pire »
 cd "$(dirname "$0")/.." || exit 1
-WORLDS_L=${1:-"ecole jardin3d disco dojo verger rythmo singes supermarche turbo island forest banquise ocean espace bonbons ferme dinos chateau sortileges stade defis"}
+WORLDS_L=${1:-"stade supermarche singes chateau banquise dinos espace disco"}
 PF=${2:-1}; PAR=${PAR:-3}; PORT=${PORT:-8765}
 OUT=~/.cache/wuq-test; mkdir -p "$OUT"; RES="$OUT/worlds-$(date +%Y%m%d-%H%M).txt"
 # (serveur lancé par ce script : arrêté à la fin ; s'il tournait déjà, on le laisse)

@@ -17,9 +17,6 @@ const tracker = new Tracker();
 const sceneFlat = new DepthScene($('scene'));
 const scene3d = new Scene3D($('scene'));
 let scene = sceneFlat;
-// Parc de l'Académie (petit monde ouvert entre les cours) ; fromHub : la partie vient du parc, on y revient après
-const hub = new AcademyHub(scene3d);
-let fromHub = false, hubLast = null, hubWorld = null, stageWanted = null; // (hubWorld : parc ou village d'où l'on vient ; stageWanted : étape choisie au village)
 const video = $('video');
 const camCtx = $('camOverlay').getContext('2d');
 const pictoCtx = $('cardPicto').getContext('2d');
@@ -34,9 +31,12 @@ const FRUIT_SPOTS = [{ u: -2.0, v: 0.9 }, { u: -2.2, v: -0.1 }, { u: -1.6, v: -1
 const SHOP_ITEMS = ['bread', 'loaf-baguette', 'cheese', 'carrot', 'banana', 'tomato', 'broccoli', 'carton', 'soda-bottle', 'can',
   'bottle-ketchup', 'pizza-box', 'croissant', 'corn', 'eggplant', 'orange', 'grapes', 'apple', 'watermelon', 'pineapple', 'cake-birthday', 'fish'];
 const FOAM_COLS = ['#ffffff', '#ffe3f6', '#e3f6ff', '#ffffff', '#ecffe3'];
+// Obstacles du Stade : chacun se passe comme un obstacle classique (tacle = tronc : sauter ; grand joueur = branche :
+// se baisser ; plot = rocher : changer de couloir)
+const DODGE_AS = { tackle: 'log', giant: 'arch', cone: 'rock' };
 const FRUIT_PATHS = ['toss', 'fall', 'left', 'right'];
 const CUBE_SPOTS = FRUIT_SPOTS.map((p) => ({ ...p, side: p.u < -0.5 ? -1 : p.u > 0.5 ? 1 : 0 }));
-const LIVE_STEPS = new Set(['act', 'learn', 'foam', 'wand', 'goal', 'basket', 'kick', 'bubbles', 'moles', 'pose', 'posemix', 'boss', 'slice', 'cubes', 'freeze', 'dance', 'karate']);
+const LIVE_STEPS = new Set(['act', 'foam', 'goal', 'kick', 'bubbles', 'moles', 'pose', 'slice', 'cubes', 'freeze', 'dance']);
 // (mode test) bras qui balaient doucement, pour vérifier le rendu sans caméra
 function fakeLimbs(i = 0) {
   const t = performance.now() / 1000 + i, a = Math.sin(t * 1.7) * 1.1, b = Math.cos(t * 1.3) * 1.1;
@@ -80,8 +80,8 @@ function chooseStarter(i, name) {
   return new Promise((resolve) => {
     const bg = document.createElement('div');
     bg.className = 'trainerBg';
-    bg.innerHTML = `<div class="starterPanel"><h2>🐾 ${name ? name + ', choisis' : 'Choisis'} ton familier !</h2>
-      <p>Tous les petits sorciers ont un familier : une créature magique qui court avec toi et grandit à chaque cours.</p><div class="starterRow"></div></div>`;
+    bg.innerHTML = `<div class="starterPanel"><h2>🐾 ${name ? name + ', choisis' : 'Choisis'} ton compagnon !</h2>
+      <p>Une petite créature qui joue avec toi et grandit à chaque partie.</p><div class="starterRow"></div></div>`;
     document.body.appendChild(bg);
     const row = bg.querySelector('.starterRow');
     const draw = () => {
@@ -105,55 +105,79 @@ function chooseStarter(i, name) {
       }
     };
     draw();
-    Audio8.say(`Chaque petit sorcier a un familier, une créature magique. Choisis le tien : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`);
+    Audio8.say(`Choisis ton compagnon, une petite créature qui joue avec toi : ${STARTERS.map((id) => (CREATURES.find((c) => c.id === id) || {}).name).join(', ')} ?`);
     if (store('3d') !== false) scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES.filter((c) => STARTERS.includes(c.id))))).then(() => { if (bg.isConnected) draw(); }).catch(() => {});
   });
 }
 
-// Pages de la carte : flèches de chaque côté et petits points (créés une fois autour de la grille)
-let menuPage = null, menuSlide = 0;
-function ensurePager(wrap) {
-  let row = $('worldsRow');
-  if (row) return row;
-  row = document.createElement('div');
-  row.id = 'worldsRow';
-  wrap.parentNode.insertBefore(row, wrap);
-  row.innerHTML = '<button class="pgArrow" id="pgPrev" title="Page précédente">◀</button><button class="pgArrow" id="pgNext" title="Page suivante">▶</button>';
-  row.insertBefore(wrap, $('pgNext'));
-  const dots = document.createElement('div'); dots.id = 'pgDots'; row.after(dots);
-  $('pgPrev').onclick = () => turnMenuPage(-1);
-  $('pgNext').onclick = () => turnMenuPage(1);
-  return row;
+// ---------------- Menu : les 8 mondes en carrousel ----------------
+// Le monde choisi au milieu, en grand ; ses voisins de chaque côté. Bras tendu à gauche / à droite (ou flèches, clic sur
+// un voisin) : changer ; bras levés (ou clic sur le monde du milieu, Entrée) : jouer.
+let menuSel = Math.max(0, WORLDS.findIndex((w) => w.id === store('lastWorld')));
+const carThumbs = new Map(); // (aperçus 3D des mondes, faits une fois)
+const menuBusy = () => phase !== 'menu' || !$('carnet').classList.contains('hidden') || $('parentsBox').open
+  || !!document.querySelector('.trainerBg, .studioBg, .roomBg');
+function moveMenu(d) {
+  if (menuBusy()) return;
+  menuSel = (menuSel + d + WORLDS.length) % WORLDS.length;
+  Audio8.whoosh();
+  paintCarousel(d);
+  Audio8.say(WORLDS[menuSel].name + ' !');
 }
-function turnMenuPage(d) {
-  if (phase !== 'menu' || !$('carnet').classList.contains('hidden') || $('mapPanel').classList.contains('hidden')) return;
-  const was = menuPage;
-  menuPage = Math.max(0, (menuPage || 0) + d);
-  menuSlide = d;
-  buildMenu();
-  if (menuPage !== was) Audio8.whoosh(); else menuSlide = 0;
+function playMenu() {
+  if (menuBusy()) return;
+  const w = WORLDS[menuSel];
+  store('lastWorld', w.id);
+  startWorld(w);
 }
 addEventListener('keydown', (e) => {
-  if (phase !== 'menu' || document.querySelector('.trainerBg, .gTutoBg')) return;
-  if (e.key === 'ArrowRight') turnMenuPage(1);
-  if (e.key === 'ArrowLeft') turnMenuPage(-1);
+  if (menuBusy() || (e.target && e.target.closest && e.target.closest('input, select, textarea'))) return;
+  if (e.key === 'ArrowRight') moveMenu(1);
+  else if (e.key === 'ArrowLeft') moveMenu(-1);
+  else if (e.key === 'Enter') playMenu();
 });
-
-// Chemin de la carte : courbe pointillée qui passe par le centre de chaque île, dans l'ordre
-function drawMapPath(wrap, nodes) {
-  const old = wrap.querySelector('svg.mapPath'); if (old) old.remove();
-  if (!wrap.isConnected || nodes.length < 2) return;
-  const box = wrap.getBoundingClientRect();
-  const pts = nodes.sort((a, b) => a.k - b.k).map(({ card }) => {
-    const r = card.getBoundingClientRect();
-    return [r.left - box.left + r.width / 2, r.top - box.top + r.height / 2];
-  });
-  let d = `M ${pts[0][0]} ${pts[0][1]}`;
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
-    d += y0 === y1 ? ` L ${x1} ${y1}` : ` C ${x0 + (x0 > box.width / 2 ? 120 : -120)} ${y0}, ${x1 + (x1 > box.width / 2 ? 120 : -120)} ${y1}, ${x1} ${y1}`;
+function paintCarousel(slide = 0) {
+  const track = $('carTrack');
+  if (!track) return;
+  track.innerHTML = '';
+  const n = WORLDS.length, daily = Progress.daily();
+  for (let k = -2; k <= 2; k++) {
+    const w = WORLDS[(menuSel + k + n) % n], best = WUQStore.getBest(w.id);
+    const card = document.createElement('div');
+    card.setAttribute('role', 'button');
+    card.className = 'carCard' + (k === 0 ? ' sel' : Math.abs(k) === 2 ? ' far' : ' near');
+    card.style.setProperty('--c1', w.sky[0]);
+    card.style.setProperty('--c2', w.hero.body);
+    const games = [...new Set(w.sequence.filter((st) => st.m !== 'rest').map((st) => stepIcon(w.obstacles && st.m === 'run' ? { ...st, foot: true } : st)))].join(' ');
+    card.innerHTML = `<canvas width="300" height="400"></canvas>
+      <div class="wName"><span class="wIcon">${w.icon}</span>${w.name}</div>
+      <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>
+      ${k === 0 ? `<div class="wGames">${games}</div>` : ''}`;
+    card.title = w.tagline;
+    if (daily.world === w) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge" title="Surprise du jour">🎁</div>');
+    const ctx = card.querySelector('canvas').getContext('2d'), th = carThumbs.get(w.id);
+    if (th) ctx.drawImage(th, 0, 0, 300, 400); else drawWorldPreview(ctx, 300, 400, w, performance.now(), false);
+    card.onclick = () => (k === 0 ? playMenu() : moveMenu(k));
+    if (k === 0) {
+      const ce = WUQStore.cardExtra(w, buildMenu); // (Odoo : choix de la séquence)
+      if (ce) { ce.addEventListener('click', (e) => e.stopPropagation()); ce.addEventListener('keydown', (e) => e.stopPropagation()); card.appendChild(ce); }
+    }
+    track.appendChild(card);
   }
-  wrap.insertAdjacentHTML('afterbegin', `<svg class="mapPath" width="${box.width}" height="${box.height}"><path d="${d}"/></svg>`);
+  $('carTag').textContent = WORLDS[menuSel].tagline;
+  track.classList.remove('slideL', 'slideR'); void track.offsetWidth;
+  if (slide) track.classList.add(slide > 0 ? 'slideL' : 'slideR');
+}
+// Commandes aux bras dans le menu (la barre se remplit pendant que les bras sont levés)
+function updateMenuArms(now) {
+  const bar = $('carBar');
+  if (menuBusy()) { if (bar) bar.style.width = '0%'; return; }
+  const g = Gestures.read(now);
+  if (bar) bar.style.width = g.upP * 100 + '%';
+  document.body.classList.toggle('armLeft', g.sideP > 0 && tracker.state.armSide === 'left');
+  document.body.classList.toggle('armRight', g.sideP > 0 && tracker.state.armSide === 'right');
+  if (g.side) moveMenu(g.side === 'left' ? -1 : 1);
+  if (g.ok) playMenu();
 }
 
 // Visage du dresseur de chaque joueur dans la barre du menu (dès que la 3D est prête)
@@ -198,182 +222,56 @@ function show(id, on = true) { $(id).classList.toggle('hidden', !on); }
 
 // ---------------- Menu ----------------
 function buildMenu() {
-  const previews = [];
-  const wrap = $('worlds');
-  wrap.innerHTML = '';
   const extra = $('menuExtra');
   extra.innerHTML = '';
   const ex = WUQStore.menuExtras(buildMenu);
   if (ex) extra.appendChild(ex);
-  // Gestes : choisir avec la main (et son petit tuto), École des dresseurs
+  // Commandes aux bras : la caméra allumée dès le menu (bras sur le côté = choisir, bras levés = jouer)
   const gbar = document.createElement('div');
   gbar.className = 'gBar';
-  gbar.innerHTML = `<button class="pillBtn${Gestures.on ? ' on' : ''}" id="gToggle" title="Choisir avec ma main"><span>🖐️</span>${Gestures.on ? '✓' : ''}</button>
-    ${Gestures.on ? '<button class="pillBtn" id="gTutoBtn" title="Apprendre les gestes"><span>🎓</span></button>' : ''}`;
+  gbar.innerHTML = `<button class="pillBtn${Gestures.on ? ' on' : ''}" id="gToggle" title="Jouer avec les bras (caméra)"><span>🙌</span>${Gestures.on ? '✓' : ''}</button>`;
   extra.appendChild(gbar);
   gbar.querySelector('#gToggle').onclick = async () => {
-    if (Gestures.on) { Gestures.disable(); tracker.stopCamera(video); show('camBox', false); buildMenu(); return; } // (gestes coupés : la caméra s'éteint aussi)
-    const first = !store('gesturesLearned');
-    const t = gbar.querySelector('#gToggle'); t.innerHTML = '<span>🖐️</span>⏳';
-    if (await Gestures.enable(() => {})) {
-      buildMenu(); showMenuCam();
-      if (first) { await Gestures.tutorial(); store('gesturesLearned', true); }
-    } else buildMenu();
+    if (Gestures.on) { Gestures.disable(); tracker.stopCamera(video); show('camBox', false); buildMenu(); return; } // (commandes coupées : la caméra s'éteint aussi)
+    gbar.querySelector('#gToggle').innerHTML = '<span>🙌</span>⏳';
+    if (await Gestures.enable(() => {})) { buildMenu(); showMenuCam(); } else buildMenu();
   };
-  const gt = gbar.querySelector('#gTutoBtn');
-  if (gt) gt.onclick = () => Gestures.tutorial();
   // Bandeau du jour : objectif (une partie), surprise du jour, et repos si la limite des parents est atteinte
   const plays0 = Progress.playsToday(), limit0 = Number(store('dailyLimit')) || 0, d0 = Progress.daily();
   const rest = limit0 && plays0 >= limit0;
   const day = document.createElement('div');
   day.className = 'dayBar';
-  // (des images plutôt que des phrases : objectif du jour fait / à faire, et la surprise du jour)
   day.innerHTML = rest ? `<span class="dayIc">🌙</span><span class="dayTxt">À demain 👋</span>`
-    : `<span class="dayIc" title="Échauffement du jour">${plays0 ? '✅' : '🎯'}</span><span class="dayIc" title="Surprise du jour">🎁 <small>${d0.world.collectible}</small></span>`;
+    : `<span class="dayIc" title="Échauffement du jour">${plays0 ? '✅' : '🎯'}</span><span class="dayIc" title="Surprise du jour">🎁 <small>${d0.world.icon}</small></span>`;
   extra.appendChild(day);
-  // Une seule barre « joueur » : dresseur(s) à gauche, main au milieu, objectif du jour à droite
   extra.classList.add('playerBar');
   drawAvatars();
-  wrap.classList.toggle('resting', !!rest);
-  // Carte des îles : chemin en serpentin, îles fermées tant que la précédente n'est pas réussie,
-  // le dresseur posé sur l'île où il en est, la surprise du jour marquée d'un cadeau
-  const daily = Progress.daily(), here = Progress.current();
-  // Pages de la carte : deux rangées d'îles qui tiennent dans l'écran (pas de défilement) ;
-  // on tourne la page avec les flèches ◀ ▶ (main posée dessus) ou d'un grand geste de la main
-  const row0 = ensurePager(wrap);
-  const top = ($('mapHead').getBoundingClientRect().bottom || 110) + 12, gap = 16; // (haut de la carte : sous l'entête du panneau)
-  const availH = Math.max(340, innerHeight - top - 78), ch = Math.max(170, Math.min(300, (availH - gap) / 2)), cw = ch * 0.75;
-  const perRow = Math.max(2, Math.min(7, Math.floor((Math.min(row0.clientWidth || innerWidth, 1400) - 2 * 96 + gap) / (cw + gap))));
-  const list = [...Progress.ordered(), 'surprise'], perPage = perRow * 2;
-  const pages = Math.ceil(list.length / perPage);
-  if (menuPage == null) menuPage = Math.floor(Math.max(0, list.indexOf(here)) / perPage); // (on ouvre sur la page de l'île en cours)
-  menuPage = Math.max(0, Math.min(pages - 1, menuPage));
-  wrap.style.gridTemplateColumns = `repeat(${perRow}, ${cw}px)`;
-  wrap.style.gridAutoRows = ch + 'px';
-  $('pgPrev').classList.toggle('off', menuPage === 0);
-  $('pgNext').classList.toggle('off', menuPage >= pages - 1);
-  $('pgDots').innerHTML = Array.from({ length: pages }, (_, i) => `<span class="${i === menuPage ? 'on' : ''}"></span>`).join('');
-  const nodes = [];
-  const first = menuPage * perPage, onPage = list.slice(first, first + perPage);
-  // (seule la PROCHAINE île à gagner est montrée ; les suivantes restent des surprises « ? »)
-  const firstLocked = Progress.ordered().findIndex((x) => !Progress.unlocked(x));
-  Progress.ordered().forEach((w, k) => {
-    if (k < first || k >= first + perPage) return; // (autre page)
-    const mystery = firstLocked >= 0 && k > firstLocked;
-    const kk = k - first;
-    const best = WUQStore.getBest(w.id);
-    const open = Progress.unlocked(w);
-    const card = document.createElement('div');
-    card.setAttribute('role', 'button');
-    card.tabIndex = 0;
-    card.className = 'worldCard' + (open ? '' : ' locked') + (mystery ? ' mystery' : '') + (w === here ? ' here' : '');
-    const row = Math.floor(kk / perRow), col = kk % perRow;
-    card.style.order = row * perRow + (row % 2 ? perRow - 1 - col : col); // (une ligne sur deux à l'envers : serpentin)
-    nodes.push({ card, k });
-    card.style.setProperty('--c1', w.sky[0]);
-    card.style.setProperty('--c2', w.hero.body);
-    card.innerHTML = `
-      <canvas width="300" height="400"></canvas>
-      <div class="wName"><span class="wIcon">${w.collectible}</span>${w.name}</div>
-      <div class="wBest">${[0, 1, 2].map((i) => `<i class="${i < best.stars ? 'on' : ''}">★</i>`).join('')}</div>
-      ${Stages.count(w) ? `<div class="wStages">${Array.from({ length: Stages.count(w) }, (_, i) => `<b class="${i < Stages.dots(w) ? 'on' : ''}"></b>`).join('')}</div>` : ''}`;
-    card.title = w.tagline;
-    if (w === daily.world) card.insertAdjacentHTML('beforeend', '<div class="dailyBadge">🎁</div>');
-    // Début d'un chapitre de l'histoire : petit ruban (« 📚 À l'Académie », « 🌀 Les aventures »)
-    const chap = chapterOf(w);
-    if (chap && chap.worlds[0] === w.id && !mystery) card.insertAdjacentHTML('beforeend', `<div class="chapterTag">${chap.icon} ${chap.name}</div>`);
-    // Chemins pris aux carrefours la dernière fois, et clé dorée si on a trouvé le chemin secret de cette île
-    const paths = Paths.get(0), trail = (paths.last[w.id] || []).map((m) => MOVE_ICONS[m] || '').join(''), keys = paths.secrets[w.id] ? '🗝️' : '';
-    if (open && !mystery && (trail || keys)) card.insertAdjacentHTML('beforeend', `<div class="wTrail">${trail ? '🔀' + trail : ''}${keys}</div>`);
-    if (w === here) card.insertAdjacentHTML('beforeend', '<div class="herePin"><canvas width="80" height="100"></canvas></div>');
-    if (mystery) { // île surprise : pas d'image ni de nom, juste un gros « ? »
-      card.innerHTML = '<div class="mysteryQ">?</div>';
-    } else if (!open) { // prochaine île : cadenas, et l'icône de l'île à réussir avant (pas de texte à lire)
-      const prev = Progress.ordered()[k - 1];
-      card.insertAdjacentHTML('beforeend', `<div class="lockVeil"><span>🔒</span><small>⭐ ← ${prev.collectible}</small></div>`);
-    }
-    const cv0 = card.querySelector('canvas'), cctx = cv0 ? cv0.getContext('2d') : null;
-    let drawn = false;
-    const anim = (t) => {
-      if (!cctx) return;
-      if (!card.isConnected || card.has3d) return;
-      const hover = card.matches(':hover, :focus-visible');
-      if (phase === 'menu' && (hover || !drawn)) { drawWorldPreview(cctx, 300, 400, w, t, hover); drawn = !hover; }
-      requestAnimationFrame(anim);
-    };
-    if (cctx) previews.push({ card, cctx, w });
-    requestAnimationFrame(anim);
-    const ce = WUQStore.cardExtra(w, buildMenu);
-    if (ce) {
-      ce.addEventListener('click', (e) => e.stopPropagation());
-      ce.addEventListener('keydown', (e) => e.stopPropagation());
-      card.appendChild(ce);
-    }
-    const go1 = () => {
-      if (wrap.classList.contains('resting')) { Audio8.say("C'est fini pour aujourd'hui, à demain !"); return; }
-      if (open) return startWorld(w);
-      Audio8.soft(); Audio8.say(mystery ? 'Surprise ! Continue de jouer pour la découvrir !' : `Réussis d'abord : ${Progress.ordered()[k - 1].name} !`);
-      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
-    };
-    card.onclick = go1;
-    card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go1(); } };
-    wrap.appendChild(card);
-  });
-  // Chemin pointillé qui relie les îles dans l'ordre (dessiné une fois la mise en page faite)
-  requestAnimationFrame(() => drawMapPath(wrap, nodes));
-  // Monde surprise : pour ceux qui n'arrivent pas à choisir (sur la dernière page)
-  const sur = document.createElement('div');
-  if (!onPage.includes('surprise')) sur.style.display = 'none';
-  sur.setAttribute('role', 'button'); sur.tabIndex = 0;
-  sur.className = 'worldCard surprise';
-  sur.innerHTML = '<div class="surpriseIcon">🎲</div><div class="wName">Surprise !</div><div class="wBest">Au hasard !</div>';
-  sur.style.order = 999;
-  wrap.classList.remove('slideL', 'slideR'); void wrap.offsetWidth;
-  if (menuSlide) wrap.classList.add(menuSlide > 0 ? 'slideL' : 'slideR');
-  menuSlide = 0;
-  const go = () => { const open = Progress.ordered().filter((x) => Progress.unlocked(x)); startWorld(open[Math.floor(Math.random() * open.length)]); };
-  sur.onclick = go;
-  sur.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
-  wrap.appendChild(sur);
+  $('carousel').classList.toggle('resting', !!rest);
+  $('carHint').classList.toggle('hidden', !Gestures.on);
+  paintCarousel();
   // Aperçus 3D (même rendu que le jeu) dès que la 3D est prête ; sinon on garde le dessin 2D
   const menuLooks = trainerLooks();
-  if (store('3d') !== false && store('quality') !== 'low' && !isLowPower()) {
+  if (store('3d') !== false && store('quality') !== 'low' && !isLowPower() && carThumbs.size < WORLDS.length) {
     scene3d.load()
       .then(() => Promise.all([scene3d.preloadTrainers([...new Set(menuLooks.flatMap((l) => [l.model, l.body, l.legs]))]),
         scene3d.P.preload([...scene3d.P.modelsOf([...new Set(WORLDS.map((w) => w.biomes[0].kit || 'meadow'))]),
           ...creatureModels(WORLDS.map((w) => creaturesOf(w.biomes[0].kit || 'meadow')[w.id.length % 3]).filter(Boolean))])]))
-      .then(() => previews.forEach(({ card, cctx, w }, i) => setTimeout(() => {
-      if (!card.isConnected) return;
-      try { cctx.clearRect(0, 0, 300, 400); cctx.drawImage(scene3d.thumb(w, menuLooks[0]), 0, 0, 300, 400); card.has3d = true; } catch (e) { console.warn(e); }
-    }, i * 60)))
-      .then(() => { // le dresseur de l'enfant sur l'île où il en est
-        const pin = wrap.querySelector('.herePin canvas');
-        if (pin) pin.getContext('2d').drawImage(scene3d.trainerThumb(menuLooks[0], 80), 0, 0, 80, 100);
+      .then(() => {
+        for (const w of WORLDS) if (!carThumbs.has(w.id)) { try { carThumbs.set(w.id, scene3d.thumb(w, menuLooks[0])); } catch (e) { console.warn(e); } }
+        if (phase === 'menu') paintCarousel();
       }).catch(() => {});
   }
   const sp = $('speeds');
   sp.innerHTML = '';
   const saved = store('speed');
-  speed = SPEEDS.find((s) => s.id === saved) || SPEEDS[0];
-  for (const s of SPEEDS) {
+  speed = SPEEDS.find((x) => x.id === saved) || SPEEDS[0];
+  for (const x of SPEEDS) {
     const b = document.createElement('button');
-    b.className = 'btn small' + (s === speed ? '' : ' ghost');
-    b.textContent = s.label;
-    b.onclick = () => { speed = s; store('speed', s.id); buildMenu(); };
+    b.className = 'btn small' + (x === speed ? '' : ' ghost');
+    b.textContent = x.label;
+    b.onclick = () => { speed = x; store('speed', x.id); buildMenu(); };
     sp.appendChild(b);
   }
-  const short = store('short') !== false; // partie courte par défaut (petits)
-  const sb = document.createElement('button');
-  sb.className = 'btn small' + (short ? '' : ' ghost');
-  sb.textContent = short ? '⏱️ Partie courte ✓' : '⏱️ Partie longue';
-  sb.onclick = () => { store('short', !short); buildMenu(); };
-  sp.appendChild(sb);
-  const stg = store('stages') !== false; // îles en étapes (une partie = une étape, avec son paysage)
-  const stb = document.createElement('button');
-  stb.className = 'btn small' + (stg ? '' : ' ghost');
-  stb.textContent = stg ? '🧩 Îles en étapes ✓' : '🧩 Îles d\'une traite';
-  stb.onclick = () => { store('stages', !stg); buildMenu(); };
-  sp.appendChild(stb);
   const full = store('fullscreen') !== false; // plein écran au lancement (rien ne dépasse, pas de clic de travers)
   const fb = document.createElement('button');
   fb.className = 'btn small' + (full ? '' : ' ghost');
@@ -386,11 +284,6 @@ function buildMenu() {
   lb.textContent = lim ? `🌙 ${lim} partie${lim > 1 ? 's' : ''} par jour` : '🌙 Parties par jour : sans limite';
   lb.onclick = () => { const next = { 0: 1, 1: 2, 2: 3, 3: 0 }[lim] ?? 0; store('dailyLimit', next); buildMenu(); };
   sp.appendChild(lb);
-  const ob = document.createElement('button'); // toutes les îles ouvertes (sinon on les ouvre une à une)
-  ob.className = 'btn small' + (store('allOpen') ? '' : ' ghost');
-  ob.textContent = store('allOpen') ? '🗺️ Toutes les îles ouvertes ✓' : '🗺️ Îles à ouvrir une à une';
-  ob.onclick = () => { store('allOpen', !store('allOpen')); buildMenu(); };
-  sp.appendChild(ob);
   const qb = document.createElement('button'); // qualité des graphismes (auto par défaut)
   const qv = store('quality'), qName = { high: 'Haute', medium: 'Moyenne', low: 'Basse' };
   qb.className = 'btn small' + (qv ? '' : ' ghost');
@@ -476,38 +369,36 @@ $('voiceTest').onclick = () => Audio8.say('Salut ! Prêt pour l\'échauffement ?
 
 function goMenu() {
   if (phase === 'play' || phase === 'calib' || phase === 'countdown' || phase === 'paused') Rec.end(null); // (partie abandonnée, même depuis la pause : on garde quand même les mouvements)
-  phase = 'menu'; game = null; frozen = false; fromHub = false; hub.dispose(); arena.end(); show('mapPanel', false); show('quickPanel', false); show('laboPanel', false);
+  phase = 'menu'; game = null; frozen = false; arena.end();
   Audio8.music(false); Audio8.theme(null); Audio8.themeMute(false);
-  ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause', 'hubHud'].forEach((id) => show(id, false));
+  ['loading', 'calib', 'hud', 'results', 'countdown', 'camBox', 'simHelp', 'carnet', 'pause'].forEach((id) => show(id, false));
   showMenuCam();
   show('menu');
   scene.setWorld(null);
+  Gestures.reset(); // (bras encore levés depuis l'écran de fin : il faut les baisser avant une nouvelle commande)
   buildMenu();
-  if (!DEV.get('nostory')) playPendingTale(); // (un chapitre de l'histoire à raconter ? portail ouvert, Étoile retrouvée, fin)
 }
 
 // ---------------- Lancement ----------------
 async function startWorld(w) {
   const ok = WUQStore.canStart();
   if (ok !== true) { if (typeof ok === 'string') alert(ok); return; }
-  // Limite de parties par jour (parents) : vérifiée ici pour tous les chemins (île, « Encore », bras levés, 🏰, 🏆, Surprise)
+  // Limite de parties par jour (parents) : vérifiée ici pour tous les chemins (menu, « Encore », bras levés)
   const lim = Number(store('dailyLimit')) || 0;
-  if (w && !w.hub && lim && Progress.playsToday() >= lim) {
+  if (w && lim && Progress.playsToday() >= lim) {
     Audio8.say("C'est fini pour aujourd'hui, à demain !");
-    if (phase !== 'menu' && !(world && world.hub)) goMenu(); // (depuis l'écran de fin : retour au menu ; au château, on y reste)
+    if (phase !== 'menu') goMenu(); // (depuis l'écran de fin : retour au menu)
     return;
   }
+  const again = phase === 'results' && world === w; // (« Encore » : déjà calibré, on reprend tout de suite)
   world = w;
-  const chain = fromHub; // (on vient déjà du château ou d'un cours lancé depuis le château)
-  if (w.hub) fromHub = true;
-  show('hubHud', false);
   if (store('fullscreen') !== false && !document.fullscreenElement && document.documentElement.requestFullscreen) {
     document.documentElement.requestFullscreen().catch(() => {});
   }
   team = WUQStore.players();
   if (!team.length) team = [{ name: '', color: null }];
   // Premier compagnon : chaque enfant en choisit un parmi trois avant sa première partie
-  if (!DEV.get('world') && !DEV.get('quick') && !DEV.get('labo') && !(DEV.get('hub') || DEV.get('village')) && !Rec.playing) {
+  if (!DEV.get('world') && !Rec.playing) {
     for (let i = 0; i < team.length; i++) if (!WUQStore.getCompanion(i)) await chooseStarter(i, team[i].name);
   }
   colors = duo() ? team.map((p, i) => (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i])) : [];
@@ -523,7 +414,7 @@ async function startWorld(w) {
   // Créatures compagnons (une par joueur) : elles courent à côté de leur dresseur
   const comps = team.map((p, i) => { const c = WUQStore.getCompanion(i); const cr = Progress.companionCreature(c); return cr ? { cr, level: Progress.companionLevel(c) } : null; });
   scene3d.setCompanions(comps);
-  const next = store('3d') !== false || w.hub ? scene3d : sceneFlat; // (le parc n'existe qu'en 3D)
+  const next = store('3d') !== false ? scene3d : sceneFlat;
   if (next !== scene) { scene.setWorld(null); scene = next; }
   show('menu', false);
   if (scene.load) {
@@ -532,19 +423,14 @@ async function startWorld(w) {
     try {
       await scene.load((t) => ($('loadingText').textContent = t));
       $('loadingText').textContent = 'Chargement des décors…';
-      const friends = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
-      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...(w.hub ? hub.models(friends, w.village) : A3_MODELS)]); // (jeux miroir en 3D : décors et personnages)
-      const hubKey = JSON.stringify(looks[0]) + (w.village ? w.village.id : 'academie');
-      if (w.hub) { hubWorld = w; if (!hub.scene || hub.lookKey !== hubKey) { hub.build(looks[0], comps[0], friends, { w: w.village }); hub.lookKey = hubKey; } }
+      await scene.preloadWorld(w, looks, [...creatureModels(comps.filter(Boolean).map((c) => c.cr)), ...A3_MODELS]); // (jeux miroir en 3D : décors et personnages)
     } catch (e) {
       console.error('3D indisponible, on joue sur le chemin classique', e);
       scene = sceneFlat;
-      if (w.hub) { show('loading', false); goMenu(); return; }
     }
     show('loading', false);
   }
-  if (!w.hub) scene.setWorld(w, pals, looks);
-  { const n = Stages.count(w); if (n && !w.hub) scene.setProgress((stageWanted != null ? stageWanted % n : DEV.get('stage') ? Number(DEV.get('stage')) % n : Stages.next(w)) / n); } // (île en étapes : le paysage de l'étape dès le départ)
+  scene.setWorld(w, pals, looks);
   if ($('simToggle').checked) {
     tracker.enableSim();
     show('simHelp');
@@ -565,32 +451,10 @@ async function startWorld(w) {
     }
     show('loading', false);
   }
-  // Déjà calibré (on vient du parc, ou on y retourne) : pas besoin de recommencer « Mets-toi bien »
-  if (tracker.calibrated && (chain || (w.loop && phase === 'results'))) { if (tracker.state.upperBody) tracker.calibrate(); if (!w.hub) recBegin(); afterCalib(); return; } // (Déjà calibré : on reprend la position actuelle si on voit l'enfant)
+  // « Encore » : déjà calibré, on reprend la position actuelle si on voit l'enfant (pas de « Mets-toi bien » à chaque fois)
+  if (tracker.calibrated && again) { if (tracker.state.upperBody) tracker.calibrate(); recBegin(); startCountdown(); return; }
   startCalib();
 }
-
-// Après le calibrage : le parc de l'Académie, ou le 3, 2, 1 d'une partie
-function afterCalib() { if (world && world.hub) enterHub(); else startCountdown(); }
-function enterHub() {
-  phase = 'hub'; game = null; frozen = false;
-  ['calib', 'hud', 'results', 'countdown', 'pause'].forEach((id) => show(id, false));
-  show('camBox'); $('camBox').classList.remove('big');
-  show('hubHud');
-  Audio8.music(false); Audio8.themeMute(false); Audio8.theme(world.village ? world.village.id : 'ecole');
-  const go = () => hub.enter(hubLast);
-  if (DEV.get('nostory')) go(); else playPendingTale(go); // (l'histoire d'abord, s'il y a un chapitre à raconter)
-}
-// Fin d'un cours lancé depuis le parc : on y revient, devant la porte du bâtiment
-function backToHub() { const hw = hubWorld || HUB_WORLD; world = hw; startWorld(hw); }
-// Le petit sorcier est arrivé à une porte : un cours, une étape du pays, ou un portail (Académie, village d'un pays)
-hub.onGo = (d) => {
-  if (d.kind === 'world') { hubLast = d.id; startWorld(d.w); }
-  else if (d.kind === 'stage') { hubLast = d.id; stageWanted = d.k; startWorld(d.w); }
-  else if (d.kind === 'portal') { hubLast = 'academy'; startWorld(villageWorld(d.w)); }
-  else if (d.kind === 'academy') { hubLast = 'portal'; startWorld(HUB_WORLD); }
-  else if (d.kind === 'country') { hubLast = hub.w ? hub.w.id : null; startWorld(villageWorld(d.w)); }
-};
 
 function cameraHelp(e) {
   const name = e && e.name;
@@ -638,7 +502,7 @@ function setCalibStage(stage, text, sub, speak) {
 
 function updateCalib(now) {
   const s = tracker.state;
-  if (tracker.sim && (DEV.get('world') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village')))) { tracker.calibrate(); afterCalib(); return; }
+  if (tracker.sim && DEV.get('world')) { tracker.calibrate(); startCountdown(); return; }
   if (tracker.sim) {
     setCalibStage('sim', `Monde : ${world.name}`, "Appuie sur Entrée (ou 1 pour lever les bras) pour commencer", null);
     if (s.armsUp) holdCalib(now); else { calibState.holdStart = 0; $('calibBar').style.width = '0%'; }
@@ -686,7 +550,7 @@ function updateCalib(now) {
     const p = Math.min(1, (now - calibState.autoT) / 3000);
     setCalibStage('auto', 'Bravo, je te vois ! ✨', duo() ? 'On commence tout de suite…' : 'On commence tout de suite… (ou lève les bras)', duo() ? 'Je vous vois ! On commence !' : 'Je te vois ! On commence !');
     $('calibBar').style.width = p * 100 + '%';
-    if (p >= 1) { tracker.calibrate(); afterCalib(); }
+    if (p >= 1) { tracker.calibrate(); startCountdown(); }
     return;
   } else if (!s.armsUp) {
     calibState.holdStart = 0;
@@ -713,23 +577,18 @@ function calibIssue(now) {
 }
 
 $('calibBack').onclick = goMenu;
-$('calibGo').onclick = () => { if (phase !== 'calib') return; tracker.calibrate(); afterCalib(); };
+$('calibGo').onclick = () => { if (phase !== 'calib') return; tracker.calibrate(); startCountdown(); };
 
 function holdCalib(now) {
   if (!calibState.holdStart) calibState.holdStart = now;
   const p = Math.min(1, (now - calibState.holdStart) / 1000);
   $('calibBar').style.width = p * 100 + '%';
-  if (p >= 1) { tracker.calibrate(); afterCalib(); }
+  if (p >= 1) { tracker.calibrate(); startCountdown(); }
 }
 
 addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); afterCalib(); }
-  if (phase === 'hub') { // (mode clavier au château : ← → = pas de côté (changer), 1 = bras levés ou Entrée (y aller), Échap sortir)
-    if (e.key === 'Enter') hub.keyGo = true;
-    if (e.key === 'Escape') goMenu();
-  }
+  if (e.key === 'Enter' && phase === 'calib' && tracker.sim) { tracker.calibrate(); startCountdown(); }
   if (e.key === 'Enter' && phase === 'results') $('againBtn').click();
-  if (arena.on && phase === 'play' && /^[bBsS]$/.test(e.key)) arena.ev.push('key_' + e.key.toLowerCase()); // (jeux miroir au clavier : B toucher, S touiller)
   if ((e.key === 'b' || e.key === 'B') && tracker.sim && phase === 'play' && game && game.cur && game.cur.s.m === 'moles' && !game.cur.done) {
     const c = game.cur; c.bonked++; game.add(50, '+50'); Audio8.boing(); ui.setDetail(game.detail(c));
     if (c.bonked >= c.s.n) game.complete(performance.now());
@@ -841,41 +700,17 @@ function startCountdown(done = startGame) {
 
 // ---------------- Partie ----------------
 // Partie courte : on garde l'intro, la fin, les nouveaux jeux, et une étape sur deux du reste
-function shortSteps(steps) {
-  if (steps.length < 8) return steps;
-  const mid = steps.slice(1, -1);
-  const special = ['arena', 'act', 'bubbles', 'freeze', 'catch', 'rope', 'tunnel', 'moles', 'posemix', 'boss', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'];
-  return [steps[0], ...mid.filter((st, i) => i % 2 === 0 || special.includes(st.m)), steps[steps.length - 1]];
-}
-
 class Game {
   constructor(w, mul) {
     this.world = w;
-    // Île en étapes : on joue l'étape suivante (déjà courte) ; sinon le parcours entier, raccourci pour les petits
-    const nStages = DEV.get('step') ? 0 : Stages.count(w);
-    // (étape choisie au village, sinon l'étape à faire)
-    const kWant = stageWanted != null ? stageWanted : DEV.get('stage') ? Number(DEV.get('stage')) : null;
-    stageWanted = null;
-    this.stage = nStages ? { k: kWant != null ? kWant % nStages : Stages.next(w), n: nStages } : null;
-    this.steps = this.stage ? Stages.split(w, WUQStore.steps(w), this.stage.k)
-      : store('short') !== false && !w.tutorial && !w.quick ? shortSteps(WUQStore.steps(w)) : WUQStore.steps(w);
-    this.steps = this.steps.map((st) => ({ ...st })); // (copie : un carrefour ajoute une épreuve à CETTE partie, pas au programme du monde)
-    for (const st of this.steps) if (st.m === 'arena' && (st.game === 'soleil' || st.game === 'corde')) st.n = 1; // (une seule manche : sinon chrono et score maximum multipliés pour rien)
-    // À deux : une passe de ballon au milieu de la partie (le ballon va de l'un à l'autre, on le renvoie en levant la main)
-    // (carrefours : on choisit son épreuve ; l'épreuve préférée revient plus souvent ; parfois un chemin secret)
-    if (!w.tutorial && !w.arenaMix && !w.quick && !DEV.get('nofork')) this.steps = withForks(this.steps, { fav: Paths.favorite(0), secret: Math.random() < 0.3 || !!DEV.get('forksecret') });
-    // Salle des Défis : trois jeux miroir au hasard à chaque visite (jamais les mêmes que la dernière fois)
-    if (w.arenaMix && !DEV.get('step') && !Rec.playing) {
-      const all = this.steps.slice(1, -1).filter((st) => st.m === 'arena'), last = WUQStore._get('defisLast') || [];
-      const pick = [...all.filter((st) => !last.includes(st.game)), ...all.filter((st) => last.includes(st.game))].map((st, i, l) => ({ st, r: i < l.length - last.length ? Math.random() : 1 + Math.random() }))
-        .sort((x, y) => x.r - y.r).slice(0, w.arenaMix).map((o) => o.st);
-      WUQStore._set('defisLast', pick.map((st) => st.game));
-      this.steps = [this.steps[0], ...pick, this.steps[this.steps.length - 1]];
-    }
+    // Le programme du monde (ou la séquence choisie dans Odoo), copié : la partie peut le modifier sans toucher au monde.
+    // Au Stade, les obstacles du chemin sont des joueurs de foot (w.obstacles).
+    this.steps = WUQStore.steps(w).map((st) => (st.m === 'run' && w.obstacles ? { ...st, foot: true, kinds: w.obstacles } : { ...st }));
+    for (const st of this.steps) if (st.m === 'arena' && st.game === 'course') st.n = 1; // (une seule course : sinon chrono et score maximum multipliés pour rien)
     this.steps = Rec.steps(this.steps); // (enregistreur : on garde le parcours ; rejeu : on reprend le même)
     const devStep = DEV.get('step');
     if (devStep) { const k = this.steps.findIndex((st) => st.m === devStep && (!DEV.get('game') || st.game === DEV.get('game'))); if (k >= 0) this.steps = this.steps.slice(k); } // (?step=arena&game=mur)
-    this.mul = w.tutorial ? Math.max(mul, 1.5) * 1.25 : mul; // (École des dresseurs : tout plus lent)
+    this.mul = mul;
     this.mul0 = this.mul; this.diffK = 1; // difficulté qui s'adapte (voir adaptTo)
     this.startedAt = performance.now();
     this.pausedTotal = 0;
@@ -886,7 +721,7 @@ class Game {
     this.streak = 0;
     this.bestStreak = 0;
     this.success = 0;
-    this.scored = this.steps.filter((s) => s.m !== 'rest' && s.m !== 'learn').length;
+    this.scored = this.steps.filter((s) => s.m !== 'rest').length;
     this.cur = null;
     this.over = false;
     this.team = [];
@@ -898,7 +733,7 @@ class Game {
   shift(d) {
     const c = this.cur;
     if (c) {
-      c.start += d; c.end += d; c.lastT += d; c.ropeT0 += d;
+      c.start += d; c.end += d; c.lastT += d;
       if (c.phaseAt) c.phaseAt += d;
       for (const hz of c.hazards) hz.arrive += d; // (leur départ est décalé par la scène)
       for (const bb of c.bubbles) bb.born += d;
@@ -908,10 +743,8 @@ class Game {
       for (const cb of c.cubes) { cb.born += d; cb.arrive += d; if (cb.hit) cb.hit += d; }
       if (c.lastFruit) c.lastFruit += d;
       if (c.prevT) c.prevT += d;
-      for (const f of c.foes || []) { f.born += d; if (f.t) f.t += d; }
       for (const b of c.shots || []) { b.born += d; b.arrive += d; if (b.t) b.t += d; }
       if (c.ball) { c.ball.t0 += d; } if (c.kickAt) c.kickAt += d;
-      if (c.lastFoe) c.lastFoe += d;
       if (c.lastNow) c.lastNow += d; if (c.phaseT) c.phaseT += d; if (c.lastPrank) c.lastPrank += d; // (mousse : le chrono n'est pas rallongé deux fois)
       if (c.s.m === 'arena') arena.shift(d);
       if (c.act) { c.act.t += d; c.act.pop += d; c.act.subPop += d; if (c.act.shake) c.act.shake += d; }
@@ -920,21 +753,19 @@ class Game {
     this.pausedTotal += d;
   }
 
-  // Paysage en cours (étape de l'île, sinon l'avancée dans le parcours)
+  // Paysage en cours (selon l'avancée dans le parcours)
   biomeNow(i = this.i) {
     const bs = this.world.biomes;
-    return this.stage ? bs[Math.min(bs.length - 1, this.stage.k)] : bs[Math.min(bs.length - 1, Math.floor(((i + 1) / this.steps.length) * bs.length))];
+    return bs[Math.min(bs.length - 1, Math.floor(((i + 1) / this.steps.length) * bs.length))];
   }
-  progressAt(i) { return this.stage ? (this.stage.k + i / this.steps.length) / this.stage.n : i / this.steps.length; }
+  progressAt(i) { return i / this.steps.length; }
 
   // Adapte une étape au joueur (mode haut du corps) et au monde (rencontre de créature)
   adapt(s) {
-    if (s.m === 'boss' && this.world.finalBoss) s = { ...s, final: true }; // (dernière île : le Nuage Grognon en personne)
-    if (s.m === 'ball') s = { m: 'bubbles', t: 10, n: 6 }; // (passe de ballon retirée : trop difficile à synchroniser)
     // À deux : on garde les jeux où l'on vise le même but ensemble ; ceux qui demandent d'être parfaitement synchronisés
-    // (corde, couloirs gauche / droite, combos) sont remplacés par des jeux d'équipe
+    // (couloirs gauche / droite) sont remplacés par des jeux d'équipe
     if (this.np > 1) {
-      const swap = { rope: { m: 'foam', t: 14, n: 6 }, left: { m: 'catch', t: 8 }, right: { m: 'bubbles', t: 8, n: 4 }, combo: { m: 'smash', n: 2 } }[s.m];
+      const swap = { left: { m: 'catch', t: 8 }, right: { m: 'bubbles', t: 8, n: 4 } }[s.m];
       if (swap) s = swap;
       if (s.m === 'pose') { // poses : chacun son tour (sauf si l'un est parti : « continuer seul »)
         let turn = (this.turnN = ((this.turnN ?? -1) + 1)) % 2;
@@ -943,9 +774,8 @@ class Game {
       }
     }
     if (s.m === 'pose' && s.pose === 'flamingo' && tracker.mode === 'upper') s = { ...s, pose: 'armsUp' };
-    if ((s.m === 'posemix' || s.m === 'boss') && tracker.mode === 'upper') s = { ...s, poses: s.poses.map((p) => (p === 'flamingo' ? 'armsUp' : p)) };
-    if (s.m === 'pose' && (s.capture || this.world.creatures || (this.poseN = (this.poseN || 0) + 1) % 2 === 0)) {
-      const kit = this.biomeNow().kit; // (fin d'étape : toujours une créature de ce paysage)
+    if (s.m === 'pose' && (this.poseN = (this.poseN || 0) + 1) % 2 === 0) { // (une pose sur deux : une créature à rendre amie)
+      const kit = this.biomeNow().kit;
       const forced = DEV.get('creature') && CREATURES.find((c) => c.id === DEV.get('creature')); // (mode test)
       // Surprise du jour : la première rencontre de ce monde est la créature du jour
       const daily = Progress.daily();
@@ -962,45 +792,31 @@ class Game {
     if (this.i >= this.steps.length) return this.finish();
     const s = this.adapt(this.steps[this.i]);
     Rec.stepStart(this.i, s);
-    const fixed = s.m === 'rest' || s.m === 'freeze' || s.m === 'learn';
+    const fixed = s.m === 'rest' || s.m === 'freeze';
     let dur = stepDuration(s) * (fixed ? 1 : this.mul) * 1000 + (s.creature ? 1200 : 0);
-    const ropePeriod = 1700 * Math.min(1.3, this.mul);
-    if (s.m === 'rope') dur = 3600 + s.n * ropePeriod + 700; // (3, 2, 1 avant le premier saut)
     const travel = 2600 * Math.min(1.3, this.mul), gapRep = 2400 * Math.min(1.3, this.mul);
     if (s.m === 'jump' || s.m === 'squat') dur = 600 + (s.n - 1) * gapRep + travel + 700;
-    const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul) * (s.m === 'karate' && tracker.bodies.some((b) => b.easy) ? 1.35 : 1); // (mode petit : plus de temps par geste du maître)
-    if (s.m === 'dance' || s.m === 'karate') dur = 2000 + s.moves.length * beat + 600;
+    const beat = (s.beat || 1.8) * 1000 * Math.min(1.3, this.mul);
+    if (s.m === 'dance') dur = 2000 + s.moves.length * beat + 600;
     if (s.m === 'cubes') dur = 1500 + (s.n - 1) * (s.beat || 1.4) * 1000 * Math.min(1.3, this.mul) + cubeTravel(this.mul) + 900;
     this.cur = { s, start: now, end: now + dur, dur, count: 0, done: false, hold: 0, lastT: now, part: 0,
       counts: Array(this.np).fill(0), parts: Array(this.np).fill(0),
       bubbles: [], popped: 0, phase: null, okRounds: 0, hazards: [], dodges: [], caught: 0,
-      ropeT0: now + 3600 - ropePeriod, ropePeriod, passes: 0, ropeOk: 0, moles: [], bonked: 0, pi: 0,
+      moles: [], bonked: 0, pi: 0,
       beat, mi: -1, showI: -99, mimicRes: [], okF: [], frames: 0, travel, gapRep,
       fruits: [], sliced: 0, cubes: [], cubeHits: 0, cubeDone: 0 };
     ui.showStep(s, this.steps[this.i + 1], this.i, this.steps.length);
     ui.setDetail(this.detail(this.cur));
     // (à deux, pose : on annonce à qui c'est le tour)
     const who = s.turn != null && team[s.turn] ? `À toi ${team[s.turn].name || (s.turn ? 'joueur deux' : 'joueur un')} ! ` : '';
-    if (s.m !== 'learn') Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : s.capture ? 'Fin de l\'étape ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : s.m === 'boss' && this.world.finalBoss ? 'Le voilà, le Nuage Grognon ! Il a l\'air tout triste… Copie ses poses pour lui montrer que tu veux être son ami ! ' + POSES[s.poses[0]].say : stepSpeech(s)), { slow: !!this.world.tutorial });
+    Audio8.say(who + (s.creature ? `${s.daily ? 'Surprise du jour ! ' : 'Oh ! '}${s.creature.name} arrive ! ${POSES[s.pose].say} pour devenir son ami !` : stepSpeech(s)));
     if (s.creature) Audio8.cry(s.creature.id);
-    if (s.m === 'learn') { // tuto : voix lente, et Tempo montre le geste devant le dresseur
-      Audio8.say(tutoText(s.of), { slow: true });
-      const mv = tutoCoachMove(s.of);
-      if (mv) setTimeout(() => { if (this.cur && this.cur.s === s) scene.setCoach({ move: mv, style: 'dance', pal: MIMIC.dance.pal, t0: performance.now(), learn: true }); }, 50);
-    }
     scene.onStep(s, dur);
     if (s.turn != null) scene.turnHero = s.turn; // (à deux : repère « à toi ! »)
     if (s.m === 'pose') scene.setDemoPose(s.pose);
-    if (s.m === 'posemix') scene.setDemoPose(s.poses[0]);
-    if (s.m === 'boss') { // gardien : la forme évoluée d'une créature du dernier paysage du monde
-      const cr = guardianOf(this.world); // (le même qu'au village du pays)
-      this.cur.boss = cr;
-      scene.setBoss && scene.setBoss({ cr, pose: s.poses[0] });
-      Audio8.cry(cr.id);
-    }
     if (s.m === 'moles') scene.moles = this.cur.moles;
     if (s.m === 'arena') arena.begin(s, this, this.cur); // (jeu miroir : scène fixe, l'enfant se voit à l'écran)
-    if (s.m === 'goal' || s.m === 'basket' || s.m === 'kick') { // Stade : le copain est un de tes amis du carnet (pas encore évolué de préférence)
+    if (s.m === 'goal' || s.m === 'kick') { // Stade : le copain est un de tes amis du carnet (pas encore évolué de préférence)
       const kitL = creaturesOf(this.biomeNow().kit || 'meadow'), local = kitL.length ? kitL : CREATURES;
       const own = Object.keys(Carnet.get()).map((id) => CREATURES.find((x) => x.id === id)).filter(Boolean);
       const young = own.filter((x) => !Carnet.evolved(x.id)), pool = young.length ? young : own;
@@ -1008,11 +824,10 @@ class Game {
       this.cur.mate = pool.length ? mate : null;
       scene.sportCr = [mate, local[Math.floor(Math.random() * local.length)]];
     }
-    if (s.m === 'dance' || s.m === 'karate') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
+    if (s.m === 'dance') { Audio8.music(true, s.m); scene.setCoach({ move: null, style: s.m, pal: MIMIC[s.m].pal }); }
     if (s.m === 'bubbles') scene.bubbles = this.cur.bubbles;
     if (s.m === 'slice') scene.fruits = this.cur.fruits;
     if (s.m === 'cubes') { scene.cubes = this.cur.cubes; Audio8.music(true, 'dance'); }
-    if (s.m === 'rope') scene.rope = { t0: this.cur.ropeT0, period: ropePeriod };
     scene.setProgress(this.progressAt(this.i));
   }
 
@@ -1060,16 +875,6 @@ class Game {
       Audio8.good();
       ui.setDetail(this.detail(c));
       if (team2 ? c.count >= goal : c.counts.every((n) => n >= s.n)) this.complete(now);
-    } else if (s.m === 'combo') {
-      if (c.parts[idx] < s.parts.length && type === s.parts[c.parts[idx]]) {
-        c.parts[idx]++;
-        c.part = Math.min(...c.parts);
-        this.add(this.pts(100), '+' + this.pts(100), idx);
-        scene.flash(idx, true);
-        Audio8.good();
-        ui.setDetail(this.detail(c));
-        if (teamOk(c.parts.map((n) => n >= s.parts.length))) { this.add(200, 'COMBO +200'); this.complete(now); }
-      }
     } else if (s.m === 'act') {
       if (c.act) c.act.ev.push(type); // (traité dans updateAct)
     } else if (s.m === 'arena') {
@@ -1095,29 +900,18 @@ class Game {
         return s.n === 1 && np === 1 ? '' : rows((i) => dots(c.counts[i], s.n));
       case 'foam': return `<div class="runCount">🧽 ${'⭐'.repeat(c.round || 0)}${'☆'.repeat(Math.max(0, (c.rounds || 1) - (c.round || 0)))} <b>${Math.round(Math.min(1, (c.clean || 0) / (c.target || 0.8)) * 100)} %</b></div>`;
       case 'goal': return `<div class="runCount">🧤 <b>${c.saved || 0}</b> / ${s.n}</div>`;
-      case 'basket': return `<div class="runCount">🏀 <b>${c.baskets || 0}</b> / ${s.n}</div>`;
       case 'kick': return `<div class="runCount">⚽ <b>${c.goals || 0}</b> / ${s.n}</div>`;
       case 'arena': return arena.detail();
       case 'act': { const a = c.act, per = ACTS[s.game].per || 1; return `<div class="runCount">${ACTS[s.game].icon} <b>${a ? a.reps : 0}</b> / ${s.n}</div>` + (per > 1 && a ? dots(a.sub, per) : ''); }
-      case 'wand': return `<div class="runCount">🪄 <b>${c.calmed || 0}</b> / ${s.n}</div>`;
-      case 'ball': return `<div class="runCount">⚽ Passes : <b>${c.passes}</b> / ${s.n}</div>`;
-      case 'combo': return rows((i) => comboChips(s.parts, c.parts[i]));
       case 'pose': return holdBar(c.hold / (s.hold * 1000), s.creature);
       case 'bubbles': return `<div class="runCount"><b>${c.popped}</b> / ${s.n} 🫧</div>`;
       case 'catch': return `<div class="runCount"><b>${c.caught}</b> / ${catchCount(s)} ${this.world.collectible}</div>`;
-      case 'rope': return dots(c.ropeOk, s.n);
       case 'tunnel': return holdBar(c.hold / (s.t * 700));
       case 'moles': return `<div class="runCount"><b>${c.bonked}</b> / ${s.n} 🐹</div>`;
       case 'slice': return `<div class="runCount"><b>${c.sliced}</b> / ${s.n} 🍉</div>`;
       case 'cubes': return `<div class="runCount"><b>${c.cubeHits}</b> / ${s.n} 🟦</div>`;
-      case 'dance': case 'karate': return '<div class="chips">' + s.moves.map((m, i) =>
+      case 'dance': return '<div class="chips">' + s.moves.map((m, i) =>
         `<span class="chip ${i < c.mimicRes.length ? (c.mimicRes[i] ? 'ok' : 'miss') : i === c.mi ? 'now' : ''}">${MIMIC_ICONS[m]}</span>`).join('') + '</div>';
-      case 'boss': return `<div class="chips"><span class="bossName">👑 ${c.boss ? c.boss.name : ''}</span>` + s.poses.map((p, i) =>
-        `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${i < c.pi ? '💖' : POSES[p].icon}</span>`).join('') + '</div>' +
-        (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
-      case 'posemix': return '<div class="chips">' + s.poses.map((p, i) =>
-        `<span class="chip ${i < c.pi ? 'ok' : i === c.pi ? 'now' : ''}">${POSES[p].icon}</span>`).join('<i>›</i>') + '</div>' +
-        (c.pi < s.poses.length ? holdBar(c.hold / (s.hold * 1000)) : '');
       case 'freeze': return `<div class="bigIcon">${c.phase === 'freeze' ? '🗿 Statue !' : '💃 Danse !'}</div>`;
       default: return '';
     }
@@ -1128,16 +922,15 @@ class Game {
     const s = c && !c.done ? c.s : null;
     const live = !!s && LIVE_STEPS.has(s.m);
     scene.mirror = live;
-    scene.closeUp = live && !['act', 'cubes', 'freeze', 'dance', 'karate', 'learn', 'foam', 'wand', 'basket', 'kick'].includes(s.m); // (jeux sur place : plan large, le décor du jeu tout autour)
+    scene.closeUp = live && !['act', 'cubes', 'freeze', 'dance', 'foam', 'kick'].includes(s.m); // (jeux sur place : plan large, le décor du jeu tout autour)
     // Fruits : on cache le dresseur (il gênait) ; les gants lumineux suivent directement les mains de l'enfant
     scene.hideHero = !!s && (s.m === 'slice' || s.m === 'foam'); // (fruits, mousse : on voit tout l'écran)
     if (scene.hideHero) scene.mirror = false;
     scene.faceCam = false;
     scene.limbs = live ? tracker.bodies.map((b, i) => this.limbsOf(b, i)) : null;
-    const mimicMove = s && (s.m === 'dance' || s.m === 'karate') && c.showI >= 0 ? s.moves[Math.min(c.showI, s.moves.length - 1)] : null;
-    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : s.m === 'posemix' || s.m === 'boss' ? s.poses[Math.min(c.pi, s.poses.length - 1)]
-      : POSES[mimicMove] ? mimicMove : null; // (danse : la silhouette dorée montre la pose du coach sur ton dresseur)
-    scene.ghostOnly = !!mimicMove || (!!s && s.m === 'boss'); // (pas d'estrade : le coach / le gardien montre déjà la pose)
+    const mimicMove = s && s.m === 'dance' && c.showI >= 0 ? s.moves[Math.min(c.showI, s.moves.length - 1)] : null;
+    scene.ghostPose = !s ? null : s.m === 'pose' ? s.pose : POSES[mimicMove] ? mimicMove : null; // (danse : la silhouette dorée montre la pose du coach sur ton dresseur)
+    scene.ghostOnly = !!mimicMove; // (pas d'estrade : le coach montre déjà la pose)
   }
 
   // Direction de chaque bras / jambe du joueur (repère écran en miroir, y vers le haut, unité = hauteur)
@@ -1249,10 +1042,12 @@ class Game {
     if (c.hazards.length < n && now >= c.start + 400 + c.hazards.length * gap) {
       // Supermarché : des produits à mettre dans le caddie (aller dans leur couloir) et des chapardeurs à éviter
       const shop = c.s.m === 'shop';
-      const kinds = shop ? ['item', 'item', 'thief', 'item', 'item', 'item', 'thief'] : duo() ? ['log', 'arch'] : ['rock', 'log', 'rock', 'arch'];
-      const kind = kinds[c.hazards.length % kinds.length];
+      // Stade (c.s.kinds) : des joueurs de foot — plot (couloir), tacle (sauter), grand joueur (se baisser)
+      const kinds = shop ? ['item', 'item', 'thief', 'item', 'item', 'item', 'thief']
+        : c.s.kinds ? (duo() ? c.s.kinds.filter((k) => DODGE_AS[k] !== 'rock') : c.s.kinds) : duo() ? ['log', 'arch'] : ['rock', 'log', 'rock', 'arch'];
+      const kind = kinds[c.hazards.length % kinds.length], as = DODGE_AS[kind] || kind;
       const cur = this.laneOf(0), others = [-1, 0, 1].filter((l) => l !== cur);
-      const lane = kind === 'rock' || kind === 'thief' ? cur : kind === 'item' ? (duo() ? 0 : others[Math.floor(Math.random() * others.length)]) : 0;
+      const lane = as === 'rock' || kind === 'thief' ? cur : kind === 'item' ? (duo() ? 0 : others[Math.floor(Math.random() * others.length)]) : 0;
       const hz = { kind, lane, born: now, dur: travel, arrive: now + travel, prod: kind === 'item' ? SHOP_ITEMS[Math.floor(Math.random() * SHOP_ITEMS.length)] : null };
       c.hazards.push(hz);
       scene.addHazard(hz);
@@ -1262,13 +1057,14 @@ class Game {
       // Petit rappel à la voix juste avant l'obstacle
       if (!hz.cued && now >= hz.arrive - 1100) {
         hz.cued = true;
-        Audio8.say(hz.kind === 'rock' ? 'Va à côté !' : hz.kind === 'log' ? 'Saute !' : hz.kind === 'item' ? 'Attrape-le !' : hz.kind === 'thief' ? 'Attention, un chapardeur !' : 'Baisse-toi !');
+        Audio8.say({ cone: 'Évite le plot !', tackle: 'Il tacle : saute !', giant: 'Baisse-toi sous ses bras !', rock: 'Va à côté !', log: 'Saute !', item: 'Attrape-le !', thief: 'Attention, un chapardeur !' }[hz.kind] || 'Baisse-toi !');
       }
       if (hz.done || now < hz.arrive + 150) continue;
       hz.done = true;
+      const as = DODGE_AS[hz.kind] || hz.kind;
       const oks = tracker.bodies.map((b, i) => {
-        if (hz.kind === 'log') return b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200;
-        if (hz.kind === 'arch') return b.state.squat || now - (this.lastEv.squat[i] || 0) < 1200;
+        if (as === 'log') return b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200;
+        if (as === 'arch') return b.state.squat || now - (this.lastEv.squat[i] || 0) < 1200;
         if (hz.kind === 'item') return duo() || this.laneOf(i) === hz.lane; // (à deux : le produit arrive au milieu, chacun l'attrape)
         if (hz.kind === 'thief') return this.laneOf(i) !== hz.lane || b.state.jumpUp || now - (this.lastEv.jump[i] || 0) < 1200; // (à côté, ou par-dessus !)
         return this.laneOf(i) !== hz.lane;
@@ -1290,6 +1086,7 @@ class Game {
     if (!next || next.arrive - now > 1400) { scene.setCue(null); return; }
     const rel = next.lane - this.laneOf(0); // (produit : flèche vers son couloir, ou le caddie si on y est déjà)
     const icon = { log: '⬆️', arch: '⬇️', rock: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️',
+      tackle: '⬆️', giant: '⬇️', cone: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️',
       item: rel === 0 ? '🛒' : rel < 0 ? '⬅️' : '➡️', thief: next.lane === 0 ? '↔️' : next.lane < 0 ? '➡️' : '⬅️' }[next.kind];
     scene.setCue({ icon, k: 1 - (next.arrive - now) / 1400, now: next.arrive - now < 450 });
   }
@@ -1346,34 +1143,6 @@ class Game {
         scene.resolveHazard(it, true, j);
       } else scene.resolveHazard(it, false);
       ui.setDetail(this.detail(c));
-    }
-  }
-
-  // ---------- Corde à sauter : sauter quand la corde passe sous les pieds
-  updateRope(c, now) {
-    const pass = c.ropeT0 + (c.passes + 1) * c.ropePeriod;
-    const toPass = pass - now;
-    // Décompte avant chaque passage de la corde : 3, 2, 1… SAUTE ! (lent pour le premier, en rythme ensuite)
-    const beat = c.passes === 0 ? 1000 : c.ropePeriod / 3;
-    const num = toPass > 220 ? Math.min(3, Math.ceil((toPass - 220) / beat)) : 0;
-    const hop = toPass <= 220 && toPass > -300;
-    scene.setCue({ icon: hop ? '⬆️' : num > 0 ? String(num) : '⬆️', k: hop ? 1 : num ? 1 - (num - 1) / 3 : 0.3, now: hop, big: true });
-    if (num !== c.ropeNum) {
-      c.ropeNum = num;
-      if (num > 0 && toPass < beat * 3 + 220) Audio8.tick();
-    }
-    if (!c.ticked && now >= pass - 220) { c.ticked = true; Audio8.go(); if (c.passes === 0) Audio8.say('Saute !'); }
-    if (now < pass + 350) return;
-    c.passes++; c.ticked = false;
-    // Réussi si on a sauté entre 0,65 s avant et 0,35 s après le passage de la corde sous les pieds
-    const oks = tracker.bodies.map((b, i) => b.state.jumpUp || (this.lastEv.jump[i] || 0) >= pass - 650);
-    oks.forEach((ok, i) => { scene.flash(i, ok); if (ok) this.add(this.pts(100), '+' + this.pts(100), i); });
-    if (teamOk(oks)) c.ropeOk++;
-    teamOk(oks) ? Audio8.good() : Audio8.soft();
-    ui.setDetail(this.detail(c));
-    if (c.passes >= c.s.n) {
-      scene.rope = null; scene.setCue(null);
-      if (c.ropeOk >= c.s.n) this.complete(now); else this.timeout(now);
     }
   }
 
@@ -1600,90 +1369,6 @@ class Game {
   }
 
 
-  // ---------- Baguette magique : le Nuage Grognon a ensorcelé des créatures (petit nuage d'orage sur la tête).
-  // L'enfant pointe le bras vers l'une d'elles : un rayon part de la baguette de son dresseur ; tenu sur la créature,
-  // il chasse le nuage et elle redevient gentille. La dernière libérée devient son amie (carnet).
-  // Pointeur : le bras levé le plus tendu (voir armPoint), lissé ; pas besoin de calibrer la place de la caméra.
-  wandPointers(c) {
-    return tracker.bodies.map((b, i) => {
-      let p = null;
-      const aim = DEV.get('wandaim') && (c.foes || []).find((f) => f.state === 'grumpy'); // (mode test) vise tout seul
-      if (aim) p = { x: aim.x, y: aim.y };
-      else if (DEV.get('fakelimbs')) { const t = performance.now() / 1000 + i * 2; p = { x: 0.5 + Math.sin(t * 0.6) * 0.42, y: 0.38 + Math.sin(t * 1.3) * 0.18 }; }
-      else if (b.lm && b.T && b.state.present) {
-        const sh = mid(b.lm[11], b.lm[12]);
-        const ps = [15, 16].map((k) => armPoint(b, k)).filter((q) => q && q.wy < sh.y + b.T * 0.6); // (bras levé, au-dessus du ventre)
-        if (ps.length) p = ps.reduce((a, q) => (Math.hypot(q.x - 0.5, q.y - 0.62) > Math.hypot(a.x - 0.5, a.y - 0.62) ? q : a));
-      }
-      const o = c.ptr[i];
-      if (!p) return null;
-      if (!o) return { x: p.x, y: p.y };
-      return { x: o.x + (p.x - o.x) * 0.4, y: o.y + (p.y - o.y) * 0.4 }; // (lissé : le rayon ne tremble pas)
-    });
-  }
-
-  updateWand(c, now, dt) {
-    const s = c.s, easy = tracker.bodies.some((b) => b.easy), A = scene.W / Math.max(1, scene.H);
-    if (!c.foes) {
-      c.foes = []; c.calmed = 0; c.ptr = []; c.lastSlot = -1;
-      const kit = this.biomeNow().kit || 'meadow';
-      c.pool = creaturesOf(kit).filter((cr) => !cr.still);
-      if (!c.pool.length) c.pool = CREATURES.slice();
-    }
-    // Places des créatures (part de l'écran) : autour du dresseur, en haut et sur les côtés, jamais sous la vignette caméra
-    const SLOTS = [[0.14, 0.33], [0.86, 0.46], [0.3, 0.38], [0.7, 0.36], [0.12, 0.62], [0.88, 0.66]]; // (sous la consigne)
-    const alive = c.foes.filter((f) => f.state === 'grumpy');
-    const left = s.n - c.calmed - alive.length;
-    if (left > 0 && alive.length < Math.min(2, this.np + 1) && now - (c.lastFoe || 0) > 900 && (!tracker.sim || DEV.get('fakelimbs'))) {
-      const used = new Set(alive.map((f) => f.slot));
-      const free = SLOTS.map((_, k) => k).filter((k) => !used.has(k) && k !== c.lastSlot);
-      const slot = free[Math.floor(Math.random() * free.length)];
-      const cr = c.pool[Math.floor(Math.random() * c.pool.length)];
-      c.foes.push({ cr, slot, x: SLOTS[slot][0], y: SLOTS[slot][1], born: now, state: 'grumpy', charge: 0, evolved: Carnet.evolved(cr.id), seed: Math.random() * 6 });
-      c.lastFoe = now; c.lastSlot = slot;
-      Audio8.cry(cr.id);
-    }
-    // Rayons : chaque pointeur charge la créature qu'il vise
-    c.ptr = this.wandPointers(c);
-    const R = easy ? 0.15 : 0.12, fill = easy ? 900 : 1300;
-    for (const f of c.foes) f.aimed = false;
-    c.ptr.forEach((p, i) => {
-      if (!p) return;
-      p.hit = null;
-      // (aimantée : la créature dans la DIRECTION du bras, vue depuis le petit sorcier, même si le point n'est pas
-      // exactement dessus ; sinon la plus proche du point. La visée au millimètre est trop dure pour les petits)
-      let best = null, bd = R, ba = easy ? 0.75 : 0.6;
-      const ox = 0.5, oy = 0.78, pa = Math.atan2(p.y - oy, (p.x - ox) * A);
-      for (const f of c.foes) {
-        if (f.state !== 'grumpy' || now - f.born < 500) continue;
-        const d = Math.hypot((p.x - f.x) * A, p.y - f.y);
-        const da = Math.abs(Math.atan2(Math.sin(Math.atan2(f.y - oy, (f.x - ox) * A) - pa), Math.cos(Math.atan2(f.y - oy, (f.x - ox) * A) - pa)));
-        if (d < bd) { bd = d; best = f; ba = -1; } else if (ba >= 0 && da < ba) { ba = da; best = f; }
-      }
-      if (best) { p.hit = best; best.aimed = true; best.charge = Math.min(1, best.charge + dt / fill); }
-    });
-    for (const f of c.foes) {
-      if (f.state !== 'grumpy') continue;
-      if (!f.aimed) f.charge = Math.max(0, f.charge - dt / 2600);
-      else if (now - (f.hum || 0) > 200) { f.hum = now; Audio8.sparkle(f.charge); }
-      if (f.charge >= 1) {
-        f.state = 'calm'; f.t = now; c.calmed++; c.friend = f.cr;
-        this.add(this.pts(100), '+100 ✨'); this.collect();
-        scene.burst(f.x * scene.W, f.y * scene.H, 40, ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2', '#c77dff']);
-        Audio8.spell(); setTimeout(() => Audio8.cry(f.cr.id, true), 250);
-        if (c.calmed < s.n) Audio8.say(pick([`${f.cr.name} est redevenu gentil !`, 'Bravo, le nuage est parti !', 'Abracadabra ! Encore une !', 'Super, magicien !']));
-        ui.setDetail(this.detail(c));
-        if (c.calmed >= s.n) { scene.wand = { foes: c.foes, ptrs: [] }; return this.complete(now); }
-      }
-    }
-    c.foes = c.foes.filter((f) => f.state === 'grumpy' || now - f.t < 1500);
-    scene.wand = { foes: c.foes, ptrs: c.ptr.map((p) => (p && p.hit ? { ...p, x: p.hit.x, y: p.hit.y } : p)) }; // (le rayon file droit sur la créature visée)
-  }
-
-
-  // ========== Île du Stade : sports avec les créatures (gardien de but, basket, penalty)
-  // Les ballons sont dans le repère des bulles (épaules du dresseur, unité = torse) ; la scène dessine le terrain.
-
   // ---------- Gardien de but : un copain créature tire ; on arrête le ballon avec les mains (haut du corps seulement)
   updateGoal(c, now) {
     // (sans héros qui imite : mains et tirs agrandis d'autant — même geste pour l'enfant, mais de grands bras à l'écran)
@@ -1695,7 +1380,9 @@ class Game {
     const live = c.shots.find((b) => !b.done);
     if (!live && c.shots.length < s.n && now >= c.kickAt && (!tracker.sim || DEV.get('fakelimbs') || auto)) {
       const hero = c.shots.length % this.np, far = this.avatarReach(hero);
-      const spots = far ? [[-1.9, -0.9], [1.9, -0.9], [-2.1, 0.4], [2.1, 0.4], [0, -1.7]] : [[-1.0, -0.8], [1.0, -0.8], [-1.1, 0.4], [1.1, 0.4], [0, -1.3]].map(([u, v]) => [u * G, v * G]);
+      // (jamais au-dessus de la tête : un petit n'y arrive pas, ses bras sont trop courts ; les tirs hauts restent
+      // à hauteur d'épaule, sur les côtés, et un tir arrive droit sur le ventre)
+      const spots = far ? [[-1.8, -0.5], [1.8, -0.5], [-2.0, 0.4], [2.0, 0.4], [0, 0.6]] : [[-0.95, -0.45], [0.95, -0.45], [-1.05, 0.4], [1.05, 0.4], [0, 0.6]].map(([u, v]) => [u * G, v * G]);
       const k = (c.lastSpot = (c.lastSpot ?? -1) + 1 + Math.floor(Math.random() * (spots.length - 1))) % spots.length;
       c.shots.push({ hero, u: spots[k][0], v: spots[k][1], born: now, arrive: now + travel, done: null });
       scene.sportKick && scene.sportKick();
@@ -1716,42 +1403,6 @@ class Game {
     if (c.shots.length >= s.n && c.shots.every((b) => b.done && now - b.t > 600)) {
       if (c.saved >= Math.ceil(s.n * 0.6)) this.complete(now); else c.end = Math.min(c.end, now);
     }
-  }
-
-  // ---------- Basket : un copain te passe le ballon ; attrape-le (mains jointes devant toi), puis lève les bras pour tirer
-  updateBasket(c, now) {
-    const s = c.s, easy = tracker.bodies.some((b) => b.easy), auto = DEV.get('sportauto');
-    const hands = tracker.bodies.map((b, i) => this.handsOf(b, i));
-    scene.hands = hands;
-    if (c.baskets == null) { c.baskets = 0; c.shotN = 0; c.ball = null; c.kickAt = now + 1500; }
-    const pass = 1000 * Math.min(1.3, this.mul), fly = 1000;
-    let b = c.ball;
-    if (!b && now >= c.kickAt && c.baskets < s.n) {
-      b = c.ball = { hero: c.shotN++ % this.np, phase: 'pass', t0: now };
-      scene.sportKick && scene.sportKick(); Audio8.pop();
-    }
-    if (b) {
-      const body = tracker.bodies[b.hero], st = (body && body.state) || {}, k = now - b.t0;
-      const near = this.touches(hands[b.hero], 0, 0.7, 0.75);
-      if (b.phase === 'pass' && k > pass) { b.phase = 'catch'; b.t0 = now; }
-      else if (b.phase === 'catch') {
-        if (st.handsTogether || (easy && near) || (auto && k > 600)) {
-          b.phase = 'hold'; b.t0 = now; Audio8.coin(); scene.flash(b.hero, true);
-          if (c.baskets === 0) Audio8.say('Attrapé ! Maintenant, lève les bras pour tirer !');
-        } else if (k > 6000) { b.phase = 'drop'; b.t0 = now; Audio8.soft(); }
-      } else if (b.phase === 'hold') {
-        if (st.armsUp || (auto && k > 600)) { b.phase = 'shoot'; b.t0 = now; Audio8.hit(); }
-        else if (k > 7000) { b.phase = 'drop'; b.t0 = now; Audio8.soft(); }
-      } else if (b.phase === 'shoot' && k > fly) {
-        c.baskets++; this.add(this.pts(120), '+120 🏀', b.hero); this.collect();
-        Audio8.perfect(); scene.sportScore && scene.sportScore();
-        Audio8.say(c.baskets >= s.n ? 'Panier !' : pick(['Panier !', 'Dedans !', 'Trop fort !', 'Quel tir !']));
-        c.ball = null; c.kickAt = now + 1000;
-        if (c.baskets >= s.n) { ui.setDetail(this.detail(c)); scene.sport = { kind: 'basket', ball: null }; return this.complete(now); }
-      } else if (b.phase === 'drop' && k > 800) { c.ball = null; c.kickAt = now + 600; }
-    }
-    ui.setDetail(this.detail(c));
-    scene.sport = { kind: 'basket', ball: c.ball, pass, fly };
   }
 
   // ---------- Penalty : le ballon est devant un pied (flèche) ; lève le genou de ce côté pour tirer.
@@ -1796,104 +1447,7 @@ class Game {
     scene.sport = { kind: 'kick', ball: c.ball };
   }
 
-  // Fin du chemin secret : un coffre au trésor (gros bonus) et une clé dorée sur la carte des îles
-  secretTreasure(now) {
-    this.add(this.pts(300), '+300 🗝️'); this.collect(5);
-    scene.burst(scene.W / 2, scene.H * 0.42, 70, ['#ffd23f', '#ffffff', '#ffb703', '#fb8500']);
-    team.forEach((p, i) => Paths.secretFound(i, this.world.id));
-    if (DEV.get('errlog')) document.body.dataset.treasure = (+document.body.dataset.treasure || 0) + 1; // (mode test)
-    ui.feedback('🗝️ Trésor secret !', 'perfect');
-    setTimeout(() => { Audio8.perfect(); Audio8.say('Incroyable ! Tu as trouvé le trésor du chemin secret ! Une clé dorée pour ta carte !'); }, 900);
-    this.gapUntil = Math.max(this.gapUntil || 0, now + 1800);
-  }
-
-  // ---------- Carrefour : deux panneaux, un pas à gauche ou à droite (tenu un instant) choisit l'épreuve suivante
-  updateFork(c, now) {
-    const s = c.s, opts = s.opts || (s.opts = forkOptions());
-    if (!c.forkInit) {
-      c.forkInit = true; c.sel = 0; c.selT = now;
-      scene.fork = { key: now, opts: opts.map((o) => (o.secret ? { icon: '❓', label: 'Secret !', secret: true } : { icon: stepIcon(o), label: FORK_SHORT[o.m] || stepLabel(o) })), sel: 0, k: 0, chosen: 0 };
-    }
-    const f = scene.fork;
-    if (c.chosen) return;
-    // (à deux : le premier qui fait un pas choisit pour l'équipe)
-    const dv = DEV.get('forkside'), dev = dv === 'secret' ? (opts[0].secret ? -1 : 1) : Number(dv || 0); // (mode test)
-    const sides = tracker.bodies.map((b) => b.state.side);
-    const sel = dev || (sides[0] === 'left' || sides[0] === 'right' ? (sides[0] === 'left' ? -1 : 1) : sides.includes('left') ? -1 : sides.includes('right') ? 1 : 0);
-    if (sel !== c.sel) { c.sel = sel; c.selT = now; if (sel) Audio8.tick && Audio8.tick(); }
-    // (le temps d'écouter les deux choix ; puis décompte « 3, 2, 1 » en restant du côté choisi : revenir au milieu annule —
-    // avant, 0,9 s suffisait et un pas de travers choisissait à la place de l'enfant)
-    const HOLD = 2400;
-    if (!c.readyAt && now - c.start > 2500 && (!(Audio8.speaking && Audio8.speaking()) || now - c.start > 7000)) c.readyAt = now; // (après l'explication des deux chemins)
-    const ready = !!c.readyAt;
-    f.sel = sel; f.k = sel && ready ? Math.min(1, (now - Math.max(c.selT, c.readyAt)) / HOLD) : 0;
-    const count = sel && ready && f.k < 1 ? 3 - Math.min(2, Math.floor(f.k * 3)) : 0;
-    if (count !== f.count) { f.count = count; f.countT = now; if (count) { Audio8.say(String(count), { interrupt: true }); Audio8.tick(); } }
-    let pickSide = f.k >= 1 ? sel : 0;
-    if (!pickSide && now > c.end - 500 && !DEV.get('hold')) pickSide = Math.random() < 0.5 ? -1 : 1; // (personne ne choisit : au hasard)
-    if (!pickSide) return;
-    c.chosen = pickSide; f.chosen = pickSide; f.chosenT = now; c.end = Math.max(c.end, now + 2500);
-    const next = JSON.parse(JSON.stringify(opts[pickSide < 0 ? 0 : 1]));
-    this.steps.splice(this.i + 1, 0, next);
-    this.maxScore += maxPoints(next); this.scored++;
-    this.add(this.pts(100), '+100');
-    team.forEach((p, i) => Paths.choose(i, this.world.id, next.m, !this.pathN));
-    this.pathN = (this.pathN || 0) + 1;
-    if (next.secret) { // (on découvre ce que cachait le panneau)
-      f.opts[pickSide < 0 ? 0 : 1] = { icon: stepIcon(next), label: FORK_SHORT[next.m] || stepLabel(next) }; f.key = now;
-      Audio8.say('Le chemin secret ! Il cache… ' + FORK_NAMES[next.m] + ' ! Et peut-être un trésor…');
-    } else Audio8.say((pickSide < 0 ? 'À gauche : ' : 'À droite : ') + FORK_NAMES[next.m] + ' !');
-    if (!DEV.get('hold')) setTimeout(() => { if (this.cur === c && !c.done) this.complete(performance.now()); }, 1300);
-  }
-
-  // ---------- Passe de ballon (à deux) : le ballon vole vers un joueur, qui lève la main au bon moment pour le renvoyer
-  updateBall(c, now) {
-    const s = c.s, fly = 1700 * Math.min(1.3, this.mul);
-    if (!c.ball) { c.ball = { from: 0, to: 1, t0: now + 1200, drop: 0 }; c.passes = 0; scene.ball = c.ball; }
-    const b = c.ball, k = (now - b.t0) / fly;
-    if (b.drop) { // ballon tombé : il rebondit, puis on relance
-      if (now - b.drop > 1200) { b.drop = 0; b.t0 = now; } // (même lancer, on réessaie)
-      return;
-    }
-    if (k < 0.72) return;
-    const body = tracker.bodies[b.to], hs = body && this.handsOf(body, b.to);
-    const up = !!(body && (body.state.armsUp || body.state.starArms || (hs && hs.some((h) => h.v < -0.6)) || (tracker.sim && !DEV.get('fakelimbs'))));
-    if (up) { // renvoyé !
-      c.passes++; this.add(this.pts(60), '+60', b.to); scene.flash(b.to, true); Audio8.hit();
-      b.from = b.to; b.to = b.to === 0 ? 1 : 0; b.t0 = now;
-      ui.setDetail(this.detail(c));
-      if (c.passes >= s.n) { scene.ball = null; this.complete(now); }
-    } else if (k > 1.15) { b.drop = now; scene.flash(b.to, false); Audio8.soft(); Audio8.say('Lève la main quand le ballon arrive !'); }
-  }
-
-  // ---------- Copie les poses : une suite de poses à tenir un court instant chacune
-  updatePosemix(c, now, dt) {
-    const s = c.s, pose = s.poses[c.pi];
-    tracker.bodies.forEach((b, i) => scene.setHoldPose(b.state[pose] ? pose : null, i));
-    c.hold = teamOk(tracker.bodies.map((b) => b.state[pose])) ? c.hold + dt : Math.max(0, c.hold - dt * 0.5);
-    if (c.hold >= s.hold * 1000) {
-      c.pi++; c.hold = 0;
-      this.add(this.pts(100) * this.np, '+100');
-      scene.flash(null, true);
-      if (s.m === 'boss') { scene.bossHit && scene.bossHit(c.pi >= s.poses.length, s.poses[c.pi]); if (c.boss) Audio8.cry(c.boss.id, c.pi >= s.poses.length); }
-      if (c.pi >= s.poses.length) {
-        if (s.m === 'boss' && c.boss === GROGNON) { // fin de l'histoire : le Nuage Grognon devient gentil
-          this.grognonWon = true;
-          setTimeout(() => Audio8.say('Incroyable ! Le Nuage Grognon sourit ! Il te rend le cœur de l\'arc-en-ciel !'), 600);
-        } else if (s.m === 'boss' && c.boss) { // le gardien devient ami
-          Carnet.add(c.boss.id); this.team.push(c.boss);
-          setTimeout(() => Audio8.say(`Bravo ! ${c.boss.name}, le gardien de ce pays, devient ton ami !`), 600);
-        }
-        this.complete(now); return;
-      }
-      Audio8.good();
-      scene.setDemoPose(s.poses[c.pi]);
-      Audio8.say(POSES[s.poses[c.pi]].label);
-    }
-    ui.setDetail(this.detail(c));
-  }
-
-  // ---------- Imite le coach (danse / karaté) : un geste par temps, noté à la fin de chaque temps
+  // ---------- Imite le coach (danse) : un geste par temps, noté à la fin de chaque temps
   mimicOk(b, move, k, c) {
     if (move === 'jump') return b.state.jumpUp || (this.lastEv.jump[k] || 0) >= c.winStart - 250;
     if (move === 'smash') return (this.lastEv.smash[k] || 0) >= c.winStart - 250;
@@ -2002,24 +1556,22 @@ class Game {
     const s = c.s, G = ACTS[s.game], st = tracker.state, per = G.per || 1;
     const auto = tracker.sim && (DEV.get('fakelimbs') || DEV.get('sportauto')); // (mode test : un enfant imaginaire fait les gestes)
     if (!c.act) {
-      c.act = { reps: 0, sub: 0, phase: 0, hold: 0, t: now, pop: 0, subPop: 0, shake: 0, ev: [], tog: false, last: null,
-        seq: s.game === 'animals' ? animalSeq(s.n, tracker.mode === 'upper') : null };
+      c.act = { reps: 0, sub: 0, phase: 0, hold: 0, t: now, pop: 0, subPop: 0, shake: 0, ev: [], tog: false, last: null };
       scene.act = { game: s.game, a: c.act, n: s.n, per };
-      if (c.act.seq) setTimeout(() => { if (this.cur === c && !c.done) Audio8.say(c.act.seq[0].say); }, 4200);
     }
     const a = c.act, evs = a.ev.splice(0), has = (...k) => evs.some((e) => k.includes(e));
     if (a.reps >= s.n) return; // (mode test « hold » : l'épreuve finie reste affichée)
     const fake = auto && now - a.t > (s.game === 'swim' ? 700 : 1300);
-    const rep = () => { // une réussite : une fleur, un pingouin réchauffé, une fusée partie, un œuf éclos…
+    const rep = () => { // une réussite : un produit rangé, un pingouin réchauffé, une fusée partie, un œuf éclos…
       a.reps++; a.pop = now; a.sub = 0; a.phase = 0; a.hold = 0; a.t = now;
       this.add(this.pts(G.pts), '+' + this.pts(G.pts)); scene.flash(0, true); Audio8.good();
       ui.setDetail(this.detail(c));
       if (a.reps >= s.n) { this.add(100, 'BRAVO +100'); this.complete(now); return; }
-      if (a.seq) Audio8.say(a.seq[a.reps].say); else if (G.cheer.length) Audio8.say(pick(G.cheer));
+      if (G.cheer.length) Audio8.say(pick(G.cheer));
     };
     const tick = () => { a.sub++; a.t = now; a.subPop = now; if (a.sub >= per) rep(); else { Audio8.soft(); ui.setDetail(this.detail(c)); } };
     switch (s.game) {
-      case 'grow': // se baisser (planter la graine), puis lever les bras (la fleur pousse)
+      case 'shelf': // se baisser (prendre un produit sur le rayon du bas), puis lever les bras (le poser tout en haut)
         if (a.phase === 0) { if (st.squat || has('squat') || fake) { a.phase = 1; a.t = now; a.subPop = now; Audio8.soft(); } }
         else { a.hold = st.armsUp || (auto && now - a.t > 700) ? a.hold + dt : Math.max(0, a.hold - dt * 0.5); if (a.hold > 450) rep(); }
         scene.setCue({ icon: a.phase ? '🙌' : '⬇️', k: 1, now: true });
@@ -2053,13 +1605,6 @@ class Game {
         if ((has('kickL', 'kickR', 'jump') && now - a.t > 200) || fake) { a.shake = now; tick(); }
         scene.setCue({ icon: '🦶', k: 1, now: true });
         break;
-      case 'animals': { // la carte de l'animal : un geste (saut, frappe) ou une pose à tenir un moment
-        const an = a.seq[a.reps];
-        if (an.need === 'jump' || an.need === 'smash') { if (has(an.need) || fake) rep(); }
-        else { a.hold = st[an.need] || (auto && now - a.t > 900) ? a.hold + dt : Math.max(0, a.hold - dt * 0.5); if (a.hold >= 800) rep(); }
-        if (!c.done) scene.setCue({ icon: a.seq[Math.min(a.reps, s.n - 1)].icon, k: 1, now: true });
-        break;
-      }
     }
   }
 
@@ -2089,16 +1634,13 @@ class Game {
     }
     c.done = true;
     const frac = Math.max(0, (c.end - now) / c.dur);
-    if (c.s.m !== 'combo') {
-      const bonus = Math.round(50 * frac);
-      if (bonus > 0) this.add(bonus);
-    }
+    const bonus = Math.round(50 * frac);
+    if (bonus > 0) this.add(bonus);
     this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); this.comboCheck();
     this.success++;
-    this.collect(c.s.m === 'combo' ? 3 : 2);
-    const rating = c.s.m === 'combo' || frac > 0.45 ? 'perfect' : 'good';
+    this.collect(2);
+    const rating = frac > 0.45 ? 'perfect' : 'good';
     Rec.stepEnd(this.i, rating); this.adaptTo(rating); c.rating = rating;
-    if (c.s.secret) this.secretTreasure(now);
     rating === 'perfect' ? Audio8.perfect() : Audio8.good();
     // Stade : ton ami qui a joué avec toi gagne de l'expérience (comme une rencontre) ; à 3, il évolue
     if (c.mate) {
@@ -2153,7 +1695,7 @@ class Game {
     scene.bubbles = []; scene.hands = []; scene.moles = [];
     this.endTargets(c);
     this.gapUntil = now + 1100;
-    if (s.m === 'rest' || s.m === 'learn') { this.gapUntil = now; return; }
+    if (s.m === 'rest') { this.gapUntil = now; return; }
     let rating;
     if (s.m === 'freeze') {
       if (c.phase === 'freeze') this.scoreFreeze(c);
@@ -2166,24 +1708,22 @@ class Game {
       const r = c.popped / s.n;
       rating = r >= 0.5 ? 'good' : 'ok';
       if (r >= 0.5) this.success++;
-    } else if (['arena', 'act', 'catch', 'rope', 'moles', 'posemix', 'boss', 'ball', 'foam', 'tunnel', 'dance', 'karate', 'slice', 'cubes', 'wand', 'goal', 'basket', 'kick'].includes(s.m)) {
-      const mimic = () => c.mimicRes.filter(Boolean).length / s.moves.length;
-      const r = { catch: () => c.caught / catchCount(s), rope: () => c.ropeOk / s.n, moles: () => c.bonked / s.n,
-        posemix: () => c.pi / s.poses.length, boss: () => c.pi / s.poses.length, foam: () => c.foamProg || 0, ball: () => (c.passes || 0) / s.n, tunnel: () => c.hold / (s.t * 700), dance: mimic, karate: mimic,
-        slice: () => c.sliced / s.n, wand: () => (c.calmed || 0) / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)), basket: () => (c.baskets || 0) / s.n, kick: () => (c.goals || 0) / s.n, arena: () => arena.ratio(), act: () => (c.act ? c.act.reps + c.act.sub / (ACTS[s.game].per || 1) : 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
-      if (s.m === 'dance' || s.m === 'karate') { Audio8.music(false); scene.setCoach(null); }
+    } else if (['arena', 'act', 'catch', 'moles', 'foam', 'tunnel', 'dance', 'slice', 'cubes', 'goal', 'kick'].includes(s.m)) {
+      const r = { catch: () => c.caught / catchCount(s), moles: () => c.bonked / s.n, foam: () => c.foamProg || 0, tunnel: () => c.hold / (s.t * 700),
+        dance: () => c.mimicRes.filter(Boolean).length / s.moves.length, slice: () => c.sliced / s.n, goal: () => (c.saved || 0) / Math.max(1, Math.ceil(s.n * 0.6)),
+        kick: () => (c.goals || 0) / s.n, arena: () => arena.ratio(), act: () => (c.act ? c.act.reps + c.act.sub / (ACTS[s.game].per || 1) : 0) / s.n, cubes: () => c.cubeHits / Math.max(1, s.n * 0.8) }[s.m]();
+      if (s.m === 'dance') { Audio8.music(false); scene.setCoach(null); }
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
-      scene.rope = null;
     } else if (s.m === 'run' || s.m === 'shop') {
       const r = c.dodges.length ? c.dodges.filter(Boolean).length / c.dodges.length : 0;
       rating = r >= 1 ? 'perfect' : r >= 0.5 ? 'good' : r > 0 ? 'ok' : 'miss';
       if (r >= 0.5) this.success++;
     } else {
-      const partial = c.count > 0 || c.parts.some((n) => n > 0) || c.hold > 0;
+      const partial = c.count > 0 || c.hold > 0;
       rating = partial ? 'ok' : 'miss';
       // Qui a réussi sa part ? (vert pour lui, orange pour l'autre)
-      const mine = (i) => (s.m === 'combo' ? c.parts[i] >= s.parts.length : s.n ? c.counts[i] >= s.n : false);
+      const mine = (i) => (s.n ? c.counts[i] >= s.n : false);
       tracker.bodies.forEach((b, i) => scene.flash(i, mine(i)));
       scene.resolve(false);
     }
@@ -2192,7 +1732,6 @@ class Game {
     rating === 'perfect' ? Audio8.perfect() : rating === 'good' ? Audio8.good() : Audio8.soft();
     ui.feedback(pick(FEEDBACK[rating]), rating === 'miss' ? 'ok' : rating);
     Rec.stepEnd(this.i, rating); this.adaptTo(rating); c.rating = rating;
-    if (c.s.secret) this.secretTreasure(now);
     if (rating === 'miss' || rating === 'ok') this.personalMessage('miss', now);
   }
 
@@ -2223,22 +1762,16 @@ class Game {
     if (s.m === 'jump' || s.m === 'squat') { this.updateReps(c, now); if (c.done) return; }
     if (s.m === 'smash') scene.setCue(now - c.start > 1500 ? { icon: '👊', k: 1, now: true } : { icon: '👊', k: (now - c.start) / 1500 });
     if (s.m === 'catch') this.updateCatch(c, now);
-    if (s.m === 'rope') { this.updateRope(c, now); if (c.done) return; }
     if (s.m === 'tunnel') { this.updateTunnel(c, now, dt); if (c.done) return; }
     if (s.m === 'moles') this.updateMoles(c, now);
     if (s.m === 'slice') { this.updateSlice(c, now); if (c.done) return; }
     if (s.m === 'cubes') { this.updateCubes(c, now); if (c.done) return; }
-    if (s.m === 'ball') { this.updateBall(c, now); if (c.done) return; }
     if (s.m === 'foam') { this.updateFoam(c, now); if (c.done) return; }
-    if (s.m === 'wand') { this.updateWand(c, now, dt); if (c.done) return; }
     if (s.m === 'goal') { this.updateGoal(c, now); if (c.done) return; }
-    if (s.m === 'basket') { this.updateBasket(c, now); if (c.done) return; }
     if (s.m === 'kick') { this.updateKick(c, now); if (c.done) return; }
     if (s.m === 'act') { this.updateAct(c, now, dt); if (c.done) return; }
     if (s.m === 'arena') { arena.update(now); if (c.done) return; }
-    if (s.m === 'fork') { this.updateFork(c, now); if (c.done) return; }
-    if (s.m === 'posemix' || s.m === 'boss') { this.updatePosemix(c, now, dt); if (c.done) return; }
-    if (s.m === 'dance' || s.m === 'karate') { this.updateMimic(c, now); if (c.done) return; }
+    if (s.m === 'dance') { this.updateMimic(c, now); if (c.done) return; }
     ui.setTimer(1 - (now - c.start) / c.dur, s.m === 'rest');
     if (DEV.get('hold')) c.end = Math.max(c.end, now + 1000);
     if (now >= c.end) this.timeout(now);
@@ -2260,15 +1793,6 @@ class Game {
       else if (stars > best.stars) WUQStore.setBest(id, { ...best, stars }, i);
       return { name: p.name, isBest, prev: best.score };
     });
-    // Fin de l'histoire : diplôme de petit sorcier (gardé pour chaque joueur)
-    this.diploma = !!this.grognonWon;
-    if (this.diploma) team.forEach((p, i) => WUQStore._set(WUQStore.slotKey('diploma', i), true));
-    // Île en étapes : l'étape est faite (pour chaque joueur) ; l'écran de fin annonce la suivante
-    if (this.stage) team.forEach((p, i) => Stages.finish(this.world, i, this.stage.k));
-    // Pays fini : son Étoile de couleur est retrouvée (le chapitre sera raconté au retour au parc / au menu)
-    const gem = gemOf(this.world.id);
-    this.gemWon = gem && team.some((p, i) => !Tale.hasGem(gem.world, i) && Tale.countryDone(this.world, i)) ? gem : null;
-    if (gem) team.forEach((p, i) => { if (Tale.countryDone(this.world, i)) Tale.addGem(gem.world, i); });
     // Le compagnon de chaque joueur gagne de l'expérience : il grandit, et au niveau 5 il évolue
     this.compGrow = team.map((p, i) => {
       const c = WUQStore.getCompanion(i), cr = Progress.companionCreature(c);
@@ -2343,8 +1867,6 @@ const dots = (n, total) => '<div class="dots">' + Array.from({ length: total }, 
 const dodgeDots = (c, n) => '<div class="dots">' + Array.from({ length: n }, (_, i) =>
   `<span class="${i < c.dodges.length ? (c.dodges[i] ? 'on' : 'miss') : ''}"></span>`).join('') + '</div>';
 const holdBar = (p, cr) => `<div class="holdbar small"><div style="width:${Math.min(100, p * 100)}%"></div></div>${cr ? `<div class="hint">${cr.name} (${cr.element})</div>` : ''}`;
-const comboChips = (parts, done) => '<div class="chips">' + parts.map((p, i) =>
-  `<span class="chip ${i < done ? 'ok' : i === done ? 'now' : ''}">${MOVE_ICONS[p]} ${MOVE_SHORT[p]}</span>`).join('<i>›</i>') + '</div>';
 
 const ui = {
   reset(w) {
@@ -2366,8 +1888,7 @@ const ui = {
     card.classList.remove('enter', 'mini'); void card.offsetWidth; card.classList.add('enter');
     // La consigne s'affiche en grand, puis se range en petit en haut pour laisser voir le jeu
     clearTimeout(this.miniT);
-    card.classList.toggle('isLearn', s.m === 'learn');
-    if (s.m !== 'rest' && s.m !== 'learn') this.miniT = setTimeout(() => { card.classList.remove('enter'); card.classList.add('mini'); }, 2800);
+    if (s.m !== 'rest') this.miniT = setTimeout(() => { card.classList.remove('enter'); card.classList.add('mini'); }, 2800);
     Audio8.whoosh();
     card.classList.toggle('isRest', s.m === 'rest');
     $('cardLabel').textContent = stepLabel(s);
@@ -2396,17 +1917,22 @@ function celebrate() {
 }
 
 let resultsAt = 0, againHold = 0, againSaid = false;
+// Écran de fin, aux bras : levés = on rejoue ; un bras tendu à gauche = retour au menu (tenus un moment)
+let menuHold = 0;
 function updateResults(now) {
-  if (world && world.loop && now - resultsAt > 3000) { $('againBtn').click(); return; } // (labo : on enchaîne tout de suite, sans lever les bras)
   if (now - resultsAt < 4000 || now < (resultsCeremonyEnd || 0)) return; // on laisse le temps de fêter (les bras en l'air !)
-  if (!againSaid) { againSaid = true; Audio8.say(fromHub ? (duo() ? 'Levez les bras pour continuer !' : 'Lève les bras pour continuer !') : duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
+  if (!againSaid) { againSaid = true; Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }
   const s = tracker.state;
-  if (s.present && s.armsUp) {
+  if (s.present && s.armsUp && !$('againBtn').classList.contains('hidden')) {
     if (!againHold) againHold = now;
     const p = Math.min(1, (now - againHold) / 2000);
     $('againBar').style.width = p * 100 + '%';
-    if (p >= 1) $(fromHub ? 'menuBtn' : 'againBtn').click(); // (venu du château ou d'un village : bras levés = on continue l'aventure)
+    if (p >= 1) $('againBtn').click();
   } else { againHold = 0; $('againBar').style.width = '0%'; }
+  if (s.present && !s.armsUp && s.armSide === 'left') {
+    if (!menuHold) menuHold = now;
+    if (now - menuHold > 1500) { menuHold = 0; goMenu(); }
+  } else menuHold = 0;
 }
 
 // Écran de fin en petite cérémonie : chaque récompense arrive seule, en grand, puis va se ranger en petit
@@ -2444,10 +1970,7 @@ function showResults(g, stars) {
   Audio8.music(false); Audio8.theme(null);
   show('hud', false); show('camBox', false);
   show('results');
-  const st = g.stage, bsN = g.world.biomes;
-  $('resTitle').textContent = !st ? g.world.endText : st.k === st.n - 1 ? `${g.world.endText} 🎉`
-    : g.world.lessons ? `Leçon ${st.k + 1} sur ${st.n} réussie ! Prochaine leçon : ${g.world.lessons[st.k + 1].name}`
-    : `Étape ${st.k + 1} sur ${st.n} réussie ! Prochaine étape : ${bsN[st.k + 1].name}`;
+  $('resTitle').textContent = g.world.endText;
   $('resStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.3 + i * 0.35}s">★</span>`).join('');
   $('resScore').textContent = g.score;
   // Le butin de la partie, qui se compte tout seul
@@ -2459,8 +1982,6 @@ function showResults(g, stars) {
     if (n % 2) Audio8.coin();
     if (n >= g.collected) clearInterval(showResults.countT);
   }, Math.max(40, 1200 / Math.max(1, g.collected)));
-  if (g.gemWon) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as retrouvé l'Étoile ${g.gemWon.name} !`); }, 3200);
-  if (g.diploma) setTimeout(() => { Audio8.win(); Audio8.say('Tu as gagné ton diplôme de petit sorcier ! Toute l\'Académie est fière de toi !'); }, 2500);
   $('resDetail').innerHTML = `${g.success} / ${g.scored} défis réussis · ${g.world.collectible} ${g.collected} ramassés · meilleure série 🔥 ${g.bestStreak}`;
   $('resBest').textContent = g.records.map((r, i) => (duo() ? (r.name || 'Joueur ' + (i + 1)) + ' : ' : '') +
     (r.isBest ? '🏆 nouveau record !' : `record ${r.prev} pts`)).join(' · ');
@@ -2478,9 +1999,6 @@ function showResults(g, stars) {
   $('resDay').innerHTML = limit && plays >= limit
     ? `<div class="dayDone">🌙 Échauffement fini pour aujourd'hui ! À demain 👋</div>`
     : plays === 1 ? `<div class="dayGoal">✅ Échauffement du jour réussi !</div>` : '';
-  // Étoile de couleur retrouvée, diplôme de fin : en grand dans la cérémonie
-  $('resDay').insertAdjacentHTML('afterbegin', (g.gemWon ? `<div class="taleWin" style="--gc:${g.gemWon.col}">⭐ Étoile ${g.gemWon.name} retrouvée !</div>` : '')
-    + (g.diploma ? `<div class="diploma">🎓 <b>Diplôme de petit sorcier</b><br><small>${SCHOOL}</small></div>` : ''));
   $('againBtn').classList.toggle('hidden', !!(limit && plays >= limit));
   if (limit && plays >= limit) setTimeout(() => Audio8.say("Bravo ! Ton échauffement est fini pour aujourd'hui. À demain !"), 5200);
   // Photo souvenir : la caméra a fait le tour du dresseur, on prend la photo (gardée pour la chambre)
@@ -2504,16 +2022,11 @@ function showResults(g, stars) {
   $('resUnlock').innerHTML = got.length
     ? `<div class="unlockBox"><span class="unlockNew">Nouveau !</span>${got.map((r) => `<span class="unlockItem">${r.icon}</span>`).join('')}<span class="unlockHint">👕</span></div>`
     : nx && nx.next ? `<div class="nextReward">${nx.next.icon} <b>⭐ ${nx.have} / ${nx.next.stars}</b><span class="nrBar"><span style="width:${Math.round(nx.have / nx.next.stars * 100)}%"></span></span></div>` : '';
-  if (got.length) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as débloqué un nouvel objet pour ton sorcier !`); }, 4200);
+  if (got.length) setTimeout(() => { Audio8.perfect(); Audio8.say(`Waouh ! Tu as débloqué un nouvel objet pour ton personnage !`); }, 4200);
   // Gommette de chaque joueur (choisie dans finish)
   $('resSticker').innerHTML = g.won.map((st, i) => `<span class="sticker" style="animation-delay:${1.4 + i * 0.3}s">${duo() ? whoTag(i) : ''}${st}</span>`).join('');
   celebrate();
   Audio8.win();
-  // Venu du château ou d'un village : le gros bouton (et les bras levés) CONTINUE l'aventure ; « Encore » passe en petit
-  { const vil = !!(hubWorld && hubWorld.village);
-    $('menuBtn').textContent = fromHub ? (vil ? '🌀 On continue !' : '🏰 Au château !') : '🏠';
-    $('menuBtn').classList.toggle('ghost', !fromHub); $('againBtn').classList.toggle('ghost', fromHub);
-    $('againHint').textContent = fromHub ? '🙌 Lève les bras pour continuer' : '🙌 Lève les bras pour rejouer'; }
   resultsCeremony();
   const names = team.map((p) => p.name).filter(Boolean);
   const bravo = names.length ? `Bravo ${names.join(' et ')} !` : 'Bravo !';
@@ -2522,7 +2035,7 @@ function showResults(g, stars) {
   const endMsg = Voice.pickMessage('end', team);
   if (endMsg) {
     againSaid = true; // (« Lève les bras pour rejouer » vient après le message)
-    setTimeout(() => { if (phase === 'results') Voice.sayMessage(endMsg, () => setTimeout(() => { if (phase === 'results') Audio8.say(fromHub ? (duo() ? 'Levez les bras pour continuer !' : 'Lève les bras pour continuer !') : duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }, 800)); }, 6500);
+    setTimeout(() => { if (phase === 'results') Voice.sayMessage(endMsg, () => setTimeout(() => { if (phase === 'results') Audio8.say(duo() ? 'Levez les bras pour rejouer !' : 'Lève les bras pour rejouer !'); }, 800)); }, 6500);
   }
   scene.targetSpeed = 0.2;
   scene.obs = null;
@@ -2545,7 +2058,7 @@ function creatureCard(cr, known, evolved, count) {
   }
   const anim = (t) => {
     if (!el.isConnected) return;
-    if (el.offsetParent !== null) { // (grimoire ou écran de fin caché : on ne redessine pas pour rien)
+    if (el.offsetParent !== null) { // (album ou écran de fin caché : on ne redessine pas pour rien)
       cctx.clearRect(0, 0, 140, 130);
       drawCreature(cctx, 70, 122, evolved ? 78 : 92, cr, known ? 'idle' : 'idle', t, evolved, !known);
     }
@@ -2578,7 +2091,7 @@ function openCarnet() {
       b.onclick = () => {
         if (isComp) return;
         WUQStore.setCompanion(0, { id: cr.id, xp: 0 }); Audio8.cry(cr.id, true);
-        Audio8.say(`${cr.name} est ton nouveau familier !`); openCarnet();
+        Audio8.say(`${cr.name} est ton nouveau compagnon !`); openCarnet();
       };
       card.appendChild(b);
       if (isComp) card.classList.add('isComp');
@@ -2586,7 +2099,7 @@ function openCarnet() {
     grid.appendChild(card);
   }
   const met = CREATURES.filter((c) => data[c.id]).length;
-  $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures dans ton grimoire · retrouve ${EVOLVE_AT} fois une créature (ou joue avec elle à la récré) pour la faire évoluer !`;
+  $('carnetInfo').textContent = `${met} / ${CREATURES.length} créatures dans ton album · retrouve ${EVOLVE_AT} fois une créature (ou joue avec elle à la récré) pour la faire évoluer !`;
   const players = WUQStore.players();
   $('stickerAlbum').innerHTML = players.map((p, i) => {
     const own = WUQStore.getStickers(i);
@@ -2621,7 +2134,7 @@ function openRoom() {
     return { name: p.name || '', color: players.length > 1 ? (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : DUO_COLORS[i]) : null, look: looks[i] || looks[0],
       companion: cr ? { cr, level: Progress.companionLevel(c) } : null, photos: Photos.list(i), stickers: WUQStore.getStickers(i) };
   });
-  const data = { kids, friends, trophies: Progress.ordered().map((w) => Progress.stars(w)),
+  const data = { kids, friends, trophies: WORLDS.map((w) => Progress.stars(w)),
     onPhoto: (url) => { $('roomPhoto').querySelector('img').src = url; show('roomPhoto'); } };
   const keys = [...kids.flatMap((k) => lookKeys(k.look)), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...kids.map((k) => k.companion && k.companion.cr).filter(Boolean)]),
     ...['fu-bed_single_A', 'fu-couch_pillows', 'fu-lamp_standing', 'fu-cactus_medium_A', 'fu-shelf_B_large_decorated', 'fu-rug_rectangle_stripes_A', 'fu-pillow_A'].map((n) => 'kaykit/' + n)];
@@ -2631,16 +2144,19 @@ function openRoom() {
 $('carnetBack').onclick = () => { show('carnet', false); show('menu'); };
 
 $('againBtn').onclick = () => { show('results', false); startWorld(world); };
-$('menuBtn').onclick = () => (fromHub ? backToHub() : goMenu()); // (venu du parc : on y retourne)
+$('menuBtn').onclick = () => goMenu();
 
 // ---------------- Boucle ----------------
-// Pause par geste : bras croisés pendant 1,2 s (le bouton pause se remplit en vert)
+// Pause par geste : l'étoile tenue 1,5 s (le bouton pause se remplit en vert). Pas pendant les jeux où l'étoile est
+// une consigne (poses, danse, jeux miroir, statues) : là, on fait pause avec le bouton ou la touche P.
 let pauseGesture = 0;
+const STAR_STEPS = new Set(['pose', 'dance', 'arena', 'freeze']);
 function updatePauseGesture(now) {
-  const btn = $('pauseBtn');
-  if (tracker.state.crossed && !tracker.sim) {
+  const btn = $('pauseBtn'), cur = game && game.cur;
+  const starOk = !(cur && !cur.done && STAR_STEPS.has(cur.s.m));
+  if (starOk && tracker.state.star && !tracker.sim) {
     if (!pauseGesture) pauseGesture = now;
-    const p = Math.min(1, (now - pauseGesture) / 1200);
+    const p = Math.min(1, (now - pauseGesture) / 1500);
     btn.style.background = `conic-gradient(#22c55e ${p * 360}deg, #ffd166 0deg)`;
     if (p >= 1) { pauseGesture = 0; btn.style.background = ''; pauseGame('gesture'); }
   } else if (pauseGesture) { pauseGesture = 0; btn.style.background = ''; }
@@ -2698,11 +2214,9 @@ function updateDuoSpacing(now) {
 
 function tick(now) {
   if (phase !== 'menu' || Gestures.on) tracker.update(video, now);
-  // Choisir avec la main : partout sauf pendant le jeu
-  if (Gestures.on && (phase === 'menu' || phase === 'results' || phase === 'paused')) Gestures.update(now);
-  else if (Gestures.el) Gestures.el.classList.remove('show');
+  // Commandes aux bras dans le menu (bras sur le côté = choisir, bras levés = jouer)
+  if (phase === 'menu' && Gestures.on) updateMenuArms(now);
   if (phase === 'calib') updateCalib(now);
-  if (phase === 'hub' && !document.querySelector('.storyBg')) hub.update(now); // (pas pendant un chapitre de l'histoire)
   if (phase === 'play' && game) { game.update(now); updatePauseGesture(now); updateDuoSpacing(now); }
   else if ($('duoWarn')) $('duoWarn').classList.add('hidden');
   if (phase === 'paused') updatePause(now);
@@ -2712,18 +2226,15 @@ function tick(now) {
 
 // Dessin (décor, pictogramme, caméra)
 function draw(now) {
-  if (phase === 'hub' || (world && world.hub && (phase === 'calib' || phase === 'loading'))) hub.render(now);
-  else if (arena.on && (phase === 'play' || phase === 'paused')) arena.render(now); // (jeu miroir : la scène du chemin est cachée)
+  if (arena.on && (phase === 'play' || phase === 'paused')) arena.render(now); // (jeu miroir : la scène du chemin est cachée)
   else if (!frozen) scene.render(now);
   if (phase === 'play' && game && game.cur) {
     const c = game.cur;
-    if (c.s.m === 'posemix' || c.s.m === 'boss') drawPicto(pictoCtx, 150, 150, { m: 'pose', pose: c.s.poses[Math.min(c.pi, c.s.poses.length - 1)] }, now);
-    else if (c.s.m === 'dance' || c.s.m === 'karate') {
+    if (c.s.m === 'dance') {
       const mv = c.s.moves[Math.max(0, Math.min(c.s.moves.length - 1, c.showI))];
       drawPicto(pictoCtx, 150, 150, POSES[mv] ? { m: 'pose', pose: mv } : { m: mv === 'squat' ? 'squat' : mv }, now);
     }
-    else if (c.s.m === 'learn') drawPicto(pictoCtx, 150, 150, c.s.of, now)
-    else drawPicto(pictoCtx, 150, 150, c.s, now, c.s.m === 'combo' ? c.s.parts[Math.min(c.s.parts.length - 1, Math.min(...c.parts))] : null);
+    else drawPicto(pictoCtx, 150, 150, c.s, now);
   }
   if (!$('camBox').classList.contains('hidden')) {
     const cur = phase === 'play' && game && game.cur;
@@ -2734,11 +2245,10 @@ function draw(now) {
   }
 }
 
-// Mode test (développement) : ?world=ferme&step=rope lance directement un monde en mode clavier,
+// Mode test (développement) : ?world=stade&step=goal lance directement un monde en mode clavier,
 // à partir de la première étape du type demandé (sert à vérifier le rendu sans caméra).
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village'))) {
-  const vw = DEV.get('village') && WORLDS.find((x) => x.id === DEV.get('village')), qk = (DEV.get('quick') || DEV.get('labo') || '').split(',');
-  const w = vw ? villageWorld(vw) : DEV.get('hub') ? HUB_WORLD : qk[0] ? quickWorld(MINI_GAMES.filter((g) => qk.includes(g.id)), !!DEV.get('labo')) : WORLDS.find((x) => x.id === DEV.get('world')); // (mode test : ?hub=1 entre dans le parc, ?village=banquise dans un village)
+if (DEV.get('world') || DEV.get('carnet')) {
+  const w = WORLDS.find((x) => x.id === DEV.get('world'));
   const vk = !!DEV.get('vkid'); // (?vkid=1 : enfant virtuel à la place du clavier, voir vkid.js)
   if (w) { $('simToggle').checked = !vk; store('sim', !vk); store('fullscreen', false); setTimeout(() => startWorld(w), 200); }
   if (DEV.get('duo') || DEV.get('vkid2')) WUQStore._set('duo', true); // (mode test) partie à deux (?vkid2=1 : deux enfants virtuels)
@@ -2750,11 +2260,6 @@ if (DEV.get('world') || DEV.get('carnet') || DEV.get('quick') || DEV.get('labo')
     WUQStore.getCarnet = () => all;
     scene3d.load().then(() => scene3d.P.preload(creatureModels(CREATURES))).then(() => openCarnet());
   }
-  if (DEV.get('hubret')) setInterval(() => { // (mode test) partie lancée du parc finie tout de suite, puis 🏠 : retour au parc
-    if (phase === 'play' && game && fromHub && !game.over && performance.now() - game.startedAt > 3000) game.finish();
-    if (phase === 'results' && fromHub && performance.now() - resultsAt > 1500) $('menuBtn').click();
-  }, 500);
-  if (DEV.get('hubdbg')) setInterval(() => { document.title = `DBG phase=${phase} world=${world && world.id} hubLast=${hubLast} stages=${JSON.stringify(WUQStore._get(WUQStore.slotKey('stages', 0)))} gems=${JSON.stringify(Tale.gems(0))} res=${($('resDay') || {}).textContent || ''}`; }, 300); // (mode test)
   if (DEV.get('noanim')) document.head.insertAdjacentHTML('beforeend', '<style>#results *{animation:none!important} .card{transition:none!important;animation:none!important}</style>'); // (capture)
   if (DEV.get('nohud')) document.head.insertAdjacentHTML('beforeend', '<style>#hud,#simHelp,#camBox,#countdown{display:none!important}</style>');
 }
@@ -2778,57 +2283,14 @@ if (DEV.get('replay')) {
   }).catch((e) => { console.error(e); document.title = 'replay: ' + e.message; });
 }
 
-// ---------------- L'histoire : voir story.js (chapitres racontés, Étoiles de l'arc-en-ciel, livre) ----------------
-if (store('storySeen')) Tale.markSeen('prologue', 0);
-if (DEV.get('gems')) { WUQStore._set(WUQStore.slotKey('gems', 0), GEMS.slice(0, Number(DEV.get('gems'))).map((g) => g.world)); WUQStore._set(WUQStore.slotKey('tale', 0), { prologue: true, portal: true, ...Object.fromEntries(GEMS.map((g) => ['gem_' + g.world, !DEV.get('tale')])) }); } // (mode test) Étoiles déjà trouvées
-if (DEV.get('taleend')) WUQStore._set(WUQStore.slotKey('diploma', 0), true); // (mode test) fin de l'histoire
-if (DEV.get('book')) setTimeout(() => openTaleBook(), 300); // (mode test) le livre de l'histoire
-if (DEV.get('map')) setTimeout(() => $('mapBtn').click(), 600); // (mode test) la carte ouverte
-// (mode test) ?quick=slice : une partie « Jouer tout de suite » ; ?labo=slice,mur : le labo en boucle ; ?menu=quick|labo : le panneau ouvert
-if (DEV.get('menu')) setTimeout(() => $(DEV.get('menu') + 'Btn').click(), 600);
-if (DEV.get('tale')) setTimeout(() => playTale(Tale.chapter(DEV.get('tale'), 0), () => {}, Number(DEV.get('talepage')) || 0), 300); // (mode test) ?tale=prologue|portal|fin|gem_ocean // (ancien drapeau « intro déjà vue »)
-$('storyBtn').onclick = () => openTaleBook();
-$('hubBtn').onclick = () => (store('3d') === false ? $('mapBtn').click() : startWorld(HUB_WORLD)); // (sans 3D, pas de château : la carte des mondes)
-$('defisBtn').onclick = () => { show('quickPanel', false); startWorld(WORLDS.find((w) => w.id === 'defis')); };
-$('mapBtn').onclick = () => { $('parentsBox').open = false; show('mapPanel'); buildMenu(); Audio8.whoosh(); }; // (la carte : toutes les îles, page par page ; rangée chez les parents)
-// Jouer tout de suite : une grande carte par jeu (gros dessin, un mot), on touche et on joue
-$('quickBtn').onclick = () => {
-  const box = $('quickCards'); box.innerHTML = '';
-  for (const g of QUICK_GAMES) {
-    const b = document.createElement('button'); b.className = 'quickCard';
-    b.innerHTML = `<span class="qIcon">${g.icon}</span><b>${g.label}</b>`;
-    b.onclick = () => { show('quickPanel', false); startWorld(quickWorld([g])); };
-    box.appendChild(b);
-  }
-  show('quickPanel'); Audio8.whoosh(); Audio8.say('Choisis ton jeu !');
-};
-$('quickBack').onclick = () => show('quickPanel', false);
-// Labo (tests) : tous les mini-jeux, on coche ceux à enchaîner en boucle (choix gardé)
-$('laboBtn').onclick = () => {
-  const keep = new Set(store('labo') || QUICK_GAMES.map((g) => g.id)), box = $('laboList'); box.innerHTML = '';
-  for (const g of MINI_GAMES) box.insertAdjacentHTML('beforeend', `<label class="laboItem"><input type="checkbox" value="${g.id}"${keep.has(g.id) ? ' checked' : ''}> ${g.icon} ${g.label}</label>`);
-  $('parentsBox').open = false; show('laboPanel');
-};
-const laboChecks = () => [...$('laboList').querySelectorAll('input')];
-$('laboAll').onclick = () => laboChecks().forEach((c) => (c.checked = true));
-$('laboNone').onclick = () => laboChecks().forEach((c) => (c.checked = false));
-$('laboBack').onclick = () => show('laboPanel', false);
-$('laboGo').onclick = () => {
-  const ids = laboChecks().filter((c) => c.checked).map((c) => c.value); if (!ids.length) return;
-  store('labo', ids); show('laboPanel', false);
-  startWorld(quickWorld(MINI_GAMES.filter((g) => ids.includes(g.id)), true));
-};
-$('mapBack').onclick = () => show('mapPanel', false);
-$('hubExit').onclick = goMenu;
+$('carPrev').onclick = () => moveMenu(-1);
+$('carNext').onclick = () => moveMenu(1);
 
 buildMenu();
-if (!DEV.get('world') && !DEV.get('replay') && !DEV.get('carnet') && !(DEV.get('hub') || DEV.get('village')) && !DEV.get('nostory')) playPendingTale(); // (premier lancement : le prologue)
-// Gestes déjà choisis la dernière fois : on rallume la caméra (le navigateur peut demander l'autorisation)
-if (store('gestures') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
-if (DEV.get('gpoint')) { Gestures.ensureCursor(); Gestures.on = true; document.body.classList.add('gestures'); } // (mode test)
-if (DEV.get('gtuto')) Gestures.tutorial(); // (mode test)
-Gestures.onSwipe = (d) => { if (phase === 'menu' && !document.querySelector('.trainerBg, .gTutoBg')) turnMenuPage(d); };
-if (DEV.get('page')) turnMenuPage(Number(DEV.get('page'))); // (mode test)
+// Commandes aux bras : la caméra s'allume dès le menu, sauf si un parent les a coupées (🙌) ou en mode clavier
+// (le navigateur peut demander l'autorisation la première fois)
+if (store('gestures') !== false && !store('sim') && !DEV.get('world') && !DEV.get('replay')) Gestures.enable().then((ok) => { if (ok) { buildMenu(); showMenuCam(); } });
+if (DEV.get('menuarms')) { Gestures.on = true; buildMenu(); } // (mode test : commandes aux bras avec l'enfant virtuel)
 let menuResizeT = 0;
 addEventListener('resize', () => { clearTimeout(menuResizeT); menuResizeT = setTimeout(() => { if (phase === 'menu') buildMenu(); }, 300); });
 if (DEV.get('starter')) chooseStarter(0, 'Léo'); // (mode test)
@@ -2844,14 +2306,14 @@ if (DEV.get('lineup')) scene3d.load().then(() => scene3d.preloadTrainers()).then
 if (DEV.get('room')) { // (mode test) chambre remplie
   const all = {}; CREATURES.slice(0, 8).forEach((c, i) => { all[c.id] = i % 3 === 0 ? EVOLVE_AT : 1; });
   Carnet.get = () => all; WUQStore.setCompanion(0, { id: 'feuillou', xp: 5 });
-  WUQStore.getBest = (id) => ({ stars: ['jardin3d', 'turbo', 'island', 'ferme'].includes(id) ? 3 : id === 'forest' ? 2 : 0, score: 0 });
+  WUQStore.getBest = (id) => ({ stars: ['stade', 'disco', 'dinos'].includes(id) ? 3 : id === 'espace' ? 2 : 0, score: 0 });
   WUQStore.getStickers = () => ['🦄', '🐳', '🦖', '🌈', '🚀', '🍦', '🐙'];
   scene3d.load().then(openRoom);
 }
 if (DEV.get('trainer')) Trainer.open({ name: 'Léo', look: { model: DEV.get('tmodel') || 'female-c', body: 'male-d', legs: 'female-a', hat: DEV.get('thats') || 'wizard', back: 'cape', glasses: true }, color: '#5cc96b', stars: 14, onSave() {} }); // (mode test)
 // Une seule boucle en temps normal. En mode test (capture sans fenêtre), la logique avance avec un
 // minuteur et le dessin suit les images d'animation, sinon le temps n'avance pas dans la capture.
-if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay') || DEV.get('quick') || DEV.get('labo') || (DEV.get('hub') || DEV.get('village'))) {
+if (DEV.get('world') || DEV.get('carnet') || DEV.get('replay')) {
   setInterval(() => tick(performance.now()), 33);
   const drawLoop = () => { requestAnimationFrame(drawLoop); draw(performance.now()); }; // même horloge que la logique
   if (DEV.get('vkid')) setInterval(() => draw(performance.now()), 33); // (enfant virtuel : capture sans fenêtre = ~2 images/s seulement ; le héros 3D doit suivre les gestes comme sur un vrai écran)

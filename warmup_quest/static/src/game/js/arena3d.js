@@ -1,25 +1,25 @@
-// Jeux miroir en 3D : chaque jeu a son décor (grande salle de l'Académie, pré, cour enneigée, ciel du soir, corde au-dessus
-// des nuages…) et le petit sorcier de l'enfant, en 3D, imite ses gestes en direct, comme dans un jeu vidéo.
+// Jeux miroir en 3D : chaque jeu a son décor (grande salle de l'Académie, couloir du mur, cour enneigée, pré du château pour
+// la grande course) et le petit sorcier de l'enfant, en 3D, imite ses gestes en direct, comme dans un jeu vidéo.
 // arena.js garde les règles (en pixels de l'écran) : ici on construit la scène, on place les objets du jeu et on renvoie
 // où sont les mains, les épaules et la tête du petit sorcier à l'écran (c'est avec SES mains qu'on touche).
 // Rendu avec le moteur 3D du jeu (scene3d.js), sur sa toile ; le calque 2D d'arena.js n'affiche plus que les textes.
 
 const A3_MODELS = ['holiday/snowman', 'holiday/snowman-hat', 'holiday/tree-snow-a', 'holiday/tree-snow-b', 'holiday/tree-snow-c', 'holiday/snow-pile',
-  'kaykit/fu-shelf_B_large_decorated', 'kaykit/hw-candle_triple', 'kaykit/re-jar_A_large', 'kaykit/re-jar_B_medium', 'kaykit/Rogue_Hooded', 'kaykit/fu-book_set',
-  'quaternius/CommonTree_1', 'quaternius/CommonTree_2', 'quaternius/CommonTree_3', 'quaternius/Pine_2', 'kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA',
+  'kaykit/Knight', 'quaternius/CommonTree_1', 'quaternius/CommonTree_2', 'quaternius/CommonTree_3', 'quaternius/Pine_2', 'kenney/flower_redA', 'kenney/flower_yellowA', 'kenney/flower_purpleA',
   'kenney/mushroom_redGroup', 'kenney/rock_largeA', 'kenney/plant_bushLarge', 'custom/castle',
   ...['pillar', 'torch_mounted', 'banner_patternA_red', 'banner_patternB_blue', 'barrel_large', 'barrel_small_stack', 'chest_gold', 'shelf_small_candles',
-    'table_medium_decorated_A', 'candle_triple', 'crates_stacked', 'sword_shield', 'keg_decorated', 'coin_stack_large'].map((n) => 'dungeon/' + n), 'castle/flag-banner-long', 'pets/animal-chick', 'pets/animal-bunny'];
-const A3_GRIMAUD = { model: 'kk-hood', hat: 'none', glasses: false, back: 'none', color: '#5a189a' };
+    'table_medium_decorated_A', 'candle_triple', 'crates_stacked', 'sword_shield', 'keg_decorated', 'coin_stack_large'].map((n) => 'dungeon/' + n), 'castle/flag-banner-long'];
+// Le chevalier rival de la grande course (aventurier KayKit, avec son casque et sa cape)
+const A3_RIVAL = { model: 'kk-knight', hat: 'none', glasses: false, back: 'cape', color: '#e63946' };
+const A3_COURSE_L = 20; // (longueur de la piste de la grande course, unités 3D)
 const A3_H = 2; // taille du petit sorcier (unités 3D)
 // Mains magiques : bras de l'enfant tendu (≈ 1,1 torse) -> 1,9 « torse du jeu » depuis l'épaule du sorcier (ses bras à lui sont courts)
 const A3_REACH = 1.9; // (portée du jeu, bras tendu, en « torses du jeu » ; la portée de l'enfant est mesurée par les étoiles)
 const A3_NOSHADOW = { castShadow: false };
-// Décor de chaque jeu, et plan de caméra : de face (miroir) ou de dos (course vers le nuage, balai)
+// Décor de chaque jeu, et plan de caméra : de face (miroir) ou de dos (la grande course)
 // (noHands : on ne touche rien avec les mains ; pas de mains magiques ni de rayons qui suivraient des bras agités en tous sens)
 const A3_GAMES = {
-  mur: { room: 'corridor' }, soleil: { room: 'meadow', back: true }, pimprenelle: { room: 'hall' }, neige: { room: 'snow' },
-  potions: { room: 'lab' }, duel: { room: 'arena' }, corde: { room: 'meadow', noHands: true }, equilibre: { room: 'rope', noHands: true }, balai: { room: 'sky', back: true }, photo: { room: 'studio' },
+  mur: { room: 'corridor' }, pimprenelle: { room: 'hall' }, neige: { room: 'snow' }, course: { room: 'meadow', back: true },
 };
 // Images d'effets (Kenney Particle Pack, CC0) : étoiles scintillantes, cœurs, onde de choc, petit nuage de fumée
 const A3_FX = { star: ['star_06', 'star_07', 'star_08', 'star_09', 'magic_05'], heart: ['symbol_01'], gem: ['symbol_02'], ring: ['circle_03'], smoke: ['smoke_04'] };
@@ -69,7 +69,6 @@ class Arena3D {
   }
   end() {
     for (const g of this.own || []) g.dispose && g.dispose();
-    if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh = null; }
     // Le reste de la scène (petit sorcier avec chapeau, sac et baguette, décor, matériaux) : libéré aussi,
     // sauf les ressources gardées d'un jeu à l'autre (formes communes, lueur, émojis)
     if (this.scene) {
@@ -255,7 +254,7 @@ class Arena3D {
         this.boneQ.set(n, bone.quaternion.clone());
       }
     }
-    // tête : regarde ce qui se passe (Grimaud, la chouette, le chaudron…)
+    // tête : regarde ce qui se passe (la chouette…)
     if (P.look && r.bones.head) {
       m.group.updateMatrixWorld(true);
       const hp = r.bones.head.getWorldPosition(new this.T.Vector3()), d = P.look.clone().sub(hp), fy = m.group.rotation.y;
@@ -320,12 +319,12 @@ class Arena3D {
     if (A.outro) { // célébration : bras en V et petits sauts (ou épaules qui tombent)
       const k = now - A.outro.t0, good = A.outro.ratio >= 0.5;
       P.clip = good ? 'happy' : 'idle';
-      if (!this.cfg.back || this.game === 'soleil') { P.limbs = good ? { 'arm-left': [-0.55, 1, 0.25], 'arm-right': [0.55, 1, 0.25] } : { 'arm-left': [-0.2, -1, 0.2], 'arm-right': [0.2, -1, 0.2] }; P.facing = P.facing ?? true; }
-      if (good) P.y = (this.game === 'balai' ? P.y : 0) + Math.abs(Math.sin(k / 160)) * 0.35;
-      if (this.game === 'soleil') { P.ry = Math.min(1, k / 600) * Math.PI; P.facing = true; } // (se retourne vers nous)
+      if (!this.cfg.back || this.game === 'course') { P.limbs = good ? { 'arm-left': [-0.55, 1, 0.25], 'arm-right': [0.55, 1, 0.25] } : { 'arm-left': [-0.2, -1, 0.2], 'arm-right': [0.2, -1, 0.2] }; P.facing = P.facing ?? true; }
+      if (good) P.y = Math.abs(Math.sin(k / 160)) * 0.35;
+      if (this.game === 'course') { P.ry = Math.min(1, k / 600) * Math.PI; P.facing = true; } // (se retourne vers nous)
       if (good && Math.floor(k / 280) !== this.confN) { this.confN = Math.floor(k / 280); this.burst(new this.T.Vector3(P.x + (Math.random() - 0.5) * 3, (P.y || 0) + 3.2, (P.z || 0) + 0.5), 18, { cols: ['#ffd166', '#ff70a6', '#7bdff2', '#b8f2a1', '#c77dff'], chunk: 'box', size: 0.07, speed: 2.5, grav: 3, life: 1600 }); }
     }
-    if (P.limbs !== limbs) P.seg = null; // (pose imposée par le jeu, balai, célébration : bras tendus)
+    if (P.limbs !== limbs) P.seg = null; // (pose imposée par le jeu ou la célébration : bras tendus)
     if (now - this.landT < 160) { const q = (now - this.landT) / 160; this.squash = 1 - Math.sin(q * Math.PI) * 0.12; } else this.squash = 1;
     this.P = P;
     this.poseAvatar(now, P);
@@ -420,7 +419,7 @@ class Arena3D {
     const cam = this['cam3_' + this.game]; if (cam) cam.call(this, A.st, now); else this.camFront(this.av.group.position.x * 0.35);
     this.camFx(A, now);
     const sync = this['sync3_' + this.game]; if (sync) sync.call(this, A.st, now, dt, B);
-    // mains lumineuses (pas pendant le balai ni la course vers le nuage : on voit le sorcier de dos)
+    // mains lumineuses (pas pendant la course : on voit le sorcier de dos)
     const showGlow = !this.cfg.back && !this.cfg.noHands && B && this.hand3;
     const hipY = B && B.J && B.J.hL ? B.J.hL.y : this.A.H;
     this.glows.forEach((g, i) => {
@@ -444,14 +443,6 @@ class Arena3D {
       const rp = S.renderPass, oc = rp.camera; rp.scene = this.scene; rp.camera = this.cam; if (S.outlineMat) S.outlineMat.visible = false;
       try { S.composer.render(); } finally { rp.camera = oc; }
     } else { if (S.outlineMat) S.outlineMat.visible = true; S.renderer.render(this.scene, this.cam); }
-    // Photo demandée (miroir magique) : prise tout de suite après le dessin, dans la même image (sinon la toile est vide)
-    if (this.snapReq) {
-      const done = this.snapReq; this.snapReq = null;
-      try {
-        const c = document.createElement('canvas'), cv = S.renderer.domElement; c.width = 480; c.height = Math.round(480 * cv.height / cv.width);
-        c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height); done(c.toDataURL('image/jpeg', 0.8));
-      } catch (e) { done(null); }
-    }
   }
   // Caméra : survol du décor à l'entrée, plan rapproché à la fin, secousses et coups de zoom
   camFx(A, now) {
@@ -588,30 +579,6 @@ class Arena3D {
     const pil = []; for (let z = -2; z > -40; z -= 6) pil.push([-4.4, z], [4.4, z]);
     this.room_hall(scene, { back: -44, pillars: pil, windows: [], candles: 22, banners: [0], fogNear: 26, fogFar: 70 });
   }
-  room_lab(scene) { // atelier des potions : étagères de bocaux, livres, bougies, le chaudron devant le sorcier
-    this.room_hall(scene, { windows: [-7.5, 7.5], banners: [0] });
-    for (const [x, ry] of [[-3.6, 0.35], [3.6, -0.35]]) {
-      if (!this.model('kaykit/fu-shelf_B_large_decorated', 3.2, x, 0, -6.2, ry)) this.add(this.scene, this.G.box, '#8d5a3b', x, 1.6, -6.2, 2.4, 3.2, 0.6);
-    }
-    for (const [k, x, z, h] of [['kaykit/re-jar_A_large', -2.3, -3.6, 0.7], ['kaykit/re-jar_B_medium', 2.4, -3.4, 0.55], ['kaykit/hw-candle_triple', -2.8, -2.6, 0.6], ['kaykit/hw-candle_triple', 2.9, -2.2, 0.6], ['kaykit/fu-book_set', 2.2, -4.4, 0.4]]) this.model(k, h, x, 0, z, Math.random() * 6);
-  }
-  room_arena(scene) { // salle de duel : une estrade ronde, un cercle de runes qui brille
-    this.room_hall(scene, { pillars: [[-6.8, -7.6], [6.8, -7.6], [-7.5, -1.5], [7.5, -1.5]] });
-    const T = this.T, st = this.add(scene, this.geo(new T.CylinderGeometry(5.5, 5.8, 0.24, 48)), '#5b5078', 0.8, 0.12, -1.3); st.userData.noOutline = true;
-    const rune = new T.Mesh(this.geo(new T.TorusGeometry(5.0, 0.06, 8, 80)), new T.MeshBasicMaterial({ color: '#c77dff' })); rune.rotation.x = -Math.PI / 2; rune.position.set(0.8, 0.26, -1.3); scene.add(rune);
-    const rune2 = new T.Mesh(this.geo(new T.TorusGeometry(4.3, 0.03, 8, 80)), new T.MeshBasicMaterial({ color: '#7bdff2' })); rune2.rotation.x = -Math.PI / 2; rune2.position.copy(rune.position); scene.add(rune2);
-    this.anims.push((now) => { rune.material.color.setHSL(0.78, 0.9, 0.62 + 0.12 * Math.sin(now / 400)); rune2.rotation.z = now / 4000; });
-  }
-  room_studio(scene) { // le miroir magique : grand cadre doré derrière le sorcier, rideaux
-    this.room_hall(scene, { windows: [-7.5, 7.5], banner: false });
-    const T = this.T, G = this.G, g = new T.Group(), w = 3.6, h = 3.3;
-    for (const [x, y, sx, sy] of [[0, h, w + 0.4, 0.3], [0, 0.05, w + 0.4, 0.3], [-w / 2, h / 2, 0.3, h], [w / 2, h / 2, 0.3, h]]) this.add(g, G.box, '#ffc300', x, y, 0, sx, sy, 0.25, { emissive: '#7a5200', emissiveIntensity: 0.3 });
-    const inner = this.tex(256, 256, (x, W2, H2) => { const gr = x.createRadialGradient(W2 / 2, H2 / 2, 10, W2 / 2, H2 / 2, W2 * 0.7); gr.addColorStop(0, '#e0c3fc'); gr.addColorStop(1, '#7b2cbf'); x.fillStyle = gr; x.fillRect(0, 0, W2, H2); x.fillStyle = 'rgba(255,255,255,.5)'; for (let i = 0; i < 40; i++) x.fillRect(Math.random() * W2, Math.random() * H2, 3, 3); });
-    const p = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: inner })); p.scale.set(w - 0.1, h - 0.1, 1); p.position.set(0, h / 2, -0.1); g.add(p);
-    for (const s of [-1, 1]) { const e = this.emo('✨', 0.6); e.position.set(s * w / 2, h + 0.1, 0.2); g.add(e); }
-    g.position.set(0, 0, -1.2); scene.add(g);
-    for (const s of [-1, 1]) this.add(scene, G.box, '#9d0208', s * 3.4, 3.2, -1.6, 1.2, 6.4, 0.2); // (rideaux)
-  }
   room_meadow(scene) { // pré du château : herbe, chemin, arbres, collines, ciel bleu
     const T = this.T, G = this.G;
     this.sky(scene, [[0, '#4ea8de'], [0.6, '#bde0fe'], [1, '#e8f6ff']]);
@@ -659,43 +626,6 @@ class Arena3D {
     for (let x = -30; x <= 30; x += 3) this.add(scene, this.G.box, '#c9c3dc', x, 5.3, -30, 1.4, 0.8, 1);
     for (const x of [-14, 14]) { this.add(scene, this.G.cyl, '#c9c3dc', x, 4.5, -29, 2, 9, 2); this.add(scene, this.G.cone, '#5a189a', x, 10, -29, 2.6, 3, 2.6); }
     this.dust(scene, '#ffffff', 160, [-10, 10], [0, 8], [-14, 4], 0.9);
-  }
-  room_sky(scene) { // ciel du soir : nuages qui filent, mer de nuages en bas, le château au loin
-    const T = this.T;
-    this.sky(scene, [[0, '#240046'], [0.45, '#7b2cbf'], [0.8, '#ff9e00'], [1, '#ff6d00']], { night: 0.5, cloudCol: '#ffb4a2' }); // (soir : nuages roses, premières étoiles)
-    scene.fog = new T.Fog('#c86bd6', 40, 120);
-    this.hemi.color.set('#ffd6e8'); this.hemi.groundColor.set('#5a189a'); this.hemi.intensity = 1.1; this.sun.color.set('#ffb36b'); this.sun.position.set(6, 6, -8);
-    const sea = this.tex(256, 256, (x, w, h) => { x.fillStyle = '#f6c6ea'; x.fillRect(0, 0, w, h); for (let i = 0; i < 60; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.7)' : 'rgba(199,125,255,.25)'; x.beginPath(); x.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 30, 8 + Math.random() * 10, 0, 0, 7); x.fill(); } }, 12, 12);
-    const f = new T.Mesh(this.geo(new T.PlaneGeometry(400, 400)), this.mat('#ffffff', { map: sea })); f.rotation.x = -Math.PI / 2; f.position.y = -9; f.userData.noOutline = true; scene.add(f);
-    this.anims.push((now, dt) => { sea.offset.y += dt * 0.25; });
-    const castle = this.model('custom/castle', 26, 18, -6, -110, -0.4);
-    if (!castle) { this.add(scene, this.G.cyl, '#3c096c', 18, 4, -110, 4, 20, 4); this.add(scene, this.G.cone, '#3c096c', 18, 17, -110, 5, 6, 5); }
-    this.dust(scene, '#ffffff', 200, [-60, 60], [14, 40], [-120, -40]);
-    // nuages qui arrivent vers nous (la vitesse)
-    this.flyClouds = [];
-    for (let i = 0; i < 16; i++) {
-      const g = new T.Group();
-      for (let k = 0; k < 4; k++) { const m = this.add(g, this.G.ball, '#ffffff', (k - 1.5) * 0.9, Math.sin(k * 2) * 0.3, 0, 0.9 + Math.random() * 0.4, 0.7, 0.8, { transparent: true, opacity: 0.92 }); m.castShadow = false; }
-      scene.add(g); this.flyClouds.push(g); this.placeFly(g, -10 - Math.random() * 90);
-    }
-    this.anims.push((now, dt) => { for (const c of this.flyClouds) { c.position.z += dt * 22; if (c.position.z > 10) this.placeFly(c, -100); } });
-  }
-  placeFly(g, z) { const s = Math.random() < 0.5 ? -1 : 1, x = s * (7.5 + Math.random() * 14); g.position.set(x, Math.random() < 0.5 ? -4 + Math.random() * 3 : 7 + Math.random() * 5, z); g.scale.setScalar(1 + Math.random() * 1.5); }
-  room_rope(scene) { // la corde de l'équilibriste, entre deux tours, au-dessus des nuages
-    const T = this.T, G = this.G;
-    this.sky(scene, [[0, '#ffafcc'], [0.5, '#ffc8dd'], [1, '#fff1e6']], { cloudCol: '#fff6fb' });
-    scene.fog = new T.Fog('#ffe5ec', 30, 90);
-    this.hemi.color.set('#fff1e6'); this.hemi.groundColor.set('#cdb4db'); this.hemi.intensity = 1.2;
-    for (let i = 0; i < 46; i++) { const m = this.add(scene, G.ball, '#ffffff', (Math.random() - 0.5) * 90, -6.5 - Math.random() * 2, -Math.random() * 70 + 6, 3 + Math.random() * 4, 1.6, 3, { emissive: '#ffe5ec', emissiveIntensity: 0.45 }); m.castShadow = false; m.userData.noOutline = true; }
-    const rope = this.add(scene, this.geo(new T.CylinderGeometry(0.05, 0.05, 15, 8)), '#f1faee', 0, -0.05, 0); rope.rotation.z = Math.PI / 2;
-    for (const s of [-1, 1]) {
-      this.add(scene, G.cyl, '#e9d8c4', s * 7.6, -3, 0, 1.2, 8, 1.2); this.add(scene, G.cone, '#e63946', s * 7.6, 2.4, 0, 1.6, 2.2, 1.6);
-      this.add(scene, G.box, '#8d5a3b', s * 6.8, 0.0, 0, 1.2, 0.15, 1.6);
-      const fl = this.model('castle/flag-banner-long', 1.4, s * 7.6, 3.5, 0); if (!fl) this.add(scene, G.box, '#ffd166', s * 7.6 + 0.4, 3.8, 0, 0.8, 0.5, 0.05);
-    }
-    this.clouds(scene, 10, [-60, 60], [6, 20], [-80, -30]);
-    this.wind = [];
-    for (let i = 0; i < 14; i++) { const m = new T.Mesh(G.plane, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false })); m.scale.set(1.6, 0.04, 1); m.position.set(0, 0.5 + Math.random() * 3, -1 + Math.random() * 2); scene.add(m); this.wind.push({ m, p: Math.random() }); }
   }
 
   // ======================= Les jeux =======================
@@ -772,29 +702,67 @@ class Arena3D {
     });
   }
 
-  // ----- 1, 2, 3… Nuage Grognon : vu de dos, le sorcier court sur le chemin vers le nuage
-  init3_soleil(scene) {
-    try { this.cloud = buildCreature3D(this.S, GROGNON, false); this.cloud.group.scale.multiplyScalar(3.2); this.cloud.group.position.set(0, 1.2, -22); scene.add(this.cloud.group); } catch (e) { this.cloud = null; }
-    this.flag = this.emo('🏁', 1.4); this.flag.position.set(1.8, 0.8, -19); scene.add(this.flag);
-    this.prevProg = 0; this.runT = 0;
+  // ----- La grande course : vu de dos, le chevalier de l'enfant (à gauche) et le chevalier rival (à droite) courent sur
+  // le chemin du pré vers la ligne d'arrivée (drapeaux, banderole), le château au fond
+  init3_course(scene) {
+    const S = this.S, T = this.T, G = this.G, L = A3_COURSE_L;
+    let look = A3_RIVAL; if (!lookKeys(look).every((k) => S.P.models.has(k))) look = COACH_LOOKS.karate;
+    this.rival = S.makeHero({ body: look.color }, false, null, true, look);
+    this.rival.isGhost = true; // (n'imite pas l'enfant)
+    if (this.rival.wandTip && this.rival.wandTip.parent) this.rival.wandTip.parent.visible = false;
+    this.rivalS = this.avScale;
+    if (this.rival.human) { S.poseHumanStill(this.rival, 'idle'); this.rival.group.updateMatrixWorld(true); const b = new T.Box3().setFromObject(this.rival.inner); this.rivalS = this.rival.scale * A3_H * 1.02 / Math.max(0.3, b.max.y - b.min.y); }
+    scene.add(this.rival.group);
+    // piste : lignes de couloir à la craie, ligne de départ, ligne d'arrivée à damier
+    for (const x of [-1.9, 0, 1.9]) this.add(scene, G.box, '#ffffff', x, 0.03, -L / 2 + 1, 0.07, 0.02, L + 4).userData.noOutline = true;
+    this.add(scene, G.box, '#ffffff', 0, 0.03, 0.6, 3.9, 0.02, 0.12).userData.noOutline = true;
+    const chk = this.tex(128, 32, (x, w, h) => { for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#1e1b4b' : '#ffffff'; x.fillRect(i * 8, j * 8, 8, 8); } });
+    const fin = new T.Mesh(this.geo(new T.PlaneGeometry(3.9, 0.9)), this.mat('#ffffff', { map: chk, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    fin.rotation.x = -Math.PI / 2; fin.position.set(0, 0.035, -L); fin.userData.noOutline = true; scene.add(fin);
+    // arche d'arrivée : deux poteaux, une banderole, des drapeaux
+    for (const sx of [-2.4, 2.4]) {
+      this.add(scene, G.cyl, '#ffd166', sx, 1.9, -L, 0.09, 3.8, 0.09).castShadow = true;
+      if (!this.model('castle/flag-banner-long', 1.6, sx, 3.8, -L, sx < 0 ? 0.3 : -0.3)) { const f = this.emo('🚩', 0.9); f.position.set(sx, 4.2, -L); scene.add(f); }
+    }
+    const ban = this.tex(512, 96, (x, w, h) => { x.fillStyle = '#e63946'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffd166'; x.fillRect(0, 0, w, 8); x.fillRect(0, h - 8, w, 8); x.fillStyle = '#ffffff'; x.font = '800 58px "Baloo 2", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🏁 ARRIVÉE 🏁', w / 2, h / 2 + 3); });
+    const bm = new T.Mesh(this.geo(new T.PlaneGeometry(4.8, 0.9)), new T.MeshBasicMaterial({ map: ban, side: T.DoubleSide })); bm.position.set(0, 3.45, -L); scene.add(bm);
+    this.flag = this.emo('🏁', 1.0); this.flag.position.set(0, 4.4, -L); scene.add(this.flag);
+    // le château au fond, des fanions le long de la piste
+    if (!this.model('custom/castle', 26, 0, 0, -95)) { this.add(scene, G.cyl, '#e0c3fc', 0, 8, -95, 4, 16, 4); this.add(scene, G.cone, '#9d4edd', 0, 18, -95, 5, 5, 5); }
+    const cols = ['#ff70a6', '#ffd166', '#7bdff2', '#b8f2a1', '#c77dff'];
+    for (let z = -2; z > -L - 2; z -= 3.2) for (const s of [-1, 1]) {
+      this.add(scene, G.cyl, '#8d5a3b', s * 3.0, 0.7, z, 0.05, 1.4, 0.05);
+      const fl = this.add(scene, G.cone, cols[Math.floor(-z) % 5], s * 3.0 + s * 0.22, 1.25, z, 0.16, 0.4, 0.04); fl.rotation.z = s * Math.PI / 2;
+    }
+    this.lastWinner = null; this.dustT = 0;
   }
-  pose3_soleil(P, st, now) {
-    const run = st.phase === 'dos' && st.prog > this.prevProg + 1e-5; this.prevProg = st.prog;
-    if (run) this.runT = now;
-    P.limbs = null; P.ry = 0; P.facing = false; P.x = 0; P.z = -st.prog * 17;
-    P.clip = st.oops && now - st.oops < 900 ? 'bump' : now - this.runT < 250 ? 'run' : 'idle';
+  rivalZ(st) { return -(st.rival || 0) * A3_COURSE_L; }
+  pose3_course(P, st, now) {
+    P.limbs = null; P.ry = 0; P.facing = false; P.x = -0.95; P.z = -(st.prog || 0) * A3_COURSE_L;
+    P.clip = st.winner === 'kid' ? 'happy' : st.winner === 'rival' ? 'idle' : (st.sp || 0) > 0.15 && now > st.at ? 'run' : 'idle';
   }
-  cam3_soleil(st) { const z = this.av.group.position.z; this.camTo(0, 2.7, z + 5.4, 0, 1.4, z - 8, 45, 0.12); }
-  sync3_soleil(st, now) {
-    const c = this.cloud; if (!c) return;
-    const look = st.phase === 'regarde', want = look ? 0 : Math.PI; // (dos tourné : on voit son dos)
-    if (st.phase !== this.lastPhase) { if (look) { Audio8.whoosh(); this.shake(0.05, 250); } this.lastPhase = st.phase; }
-    if (st.oops && st.oops !== this.lastOops) { this.lastOops = st.oops; Audio8.boing(); this.react('hurt'); }
-    c.group.rotation.y += (want - c.group.rotation.y) * 0.18;
-    c.group.position.y = 1.2 + Math.sin(now / 500) * 0.15;
-    c.animate(now, look && st.oops && now - st.oops < 1200 ? 'happy' : 'idle');
-    const red = look ? 0.5 + 0.1 * Math.sin(now / 90) : 0;
-    this.hemi.color.setRGB(1, 1 - red * 0.45, 1 - red * 0.5);
+  cam3_course(st) { // (derrière le chevalier qui est le plus en arrière : on voit toujours les deux)
+    const zk = this.av.group.position.z, zr = this.rivalZ(st), back = Math.max(zk, zr), front = Math.min(zk, zr);
+    this.camTo(0, 2.9, back + 5.8, 0, 1.3, front - 8, 46, 0.1);
+  }
+  sync3_course(st, now) {
+    const S = this.S, r = this.rival; if (!r) return;
+    const running = !st.winner && now > st.at, clip = st.winner === 'rival' ? 'happy' : running ? 'run' : 'idle';
+    if (r.human) { const save = S.heroY3; S.heroY3 = () => 0; try { S.applyHumanPose({ lane: 0, y: 0, holdPose: null }, r, clip, now); } finally { S.heroY3 = save; } }
+    r.group.scale.setScalar(this.rivalS); r.group.position.set(0.95, st.winner === 'rival' ? Math.abs(Math.sin(now / 160)) * 0.3 : 0, this.rivalZ(st)); r.group.rotation.set(0, 0, 0);
+    this.flag.position.y = 4.4 + Math.sin(now / 300) * 0.1; this.flag.material.rotation = Math.sin(now / 250) * 0.15;
+    // petits nuages de poussière sous les pieds de ceux qui courent
+    if (now - this.dustT > 140) {
+      this.dustT = now;
+      if (running) this.burst(new this.T.Vector3(0.95, 0.1, this.rivalZ(st) + 0.3), 1, { tex: 'smoke', cols: ['#e6c28f'], speed: 0.4, up: 0.3, grav: 0, size: 0.35, life: 500 });
+      if (running && (st.sp || 0) > 0.15) this.burst(new this.T.Vector3(-0.95, 0.1, this.av.group.position.z + 0.3), 1, { tex: 'smoke', cols: ['#e6c28f'], speed: 0.4, up: 0.3, grav: 0, size: 0.35, life: 500 });
+    }
+    if (st.winner && st.winner !== this.lastWinner) { // ligne d'arrivée franchie : confettis (si c'est l'enfant) ou petit « oh »
+      this.lastWinner = st.winner;
+      const p = new this.T.Vector3(st.winner === 'kid' ? -0.95 : 0.95, 2.6, -A3_COURSE_L);
+      if (st.winner === 'kid') { Audio8.tada(); this.shake(0.06, 300); this.burst(p, 60, { cols: ['#ffd166', '#ff70a6', '#7bdff2', '#b8f2a1', '#c77dff'], chunk: 'box', size: 0.08, speed: 3.5, grav: 3, life: 1600 }); }
+      else { Audio8.soft(); this.burst(p, 20, { cols: ['#e63946', '#ffffff'] }); }
+    }
   }
 
   // ----- Pimprenelle a dit : la chouette directrice sur son perchoir, qui bat des ailes quand elle parle
@@ -822,7 +790,6 @@ class Arena3D {
 
   // ----- Bataille de boules de neige : des bonshommes de neige sortent de la neige, autour du sorcier
   pose3_pimprenelle(P) { if (this.owl) P.look = new this.T.Vector3(2.1, 1.5, 0.1); }
-  pose3_potions(P, st) { if (st.phase === 'stir') P.look = this.potW().add(new this.T.Vector3(0, 0.6, 0)); }
   slotXZ(k) { return [[-2.5, -0.6], [2.5, -0.6], [-1.5, -3.4], [1.6, -3.6], [0, -6]][k] || [0, -4]; }
   slotXY(k, y = 0.95) { const [x, z] = this.slotXZ(k); return this.toScreen(new this.T.Vector3(x, y, z)); }
   init3_neige() { this.men = new Map(); this.balls = new Map(); }
@@ -852,213 +819,5 @@ class Arena3D {
       const q = Math.min(1, (now - b.t0) / 300), [x, z] = this.slotXZ(b.m.slot), f = o.userData.from;
       o.position.set(f.x + (x - f.x) * q, f.y + (0.95 - f.y) * q + Math.sin(q * Math.PI) * 0.8, f.z + (z - f.z) * q);
     }
-  }
-
-  // ----- La cuisine des potions : le chaudron fume devant le sorcier ; les ingrédients flottent dans des bulles
-  init3_potions(scene) {
-    const T = this.T, G = this.G, g = new T.Group();
-    const pts = []; for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI * 0.95; pts.push(new T.Vector2(Math.sin(a) * 0.8 + 0.02, -Math.cos(a) * 0.65 + 0.65)); }
-    const pot = new T.Mesh(this.geo(new T.LatheGeometry(pts, 32)), this.mat('#2b2d42', { side: T.DoubleSide })); pot.castShadow = true; g.add(pot);
-    const rim = new T.Mesh(this.geo(new T.TorusGeometry(0.8, 0.07, 10, 40)), this.mat('#3d405b')); rim.rotation.x = Math.PI / 2; rim.position.y = 1.28; g.add(rim);
-    for (let i = 0; i < 3; i++) { const a = i * 2.1; this.add(g, G.cyl, '#2b2d42', Math.cos(a) * 0.55, 0.1, Math.sin(a) * 0.55, 0.07, 0.3, 0.07); }
-    this.brew = new T.Mesh(this.geo(new T.CircleGeometry(0.76, 32)), new T.MeshBasicMaterial({ color: '#70e000' })); this.brew.rotation.x = -Math.PI / 2; this.brew.position.y = 1.16; g.add(this.brew);
-    this.brewGlow = this.glow('#70e000', 1.8, 0.3); this.brewGlow.position.y = 1.5; g.add(this.brewGlow);
-    this.bubbles = []; for (let i = 0; i < 6; i++) { const b = this.add(g, G.ball, '#b8f2a1', 0, 1.2, 0, 0.06, 0.06, 0.06, { transparent: true, opacity: 0.8 }); b.castShadow = false; this.bubbles.push({ b, p: Math.random(), x: (Math.random() - 0.5) * 0.9, z: (Math.random() - 0.5) * 0.9 }); }
-    const spoon = new T.Group(); this.add(spoon, G.cyl, '#a0522d', 0, 0.6, 0, 0.04, 1.4, 0.04); this.add(spoon, G.ball, '#a0522d', 0, -0.1, 0, 0.14, 0.06, 0.14); spoon.position.y = 1.2; spoon.rotation.z = 0.35; g.add(spoon); this.spoon = spoon; spoon.visible = false;
-    this.S.outline(pot); this.S.outline(rim);
-    g.position.copy(this.potW()); g.scale.setScalar(0.62); scene.add(g); this.pot = g; pot.castShadow = true;
-    this.items = new Map(); this.fly = new Map(); this.spoonA = 0; this.lastStir = 0; this.lastOk = 0;
-  }
-  potW() { return new this.T.Vector3(1.9, 0, 0.6); }
-  potXY() { return this.toScreen(this.potW().add(new this.T.Vector3(0, 0.9, 0))); }
-  sync3_potions(st, now) {
-    const T = this.T, cols = ['#70e000', '#c77dff', '#4cc9f0', '#ff70a6'], col = cols[st.ok % 4];
-    this.brew.material.color.set(col); this.brewGlow.material.color.set(col); this.brewGlow.material.opacity = 0.3 + 0.08 * Math.sin(now / 200);
-    for (const b of this.bubbles) { const q = (now / 1400 + b.p) % 1; b.b.position.set(b.x * 0.8, 1.2 + q * 0.7, b.z * 0.8); b.b.scale.setScalar(0.06 + q * 0.05); b.b.material.color.set(col); }
-    // ingrédients dans leurs bulles (là où les règles les placent, autour du sorcier)
-    const live = new Set(st.items.filter((it) => !it.taken));
-    for (const [it, o] of this.items) if (!live.has(it)) { this.scene.remove(o); this.items.delete(it); }
-    const z0 = 0.5, ppu = this.ppu(z0);
-    for (const it of live) {
-      let o = this.items.get(it);
-      if (!o) {
-        o = new T.Group();
-        const glass = new T.Mesh(this.G.ball, this.mat('#bde0fe', { transparent: true, opacity: 0.25, depthWrite: false })); glass.userData.noOutline = true; glass.renderOrder = 1; o.add(glass);
-        const shine = this.add(o, this.G.ball, '#ffffff', -0.35, 0.35, 0.55, 0.12, 0.12, 0.12, { basic: { transparent: true, opacity: 0.8 } }); shine.castShadow = false;
-        const e = this.emo(it.e, 1.5); e.renderOrder = 2; o.add(e); this.scene.add(o); this.items.set(it, o);
-        if (!it.bad) { const halo = this.glow('#ffd166', 3.4, 0.55); halo.renderOrder = 0; o.add(halo); o.userData.halo = halo; } // (ingrédient de la recette : il brille)
-      }
-      if (it.x == null) { o.visible = false; continue; }
-      o.visible = true;
-      const p = this.toWorld(it.x + (now - it.wob < 500 ? Math.sin((now - it.wob) / 30) * 8 : 0), it.y, z0), r = (0.5 * this.A.B.T) / ppu;
-      const aim = now - (it.aimT || 0) < 150; // (visé par une main : il grossit)
-      o.userData.k = (o.userData.k || 1) + ((aim ? 1.35 : 1) - (o.userData.k || 1)) * 0.25;
-      o.position.copy(p); o.scale.setScalar(r * o.userData.k * (it.bad ? 0.85 : 1 + 0.06 * Math.sin(now / 180 + it.seed))); o.rotation.y = Math.sin(now / 700 + it.seed) * 0.4;
-      if (o.userData.halo) o.userData.halo.material.opacity = 0.4 + 0.25 * Math.sin(now / 200 + it.seed);
-    }
-    // ingrédients qui volent dans le chaudron
-    const lf = new Set(st.flying);
-    for (const [f, o] of this.fly) if (!lf.has(f)) { this.scene.remove(o); this.fly.delete(f); this.burst(this.potW().add(new T.Vector3(0, 1, 0)), 10, { cols: [col, '#ffffff'], speed: 1.5 }); }
-    for (const f of st.flying) {
-      let o = this.fly.get(f);
-      if (!o) { o = this.emo(f.e, 0.45); o.userData.from = this.toWorld(f.x0, f.y0, z0); this.scene.add(o); this.fly.set(f, o); Audio8.pop(); }
-      const q = Math.min(1, (now - f.t0) / 500), a = o.userData.from, pw = this.potW();
-      o.position.set(a.x + (pw.x - a.x) * q, a.y + (0.95 - a.y) * q + Math.sin(q * Math.PI) * 0.9, a.z + (pw.z - a.z) * q);
-    }
-    // touiller : la louche tourne quand l'enfant fait des cercles
-    this.spoon.visible = st.phase === 'stir';
-    if (st.phase === 'stir') { const d = Math.max(0, (st.stir || 0) - this.lastStir); this.spoonA += d + 0.01; this.spoon.position.set(Math.cos(this.spoonA) * 0.35, 1.2, Math.sin(this.spoonA) * 0.35); this.brew.rotation.z = -this.spoonA; }
-    this.lastStir = st.stir || 0;
-    if (st.ok > this.lastOk) { this.lastOk = st.ok; Audio8.spell(); this.shake(0.1, 300); this.burst(this.potW().add(new T.Vector3(0, 1.2, 0)), 60, { cols: ['#c77dff', '#7bdff2', '#b8f2a1', '#ffd166'], speed: 4, up: 3 }); }
-  }
-
-  // ----- Duel de sorciers : Grimaud sur l'estrade ; sorts lumineux, bouclier, contre-attaque
-  init3_duel(scene) {
-    const S = this.S, T = this.T;
-    let look = A3_GRIMAUD; if (!lookKeys(look).every((k) => S.P.models.has(k))) look = COACH_LOOKS.dance;
-    this.grim = S.makeHero({ body: look.color }, false, null, true, look);
-    if (this.grim.human) { S.poseHumanStill(this.grim, 'idle'); const b = new T.Box3().setFromObject(this.grim.inner); this.grimS = this.grim.scale * 2.3 / Math.max(0.3, b.max.y - b.min.y); }
-    scene.add(this.grim.group);
-    this.orb = this.glow('#c77dff', 0.8); this.orbCore = this.add(scene, this.G.ball, '#ffffff', 0, 0, 0, 0.16, 0.16, 0.16, { basic: {} }); this.orbCore.castShadow = false; scene.add(this.orb);
-    this.shield = new T.Mesh(this.geo(new T.SphereGeometry(1.25, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.55)), new T.MeshBasicMaterial({ color: '#7bdff2', transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
-    this.shield.rotation.x = Math.PI / 2; scene.add(this.shield);
-    this.stars = [0, 1, 2].map(() => { const e = this.emo('⭐', 0.35); scene.add(e); return e; });
-    this.lastHp = null;
-  }
-  grimPos() { return new this.T.Vector3(2.6, 0.24, -2.6); }
-  pose3_duel(P) { P.x = -1.1 + (P.x || 0); P.y = (P.y || 0) + 0.24; P.look = this.grimPos().add(new this.T.Vector3(0, 1.6, 0)); }
-  cam3_duel() { this.camTo(-0.2, 1.55, 6.2, 0.55, 1.15, -1, 40, 0.2); }
-  sync3_duel(st, now) {
-    const S = this.S, T = this.T, g = this.grim, gp = this.grimPos(), dizzy = st.dizzy && now - st.dizzy < 1500;
-    const hero = this.av.group.position, chest = new T.Vector3(hero.x, hero.y + 1.15, 0.25);
-    if (g.human) {
-      const clip = dizzy ? 'bump' : st.phase === 'charge' || st.phase === 'cast' && now - st.at < 400 ? 'smash' : st.hp <= 0 ? 'bump' : 'idle';
-      const save = S.heroY3; S.heroY3 = () => 0; try { S.applyHumanPose({ lane: 0, y: 0, holdPose: null }, g, clip, now); } finally { S.heroY3 = save; }
-      g.group.scale.setScalar(this.grimS); g.group.position.copy(gp); g.group.rotation.set(0, Math.atan2(-(hero.x - gp.x), -(chest.z - gp.z)), dizzy ? Math.sin(now / 80) * 0.12 : 0);
-    }
-    const hand = new T.Vector3(gp.x - 0.5, gp.y + 1.3, gp.z + 0.5), col = st.kind === 'shield' ? '#c77dff' : '#ff4d6d';
-    let orbAt = null, size = 0;
-    if (st.phase === 'charge') { const k = Math.min(1, (now - st.at) / 1500); orbAt = hand; size = 0.3 + k * 0.6; }
-    else if (st.phase === 'cast') { const q = Math.min(1, (now - st.at) / (st.until - st.at)); orbAt = hand.clone().lerp(chest, q); size = 0.9; }
-    else if (st.phase === 'bolt') { const q = Math.min(1, (now - st.at) / 600); orbAt = new T.Vector3(hero.x, hero.y + 2.4, 0.2).lerp(new T.Vector3(gp.x, gp.y + 1.2, gp.z), q); size = 1; }
-    else if (st.phase === 'counter') { const k = Math.min(1, (st.hold || 0) / 0.5); orbAt = new T.Vector3(hero.x, hero.y + 2.45, 0.2); size = 0.2 + k * 0.9; }
-    const c2 = st.phase === 'bolt' || st.phase === 'counter' ? '#ffd166' : col;
-    this.orb.visible = this.orbCore.visible = !!orbAt;
-    if (orbAt) {
-      this.orb.position.copy(orbAt); this.orb.scale.setScalar(size * (1 + 0.1 * Math.sin(now / 50))); this.orb.material.color.set(c2);
-      this.orbCore.position.copy(orbAt); this.orbCore.scale.setScalar(size * 0.18);
-      if (Math.random() < 0.5) this.burst(orbAt, 1, { cols: [c2, '#ffffff'], speed: 0.5, up: 0.2, grav: 0, size: 0.18, life: 400 });
-    }
-    // résultat d'un sort : paré (étincelles sur le bouclier) ou touché
-    if (st.phase !== this.lastPhase) {
-      if (st.phase === 'charge') Audio8.charge();
-      if (st.phase === 'cast') Audio8.zap();
-      if (st.phase === 'bolt') Audio8.spell();
-      if (this.lastPhase === 'cast') { if (st.phase === 'counter') Audio8.hit(); else { Audio8.crash(); this.react('hurt'); } }
-      if (this.lastPhase === 'bolt') { Audio8.hit(); this.shake(0.12, 350); this.punch(); }
-      if (this.lastPhase === 'cast') { if (st.phase === 'counter') this.burst(chest.clone().add(new T.Vector3(0, 0, 0.9)), 30, { cols: ['#7bdff2', '#ffffff'], speed: 3 }); else this.burst(chest, 30, { cols: ['#ff4d6d', '#ffffff'], speed: 3 }); }
-      if (this.lastPhase === 'bolt') this.burst(new T.Vector3(gp.x, gp.y + 1.3, gp.z), 50, { cols: ['#ffd166', '#ffffff', '#ff70a6'], speed: 4 });
-      this.lastPhase = st.phase;
-    }
-    const sh = this.A.B && this.A.B.st.handsTogether && (st.phase === 'cast' || st.phase === 'charge');
-    this.shield.visible = !!sh; if (sh) { this.shield.position.set(hero.x, hero.y + 1.1, 0.05); this.shield.material.opacity = 0.25 + 0.1 * Math.sin(now / 80); }
-    this.stars.forEach((e, i) => { e.visible = !!dizzy; const a = now / 250 + i * 2.1; e.position.set(gp.x + Math.cos(a) * 0.5, gp.y + 2.6, gp.z + Math.sin(a) * 0.5); });
-  }
-  grimXY() { return this.toScreen(new this.T.Vector3(this.grimPos().x, 2.9, this.grimPos().z)); }
-
-  // ----- Tir à la corde : le sorcier tire une corde magique contre le Nuage Grognon (tout glisse vers le gagnant)
-  init3_corde(scene) {
-    const T = this.T;
-    try { this.cloud = buildCreature3D(this.S, GROGNON, false); this.cloud.group.scale.multiplyScalar(1.5); scene.add(this.cloud.group); } catch (e) { this.cloud = null; }
-    this.add(scene, this.G.box, '#ffffff', 0, 0.02, 0, 0.12, 0.02, 6).userData.noOutline = true;
-    for (const [x, c] of [[-1.1, '#ffd166'], [1.1, '#9aa0c3']]) { this.add(scene, this.G.box, c, x, 0.02, 0, 0.1, 0.02, 4).userData.noOutline = true; const f = this.emo(x < 0 ? '🏆' : '☁️', 0.6); f.position.set(x, 0.35, 1.6); scene.add(f); }
-    this.ropeMat = this.mat('#c77dff', { emissive: '#7b2cbf', emissiveIntensity: 0.4 });
-    this.bow = this.emo('🎀', 0.5); scene.add(this.bow);
-  }
-  // (les bras ne copient pas l'enfant : il les agite très vite, la détection suit mal et le sorcier partait dans tous les sens ;
-  // il tient la corde à deux mains et tire d'autant plus fort que l'enfant bouge)
-  pose3_corde(P, st, now) {
-    const off = st.m * 1.1, k = st.pull || 0, a = Math.sin(now / 140) * 0.25 * k;
-    P.x = -2.1 + off; P.rz = -0.08 - (now - st.burst < 1100 ? 0.1 : 0) - k * 0.08;
-    P.limbs = { 'arm-left': [0.8 - a, -0.15, 0.45], 'arm-right': [0.9 - a, -0.05, 0.3] }; P.smoothK = 0.3;
-  }
-  cam3_corde(st) { const off = st.m * 1.1 * 0.6; this.camTo(off, 1.5, 7.2, off, 1.1, 0, 42, 0.05); }
-  sync3_corde(st, now) {
-    const T = this.T, off = st.m * 1.1, strong = now - st.burst < 1100, cx = 2.6 + off;
-    if (st.burst && st.burst !== this.lastBurst) { this.lastBurst = st.burst; Audio8.whoosh(); this.shake(0.025, 300); }
-    if (this.cloud) { this.cloud.group.position.set(cx + (strong ? Math.sin(now / 40) * 0.08 : 0), 0.35 + Math.sin(now / 500) * 0.06, 0); this.cloud.group.rotation.y = -0.6; this.cloud.animate(now, strong ? 'happy' : 'idle'); }
-    const h = this.avHand3 && this.avHand3.filter(Boolean); const a = h && h.length ? h.reduce((s, v) => s.add(v), new T.Vector3()).multiplyScalar(1 / h.length) : new T.Vector3(-2 + off, 1.1, 0.2);
-    const b = new T.Vector3(cx - 0.75, 1.0, 0.1), mid = a.clone().lerp(b, 0.5); mid.y -= 0.15 + Math.sin(now / 80) * 0.03;
-    const curve = new T.QuadraticBezierCurve3(a, mid, b);
-    if (this.ropeMesh) { this.ropeMesh.geometry.dispose(); this.ropeMesh.geometry = new T.TubeGeometry(curve, 16, 0.05, 5); }
-    else { this.ropeMesh = new T.Mesh(new T.TubeGeometry(curve, 24, 0.05, 6), this.ropeMat); this.ropeMesh.castShadow = true; this.scene.add(this.ropeMesh); }
-    const bp = curve.getPoint(0.5); this.bow.position.set(bp.x, bp.y, bp.z + 0.05); this.bow.material.rotation = Math.sin(now / 200) * 0.2;
-  }
-
-  // ----- L'équilibriste : sur la corde au-dessus des nuages ; le vent souffle, on avance en tenant bon
-  pose3_equilibre(P, st, now) {
-    const k = Math.min(1, (st.held || 0) / st.n); P.x = -3.2 + k * 6.4; P.y = 0; P.smoothK = 0.25; // (sur un pied, l'enfant vacille : bras et jambes suivent en douceur)
-    const tilt = st.ok2 ? Math.sin(now / 700) * 0.04 : Math.sin(now / 320) * 0.09 + (st.gust ? st.side * -0.06 : 0);
-    this.eqTilt = (this.eqTilt || 0) + (tilt - (this.eqTilt || 0)) * 0.1; P.rz = this.eqTilt; // (pas de saut de « ça tient » à « ça vacille »)
-  }
-  cam3_equilibre(st) { const x = -3.2 + Math.min(1, (st.held || 0) / st.n) * 6.4; this.camTo(x * 0.6, 1.5, 6.2, x * 0.7, 1.0, 0, 42, 0.05); } // (suit l'avancée, pas le sorcier qui vacille)
-  sync3_equilibre(st, now, dt) {
-    if (st.gust && st.gust !== this.lastGust) { this.lastGust = st.gust; Audio8.whoosh(); }
-    for (const w of this.wind || []) {
-      const on = !!st.gust; w.m.material.opacity += ((on ? 0.7 : 0) - w.m.material.opacity) * 0.1;
-      w.p = (w.p + dt * 0.9) % 1; const x = (st.side || 1) > 0 ? 8 - w.p * 16 : -8 + w.p * 16; w.m.position.x = x;
-    }
-    if (st.held && Math.floor(st.held) !== this.lastSec) { this.lastSec = Math.floor(st.held); if (this.lastSec > 0) this.burst(new this.T.Vector3(this.av.group.position.x, 2.4, 0.2), 10, { speed: 1.5 }); }
-  }
-
-  // ----- La course de balais : vu de dos, le sorcier vole ; les anneaux d'or arrivent du fond du ciel
-  init3_balai(scene) {
-    const T = this.T, G = this.G, b = new T.Group();
-    this.add(b, G.cyl, '#8d5a3b', 0, 0, 0, 0.05, 2.4, 0.05).rotation.x = Math.PI / 2;
-    const br = this.add(b, G.cone, '#e9c46a', 0, 0, 1.4, 0.16, 0.7, 0.16); br.rotation.x = -Math.PI / 2;
-    this.add(b, G.cyl, '#bc6c25', 0, 0, 1.08, 0.08, 0.08, 0.08).rotation.x = Math.PI / 2;
-    this.S.outline(b); scene.add(b); this.broom = b;
-    this.rings = new Map(); this.bx = 0; this.prevX = 0;
-  }
-  ringPos(gx, gy) { return new this.T.Vector3(gx * 2.6, 2.4 - gy * 1.5 + 1.0, 0); }
-  ringXY(gx, gy) { return this.toScreen(this.ringPos(gx, gy)); }
-  pose3_balai(P, st, now) {
-    P.facing = false; P.ry = 0; P.x = st.x * 2.6; P.y = 2.4 - st.y * 1.5 + Math.sin(now / 300) * 0.08; P.clip = 'idle';
-    const arms = this.A.B && this.A.B.st && this.A.B.st.armsUp;
-    P.limbs = { 'leg-left': [-0.15, -0.45, -1], 'leg-right': [0.15, -0.45, -1], 'arm-left': arms ? [-0.4, 1, 0] : [0.1, -0.35, -1], 'arm-right': arms ? [0.4, 1, 0] : [-0.1, -0.35, -1] };
-    const v = st.x - this.prevX; this.prevX = st.x; this.bank = (this.bank || 0) + (-v * 14 - (this.bank || 0)) * 0.15; P.rz = Math.max(-0.5, Math.min(0.5, this.bank - st.x * 0.12));
-  }
-  // (caméra presque fixe : elle ne suivait le sorcier en hauteur et sur les côtés, balancement compris — tout le ciel bougeait)
-  cam3_balai(st) { const x = (st.x || 0) * 2.6, y = 2.4 - (st.y || 0) * 1.5; this.camTo(x * 0.2, 2.4 + (y - 2.4) * 0.25 + 1.25, 7.4, x * 0.15, 3.1, -20, 50, 0.04); }
-  sync3_balai(st, now) {
-    const T = this.T, p = this.av.group.position, M = this.M;
-    this.broom.position.set(p.x, p.y + M.hipY - 0.15, 0.1); this.broom.rotation.set(0.28, 0, this.av.group.rotation.z); // (balai penché : la paille part vers le bas, derrière)
-    if (Math.random() < 0.7) this.burst(new T.Vector3(p.x, p.y + M.hipY - 0.1, 1.7), 1, { cols: ['#ffd166', '#ff70a6', '#ffffff'], speed: 0.6, up: 0, grav: 0, size: 0.25, life: 500 });
-    const live = new Set(st.rings);
-    for (const [r, o] of this.rings) if (!live.has(r)) { this.scene.remove(o); this.rings.delete(r); }
-    for (const r of st.rings) {
-      let o = this.rings.get(r);
-      if (!o) { o = new T.Mesh(this.G.torus, this.mat('#ffd166', { emissive: '#ff9e00', emissiveIntensity: 0.6 })); o.scale.setScalar(1.05); o.castShadow = true; const gl = this.glow('#ffd166', 2.6, 0.35); o.add(gl); this.scene.add(o); this.rings.set(r, o); }
-      const q = Math.min(1, (now - r.t0) / r.dur), rp = this.ringPos(r.gx, r.gy);
-      const rz = -70 + 70 * q + (r.res ? (now - r.t) * 0.02 : 0), dz = Math.max(0, this.cam.position.z - rz - BEND_START);
-      o.position.set(rp.x, rp.y + dz * dz * BEND_K, rz); // (le monde « arrondi » ferait plonger les anneaux lointains : on compense)
-      o.rotation.z = now / 600;
-      if (q > 0.9 && !o.userData.wh) { o.userData.wh = true; Audio8.whoosh(); }
-      if (r.res && !o.userData.done) { o.userData.done = true; o.material.color.set(r.res === 'ok' ? '#4ade80' : '#ff8fab'); o.material.emissive.set(r.res === 'ok' ? '#2d6a4f' : '#9d0208'); if (r.res === 'ok') this.burst(o.position.clone(), 40, { speed: 4 }); }
-      o.scale.setScalar(r.res ? 1.05 * (1 + (now - r.t) / 300) : 1.05);
-    }
-  }
-
-  // ----- Le miroir magique : le sorcier pose devant le grand cadre doré, deux petits amis sautillent à côté
-  init3_photo(scene) {
-    this.pets = [['pets/animal-chick', -1.6], ['pets/animal-bunny', 1.6]].map(([k, x]) => {
-      const m = this.model(k, 0.8, x, 0, 0.6, 0) || (() => { const e = this.emo(x < 0 ? '🐣' : '🐰', 0.9); e.position.set(x, 0.5, 0.6); scene.add(e); return e; })();
-      return { m, x };
-    });
-    this.lastFlash = 0;
-  }
-  sync3_photo(st, now) {
-    this.pets.forEach((p, i) => { p.m.position.y = (p.m.isSprite ? 0.5 : 0) + Math.abs(Math.sin(now / 260 + i)) * 0.3; p.m.rotation.y = Math.sin(now / 500 + i) * 0.5; });
-    if (st.flash && st.flash !== this.lastFlash) { this.lastFlash = st.flash; Audio8.photo(); this.punch(); this.burst(new this.T.Vector3(0, 3, 0.5), 70, { cols: ['#ffd166', '#ff70a6', '#7bdff2', '#b8f2a1', '#c77dff'], chunk: 'box', size: 0.08, speed: 3.5, grav: 3, life: 1800 }); }
   }
 }

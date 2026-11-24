@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 
-from .warmup_constants import WORLDS
+from .warmup_constants import ACTIVE_WORLD_IDS, WORLDS
 
 PLAYER_COLORS = ['#ff6b35', '#4ea8ff', '#5cc96b', '#b388eb', '#ffb703', '#ef476f', '#2ec4b6', '#7c8cff']
 # Apparence du dresseur dans le jeu (petits personnages « Mini Characters » de Kenney, CC0)
@@ -216,7 +216,7 @@ class WarmupPlayer(models.Model):
     def _game_config(self):
         players = self.search([])
         sequences = {}
-        for world, _label in WORLDS:
+        for world in ACTIVE_WORLD_IDS:  # (les anciens mondes ne sont plus dans le jeu)
             seqs = self.env['warmup.sequence'].search([('world', '=', world)])
             sequences[world] = [s._to_game() for s in seqs if s.step_ids]
         return {

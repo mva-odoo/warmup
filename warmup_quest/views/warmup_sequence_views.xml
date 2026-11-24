@@ -27,7 +27,7 @@
                     <widget name="web_ribbon" title="Archivée" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
                         <label for="name"/>
-                        <h1><field name="name" placeholder="ex. Échauffement du matin"/></h1>
+                        <h1><field name="name" placeholder="ex. Le match du mercredi"/></h1>
                     </div>
                     <group>
                         <group>
@@ -46,19 +46,20 @@
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
                                     <field name="move"/>
-                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash', 'bubbles', 'rope', 'moles', 'slice', 'cubes', 'ball', 'foam', 'wand', 'goal', 'basket', 'kick', 'act_grow', 'act_clap', 'act_swim', 'act_launch', 'act_stomp', 'act_animals', 'arena_mur', 'arena_pimprenelle', 'arena_neige', 'arena_potions', 'arena_duel', 'arena_equilibre', 'arena_balai', 'arena_photo')"/>
-                                    <field name="duration" invisible="move not in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles', 'slice', 'foam', 'wand')"/>
+                                    <field name="count" invisible="move not in ('jump', 'squat', 'smash', 'bubbles', 'moles', 'slice', 'cubes', 'foam', 'goal', 'kick', 'act_shelf', 'act_clap', 'act_swim', 'act_launch', 'act_stomp', 'arena_mur', 'arena_pimprenelle', 'arena_neige')"/>
+                                    <field name="duration" invisible="move not in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles', 'slice', 'foam')"/>
                                     <field name="pose" invisible="move != 'pose'"/>
-                                    <field name="hold" invisible="move not in ('pose', 'posemix', 'boss', 'dance', 'karate', 'cubes')"/>
-                                    <field name="combo" invisible="move not in ('combo', 'posemix', 'boss', 'dance', 'karate')" placeholder="jump,squat,smash  —  poses : armsUp,star,airplane  —  danse / karaté : armsUp,squat,left,right,jump,smash"/>
+                                    <field name="hold" invisible="move not in ('pose', 'dance', 'cubes')"/>
+                                    <field name="combo" invisible="move != 'dance'" placeholder="armsUp,squat,left,right,jump,star"/>
                                     <field name="text" invisible="move != 'rest'"/>
                                     <field name="summary" optional="hide"/>
                                 </list>
                             </field>
                             <div class="text-muted small">
-                                Combo : mouvements séparés par des virgules parmi
-                                <code>jump</code>, <code>squat</code>, <code>smash</code>, <code>left</code>, <code>right</code>.
-                                Pour le monde des Créatures, chaque « Pose » fait apparaître une créature à rendre amie.
+                                Danse (enchaînement) : gestes séparés par des virgules parmi
+                                <code>armsUp</code>, <code>airplane</code>, <code>star</code>, <code>flamingo</code>, <code>squat</code>,
+                                <code>left</code>, <code>right</code>, <code>jump</code>, <code>smash</code>.
+                                Pendant une « Pose à tenir », une créature peut apparaître : l'enfant la rend amie en tenant la pose.
                             </div>
                         </page>
                     </notebook>
@@ -73,9 +74,8 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <filter name="cours" string="Les cours de l'Académie" domain="[('world', 'in', ['ecole', 'jardin3d', 'disco', 'dojo', 'verger', 'stade', 'singes', 'supermarche'])]"/>
-                <filter name="aventures" string="Les aventures" domain="[('world', 'in', ['sortileges', 'forest', 'banquise', 'ocean', 'dinos', 'espace', 'chateau'])]"/>
-                <filter name="anciennes" string="Anciennes îles" domain="[('world', 'in', ['turbo', 'island', 'bonbons', 'ferme', 'rythmo'])]"/>
+                <filter name="mondes" string="Mondes" domain="[('world', 'in', ['stade', 'supermarche', 'singes', 'chateau', 'banquise', 'dinos', 'espace', 'disco'])]"/>
+                <filter name="anciens" string="Anciens mondes" domain="[('world', 'not in', ['stade', 'supermarche', 'singes', 'chateau', 'banquise', 'dinos', 'espace', 'disco'])]"/>
                 <separator/>
                 <filter name="archived" string="Archivées" domain="[('active', '=', False)]"/>
                 <filter name="group_world" string="Monde" context="{'group_by': 'world'}"/>

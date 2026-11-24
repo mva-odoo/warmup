@@ -1,11 +1,11 @@
-// Fenêtre « Mon sorcier » : l'enfant compose son petit personnage (tête, corps, jambes avec des flèches),
+// Fenêtre « Mon personnage » : l'enfant compose son petit personnage (tête, corps, jambes avec des flèches),
 // son chapeau, ses lunettes et sa couleur préférée, uniquement avec des images (pas besoin de savoir lire).
 // (d'abord les 5 aventuriers KayKit, entiers ; puis les 13 petits personnages qu'on compose tête / corps / jambes)
 const TRAINER_KAY = ['kk-knight', 'kk-mage', 'kk-barbarian', 'kk-rogue', 'kk-hood'];
 const TRAINER_MODELS = [...TRAINER_KAY, 'male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f', 'male-g',
   'female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f'];
 const TRAINER_SMALL = TRAINER_MODELS.filter((m) => !TRAINER_KAY.includes(m));
-const TRAINER_HATS = ['wizard', 'cap', 'beanie', 'headband', 'none']; // (chapeau de sorcier d'office : on est à l'Académie)
+const TRAINER_HATS = ['wizard', 'cap', 'beanie', 'headband', 'none']; // (chapeau de sorcier d'office)
 // Récompenses : chapeaux et dos à débloquer avec les étoiles gagnées (total de tous les mondes)
 const TRAINER_REWARDS = [
   { kind: 'hat', id: 'crown', stars: 3, icon: '👑' }, { kind: 'hat', id: 'flowers', stars: 5, icon: '🌸' },

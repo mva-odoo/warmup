@@ -44,6 +44,8 @@ const KITS = {
   // Supermarché : rayons remplis de produits (Food Kit), cageots de fruits, caddies garés
   market: { props: [['shelf', 6], ['kk:re-crate_carrots', 1], ['kk:re-crate_tomatoes', 1], ['kk:re-crate_cheese', 1], ['kk:re-crate_lettuce', 1], ['kk:re-fridge_A_decorated', 1], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
   marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
+  // Le Bain : salle de bain gaie (carrelage clair, baignoires, canards géants, flacons, serviettes, bulles de savon)
+  bathroom: { props: [['bathtub', 2], ['rubberDuck', 3], ['soapBottles', 2], ['towelRack', 2], ['bubbleCluster', 2], ['bathSink', 1], ['kk:fu-cactus_medium_A', 1]], backdrop: ['bathroom'], particles: 'soap', flat: true, tiles: true },
   stadium: { grass: true, props: [['lightPole', 3], ['balloon', 2], ['c:flag', 2], ['t:banner-red', 1], ['kk:hex-tree_single_A', 2], ['k:plant_bushDetailed', 2], ['pf:flowers', 1]], backdrop: ['hills'], particles: 'petals' },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 2], ['cu:cherry-tree-b', 2], ['cu:stone-lantern', 2], ['cu:torii', 1], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
@@ -64,6 +66,8 @@ const BACKDROP_MODELS = {
   mesas: ['custom/mesas', 0.1, [[-34, -64, 1, 0.1], [38, -70, 0.85, 3.0]]],
   sea: ['custom/lighthouse', 0.15, [[26, -40, 1, 0.6]]],
 };
+// Joueurs adverses du Stade (petits humains de Kenney, maillot rouge ajouté par scene3d.js)
+const FOOT_PLAYER_MODELS = ['male-e', 'male-b', 'female-d'];
 // Produits rangés dans les rayons du supermarché
 const SHOP_GOODS = ['carton', 'soda-bottle', 'can', 'bottle-ketchup', 'cheese', 'bread', 'loaf-baguette', 'pizza-box', 'croissant', 'cookie-chocolate', 'bag', 'fish'];
 // Caddie de supermarché (fil métallique, panier, poignée rouge, roues) ; P = Props3D
@@ -247,6 +251,8 @@ class Props3D {
       out.push(...[...SHOP_GOODS, ...SHOP_ITEMS, 'apple', 'orange', 'pear', 'lemon', 'tomato', 'banana'].map((n) => 'food/' + n));
       out.push(...['dog', 'fox', 'monkey', 'cat', 'hog'].map((n) => 'pets/animal-' + n));
     }
+    // Stade : les joueurs adverses (obstacles de l'étape de course)
+    if (kits.includes('stadium')) out.push(...FOOT_PLAYER_MODELS.map((m) => 'characters/character-' + m));
     return out;
   }
 
@@ -277,7 +283,7 @@ class Props3D {
     }
     const g = new this.T.Group();
     (this[name] || this.bush).call(this, g, pal);
-    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = !o.userData.noShadow; o.receiveShadow = true; } }); // (bulles transparentes : pas d'ombre)
     return g;
   }
 
@@ -601,6 +607,83 @@ class Props3D {
     g.userData.anim = (t) => { const c = bulb.material.emissive; c.setHSL(((t * 0.0003 + ph) % 1), 0.9, 0.6); bulb.material.color.copy(c); };
   }
 
+  // ---------- Salle de bain (Le Bain) : objets construits ici, couleurs gaies
+  // Baignoire blanche sur pieds dorés, pleine d'eau et de mousse, robinet
+  bathtub(g) {
+    const T = this.T, list = [['#ffffff', 0, 0.55, 0, 2.4, 0.7, 1.15], ['#f1f5f9', 0, 0.93, 0, 2.5, 0.1, 1.25], ['#7dd3fc', 0, 0.86, 0, 2.2, 0.06, 0.95]];
+    for (const x of [-1.0, 1.0]) for (const z of [-0.45, 0.45]) list.push(['#ffd166', x, 0.1, z, 0.16, 0.2, 0.16]);
+    list.push(['#cbd5e1', -1.15, 1.25, 0, 0.1, 0.6, 0.1], ['#cbd5e1', -1.0, 1.52, 0, 0.36, 0.08, 0.08]); // robinet
+    this.boxes(g, list);
+    for (let i = 0; i < 9; i++) { // mousse qui déborde
+      const b = this.add(g, 'sphere', '#ffffff', -0.8 + (i % 5) * 0.4 + Math.random() * 0.1, 1.0 + Math.random() * 0.12, -0.25 + Math.floor(i / 5) * 0.45, 0.22 + Math.random() * 0.12);
+      b.castShadow = false;
+    }
+    const duck = new T.Group(); this.rubberDuck(duck); duck.scale.setScalar(0.35); duck.position.set(0.55, 0.88, 0.1); duck.rotation.y = 0.6; g.add(duck);
+    const ph = Math.random() * 6;
+    g.userData.anim = (t) => { duck.position.y = 0.88 + Math.sin(t * 0.003 + ph) * 0.04; duck.rotation.z = Math.sin(t * 0.002 + ph) * 0.12; };
+  }
+  // Canard en plastique (géant, au bord du chemin)
+  rubberDuck(g) {
+    const yel = '#ffd60a';
+    this.add(g, 'sphere', yel, 0, 0.45, 0, 0.55, 0.42, 0.5);
+    this.add(g, 'sphere', yel, 0.05, 0.62, -0.45, 0.2, 0.18, 0.18, {}, [0.6, 0, 0]); // queue
+    this.add(g, 'sphere', yel, 0, 1.0, 0.25, 0.32);
+    this.add(g, 'sphere', '#ff9f1c', 0, 0.95, 0.58, 0.16, 0.07, 0.14); // bec
+    for (const s of [-1, 1]) {
+      this.add(g, 'sphere', '#ffffff', s * 0.13, 1.1, 0.5, 0.07);
+      this.add(g, 'sphere', '#1e1b4b', s * 0.13, 1.1, 0.56, 0.04);
+      this.add(g, 'sphere', '#f4c20d', s * 0.42, 0.52, 0.02, 0.12, 0.25, 0.32, {}, [0, 0, s * 0.4]); // ailes
+    }
+    const ph = Math.random() * 6;
+    g.userData.anim = (t) => { g.rotation.z = Math.sin(t * 0.002 + ph) * 0.06; };
+  }
+  // Flacons de shampoing et de bain moussant (bouchons, pompe)
+  soapBottles(g) {
+    const cols = ['#ff70a6', '#7bdff2', '#b8f2a1', '#c77dff', '#ffd166'];
+    [[-0.35, 0.9, 0.22], [0.05, 1.25, 0.26], [0.42, 0.7, 0.2]].forEach(([x, h, r], i) => {
+      const c = cols[(i + Math.floor(Math.random() * 5)) % 5];
+      this.add(g, 'cyl', c, x, h / 2, 0, r, h, r);
+      this.add(g, 'cyl', '#ffffff', x, h * 0.5, r * 0.98, r * 0.7, h * 0.35, 0.02, {}, [Math.PI / 2, 0, 0]); // étiquette
+      this.add(g, 'cyl', '#ffffff', x, h + 0.06, 0, r * 0.55, 0.12, r * 0.55);
+      if (i === 1) { this.add(g, 'cyl', '#ffffff', x, h + 0.2, 0, 0.04, 0.2, 0.04); this.add(g, 'box', '#ffffff', x, h + 0.3, 0.08, 0.06, 0.06, 0.2); }
+    });
+  }
+  // Porte-serviettes : deux montants, une barre, des serviettes rayées pliées dessus
+  towelRack(g) {
+    const cols = [['#ff8fab', '#ffffff'], ['#7bdff2', '#ffffff'], ['#b8f2a1', '#ffffff'], ['#ffd166', '#ff70a6']];
+    const list = [];
+    for (const x of [-0.75, 0.75]) list.push(['#cbd5e1', x, 0.8, 0, 0.07, 1.6, 0.07], ['#94a3b8', x, 0.03, 0, 0.3, 0.06, 0.3]);
+    list.push(['#cbd5e1', 0, 1.55, 0, 1.6, 0.06, 0.06]);
+    [-0.35, 0.35].forEach((x, i) => {
+      const [a, b] = cols[(i + Math.floor(Math.random() * 4)) % 4];
+      list.push([a, x, 1.2, 0.07, 0.62, 0.7, 0.05], [a, x, 1.2, -0.07, 0.62, 0.7, 0.05], [a, x, 1.57, 0, 0.62, 0.06, 0.18]);
+      for (const y of [1.0, 1.35]) list.push([b, x, y, 0.1, 0.63, 0.06, 0.02]);
+    });
+    this.boxes(g, list);
+  }
+  // Lavabo sur pied, miroir rond et brosse à dents
+  bathSink(g) {
+    this.boxes(g, [['#ffffff', 0, 0.45, 0, 0.3, 0.9, 0.3], ['#ffffff', 0, 0.95, 0, 0.9, 0.2, 0.6], ['#cbd5e1', 0, 1.15, -0.22, 0.06, 0.25, 0.06]]);
+    this.add(g, 'cyl', '#7dd3fc', 0, 1.06, 0.02, 0.32, 0.02, 0.22);
+    this.add(g, 'cyl', '#ffd166', 0, 1.95, -0.3, 0.42, 0.06, 0.42, {}, [Math.PI / 2, 0, 0]);
+    this.add(g, 'cyl', '#e0f2fe', 0, 1.95, -0.26, 0.36, 0.03, 0.36, {}, [Math.PI / 2, 0, 0]);
+    this.add(g, 'cyl', '#ff70a6', 0.32, 1.12, 0.1, 0.06, 0.18, 0.06);
+    this.add(g, 'box', '#4cc9f0', 0.34, 1.3, 0.1, 0.03, 0.25, 0.03, {}, [0, 0, 0.2]);
+  }
+  // Grappe de bulles de savon qui flottent (reflets irisés)
+  bubbleCluster(g) {
+    const tints = ['#e0f2fe', '#fce7f3', '#ede9fe', '#dcfce7'], bubs = [];
+    for (let i = 0; i < 6; i++) {
+      const r = 0.18 + Math.random() * 0.35, b = this.add(g, 'sphere', tints[i % 4], (Math.random() - 0.5) * 1.6, 0.6 + Math.random() * 2.2, (Math.random() - 0.5) * 1.2, r, r, r,
+        { transparent: true, opacity: 0.45, emissive: '#ffffff', emissiveIntensity: 0.15, depthWrite: false });
+      b.userData.noShadow = b.userData.noOutline = true;
+      const sh = this.add(g, 'sphere', '#ffffff', b.position.x - r * 0.35, b.position.y + r * 0.4, b.position.z + r * 0.6, r * 0.18, r * 0.12, r * 0.05);
+      sh.userData.noShadow = sh.userData.noOutline = true;
+      bubs.push([b, sh, b.position.y, Math.random() * 6]);
+    }
+    g.userData.anim = (t) => { for (const [b, sh, y, p] of bubs) { const d = Math.sin(t * 0.0015 + p) * 0.25; b.position.y = y + d; sh.position.y = y + d + b.scale.y * 0.4; } };
+  }
+
   // ---------- Dojo
   bamboo(g) {
     for (let k = 0; k < 3; k++) {
@@ -682,6 +765,44 @@ class Props3D {
           this.add(g, 'cyl', '#adb5bd', x - 2.6, y + 8, z, 0.04, 4, 0.04); this.add(g, 'cyl', '#adb5bd', x + 2.6, y + 8, z, 0.04, 4, 0.04);
         });
         g.traverse((o) => { if (o.isMesh && o.material) o.material.fog = false; });
+        break;
+      }
+      case 'bathroom': { // Le Bain : grand mur carrelé au fond (miroir rond, étagère de canards, pommeau de douche), murs carrelés sur les côtés
+        const lift = (z) => { const d = Math.max(0, 7 - z - BEND_START); return d * d * BEND_K * 0.7; };
+        const z0 = -64, y0 = lift(z0);
+        const tile = (a, b, n) => { // carrelage : carreaux clairs, joints blancs, une frise colorée
+          const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'), s2 = 256 / n;
+          x.fillStyle = '#ffffff'; x.fillRect(0, 0, 256, 256);
+          for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { x.fillStyle = (i + j) % 2 ? a : b; x.fillRect(i * s2 + 3, j * s2 + 3, s2 - 6, s2 - 6); }
+          const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; return tex;
+        };
+        const wallTex = tile('#bde0fe', '#d7ecff', 4); wallTex.repeat.set(24, 6);
+        const wall = new T.Mesh(new T.PlaneGeometry(150, 30), new T.MeshLambertMaterial({ map: wallTex, fog: false }));
+        wall.position.set(0, y0 + 15, z0); g.add(wall);
+        // frise de carreaux colorés et plinthe
+        const cols = ['#ff70a6', '#ffd166', '#06d6a0', '#4cc9f0', '#c77dff'], list = [];
+        for (let i = 0; i < 38; i++) list.push([cols[i % 5], -74 + i * 4, y0 + 5.5, z0 + 0.15, 3.8, 1.1, 0.2]);
+        list.push(['#ffffff', 0, y0 + 0.6, z0 + 0.3, 150, 1.2, 0.5]);
+        // étagère avec des canards, pommeau de douche
+        list.push(['#ffffff', -20, y0 + 9, z0 + 0.6, 12, 0.35, 1.2], ['#cbd5e1', 22, y0 + 13, z0 + 0.6, 0.4, 8, 0.4], ['#cbd5e1', 24, y0 + 17, z0 + 1.2, 4.4, 0.4, 0.4]);
+        this.boxes(g, list).material = this.toon('#ffffff', { vertexColors: true, fog: false }); // (loin : pas dans la brume)
+        // murs carrelés sur les côtés, le long du chemin (ils suivent la courbure du sol)
+        for (const sd of [-1, 1]) {
+          const st = tile('#c8f7dc', '#e3fbee', 4); st.repeat.set(16, 3);
+          const w2 = new T.Mesh(new T.PlaneGeometry(90, 12), new T.MeshLambertMaterial({ map: st }));
+          w2.rotation.y = -sd * Math.PI / 2; w2.position.set(sd * 21, 6, -30); g.add(w2);
+          const fr = []; for (let i = 0; i < 22; i++) fr.push([cols[(i + 2) % 5], sd * 20.9, 2.4, 10 - i * 4, 0.2, 0.7, 3.8]);
+          this.boxes(g, fr);
+        }
+        const shower = this.add(g, 'cap', '#cbd5e1', 26, y0 + 16.4, z0 + 1.4, 2.0, 0.8, 2.0, {}, [Math.PI, 0, 0]);
+        const mirror = this.add(g, 'cyl', '#ffd166', 0, y0 + 13, z0 + 0.4, 6.5, 0.3, 6.5, {}, [Math.PI / 2, 0, 0]);
+        this.add(g, 'cyl', '#e0f2fe', 0, y0 + 13, z0 + 0.6, 5.8, 0.2, 5.8, { emissive: '#bae6fd', emissiveIntensity: 0.3 }, [Math.PI / 2, 0, 0]);
+        for (let i = 0; i < 4; i++) { const d = new T.Group(); this.rubberDuck(d); d.scale.setScalar(1.6); d.position.set(-24.5 + i * 3, y0 + 9.2, z0 + 0.8); g.add(d); }
+        // gouttes qui tombent du pommeau de douche
+        const drops = [];
+        for (let i = 0; i < 10; i++) drops.push(this.add(g, 'sphere', '#7dd3fc', 26, y0 + 15, z0 + 1.6, 0.18, 0.3, 0.18));
+        g.userData.anim = (t) => drops.forEach((d, i) => { const k = (t * 0.0006 + i / 10) % 1; d.position.set(26 + Math.sin(i * 2.4) * 1.2, y0 + 15.8 - k * 15, z0 + 1.6 + Math.cos(i * 1.7) * 0.6); });
+        void shower; void mirror;
         break;
       }
       case 'hills':

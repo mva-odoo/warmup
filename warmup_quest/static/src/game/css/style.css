@@ -826,3 +826,44 @@ body { background: var(--night0); }
 /* (pour les parents : revenir au menu, ou lancer sans attendre les bras levés) */
 #calib .calibBtns { position: fixed; left: 14px; right: 14px; top: 14px; display: flex; justify-content: space-between; pointer-events: none; z-index: 61; }
 #calib .calibBtns .btn { pointer-events: auto; font-size: 22px; padding: 8px 22px; }
+
+/* ---------- Menu : les 8 mondes en carrousel (bras à gauche / à droite pour choisir, bras levés pour jouer) ---------- */
+.carousel { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; margin-top: 4px; }
+.carTrack { display: flex; align-items: center; justify-content: center; gap: 18px; perspective: 900px; }
+.carArrow { font-size: 34px; width: 64px; height: 64px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; cursor: pointer; }
+.carArrow:hover { background: rgba(255,255,255,.3); }
+.carCard { position: relative; flex: none; overflow: hidden; aspect-ratio: 3 / 4; border-radius: 26px; border: 5px solid #fff; cursor: pointer;
+  background: linear-gradient(160deg, var(--c1), var(--c2)); box-shadow: 0 8px 0 rgba(0,0,0,.18), 0 14px 28px rgba(0,0,0,.35);
+  transition: transform .3s, filter .3s, opacity .3s; }
+.carCard canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.carCard.sel { height: min(58vh, 520px); box-shadow: 0 0 0 6px #ffd166, 0 0 40px rgba(255,209,102,.6), 0 14px 28px rgba(0,0,0,.35); z-index: 2; }
+.carCard.near { height: min(40vh, 360px); filter: brightness(.8); }
+.carCard.far { height: min(28vh, 250px); filter: brightness(.6); opacity: .8; }
+.carCard .wName { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 8px 12px; font-size: clamp(16px, 1.8vw, 24px); line-height: 1.1;
+  text-align: center; color: #fff; background: linear-gradient(transparent, color-mix(in srgb, var(--c1) 55%, #1e1b4b) 70%); }
+.carCard.sel .wName { font-size: clamp(24px, 2.8vw, 38px); padding-bottom: 54px; }
+.carCard .wIcon { display: block; font-size: 1.6em; }
+.carCard .wBest { position: absolute; top: 8px; right: 8px; margin: 0; font-size: 16px; letter-spacing: 1px; background: rgba(15,12,50,.55);
+  padding: 2px 8px; border-radius: 12px; }
+.carCard .wBest i { font-style: normal; color: rgba(255,255,255,.35); }
+.carCard .wBest i.on { color: #ffd166; }
+.carCard .wGames { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-size: 26px; letter-spacing: 4px; }
+.carCard .seqSelect { position: absolute; left: 8px; right: 8px; top: 40px; width: auto; }
+.carTrack.slideL { animation: pageL .4s cubic-bezier(.2, 1.2, .4, 1); }
+.carTrack.slideR { animation: pageR .4s cubic-bezier(.2, 1.2, .4, 1); }
+.carousel.resting .carCard { filter: grayscale(.6) brightness(.75); }
+.carTag { margin: 6px 0 0; font-size: clamp(18px, 2vw, 26px); font-weight: 700; text-align: center; min-height: 1.3em; }
+.carHint { display: flex; align-items: center; justify-content: center; gap: 28px; font-size: clamp(16px, 1.7vw, 22px); font-weight: 700; margin-top: 4px; }
+.carHint .armL, .carHint .armR { opacity: .7; transition: transform .2s, opacity .2s; }
+body.armLeft .carHint .armL, body.armRight .carHint .armR { opacity: 1; transform: scale(1.2); color: #ffd166; }
+.carHint .armUp { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.carHint .holdbar { display: block; width: 220px; height: 12px; border-radius: 8px; background: rgba(255,255,255,.2); overflow: hidden; }
+.carHint .holdbar span { display: block; height: 100%; width: 0; background: #22c55e; }
+/* (tout tient dans l'écran, sans défilement : titre plus petit, cartes un peu moins hautes) */
+#menu { overflow: hidden; gap: 4px; }
+#menu h1 { font-size: clamp(26px, 4vw, 46px); margin: 0; }
+.carCard.sel { height: min(50vh, 460px); }
+.carCard.near { height: min(36vh, 330px); }
+.carCard.far { height: min(26vh, 230px); }
+.carTag { margin: 2px 0 0; }
+#menu .menuBottom { margin-top: 2px; }

@@ -1,7 +1,7 @@
 // Jeux miroir (étape « arena ») : une scène fixe, comme les jeux de console à caméra. L'enfant se voit en grand (image de
 // la caméra, en miroir, avec un chapeau de sorcier et des mains lumineuses) et la magie se dessine autour de lui : murs à
-// traverser, Nuage Grognon qui se retourne, bonshommes de neige, chaudron… Quand il touche un objet avec sa vraie main,
-// il le touche à l'écran : rien à viser. La course de balais a son propre décor (ciel, anneaux).
+// traverser, ordres de Madame Pimprenelle, bonshommes de neige, la grande course des chevaliers… Quand il touche un objet
+// avec sa vraie main, il le touche à l'écran : rien à viser.
 // Sans caméra (mode clavier), un petit sorcier dessiné remplace l'image et suit les touches.
 // La partie (game.js) appelle begin / update / end ; les règles et les textes sont dans worlds.js (ARENA).
 
@@ -19,8 +19,10 @@ const AR_POSE_NAMES = { armsUp: 'les bras en l\'air', airplane: 'l\'avion', star
 // Consigne dite à voix haute quand un mur arrive (les petits ne lisent pas ; gauche / droite : on suit la flèche)
 const AR_POSE_TIPS = { armsUp: 'Lève les bras tout en haut !', airplane: 'Fais l\'avion, les bras sur les côtés !', star: 'Fais l\'étoile, bras et jambes écartés !',
   flamingo: 'Lève un pied, comme un flamant rose !', squat: 'Accroupis-toi, tout petit !', left: 'Va du côté de la flèche !', right: 'Va du côté de la flèche !' };
-const AR_MUSIC = { mur: 'dance', soleil: 'fun', pimprenelle: 'fun', neige: 'candy', potions: 'water', duel: 'karate', corde: 'karate', equilibre: 'space', balai: 'adventure', photo: 'dance' };
-const AR_INGREDIENTS = [['🍄', 'Champignon'], ['🌸', 'Fleur'], ['💧', 'Rosée'], ['⭐', 'Poussière d\'étoile'], ['🍓', 'Baie'], ['🪶', 'Plume'], ['🌙', 'Clair de lune']];
+const AR_MUSIC = { mur: 'dance', pimprenelle: 'fun', neige: 'candy', course: 'adventure' };
+// La grande course : le chevalier de l'enfant à pleine vitesse arrive en COURSE_FAST × la durée de l'épreuve ;
+// le rival, qui va à vitesse régulière, en COURSE_RIVAL × cette durée (plus lent en mode facile : × vitesse de la partie)
+const COURSE_FAST = 0.55, COURSE_RIVAL = 0.92;
 
 class Arena {
   constructor() {
@@ -65,11 +67,11 @@ class Arena {
     this.cv.classList.remove('hidden'); document.body.classList.add('arenaOn');
     const init = this['init_' + s.game]; if (init) init.call(this, this.st, this.t0);
   }
-  musicWanted() { return !!this.s && !this.outro && !(this.s.game === 'soleil' && this.st && this.st.phase === 'regarde'); } // (1-2-3 : la musique s'arrête quand le nuage regarde, comme aux statues musicales)
-  end() { if (this.s) Audio8.music(false); if (this.hush) { this.hush = false; Audio8.themeMute(false); } if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
+  musicWanted() { return !!this.s && !this.outro; }
+  end() { if (this.s) Audio8.music(false); if (this.v3) { this.v3.end(); this.v3 = null; } this.s = null; this.intro = null; this.outro = null; this.cal = null; document.body.classList.remove('arenaIntro'); this.cv.classList.add('hidden'); document.body.classList.remove('arenaOn'); this.fx = []; }
   // Pause : toutes les échéances du jeu sont décalées (murs, ordres, bonshommes, anneaux…)
   shift(d) {
-    const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'nextBurst', 'burst', 'nextGust', 'gust', 'hit', 'gone', 't', 'wob', 'autoT', 'oops', 'dizzy', 'hurt', 'bolt', 'poof', 'flash', 'detT', 'finishAt']);
+    const keys = new Set(['t0', 'at', 'until', 'next', 'count', 'hit', 'gone', 't', 'autoT', 'detT', 'finishAt', 'endT', 'pushT']);
     const seen = new Set(); // (un objet visible par deux chemins — bonhomme visé par une boule — n'est décalé qu'une fois)
     const walk = (o, depth) => { if (!o || typeof o !== 'object' || depth > 3 || seen.has(o)) return; seen.add(o); for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'number' && keys.has(k) && v > 1000) o[k] = v + d; else if (typeof v === 'object') walk(v, depth + 1); } };
     walk(this.st, 0); this.lastT += d;
@@ -79,9 +81,7 @@ class Arena {
   detail() {
     const s = this.s, st = this.st; if (!s) return '';
     const icon = ARENA[s.game].icon;
-    if (s.game === 'soleil' || s.game === 'corde') return `<div class="runCount">${icon} <b>${Math.round(this.ratio() * 100)} %</b></div>`;
-    if (s.game === 'equilibre') return `<div class="runCount">${icon} <b>${Math.floor(st.held || 0)}</b> / ${s.n} s</div>`;
-    if (s.game === 'duel') return `<div class="runCount">⚡ Grimaud : ${'💜'.repeat(Math.max(0, st.hp ?? s.n))}${'🤍'.repeat(Math.max(0, s.n - (st.hp ?? s.n)))}</div>`;
+    if (s.game === 'course') return `<div class="runCount">${icon} <b>${Math.round((st.prog || 0) * 100)} %</b></div>`;
     return `<div class="runCount">${icon} <b>${st.ok}</b> / ${s.n}</div>`;
   }
   say(t, cool = 2500) { const now = performance.now(); if (now - (this.saidAt[t] || -1e9) < cool) return; this.saidAt[t] = now; Audio8.say(t); }
@@ -136,8 +136,7 @@ class Arena {
     const G = { ...AR_SHAPES[this.simShapeName(st)] };
     if (st.handsTogether) { G.eL = [0.35, 0.55]; G.wL = [0.05, 0.5]; G.eR = [-0.35, 0.55]; G.wR = [-0.05, 0.5]; }
     if (this.lastSmash && now - this.lastSmash < 350) { const q = (now - this.lastSmash) / 350; G.wL = [0.5, -1 + q * 2]; G.wR = [-0.5, -1 + q * 2]; G.eL = [0.5, -0.4 + q]; G.eR = [-0.5, -0.4 + q]; }
-    if (st.wave) { const a = Math.sin(now / 90); G.wL = [0.6, 0.2 + a * 0.6]; G.wR = [-0.6, 0.2 - a * 0.6]; } // (court sur place / tire la corde)
-    if (st.stirAng != null) { G.wR = [-0.2 + Math.cos(st.stirAng) * 0.55, 0.9 + Math.sin(st.stirAng) * 0.4]; G.eR = [-0.4, 0.55]; }
+    if (st.wave) { const a = Math.sin(now / 90); G.wL = [0.6, 0.2 + a * 0.6]; G.wR = [-0.6, 0.2 - a * 0.6]; } // (court sur place)
     return G;
   }
   hands(B) { return [B.J.handL, B.J.handR].filter((h) => h && (h.v == null || h.v > 0.3)); }
@@ -156,8 +155,6 @@ class Arena {
     if (!this.s) return;
     const mw = this.musicWanted(); // (musique du jeu : elle reprend après une pause, se tait pour la célébration)
     if (mw !== Audio8.musicOn()) Audio8.music(mw, AR_MUSIC[this.s.game] || 'fun', 'arena-' + this.s.game);
-    const hush = this.s.game === 'soleil' && !!this.st && this.st.phase === 'regarde'; // (sans ça, la musique du monde revient : pas de vrai silence)
-    if (hush !== !!this.hush) { this.hush = hush; Audio8.themeMute(hush); }
     if (this.outro) { // célébration de fin (3D)
       this.ev.splice(0); this.B = this.body(now);
       if (!this.outro.sent && now - this.outro.t0 > 2300) { this.outro.sent = true; this.g.arenaEnd(this.outro.ratio); }
@@ -200,8 +197,7 @@ class Arena {
       this.drawFx(now); ctx.restore(); return;
     }
     ctx.save();
-    if (this.s.game === 'balai') this.drawSky(now);
-    else this.drawMirror(now, B);
+    this.drawMirror(now, B);
     const dr = this['draw_' + this.s.game]; if (dr) dr.call(this, this.st, now, B);
     if (!this.intro && !this.outro && !this.cal) this.duoBadges(now);
     this.drawFx(now);
@@ -272,19 +268,6 @@ class Arena {
     ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, h * 0.35); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#1e1b4b'; ctx.font = `800 ${sz}px 'Baloo 2', system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y, w * 0.92);
   }
-  cloud(x, y, r, face, now, col = '#6c6f93') { // le Nuage Grognon (face : 'grognon', 'dos', 'rit', 'content')
-    const ctx = this.ctx;
-    ctx.fillStyle = col; ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = r * 0.06; ctx.beginPath();
-    for (const [dx, dy, rr] of [[-0.55, 0.1, 0.45], [0, -0.2, 0.6], [0.55, 0.1, 0.45], [0, 0.25, 0.5]]) { ctx.moveTo(x + dx * r + rr * r, y + dy * r); ctx.arc(x + dx * r, y + dy * r, rr * r, 0, 6.29); }
-    ctx.fill(); ctx.stroke();
-    if (face === 'dos') return;
-    ctx.fillStyle = '#fff'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.25, y - r * 0.05, r * 0.16, 0, 6.29); ctx.fill(); }
-    const look = Math.sin(now / 300) * r * 0.05;
-    ctx.fillStyle = '#1e1b4b'; for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.25 + look, y - r * 0.03, r * 0.07, 0, 6.29); ctx.fill(); }
-    ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = r * 0.06;
-    if (face === 'grognon') { for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + s * r * 0.42, y - r * 0.3); ctx.lineTo(x + s * r * 0.12, y - r * 0.2); ctx.stroke(); } ctx.beginPath(); ctx.arc(x, y + r * 0.35, r * 0.15, Math.PI + 0.3, -0.3); ctx.stroke(); }
-    else { ctx.beginPath(); ctx.arc(x, y + r * 0.18, r * 0.16, 0.2, Math.PI - 0.2); ctx.stroke(); }
-  }
   burst(x, y, n = 24, cols = ['#ffd166', '#ff70a6', '#ffffff', '#7bdff2', '#b8f2a1']) {
     const now = performance.now();
     for (let i = 0; i < n; i++) { const a = Math.random() * 6.29, v = (0.3 + Math.random()) * this.H * 0.0009; this.fx.push({ k: 'dot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: now, col: cols[i % cols.length] }); }
@@ -305,7 +288,6 @@ class Arena {
   // ---------- Aide à la visée : une main qui s'approche d'un objet à toucher est attirée vers lui (et l'objet grossit)
   targets() {
     const st = this.st, g = this.s.game;
-    if (g === 'potions' && st.phase === 'pick') return (st.items || []).filter((it) => !it.taken && !it.bad && it.x != null).map((it) => ({ x: it.x, y: it.y, ref: it }));
     if (g === 'neige') return (st.men || []).filter((m) => !m.hit && !m.gone && m.x != null && now0() - m.t0 > 300).map((m) => ({ x: m.x, y: m.y, ref: m }));
     return [];
   }
@@ -385,11 +367,8 @@ class Arena {
   wanted() {
     const st = this.st, g = this.s.game;
     if (g === 'mur') return st.wall ? { pose: st.wall.pose } : null;
-    if (g === 'equilibre') return { pose: st.gust ? 'airplane' : tracker.mode === 'upper' ? 'airplane' : 'flamingo' };
-    if (g === 'duel' && st.phase === 'counter') return { pose: 'armsUp' };
     if (g === 'pimprenelle' && st.cur && st.cur.simon && !/jump|smash/.test(st.cur.o.g)) return { pose: st.cur.o.g };
-    if (g === 'corde' || (g === 'soleil' && st.phase === 'dos')) return { move: true };
-    if (g === 'soleil' && st.phase === 'regarde') return { still: true };
+    if (g === 'course' && !st.winner) return { move: true };
     return null;
   }
   // Une pastille par enfant, de son côté de l'écran (sa couleur, son prénom) : ✅ c'est bon, 👉 « à toi ! »
@@ -417,14 +396,9 @@ class Arena {
     const st = this.st, g = this.s.game, f = (this.fake = {});
     const once = (key, gap, ev) => { if (now - (this.autoAt?.[key] || 0) > gap) { this.autoAt = { ...(this.autoAt || {}), [key]: now }; evs.push(ev); if (ev === 'jump') this.lastJump = now; if (ev === 'smash') this.lastSmash = now; } };
     if (g === 'mur') { const w = st.wall; if (w && (now - w.t0) / w.dur > 0.55) { if (w.pose === 'left' || w.pose === 'right') f.side = w.pose; else f[w.pose] = true; } }
-    if (g === 'soleil') { if (st.phase === 'dos' && now - st.at > 300) f.wave = true; }
+    if (g === 'course' && !st.winner) f.wave = true;
     if (g === 'pimprenelle' && st.cur && st.cur.simon && now - st.cur.t0 > 900) { const o = st.cur.o.g; if (o === 'jump' || o === 'smash') once('simon', 600, o); else if (o === 'squat') f.squat = true; else f[o] = true; }
     if (g === 'neige') { const m = (st.men || []).find((x) => !x.hit && now - x.t0 > 700); if (m) once('throw', 900, m.x < this.W / 2 ? 'throwL' : 'throwR'); }
-    if (g === 'potions' && st.phase === 'stir') { f.stirAng = now / 160; }
-    if (g === 'duel') { if (st.phase === 'cast' && now - st.at > 350) { if (st.kind === 'shield') f.handsTogether = true; else f.side = 'left'; } if (st.phase === 'counter' && now - st.at > 500) f.armsUp = true; }
-    if (g === 'corde') f.wave = true;
-    if (g === 'equilibre') { f.flamingo = true; if (st.gust) f.airplane = true; }
-    if (g === 'balai') { const r = (st.rings || []).find((x) => !x.res); if (r) { f.side = r.gx < 0 ? 'left' : r.gx > 0 ? 'right' : 'center'; if (r.gy < 0) f.armsUp = true; if (r.gy > 0) f.squat = true; } }
   }
 
   // ======================= Les jeux =======================
@@ -479,37 +453,51 @@ class Arena {
     this.text((w.match ? '✅ ' : '') + AR_POSE_NAMES[w.pose], W / 2, H * 0.86, H * 0.055, w.match ? '#b8f2a1' : '#ffd166');
   }
 
-  // ----- 1, 2, 3… Nuage Grognon : on court sur place quand il a le dos tourné, statue quand il regarde
-  init_soleil(st, now) { st.prog = 0; st.phase = 'wait'; st.at = now; st.until = now + 2500; st.ratio = 0; }
-  up_soleil(st, now, dt, B, evs) {
-    const mAll = B.real ? Math.max(B.motion, ...tracker.active.filter((x) => x.state.present).map((x) => x.motion || 0)) : B.motion; // (à deux : le nuage voit celui qui bouge)
-    const moving = mAll > 0.035 || this.has(evs, 'jump', 'left', 'right') || (tracker.sim && !this.auto && (tracker.state.side !== 'center' || tracker.state.squat));
-    if (now > st.until) {
-      if (st.phase === 'dos') { st.phase = 'regarde'; st.at = now; st.until = now + 2200; st.seen = false; this.say('Nuage Grognon !', 0); }
-      else { st.phase = 'dos'; st.at = now; st.until = now + 2500 + Math.random() * 2000; this.say('Un, deux, trois…', 0); }
-    }
-    if (st.phase === 'dos') {
-      const sp = B.real ? Math.max(0, Math.min(1, (B.motion - 0.008) / 0.018)) : moving || B.st.wave ? 1 : 0; // (courir sur place d'un enfant : ~0,02 ; testé avec l'enfant virtuel)
-      st.prog = Math.min(1, st.prog + dt * sp * 0.11);
-    } else if (st.phase === 'regarde' && now - st.at > 800 && !st.seen && moving && !B.st.wave) { // (l'enfant imaginaire s'arrête toujours à temps)
-      st.seen = true; st.prog = Math.max(0, st.prog - 0.18); st.oops = now; Audio8.soft(); this.say('Je t\'ai vu bouger !', 0);
-    }
+  // ----- La grande course : courir sur place fait avancer le chevalier de l'enfant vers le drapeau, contre un chevalier
+  // rival qui avance à vitesse régulière ; le premier arrivé gagne (à deux, le mouvement des deux enfants compte)
+  init_course(st, now) {
+    st.prog = 0; st.rival = 0; st.sp = 0; st.ratio = 0; st.winner = null; st.keyRun = 0;
+    st.at = now + (this.v3 ? 300 : 1500); // (départ ; en 3D, le 3, 2, 1… de l'entrée en scène vient d'être fait)
+    st.rivalMs = ARENA.course.sec * 1000 * COURSE_RIVAL * Math.max(0.6, this.g.mul || 1);
+  }
+  up_course(st, now, dt, B, evs) {
+    if (st.winner) return;
+    if (now < st.at) return;
+    if (!st.said) { st.said = true; this.say('Cours !', 0); }
+    // vitesse de course : le mouvement de l'enfant (à deux : la somme des deux), ou les touches / l'enfant imaginaire
+    const mSum = B.real ? tracker.active.filter((x) => x.state.present).reduce((a, x) => a + (x.motion || 0), 0) || B.motion : 0;
+    if (this.has(evs, 'jump', 'left', 'right', 'smash') || (tracker.sim && !this.auto && (tracker.state.side !== 'center' || tracker.state.squat))) st.keyRun = 1;
+    st.keyRun = Math.max(0, st.keyRun - dt * 1.6);
+    const sp = B.real ? Math.max(0, Math.min(1, (mSum - 0.008) / 0.018)) : B.st.wave ? 1 : st.keyRun; // (courir sur place d'un enfant : ~0,02)
+    st.sp += (sp - st.sp) * Math.min(1, dt * 4);
+    st.prog = Math.min(1, st.prog + dt * st.sp / (ARENA.course.sec * COURSE_FAST));
+    st.rival = Math.min(1, st.rival + dt * 1000 / st.rivalMs); // (même horloge que l'enfant : équitable même sur un PC lent)
     st.ratio = st.prog;
     if (now - (st.detT || 0) > 300) { st.detT = now; ui.setDetail(this.g.detail(this.c)); }
-    if (st.prog >= 1) { this.g.add(this.g.pts(ARENA.soleil.pts), 'BRAVO !'); this.burst(this.W * 0.78, this.H * 0.36, 50); this.say('Bravo !', 0); this.finish(1); }
+    if (st.rival - st.prog > 0.12 && now - (st.pushT || 0) > 6000) { st.pushT = now; this.say('Plus vite !', 0); }
+    if (st.prog >= 1) {
+      st.winner = 'kid'; st.endT = now;
+      this.g.add(this.g.pts(ARENA.course.pts), 'GAGNÉ !'); this.burst(this.W / 2, this.H * 0.4, 60);
+      if (this.v3) this.v3.react('win');
+      st.finishAt = now + 900; st.finishRatio = 1; // (le temps de voir passer la ligne d'arrivée)
+    } else if (st.rival >= 1) {
+      st.winner = 'rival'; st.endT = now;
+      const pts = Math.round(ARENA.course.pts * st.prog * 0.5); if (pts > 0) this.g.add(this.g.pts(pts), '+' + this.g.pts(pts));
+      st.finishAt = now + 900; st.finishRatio = st.prog;
+    }
   }
-  draw_soleil(st, now, B) {
-    const W = this.W, H = this.H, ctx = this.ctx, look = st.phase === 'regarde';
-    const cx = W * 0.8, cy = H * 0.36 + Math.sin(now / 500) * H * 0.01, r = H * 0.12;
-    if (look) { ctx.fillStyle = `rgba(255,80,80,${0.12 + 0.05 * Math.sin(now / 90)})`; ctx.fillRect(0, 0, W, H); }
-    this.cloud(cx, cy, r, look ? (st.oops && now - st.oops < 1200 ? 'rit' : 'grognon') : 'dos', now);
-    this.text(look ? '🗿 STATUE !' : st.phase === 'dos' ? '🏃 COURS !' : 'Prêt ?', cx, cy + r * 1.35, H * 0.065, look ? '#ff8fab' : '#b8f2a1');
-    // le chemin jusqu'au nuage
-    const x0 = W * 0.12, x1 = W * 0.72, y = H * 0.88;
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = H * 0.018; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-    ctx.strokeStyle = '#ffd166'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + (x1 - x0) * st.prog, y); ctx.stroke();
-    this.emo('🧙', x0 + (x1 - x0) * st.prog, y - H * 0.045 - (st.phase === 'dos' ? Math.abs(Math.sin(now / 120)) * H * 0.015 : 0), H * 0.07);
-    this.emo('🏁', x1 + W * 0.03, y - H * 0.03, H * 0.06);
+  draw_course(st, now, B) { // (sans 3D : deux couloirs en bas de l'image, le chevalier de l'enfant et le rival, le drapeau)
+    const ctx = this.ctx, W = this.W, H = this.H, x0 = W * 0.1, x1 = W * 0.84, sz = H * 0.065;
+    for (const [y, k, ch, col] of [[H * 0.8, st.rival, '⚔️', '#e63946'], [H * 0.9, st.prog, '🛡️', '#ffd166']]) {
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = H * 0.018; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + (x1 - x0) * k, y); ctx.stroke();
+      const run = !st.winner && now > st.at && (col === '#e63946' || st.sp > 0.15);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x0 + (x1 - x0) * k, y - sz * 0.6 - (run ? Math.abs(Math.sin(now / 110)) * sz * 0.25 : 0), sz * 0.55, 0, 6.29); ctx.fill();
+      this.emo(ch, x0 + (x1 - x0) * k, y - sz * 0.6 - (run ? Math.abs(Math.sin(now / 110)) * sz * 0.25 : 0), sz * 0.7);
+    }
+    this.emo('🏁', x1 + W * 0.04, H * 0.84, H * 0.09);
+    const t = st.winner === 'kid' ? '🏆 GAGNÉ !' : st.winner === 'rival' ? 'Presque !' : now < st.at ? 'Prêt ?' : '🏃 COURS !';
+    this.text(t, W / 2, H * 0.14, H * 0.07, st.winner === 'rival' ? '#bde0fe' : '#b8f2a1');
   }
 
   // ----- Pimprenelle a dit : on fait l'ordre seulement si elle a dit « Pimprenelle a dit »
@@ -601,263 +589,6 @@ class Arena {
     for (const b of st.balls) { const q = Math.min(1, (now - b.t0) / 300); const x = b.x0 + (b.m.x - b.x0) * q, y = b.y0 + (b.m.y - b.y0) * q - Math.sin(q * Math.PI) * T * 0.6; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, T * 0.12, 0, 6.29); ctx.fill(); }
   }
 
-  // ----- La cuisine des potions : toucher les ingrédients de la recette, puis touiller (grands cercles avec le bras)
-  init_potions(st, now) { this.newRecipe(st, now); }
-  newRecipe(st, now) {
-    const bag = [...AR_INGREDIENTS].sort(() => Math.random() - 0.5);
-    st.recipe = bag.slice(0, 3).map(([e, n]) => ({ e, n, got: false }));
-    const extra = bag.slice(3, 5).map(([e, n]) => ({ e, n, bad: true }));
-    // (3D : en arc autour du haut du corps, à portée des mains magiques, jamais derrière le chaudron à droite)
-    const spots = (this.v3 ? [[-1.9, -0.3], [-1.6, 0.9], [1.9, -0.6], [-1.5, -1.6], [1.5, -1.7]] : [[-2.1, -0.6], [2.1, -0.6], [-2.4, 0.7], [2.4, 0.7], [0, -1.7]]).sort(() => Math.random() - 0.5);
-    st.items = [...st.recipe.map((r) => ({ ...r, ref: r })), ...extra].map((it, i) => ({ ...it, spot: spots[i], wob: 0, seed: Math.random() * 6 }));
-    st.phase = 'pick'; st.stir = 0; st.ang = null; st.flying = [];
-  }
-  up_potions(st, now, dt, B, evs) {
-    const T = B.T, W = this.W, H = this.H, pot = this.v3 ? this.v3.potXY() : { x: W / 2, y: H * 0.86 };
-    if (st.phase === 'pick') {
-      for (const it of st.items) {
-        if (it.taken) continue;
-        it.x = Math.max(W * 0.08, Math.min(W * 0.92, B.sh.x + it.spot[0] * T)); it.y = Math.max(H * 0.3, B.sh.y + it.spot[1] * T + Math.sin(now / 600 + it.seed) * T * 0.08);
-        const auto = this.auto && !it.bad && now - (st.autoT || 0) > 1100;
-        const key = this.has(evs, 'key_b') && !it.bad && !st.keyUsed;
-        if (this.touching(B, it.x, it.y, T * 0.42) || auto || key) {
-          if (auto) st.autoT = now; if (key) st.keyUsed = true;
-          if (it.bad) { if (now - it.wob > 900) { it.wob = now; Audio8.soft(); this.say('Pas celui-là !', 1500); } continue; }
-          it.taken = true; it.ref.got = true; st.flying.push({ e: it.e, x0: it.x, y0: it.y, t0: now }); Audio8.good();
-        }
-      }
-      st.keyUsed = false;
-      if (st.recipe.every((r) => r.got) && !st.flying.some((f) => now - f.t0 < 500)) { st.phase = 'stir'; st.at = now; this.say('Maintenant, touille ! Fais de grands cercles avec ton bras !', 0); }
-    } else if (st.phase === 'stir') {
-      // angle de la main la plus active autour de son épaule : on additionne les tours (bras assez tendu)
-      let best = 0;
-      for (const [h, s] of [[B.J.handL, B.J.sL], [B.J.handR, B.J.sR]]) {
-        if (!h || !s || Math.hypot(h.x - s.x, h.y - s.y) < T * 0.45) continue;
-        const a = Math.atan2(h.y - s.y, h.x - s.x), key = s === B.J.sL ? 'aL' : 'aR', prev = st[key];
-        st[key] = a; if (prev == null) continue;
-        const d = Math.abs(Math.atan2(Math.sin(a - prev), Math.cos(a - prev))); if (d < 0.8) best = Math.max(best, d);
-      }
-      if (this.has(evs, 'key_s', 'smash')) best = Math.max(best, 0.6); // (mode clavier : S)
-      st.stir += best; if (best > 0.05 && now - (st.hum || 0) > 180) { st.hum = now; Audio8.sparkle(Math.min(1, st.stir / (4 * Math.PI))); }
-      if (st.stir >= 4 * Math.PI) {
-        this.win(ARENA.potions.pts, 'POTION !', pot.x, pot.y - H * 0.08); this.burst(pot.x, pot.y - H * 0.1, 60, ['#c77dff', '#7bdff2', '#b8f2a1', '#ffd166']);
-        this.say('La potion est prête !', 0); st.poof = now;
-        if (st.ok >= st.n) { this.finish(1); return; }
-        this.newRecipe(st, now);
-      }
-    }
-  }
-  draw_potions(st, now, B) {
-    const ctx = this.ctx, W = this.W, H = this.H, T = B.T, px = W / 2, py = H * 0.86, pr = H * 0.11;
-    // chaudron
-    const brew = ['#70e000', '#c77dff', '#4cc9f0', '#ff70a6'][st.ok % 4];
-    ctx.fillStyle = '#2b2d42'; ctx.beginPath(); ctx.ellipse(px, py, pr * 1.25, pr * 0.95, 0, 0, 6.29); ctx.fill();
-    ctx.fillStyle = brew; ctx.beginPath(); ctx.ellipse(px, py - pr * 0.6, pr * 1.05, pr * 0.28, 0, 0, 6.29); ctx.fill();
-    for (let i = 0; i < 4; i++) { const q = (now / 900 + i / 4) % 1; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(px + Math.sin(i * 2.3) * pr * 0.6, py - pr * 0.6 - q * pr * 0.9, pr * 0.07 * (1 - q), 0, 6.29); ctx.fill(); }
-    if (st.phase === 'stir') { const k = Math.min(1, st.stir / (4 * Math.PI)); ctx.strokeStyle = '#ffd166'; ctx.lineWidth = H * 0.012; ctx.beginPath(); ctx.arc(px, py - pr * 0.6, pr * 0.75, -Math.PI / 2, -Math.PI / 2 + k * 6.29); ctx.stroke(); this.text('🌀 Touille !', px, py - pr * 1.6, H * 0.05, '#ffd166'); this.emo('🥄', px + Math.cos(now / 200) * pr * 0.5, py - pr * 0.8 + Math.sin(now / 200) * pr * 0.15, pr * 0.6); }
-    // recette
-    ctx.fillStyle = 'rgba(255,250,240,.92)'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = H * 0.006; ctx.beginPath(); ctx.roundRect(W * 0.02, H * 0.32, W * 0.13, H * 0.4, H * 0.03); ctx.fill(); ctx.stroke();
-    this.text('📜', W * 0.085, H * 0.36, H * 0.04);
-    st.recipe.forEach((r, i) => { const y = H * (0.45 + i * 0.09); this.emo(r.e, W * 0.07, y, H * 0.06, 0, r.got ? 0.45 : 1); if (r.got) this.emo('✅', W * 0.115, y, H * 0.035); });
-    // ingrédients qui flottent (dans des bulles)
-    for (const it of st.items || []) {
-      if (it.taken) continue;
-      const wob = now - it.wob < 500 ? Math.sin((now - it.wob) / 30) * T * 0.08 : 0;
-      ctx.fillStyle = 'rgba(200,230,255,.25)'; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(it.x + wob, it.y, T * 0.36, 0, 6.29); ctx.fill(); ctx.stroke();
-      this.emo(it.e, it.x + wob, it.y, T * 0.4);
-    }
-    for (const f of st.flying) { const q = Math.min(1, (now - f.t0) / 500); this.emo(f.e, f.x0 + (px - f.x0) * q, f.y0 + (py - pr * 0.6 - f.y0) * q - Math.sin(q * Math.PI) * H * 0.1, T * 0.4 * (1 - q * 0.5)); }
-    st.flying = st.flying.filter((f) => now - f.t0 < 520);
-    if (st.poof && now - st.poof < 900) this.emo('✨', px, py - pr * 1.2, H * 0.15 * (1 + (now - st.poof) / 900), 0, 1 - (now - st.poof) / 900);
-  }
-
-  // ----- Duel de sorciers : bouclier (mains jointes) ou esquive (pas de côté), puis contre-attaque (bras levés)
-  init_duel(st, now) { st.hp = st.n; st.phase = 'wait'; st.at = now; st.until = now + 2000; }
-  up_duel(st, now, dt, B) {
-    const go = (phase, dur) => { st.phase = phase; st.at = now; st.until = now + dur; };
-    if (st.phase === 'wait' && now > st.until) { st.kind = Math.random() < 0.55 ? 'shield' : 'dodge'; go('charge', 1500); this.say('Attention, il prépare un sort !', 6000); }
-    else if (st.phase === 'charge' && now > st.until) { go('cast', 1500 * Math.min(1.3, this.g.mul)); this.say(st.kind === 'shield' ? 'Bouclier ! Joins tes mains !' : 'Esquive ! Pas de côté !', 0); st.safe = false; }
-    else if (st.phase === 'cast') {
-      const q = (now - st.at) / (st.until - st.at);
-      if (q > 0.45 && (st.kind === 'shield' ? B.st.handsTogether : B.st.side !== 'center')) st.safe = true;
-      if (now > st.until) {
-        if (st.safe) { Audio8.good(); this.pop('Paré !', B.sh.x, B.sh.y - B.T, '#b8f2a1'); this.say('Paré !', 0); go('counter', 3500); setTimeout(() => this.s && this.st === st && st.phase === 'counter' && this.say('À toi ! Lève les deux bras pour lancer ton sort !', 0), 600); st.hold = 0; }
-        else { Audio8.soft(); this.pop('Ouille !', B.sh.x, B.sh.y, '#ff8fab'); this.say('Ouille ! Ça chatouille !', 0); st.hurt = now; go('wait', 1500); }
-      }
-    } else if (st.phase === 'counter') {
-      st.hold = B.st.armsUp ? st.hold + dt : Math.max(0, st.hold - dt);
-      if (st.hold > 0.5) { st.bolt = now; go('bolt', 600); }
-      else if (now > st.until) go('wait', 800);
-    } else if (st.phase === 'bolt' && now > st.until) {
-      const gx = this.v3 ? this.v3.grimXY() : { x: this.W * 0.8, y: this.H * 0.42 };
-      st.hp--; this.win(ARENA.duel.pts, '⚡ BOUM !', gx.x, gx.y); st.dizzy = now;
-      if (st.hp <= 0) { this.say('Il est tout étourdi !', 0); this.finish(1); return; }
-      go('wait', 1600);
-    }
-    st.ratio = (st.n - st.hp) / st.n;
-  }
-  draw_duel(st, now, B) {
-    const ctx = this.ctx, W = this.W, H = this.H, rx = W * 0.8, ry = H * 0.42, dizzy = st.dizzy && now - st.dizzy < 1500;
-    this.emo('🧙', rx + (dizzy ? Math.sin(now / 60) * H * 0.01 : 0), ry, H * 0.16, dizzy ? Math.sin(now / 100) * 0.2 : 0);
-    if (dizzy) this.emo('💫', rx, ry - H * 0.1, H * 0.06, now / 300);
-    this.text('Grimaud', rx, ry + H * 0.1, H * 0.035, '#e0c3fc');
-    for (let i = 0; i < st.n; i++) this.emo(i < st.hp ? '💜' : '🤍', rx + (i - (st.n - 1) / 2) * H * 0.045, ry - H * 0.12, H * 0.035);
-    const col = st.kind === 'shield' ? '#c77dff' : '#ff4d6d';
-    if (st.phase === 'charge') { const k = (now - st.at) / 1500; this.glow(rx + H * 0.06, ry - H * 0.03, H * 0.03 * (0.5 + k), col, now); }
-    if (st.phase === 'cast') { // la boule de sort arrive vers l'enfant en grossissant
-      const q = Math.min(1, (now - st.at) / (st.until - st.at)), tx = st.kind === 'dodge' ? B.sh.x : B.sh.x, ty = B.sh.y + B.T * 0.3;
-      this.glow(rx + (tx - rx) * q, ry + (ty - ry) * q, H * (0.03 + q * 0.09), col, now);
-      this.text(st.kind === 'shield' ? '🙏 Mains jointes !' : '↔️ Pas de côté !', W / 2, H * 0.86, H * 0.06, st.safe ? '#b8f2a1' : '#ffd166');
-    }
-    if (B.st.handsTogether && (st.phase === 'cast' || st.phase === 'charge')) { // bouclier
-      ctx.strokeStyle = 'rgba(123,223,242,.85)'; ctx.fillStyle = 'rgba(123,223,242,.18)'; ctx.lineWidth = H * 0.008;
-      ctx.beginPath(); ctx.arc(B.sh.x, B.sh.y + B.T * 0.3, B.T * 1.2, Math.PI * 1.05, Math.PI * 1.95); ctx.fill(); ctx.stroke();
-    }
-    if (st.phase === 'counter') { const k = Math.min(1, st.hold / 0.5); this.text('🙌 À toi : bras levés !', W / 2, H * 0.86, H * 0.06, '#ffd166'); ctx.strokeStyle = '#ffd166'; ctx.lineWidth = H * 0.01; ctx.beginPath(); ctx.arc(B.sh.x, B.sh.y - B.T * 1.2, B.T * 0.4, -Math.PI / 2, -Math.PI / 2 + k * 6.29); ctx.stroke(); }
-    if (st.phase === 'bolt') { const q = (now - st.at) / 600; this.glow(B.sh.x + (rx - B.sh.x) * q, B.sh.y - B.T + (ry - B.sh.y + B.T) * q, H * 0.05, '#ffd166', now); }
-    if (st.hurt && now - st.hurt < 400) { ctx.fillStyle = `rgba(255,77,109,${0.3 * (1 - (now - st.hurt) / 400)})`; ctx.fillRect(0, 0, W, H); }
-  }
-
-  // ----- Tir à la corde magique contre le Nuage Grognon : bouger les bras très vite (ou sauter) pour tirer
-  init_corde(st, now) { st.m = 0; st.burst = 0; st.nextBurst = now + 4000; st.ratio = 0.5; }
-  up_corde(st, now, dt, B, evs) {
-    const mSum = B.real ? tracker.active.filter((x) => x.state.present).reduce((a, x) => a + (x.motion || 0), 0) : 0; // (à deux : on tire ensemble)
-    const pull = B.real ? Math.max(0, Math.min(1, (mSum - 0.015) / 0.05)) : B.st.wave || this.has(evs, 'jump', 'smash', 'left', 'right') ? 1 : (st.keyPull = Math.max(0, (st.keyPull || 0) - dt * 2));
-    if (this.has(evs, 'jump', 'smash')) st.keyPull = 1;
-    if (now > st.nextBurst) { st.burst = now; st.nextBurst = now + 4500 + Math.random() * 2500; this.say('Il tire fort !', 0); }
-    const cloud = now - st.burst < 1100 ? 0.32 : 0.1;
-    st.pull = (st.pull || 0) + (Math.max(pull, st.keyPull || 0) - (st.pull || 0)) * Math.min(1, dt * 4); // (pour le sorcier 3D : force lissée)
-    st.m = Math.min(0.9, st.m + (cloud - Math.max(pull, st.keyPull || 0) * 0.3) * dt);
-    st.ratio = Math.max(0, Math.min(1, (1 - st.m) / 2));
-    if (now - (st.detT || 0) > 300) { st.detT = now; ui.setDetail(this.g.detail(this.c)); if (pull > 0.5 && now - (st.cheerT || 0) > 5000) { st.cheerT = now; this.say('Tire, tire !', 0); } }
-    if (st.m <= -1) { this.g.add(this.g.pts(ARENA.corde.pts), 'GAGNÉ !'); this.burst(this.W * 0.25, this.H * 0.75, 60); this.say('Bravo !', 0); this.finish(1); }
-  }
-  draw_corde(st, now, B) {
-    const ctx = this.ctx, W = this.W, H = this.H, y = H * 0.76, kx = W / 2 + st.m * W * 0.32, strong = now - st.burst < 1100;
-    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.setLineDash([H * 0.015, H * 0.015]); ctx.beginPath(); ctx.moveTo(W / 2, y - H * 0.08); ctx.lineTo(W / 2, y + H * 0.08); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#c77dff'; ctx.lineWidth = H * 0.02; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(W * 0.05, y); ctx.quadraticCurveTo(kx, y + Math.sin(now / 80) * H * 0.006, W * 0.88, y - H * 0.04); ctx.stroke();
-    this.emo('🎀', kx, y, H * 0.08, Math.sin(now / 200) * 0.2);
-    this.cloud(W * 0.9 + (strong ? Math.sin(now / 40) * H * 0.006 : 0), y - H * 0.12, H * 0.1, 'grognon', now);
-    for (const h of this.hands(B)) { ctx.strokeStyle = 'rgba(199,125,255,.6)'; ctx.lineWidth = H * 0.008; ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(W * 0.05, y); ctx.stroke(); }
-    this.text(strong ? '💨 Il tire fort !' : '💪 Tire !', W / 2, H * 0.88, H * 0.055, strong ? '#ff8fab' : '#b8f2a1');
-  }
-
-  // ----- L'équilibriste : sur un pied sur la corde ; quand le vent souffle, bras ouverts
-  init_equilibre(st, now) { st.held = 0; st.gust = 0; st.nextGust = now + 4000; st.side = 1; }
-  up_equilibre(st, now, dt, B) {
-    const upper = tracker.mode === 'upper';
-    if (!st.gust && now > st.nextGust) { st.gust = now; st.side = Math.random() < 0.5 ? -1 : 1; this.say('Le vent souffle ! Ouvre les bras !', 0); }
-    if (st.gust && now - st.gust > 2500) { st.gust = 0; st.nextGust = now + 3500 + Math.random() * 2500; }
-    const base = upper ? B.st.airplane || B.st.armsUp : B.st.flamingo, ok = base && (!st.gust || B.st.airplane || (upper && B.st.airplane));
-    st.ok2 = ok; if (ok) st.held += dt;
-    st.ok = Math.floor(st.held); st.ratio = Math.min(1, st.held / st.n);
-    if (now - (st.detT || 0) > 300) { st.detT = now; ui.setDetail(this.g.detail(this.c)); }
-    if (st.held >= st.n) { this.g.add(this.g.pts(ARENA.equilibre.pts * st.n), 'BRAVO !'); this.burst(this.W / 2, this.H * 0.8, 50); this.say('Bravo, tu tiens bien !', 0); this.finish(1); }
-  }
-  draw_equilibre(st, now, B) {
-    const ctx = this.ctx, W = this.W, H = this.H, y = H * 0.84, k = Math.min(1, st.held / st.n), x = W * (0.12 + 0.76 * k);
-    ctx.fillStyle = '#8d6e63'; for (const tx of [W * 0.06, W * 0.94]) ctx.fillRect(tx - W * 0.015, y - H * 0.02, W * 0.03, H * 0.2);
-    ctx.strokeStyle = '#f1faee'; ctx.lineWidth = H * 0.008; ctx.beginPath(); ctx.moveTo(W * 0.06, y); ctx.quadraticCurveTo(x, y + H * 0.02, W * 0.94, y); ctx.stroke();
-    const tilt = st.ok2 ? Math.sin(now / 700) * 0.05 : Math.sin(now / 90) * 0.35;
-    this.emo('🧙', x, y - H * 0.06, H * 0.1, tilt);
-    if (st.gust) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = H * 0.006; for (let i = 0; i < 6; i++) { const q = ((now / 600 + i / 6) % 1), yy = H * (0.4 + i * 0.07), xx = st.side > 0 ? W * (1 - q) : W * q; ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx + st.side * W * 0.08, yy); ctx.stroke(); } this.text('💨 Bras ouverts !', W / 2, H * 0.3, H * 0.06, '#bde0fe'); }
-    else this.text(tracker.mode === 'upper' ? '✈️ Bras ouverts' : '🦩 Sur un pied', W / 2, H * 0.3 + 0, H * 0.055, st.ok2 ? '#b8f2a1' : '#ffd166');
-  }
-
-  // ----- La course de balais : se pencher (gauche / droite), bras levés (monter), accroupi (descendre) ; passer dans les anneaux
-  init_balai(st, now) { st.settle = now + 1500; st.x = 0; st.y = 0; st.rings = []; st.spawned = 0; st.next = now + 1500; st.stars = Array.from({ length: 60 }, () => [Math.random(), Math.random() * 0.6, Math.random()]); }
-  up_balai(st, now, dt, B) {
-    // position voulue : décalage du corps (ou pas de côté), hauteur selon les bras / l'accroupi
-    let tx = B.st.side === 'left' ? -1 : B.st.side === 'right' ? 1 : 0;
-    // Chaque enfant a SON milieu et SA façon de se tenir (à deux, ou si celui qui mène change, rien ne saute) ;
-    // à deux : moyenne amplifiée (un seul qui se penche suffit presque, les deux ensemble à fond ; pas de bruit doublé au milieu)
-    if (B.real) {
-      st.ref = st.ref || new Map(); let best = null, sum = 0, n = 0;
-      for (const b of tracker.active) {
-        if (!b.state.present || !b.center || !b.T || !b.lm) continue;
-        const hipX = (b.lm[23].x + b.lm[24].x) / 2, lean0 = -((b.center.x - hipX) * camXS()) / (b.T * 0.35);
-        let r = st.ref.get(b); if (!r) st.ref.set(b, (r = { cx: b.center.x, lean0 })); // (sa position de départ, là où il est au début du jeu)
-        // (le milieu suit lentement l'enfant : s'il s'est déplacé sans le vouloir, il ne reste pas bloqué d'un côté)
-        // (les 1,5 premières secondes, le milieu se cale vite sur l'enfant : pris sur une seule image, il partait d'un côté dès le début)
-        const kr = now < st.settle ? Math.min(1, dt * 6) : Math.min(1, dt / 25);
-        r.cx += (b.center.x - r.cx) * kr; r.lean0 += (lean0 - r.lean0) * kr;
-        const v = Math.max(-1, Math.min(1, -((b.center.x - r.cx) * camXS()) / (b.T * 0.7) + (lean0 - r.lean0)));
-        sum += v; n++; best = Math.max(-1, Math.min(1, n > 1 ? (sum / n) * 1.5 : sum));
-      }
-      if (best != null) tx = best;
-    }
-    const ty = B.st.armsUp ? -1 : B.st.squat ? 1 : 0;
-    st.x += (tx - st.x) * Math.min(1, dt * 5); st.y += (ty - st.y) * Math.min(1, dt * 4);
-    if (st.spawned < st.n && now > st.next) {
-      const easy = tracker.bodies.some((b) => b.easy), gx = [-1, 0, 1][Math.floor(Math.random() * 3)];
-      const gy = (easy ? [-1, 0, 0, -1, 0, 1] : [-1, 0, 1])[Math.floor(Math.random() * (easy ? 6 : 3))]; // (mode petit : peu d'anneaux en bas, s'accroupir en volant est dur)
-      st.rings.push({ gx, gy, t0: now, dur: Math.max(1900, 3000 - st.spawned * 80) * Math.min(1.3, this.g.mul) }); st.spawned++; st.next = now + 1500;
-    }
-    for (const r of st.rings) {
-      if (r.res || (now - r.t0) < r.dur) continue;
-      const pass = Math.hypot(st.x - r.gx, (st.y - r.gy) * 1.2) < (tracker.bodies.some((b) => b.easy) ? 0.95 : 0.82) * Math.max(1, Math.min(1.2, this.g.diffK || 1)); // (plus généreux : jugé difficile avec les enfants) // (un peu généreux : testé avec les enfants virtuels « pire » et « bouge »)
-      r.res = pass ? 'ok' : 'miss'; r.t = now;
-      if (pass) { this.win(ARENA.balai.pts, '+' + ARENA.balai.pts, ...this.ringXY(r.gx, r.gy)); if (st.ok % 3 === 0) this.say('Encore un !', 3000); } else Audio8.soft();
-    }
-    st.rings = st.rings.filter((r) => !r.res || now - r.t < 500);
-    if (st.spawned >= st.n && !st.rings.some((r) => !r.res)) this.finish(st.ok / st.n);
-  }
-  ringXY(gx, gy) { if (this.v3) { const p = this.v3.ringXY(gx, gy); return [p.x, p.y]; } return [this.W / 2 + gx * this.W * 0.27, this.H * 0.52 + gy * this.H * 0.2]; }
-  drawSky(now) {
-    const ctx = this.ctx, W = this.W, H = this.H, st = this.st;
-    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#240046'); g.addColorStop(0.55, '#7b2cbf'); g.addColorStop(0.85, '#ff9e00'); g.addColorStop(1, '#ff6d00');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#fff'; for (const s of st.stars || []) { ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(now / 700 + s[2] * 9)); ctx.beginPath(); ctx.arc(s[0] * W, s[1] * H, H * 0.002 * (1 + s[2]), 0, 6.29); ctx.fill(); }
-    ctx.globalAlpha = 1;
-    // château au loin et collines
-    ctx.fillStyle = '#3c096c'; const hy = H * 0.72;
-    ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x <= W; x += W / 20) ctx.lineTo(x, hy + Math.sin(x / W * 9 + 1) * H * 0.03); ctx.lineTo(W, H); ctx.fill();
-    for (const [x, w, h] of [[0.42, 0.03, 0.14], [0.47, 0.06, 0.1], [0.55, 0.03, 0.16]]) { ctx.fillRect(W * x, hy - H * h, W * w, H * h); ctx.beginPath(); ctx.moveTo(W * x - W * 0.008, hy - H * h); ctx.lineTo(W * (x + w / 2), hy - H * h - H * 0.06); ctx.lineTo(W * (x + w) + W * 0.008, hy - H * h); ctx.fill(); }
-    // nuages qui filent (vitesse)
-    ctx.fillStyle = 'rgba(255,255,255,.15)';
-    for (let i = 0; i < 6; i++) { const q = ((now / 1800 + i / 6) % 1), s = 0.3 + q * 1.4, x = W / 2 + (i % 2 ? 1 : -1) * W * (0.1 + q * 0.6), y = H * (0.45 + (i % 3 - 1) * 0.15 * q); ctx.beginPath(); ctx.ellipse(x, y, W * 0.08 * s, H * 0.03 * s, 0, 0, 6.29); ctx.fill(); }
-  }
-  draw_balai(st, now) {
-    const ctx = this.ctx, W = this.W, H = this.H;
-    for (const r of st.rings) { // l'anneau arrive du fond vers sa place
-      const q = Math.min(1, (now - r.t0) / r.dur), [tx, ty] = this.ringXY(r.gx, r.gy), x = W / 2 + (tx - W / 2) * q, y = H * 0.45 + (ty - H * 0.45) * q, rad = H * (0.02 + 0.13 * q ** 1.5);
-      ctx.globalAlpha = r.res ? Math.max(0, 1 - (now - r.t) / 500) : 1;
-      ctx.strokeStyle = r.res === 'ok' ? '#b8f2a1' : r.res === 'miss' ? '#ff8fab' : '#ffd166'; ctx.lineWidth = Math.max(3, rad * 0.16);
-      ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 1.1, 0, 0, 6.29); ctx.stroke(); ctx.globalAlpha = 1;
-    }
-    // le petit sorcier sur son balai
-    const [px, py] = this.ringXY(st.x, st.y), tilt = (st.x - (st.px ?? st.x)) * 6; st.px = st.x;
-    ctx.save(); ctx.translate(px, py + Math.sin(now / 300) * H * 0.01); ctx.rotate(Math.max(-0.4, Math.min(0.4, tilt)) + st.x * 0.12);
-    ctx.strokeStyle = '#8d5a3b'; ctx.lineWidth = H * 0.014; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-H * 0.12, H * 0.05); ctx.lineTo(H * 0.12, H * 0.03); ctx.stroke();
-    ctx.fillStyle = '#e9c46a'; ctx.beginPath(); ctx.moveTo(-H * 0.11, H * 0.035); ctx.lineTo(-H * 0.2, H * 0.0); ctx.lineTo(-H * 0.2, H * 0.1); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    this.emo('🧙', px, py - H * 0.03 + Math.sin(now / 300) * H * 0.01, H * 0.12);
-    for (let i = 0; i < 3; i++) if (Math.random() < 0.5) this.fx.push({ k: 'spark', x: px - H * 0.18, y: py + H * 0.05 + (Math.random() - 0.5) * H * 0.04, t: now });
-  }
-
-  // ----- Le miroir magique : trois, deux, un… photo rigolote (gardée dans le grimoire)
-  init_photo(st, now) { st.k = 0; st.next = now + 2500; st.count = 0; }
-  up_photo(st, now) {
-    if (st.count === 0 && now > st.next && st.k < st.n) { st.count = now; this.say('Trois, deux, un…', 0); }
-    if (st.count && now - st.count > 3000) {
-      st.count = 0; st.k++; st.flash = now; Audio8.perfect(); this.say(st.k === st.n ? 'Super photo !' : 'Ouistiti !', 0);
-      if (this.v3) this.v3.snapReq = (url) => url && Photos.add(0, url); // (3D : photo prise juste après la prochaine image)
-      else try { const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * this.H / this.W); this.render(now); c.getContext('2d').drawImage(this.cv, 0, 0, c.width, c.height); Photos.add(0, c.toDataURL('image/jpeg', 0.75)); } catch (e) { /* (photo impossible) */ }
-      this.win(ARENA.photo.pts, '📸 Clic !');
-      st.next = now + 2200;
-      if (st.k >= st.n) { st.finishAt = now + 1500; st.finishRatio = 1; }
-    }
-  }
-  draw_photo(st, now, B) {
-    const ctx = this.ctx, W = this.W, H = this.H;
-    // cadre doré du miroir
-    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = H * 0.03; ctx.beginPath(); ctx.roundRect(W * 0.04, H * 0.06, W * 0.92, H * 0.88, H * 0.12); ctx.stroke();
-    for (const [x, y] of [[0.04, 0.06], [0.96, 0.06], [0.04, 0.94], [0.96, 0.94]]) this.emo('✨', W * x, H * y, H * 0.06, now / 600);
-    for (const s of [-1, 1]) this.emo(['🦋', '🐣', '🦄'][Math.floor(now / 3000) % 3], B.sh.x + s * B.T * 0.9, B.sh.y - B.T * 0.15 + Math.sin(now / 300 + s) * B.T * 0.05, B.T * 0.45); // (des amis sur les épaules)
-    if (st.count) { const k = 3 - Math.floor((now - st.count) / 1000); if (k > 0) this.text(String(k), W / 2, H * 0.5, H * 0.3, '#ffd166', 0.85); }
-    else if (st.k < st.n) this.text('Fais ta pose la plus rigolote !', W / 2, H * 0.86, H * 0.05, '#ffd166');
-    if (st.flash && now - st.flash < 400) { ctx.fillStyle = `rgba(255,255,255,${1 - (now - st.flash) / 400})`; ctx.fillRect(0, 0, W, H); }
-  }
   // Entrée en scène : panneau titre qui descend, puis 3, 2, 1
   hudIntro(now) {
     const ctx = this.ctx, W = this.W, H = this.H, it = this.intro, k = now - it.t0, a = ARENA[this.s.game];
@@ -928,12 +659,14 @@ class Arena {
     this.poseGhost(w.pose, B, w.match, now);
     this.pill((w.match ? '✅ Parfait, garde la pose : ' : 'Fais la pose du trou : ') + AR_POSE_NAMES[w.pose], w.match ? '#b8f2a1' : '#ffd166', this.posePicto(w.pose));
   }
-  hud_soleil(st, now) {
-    const W = this.W, H = this.H, look = st.phase === 'regarde';
-    if (look) { this.ctx.fillStyle = `rgba(255,80,80,${0.1 + 0.05 * Math.sin(now / 90)})`; this.ctx.fillRect(0, 0, W, H); }
-    this.text(look ? '🗿 STATUE !' : st.phase === 'dos' ? '🏃 COURS !' : 'Prêt ?', W / 2, H * 0.2, H * 0.085, look ? '#ff8fab' : '#b8f2a1');
-    this.bar(st.prog, H * 0.78, '#ffd166'); this.emo('🧙', W * 0.25 + W * 0.5 * st.prog, H * 0.755, H * 0.05); this.emo('☁️', W * 0.77, H * 0.785, H * 0.05);
-    this.pill(look ? 'Il te regarde : ne bouge plus du tout !' : 'Cours sur place pour avancer vers le nuage', look ? '#ff8fab' : '#ffffff');
+  hud_course(st, now) {
+    const W = this.W, H = this.H, t = st.winner === 'kid' ? '🏆 GAGNÉ !' : st.winner === 'rival' ? 'Presque !' : now < st.at ? 'Prêt ?' : '🏃 COURS !';
+    this.text(t, W / 2, H * 0.17, H * 0.08, st.winner === 'rival' ? '#bde0fe' : '#b8f2a1');
+    // la course vue d'en haut : le rival (rouge) et le chevalier de l'enfant (doré) vers le drapeau
+    this.bar(st.rival, H * 0.25, '#e63946'); this.emo('⚔️', W * 0.25 + W * 0.5 * st.rival, H * 0.235, H * 0.045);
+    this.bar(st.prog, H * 0.3, '#ffd166'); this.emo('🛡️', W * 0.25 + W * 0.5 * st.prog, H * 0.285, H * 0.05);
+    this.emo('🏁', W * 0.78, H * 0.27, H * 0.06);
+    if (!st.winner) this.pill(now < st.at ? 'Prépare-toi à courir…' : 'Cours sur place, lève bien les genoux !', '#ffffff');
   }
   hud_pimprenelle(st, now) {
     const W = this.W, H = this.H, c = st.cur;
@@ -947,47 +680,6 @@ class Arena {
   hud_neige(st, now) {
     for (const m of st.men) if (!m.hit && !m.gone && m.x != null && now - m.t0 > 300) { const p = this.v3.slotXY(m.slot, 2.0); this.ring(p.x, p.y, this.H * 0.025, 1 - (now - m.t0) / m.life, '#ffd166', 0.008); }
     this.pill('☝️ Lève le bras, puis lance-le vers un bonhomme !', '#ffffff');
-  }
-  hud_potions(st, now) {
-    const ctx = this.ctx, W = this.W, H = this.H;
-    ctx.fillStyle = 'rgba(255,250,240,.94)'; ctx.strokeStyle = '#7b2cbf'; ctx.lineWidth = H * 0.006; ctx.beginPath(); ctx.roundRect(W * 0.02, H * 0.3, W * 0.12, H * 0.42, H * 0.03); ctx.fill(); ctx.stroke();
-    this.emo('📜', W * 0.08, H * 0.35, H * 0.045);
-    st.recipe.forEach((r, i) => { const y = H * (0.45 + i * 0.09); this.emo(r.e, W * 0.07, y, H * 0.06, 0, r.got ? 0.4 : 1); if (r.got) this.emo('✅', W * 0.11, y, H * 0.035); });
-    if (st.phase === 'stir') { const p = this.v3.potXY(), k = Math.min(1, st.stir / (4 * Math.PI)); this.ring(p.x, p.y, H * 0.08, k); this.text('🌀 Touille !', W / 2, H * 0.2, H * 0.07, '#ffd166'); this.pill('Fais de grands cercles avec ton bras 🔄', '#ffd166'); }
-    else this.pill('✋ Touche avec ta main : ' + st.recipe.filter((r) => !r.got).map((r) => r.e).join(' '), '#ffffff');
-  }
-  hud_duel(st, now, B) {
-    const W = this.W, H = this.H, g = this.v3.grimXY();
-    for (let i = 0; i < st.n; i++) this.emo(i < st.hp ? '💜' : '🤍', g.x + (i - (st.n - 1) / 2) * H * 0.045, g.y, H * 0.038);
-    this.text('Grimaud', g.x, g.y - H * 0.05, H * 0.035, '#e0c3fc');
-    if (st.phase === 'charge') this.pill('⚠️ Attention, Grimaud prépare un sort…', '#ffd166');
-    else if (st.phase === 'cast') this.pill(st.kind === 'shield' ? '🙏 Bouclier : joins tes mains devant toi !' : '↔️ Esquive : fais un pas de côté !', st.safe ? '#b8f2a1' : '#ffd166', st.kind === 'shield' ? null : { m: 'fork' });
-    else if (st.phase === 'counter') this.pill('🙌 À toi : lève les deux bras pour lancer ton sort !', '#ffd166', { m: 'pose', pose: 'armsUp' });
-    else this.pill('Regarde Grimaud…', '#ffffff');
-    if (st.hurt && now - st.hurt < 400) { this.ctx.fillStyle = `rgba(255,77,109,${0.3 * (1 - (now - st.hurt) / 400)})`; this.ctx.fillRect(0, 0, W, H); }
-  }
-  hud_corde(st, now) {
-    const strong = now - st.burst < 1100;
-    this.text(strong ? '💨 Il tire fort !' : '💪 Tire !', this.W / 2, this.H * 0.2, this.H * 0.075, strong ? '#ff8fab' : '#b8f2a1');
-    this.bar(st.ratio, this.H * 0.78, '#c77dff');
-    this.pill('Bouge les bras très vite pour tirer la corde !', '#ffffff');
-  }
-  hud_equilibre(st) {
-    const W = this.W, H = this.H, up = tracker.mode === 'upper';
-    if (st.gust) this.text('💨 Le vent !', W / 2, H * 0.2, H * 0.08, '#bde0fe');
-    this.bar(st.ratio, H * 0.78, '#b8f2a1');
-    this.pill(st.gust ? 'Ouvre grand les bras pour ne pas tomber !' : up ? 'Garde les bras ouverts' : 'Tiens sur un pied', st.ok2 ? '#b8f2a1' : '#ffd166', st.gust || up ? { m: 'pose', pose: 'airplane' } : { m: 'pose', pose: 'flamingo' });
-  }
-  hud_balai(st, now) {
-    const r = (st.rings || []).find((x) => !x.res);
-    const t = !r ? 'Prépare-toi…' : r.gx < 0 ? '⬅️ Penche-toi à gauche' : r.gx > 0 ? 'Penche-toi à droite ➡️' : '⬆️ Reste au milieu';
-    this.pill(t + (r && r.gy < 0 ? ' · 🙌 bras levés' : r && r.gy > 0 ? ' · accroupi' : ''), '#ffffff');
-  }
-  hud_photo(st, now) {
-    const ctx = this.ctx, W = this.W, H = this.H;
-    if (st.count) { const k = 3 - Math.floor((now - st.count) / 1000); if (k > 0) this.text(String(k), W / 2, H * 0.45, H * 0.3, '#ffd166', 0.9); }
-    else if (st.k < st.n) this.pill('📸 Fais ta pose la plus rigolote !', '#ffd166');
-    if (st.flash && now - st.flash < 400) { ctx.fillStyle = `rgba(255,255,255,${1 - (now - st.flash) / 400})`; ctx.fillRect(0, 0, W, H); }
   }
 }
 const now0 = () => performance.now();

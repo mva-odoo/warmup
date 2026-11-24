@@ -7,7 +7,7 @@
 # Résultats aussi dans ~/.cache/wuq-test/vkid-<date>.txt. Il faut chromium.
 cd "$(dirname "$0")/.." || exit 1
 PROFILES=${1:-"1 petit grand decale biais camhaute cambasse travers bouge proche loin pire"}
-GAMES=${2:-"potions neige duel mur soleil balai equilibre"}
+GAMES=${2:-"mur pimprenelle neige course"}
 PAR=${PAR:-3}; BUDGET=${BUDGET:-100000}; PORT=${PORT:-8765}
 OUT=~/.cache/wuq-test; mkdir -p "$OUT"; RES="$OUT/vkid-$(date +%Y%m%d-%H%M).txt"
 # (serveur lancé par ce script : arrêté à la fin ; s'il tournait déjà, on le laisse)
@@ -15,10 +15,11 @@ if ! ss -ltn | grep -q ":$PORT "; then setsid python3 -m http.server "$PORT" >/d
 # (le serveur peut mettre plusieurs secondes à démarrer : on attend qu'il réponde, sinon les premiers essais échouent)
 for _ in $(seq 1 60); do curl -s -o /dev/null "http://localhost:$PORT/index.html" && break; sleep 0.5; done
 run() {
-  local pf=$1 g=$2 id="vk-$1-$2-$$" t
+  local pf=$1 g=$2 id="vk-$1-$2-$$" t w=chateau
+  [ "$g" = neige ] && w=banquise # (les boules de neige sont à la Banquise ; mur, Pimprenelle et course au Château)
   t=$(timeout 400 chromium --headless=new --no-sandbox --ignore-gpu-blocklist --enable-gpu --use-angle=vulkan --enable-features=Vulkan \
     --window-size=1280,720 --user-data-dir="$OUT/prof-$id" --virtual-time-budget="$BUDGET" \
-    --dump-dom "http://localhost:$PORT/index.html?world=defis&step=arena&game=$g&nostory=1&vkid=$pf" 2>/dev/null | grep -o "<title>VK [^<]*" | head -1)
+    --dump-dom "http://localhost:$PORT/index.html?world=$w&step=arena&game=$g&nostory=1&vkid=$pf" 2>/dev/null | grep -o "<title>VK [^<]*" | head -1)
   rm -rf "$OUT/prof-$id"
   # ratio du jeu demandé (premier jeu joué), portée mesurée / réelle
   python3 - "$pf" "$g" "${t#<title>VK }" <<'PY'

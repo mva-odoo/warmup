@@ -1,6 +1,6 @@
 {
     'name': 'Warm-Up Quest',
-    'version': '20.0.20.0.0',
+    'version': '20.0.21.0.0',
     'summary': "Jeu d'échauffement pour enfants contrôlé par webcam (détection des mouvements)",
     'description': """
 Warm-Up Quest
@@ -11,7 +11,7 @@ fait des smashs et imite des poses devant la webcam. La détection des mouvement
 
 Le module ajoute :
 * des profils de joueurs (un par enfant) ;
-* des séquences d'échauffement modifiables (étapes, durées, poses, combos) ;
+* 8 mondes à thème et leurs séquences d'échauffement modifiables (étapes, durées, poses, danses) ;
 * l'historique des parties (score, étoiles, durée…) avec graphiques ;
 * le carnet des créatures de chaque joueur ;
 * le jeu lui-même, accessible depuis le menu (/warmup).
