@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Utilisateurs internes (les parents) : tout ; les créatures se lisent seulement (sauf administrateur). -->
+    <record id="access_x_wuq_player_user" model="ir.access">
+        <field name="name">x_wuq_player user</field>
+        <field name="model_id" ref="model_x_wuq_player"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_session_user" model="ir.access">
+        <field name="name">x_wuq_session user</field>
+        <field name="model_id" ref="model_x_wuq_session"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_sequence_user" model="ir.access">
+        <field name="name">x_wuq_sequence user</field>
+        <field name="model_id" ref="model_x_wuq_sequence"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_step_user" model="ir.access">
+        <field name="name">x_wuq_step user</field>
+        <field name="model_id" ref="model_x_wuq_step"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_catch_user" model="ir.access">
+        <field name="name">x_wuq_catch user</field>
+        <field name="model_id" ref="model_x_wuq_catch"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_voice_user" model="ir.access">
+        <field name="name">x_wuq_voice user</field>
+        <field name="model_id" ref="model_x_wuq_voice"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_x_wuq_creature_user" model="ir.access">
+        <field name="name">x_wuq_creature user</field>
+        <field name="model_id" ref="model_x_wuq_creature"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+    </record>
+    <record id="access_x_wuq_creature_system" model="ir.access">
+        <field name="name">x_wuq_creature admin</field>
+        <field name="model_id" ref="model_x_wuq_creature"/>
+        <field name="group_id" ref="base.group_system"/>
+        <field name="operation">crud</field>
+    </record>
+</odoo>

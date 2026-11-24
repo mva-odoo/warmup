@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Page du jeu : /website/action/warmup (utilisateur interne connecté, sinon renvoi vers la connexion).
+         (une action serveur publiée, comme runner_live : un module importé ne peut pas déclarer de route) -->
+    <record id="action_game_page" model="ir.actions.server">
+        <field name="name">Warm-Up Quest : la page du jeu</field>
+        <field name="model_id" ref="model_x_wuq_player"/>
+        <field name="state">code</field>
+        <field name="website_published" eval="True"/>
+        <field name="website_path">warmup</field>
+        <!-- Sans groupe, run() exige le droit d'écriture sur le modèle, que le public n'a pas : on laisse entrer le
+             public pour pouvoir le renvoyer vers la page de connexion. -->
+        <field name="group_ids" eval="[Command.set([ref('base.group_public'), ref('base.group_portal'), ref('base.group_user')])]"/>
+        <field name="code"><![CDATA[
+if not request.env.user._is_internal():
+    response = request.redirect('/web/login?redirect=/website/action/warmup')
+else:
+    response = request.render('warmup_quest_lite.page', {})
+]]></field>
+    </record>
+</odoo>

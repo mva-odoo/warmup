@@ -7,6 +7,9 @@ Jeu d'échauffement pour enfants contrôlé par webcam, intégré à Odoo.
 2. Redémarrer Odoo, activer le mode développeur, puis **Applications › Mettre à jour la liste des applications**.
 3. Chercher « Warm-Up Quest » et cliquer sur **Activer**.
 
+Pas de module Python possible (Odoo Online) ? Le même jeu existe en **module importable** : voir
+`warmup_quest_lite/README.md` (`python3 warmup_quest_lite/dev/make_zip.py`, puis « Importer un module »).
+
 À l'installation, une séquence par défaut pour chacun des 8 mondes et les 30 créatures sont créées.
 
 ## Le jeu : 8 mondes à thème

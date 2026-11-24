@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_root" name="Warm-Up Quest" web_icon="warmup_quest_lite,static/description/icon.png" sequence="90"/>
+    <menuitem id="menu_play" name="▶ Jouer" parent="menu_root" action="action_play" sequence="1"/>
+    <menuitem id="menu_session" name="Parties" parent="menu_root" action="action_session" sequence="10"/>
+    <menuitem id="menu_player" name="Joueurs" parent="menu_root" action="action_player" sequence="20"/>
+    <menuitem id="menu_catch" name="Albums" parent="menu_root" action="action_catch" sequence="30"/>
+    <menuitem id="menu_config" name="Configuration" parent="menu_root" sequence="90"/>
+    <menuitem id="menu_sequence" name="Séquences d'échauffement" parent="menu_config" action="action_sequence" sequence="10"/>
+    <menuitem id="menu_creature" name="Créatures" parent="menu_config" action="action_creature" sequence="20"/>
+    <menuitem id="menu_voice" name="Voix et messages perso" parent="menu_config" action="action_voice" sequence="30"/>
+</odoo>

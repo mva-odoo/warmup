@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
 warmup_quest/static/src/game/recordings/
+dist/

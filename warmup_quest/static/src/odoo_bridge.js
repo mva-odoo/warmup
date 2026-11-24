@@ -23,7 +23,9 @@
     return list.find((s) => s.id === seqChoice[world]) || list[0] || null;
   };
 
+  // (version importable, sans Python : lite_bridge.js répond lui-même aux appels du jeu, voir window.WUQ_RPC)
   async function rpc(url, params) {
+    if (window.WUQ_RPC) return window.WUQ_RPC(url, params);
     const res = await fetch(url, {
       method: 'POST',
       credentials: 'same-origin',

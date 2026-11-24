@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ================= Joueurs ================= -->
+    <record id="view_player_list" model="ir.ui.view">
+        <field name="name">x_wuq_player.list</field>
+        <field name="model">x_wuq_player</field>
+        <field name="arch" type="xml">
+            <list string="Joueurs">
+                <field name="x_name"/>
+                <field name="x_session_count"/>
+                <field name="x_best_score"/>
+                <field name="x_total_minutes"/>
+                <field name="x_creature_count"/>
+                <field name="x_color" widget="color" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_player_form" model="ir.ui.view">
+        <field name="name">x_wuq_player.form</field>
+        <field name="model">x_wuq_player</field>
+        <field name="arch" type="xml">
+            <form string="Joueur">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="x_name"/>
+                        <h1><field name="x_name" placeholder="Prénom de l'enfant"/></h1>
+                    </div>
+                    <group>
+                        <group string="Dans le jeu">
+                            <field name="x_color" widget="color"/>
+                            <field name="x_avatar_model"/>
+                            <field name="x_avatar_body"/>
+                            <field name="x_avatar_legs"/>
+                            <field name="x_avatar_hat"/>
+                            <field name="x_avatar_glasses"/>
+                            <field name="x_avatar_back"/>
+                            <field name="x_easy_mode"/>
+                            <field name="x_birth_year"/>
+                        </group>
+                        <group string="Bilan">
+                            <field name="x_session_count"/>
+                            <field name="x_best_score"/>
+                            <field name="x_total_minutes"/>
+                            <field name="x_creature_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Parties" name="sessions">
+                            <field name="x_session_ids" readonly="1">
+                                <list>
+                                    <field name="x_date"/>
+                                    <field name="x_world"/>
+                                    <field name="x_score"/>
+                                    <field name="x_stars"/>
+                                    <field name="x_score_percent" widget="progressbar"/>
+                                    <field name="x_duration_min"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Créatures amies" name="catches">
+                            <field name="x_catch_ids">
+                                <list editable="bottom">
+                                    <field name="x_creature_id"/>
+                                    <field name="x_count"/>
+                                    <field name="x_evolved"/>
+                                    <field name="x_last_date"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Gommettes et compagnon" name="game">
+                            <group>
+                                <field name="x_stickers"/>
+                                <field name="x_companion"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_player" model="ir.actions.act_window">
+        <field name="name">Joueurs</field>
+        <field name="res_model">x_wuq_player</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crée un profil pour chaque enfant</p>
+            <p>On peut aussi ajouter un enfant directement depuis l'écran du jeu.</p>
+        </field>
+    </record>
+
+    <!-- ================= Parties ================= -->
+    <record id="view_session_list" model="ir.ui.view">
+        <field name="name">x_wuq_session.list</field>
+        <field name="model">x_wuq_session</field>
+        <field name="arch" type="xml">
+            <list string="Parties" create="0">
+                <field name="x_date"/>
+                <field name="x_player_id"/>
+                <field name="x_world"/>
+                <field name="x_score" sum="Total"/>
+                <field name="x_stars"/>
+                <field name="x_score_percent" widget="progressbar"/>
+                <field name="x_success" optional="show"/>
+                <field name="x_duration_min" sum="Total"/>
+                <field name="x_mode" optional="hide"/>
+                <field name="x_speed" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_session_form" model="ir.ui.view">
+        <field name="name">x_wuq_session.form</field>
+        <field name="model">x_wuq_session</field>
+        <field name="arch" type="xml">
+            <form string="Partie" create="0" edit="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="x_player_id"/></h1>
+                        <h3><field name="x_world"/> · <field name="x_date"/></h3>
+                    </div>
+                    <group>
+                        <group string="Résultat">
+                            <field name="x_score"/>
+                            <field name="x_max_score"/>
+                            <field name="x_score_percent" widget="progressbar"/>
+                            <field name="x_stars"/>
+                        </group>
+                        <group string="Détails">
+                            <field name="x_success"/>
+                            <field name="x_steps"/>
+                            <field name="x_best_streak"/>
+                            <field name="x_collected"/>
+                            <field name="x_duration_min"/>
+                            <field name="x_mode"/>
+                            <field name="x_speed"/>
+                            <field name="x_sequence_id"/>
+                            <field name="x_creatures"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_session_graph" model="ir.ui.view">
+        <field name="name">x_wuq_session.graph</field>
+        <field name="model">x_wuq_session</field>
+        <field name="arch" type="xml">
+            <graph string="Progression" type="line">
+                <field name="x_date" interval="day"/>
+                <field name="x_player_id"/>
+                <field name="x_score" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_session_pivot" model="ir.ui.view">
+        <field name="name">x_wuq_session.pivot</field>
+        <field name="model">x_wuq_session</field>
+        <field name="arch" type="xml">
+            <pivot string="Analyse des parties">
+                <field name="x_player_id" type="row"/>
+                <field name="x_world" type="col"/>
+                <field name="x_score" type="measure"/>
+                <field name="x_duration_min" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_session_search" model="ir.ui.view">
+        <field name="name">x_wuq_session.search</field>
+        <field name="model">x_wuq_session</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="x_player_id"/>
+                <filter name="three_stars" string="3 étoiles" domain="[('x_stars', '=', 3)]"/>
+                <separator/>
+                <filter name="group_player" string="Joueur" context="{'group_by': 'x_player_id'}"/>
+                <filter name="group_world" string="Monde" context="{'group_by': 'x_world'}"/>
+                <filter name="group_date" string="Jour" context="{'group_by': 'x_date:day'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_session" model="ir.actions.act_window">
+        <field name="name">Parties</field>
+        <field name="res_model">x_wuq_session</field>
+        <field name="view_mode">list,graph,pivot,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aucune partie pour l'instant</p>
+            <p>Lance le jeu depuis le menu « Jouer » : chaque partie terminée apparaît ici.</p>
+        </field>
+    </record>
+
+    <!-- ================= Séquences d'échauffement ================= -->
+    <record id="view_sequence_list" model="ir.ui.view">
+        <field name="name">x_wuq_sequence.list</field>
+        <field name="model">x_wuq_sequence</field>
+        <field name="arch" type="xml">
+            <list string="Séquences">
+                <field name="x_sequence" widget="handle"/>
+                <field name="x_name"/>
+                <field name="x_world"/>
+                <field name="x_step_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sequence_form" model="ir.ui.view">
+        <field name="name">x_wuq_sequence.form</field>
+        <field name="model">x_wuq_sequence</field>
+        <field name="arch" type="xml">
+            <form string="Séquence d'échauffement">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="x_name"/>
+                        <h1><field name="x_name" placeholder="ex. Échauffement du matin"/></h1>
+                    </div>
+                    <group>
+                        <group><field name="x_world"/></group>
+                        <group><field name="x_step_count"/></group>
+                    </group>
+                    <field name="x_description" placeholder="Notes (optionnel)…"/>
+                    <notebook>
+                        <page string="Étapes" name="steps">
+                            <field name="x_step_ids">
+                                <list editable="bottom">
+                                    <field name="x_sequence" widget="handle"/>
+                                    <field name="x_move"/>
+                                    <field name="x_count" invisible="x_move not in ('jump', 'squat', 'smash', 'bubbles', 'moles', 'slice', 'cubes', 'foam', 'goal', 'kick', 'act_shelf', 'act_clap', 'act_swim', 'act_launch', 'act_stomp', 'arena_mur', 'arena_pimprenelle', 'arena_neige')"/>
+                                    <field name="x_duration" invisible="x_move not in ('run', 'shop', 'rest', 'bubbles', 'freeze', 'catch', 'tunnel', 'moles', 'slice', 'foam')"/>
+                                    <field name="x_pose" invisible="x_move != 'pose'"/>
+                                    <field name="x_hold" invisible="x_move not in ('pose', 'dance', 'cubes')"/>
+                                    <field name="x_combo" invisible="x_move != 'dance'" placeholder="armsUp,squat,left,right,jump"/>
+                                    <field name="x_text" invisible="x_move != 'rest'"/>
+                                </list>
+                            </field>
+                            <div class="text-muted small">
+                                Danse : gestes séparés par des virgules parmi <code>armsUp</code>, <code>airplane</code>, <code>star</code>,
+                                <code>flamingo</code>, <code>squat</code>, <code>left</code>, <code>right</code>, <code>jump</code>, <code>smash</code>.
+                                Une pose sur deux fait venir une créature à rendre amie.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_sequence_search" model="ir.ui.view">
+        <field name="name">x_wuq_sequence.search</field>
+        <field name="model">x_wuq_sequence</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="x_name"/>
+                <filter name="group_world" string="Monde" context="{'group_by': 'x_world'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sequence" model="ir.actions.act_window">
+        <field name="name">Séquences d'échauffement</field>
+        <field name="res_model">x_wuq_sequence</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_world': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crée une séquence d'échauffement</p>
+            <p>La première séquence de chaque monde est jouée par défaut ; s'il y en a plusieurs, le jeu propose de choisir.</p>
+        </field>
+    </record>
+
+    <!-- ================= Créatures et créatures amies ================= -->
+    <record id="view_creature_list" model="ir.ui.view">
+        <field name="name">x_wuq_creature.list</field>
+        <field name="model">x_wuq_creature</field>
+        <field name="arch" type="xml">
+            <list string="Créatures" editable="bottom">
+                <field name="x_sequence" widget="handle"/>
+                <field name="x_name"/>
+                <field name="x_element"/>
+                <field name="x_code" readonly="id"/>
+                <field name="x_color" widget="color"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_creature" model="ir.actions.act_window">
+        <field name="name">Créatures</field>
+        <field name="res_model">x_wuq_creature</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="view_catch_list" model="ir.ui.view">
+        <field name="name">x_wuq_catch.list</field>
+        <field name="model">x_wuq_catch</field>
+        <field name="arch" type="xml">
+            <list string="Créatures amies" editable="bottom">
+                <field name="x_player_id"/>
+                <field name="x_creature_id"/>
+                <field name="x_count"/>
+                <field name="x_evolved"/>
+                <field name="x_last_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_catch_search" model="ir.ui.view">
+        <field name="name">x_wuq_catch.search</field>
+        <field name="model">x_wuq_catch</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="x_player_id"/>
+                <field name="x_creature_id"/>
+                <filter name="evolved" string="Évoluées" domain="[('x_evolved', '=', True)]"/>
+                <filter name="group_player" string="Joueur" context="{'group_by': 'x_player_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_catch" model="ir.actions.act_window">
+        <field name="name">Albums des créatures</field>
+        <field name="res_model">x_wuq_catch</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_group_player': 1}</field>
+    </record>
+
+    <!-- ================= Voix et messages perso ================= -->
+    <record id="view_voice_list" model="ir.ui.view">
+        <field name="name">x_wuq_voice.list</field>
+        <field name="model">x_wuq_voice</field>
+        <field name="arch" type="xml">
+            <list string="Voix enregistrées" create="0">
+                <field name="x_name"/>
+                <field name="x_moment" optional="show"/>
+                <field name="x_player_id" optional="show"/>
+                <field name="write_date" string="Enregistrée le"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_voice_form" model="ir.ui.view">
+        <field name="name">x_wuq_voice.form</field>
+        <field name="model">x_wuq_voice</field>
+        <field name="arch" type="xml">
+            <form string="Voix enregistrée" create="0">
+                <sheet>
+                    <group>
+                        <field name="x_name"/>
+                        <field name="x_moment"/>
+                        <field name="x_player_id" invisible="not x_moment"/>
+                        <field name="x_audio" filename="x_name"/>
+                        <field name="x_key" groups="base.group_no_one"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_voice" model="ir.actions.act_window">
+        <field name="name">Voix et messages perso</field>
+        <field name="res_model">x_wuq_voice</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Pas encore de voix enregistrée</p>
+            <p>Dans le jeu : ⚙️ Réglages (parents) › 🎙️ Studio voix.</p>
+        </field>
+    </record>
+
+    <!-- ================= Le jeu ================= -->
+    <record id="action_play" model="ir.actions.act_url">
+        <field name="name">Jouer à Warm-Up Quest</field>
+        <field name="url">/website/action/warmup</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
