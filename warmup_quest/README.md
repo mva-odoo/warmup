@@ -36,6 +36,14 @@ sa musique et ses jeux. Une partie dure 2 à 4 minutes ; on garde ses **étoiles
 - **L'étoile** (bras et jambes écartés, tenue 1,5 s) : pause — sauf pendant les jeux où l'étoile est une consigne (poses, danse, jeux miroir, statues).
 - **Un bras tendu à gauche / à droite** : changer de monde dans le menu ; pendant le jeu, ça change aussi de couloir. À l'écran de fin, bras à gauche = retour au menu.
 
+## Ma chambre
+La chambre de l'enfant (bouton 🏠 du menu) : son personnage, son compagnon, ses créatures amies, ses trophées, ses photos
+et ses gommettes. Tout se touche (souris, doigt) ou **aux bras** :
+- un bras tendu à gauche / à droite promène la petite main 👇 d'un objet à l'autre ; bras levés = le toucher (la lampe
+  s'allume, la fenêtre passe à la nuit, le lit endort le personnage, les créatures sautent, les trophées tournent…) ;
+  tout à droite, « Retour » ramène au menu ;
+- le personnage de l'enfant copie ses bras comme dans un miroir ; quand l'enfant saute, toutes les créatures sautent.
+
 ## Créatures, gommettes, à deux
 - **Créatures** : pendant une pose, une créature vient se montrer ; on tient la pose pour en faire une amie. Elles
   rejoignent l'**album** (évolution à 3 rencontres) ; l'enfant choisit un **compagnon** qui court avec lui.

@@ -1159,7 +1159,7 @@ class Scene3D extends DepthScene {
     // Proportions « dessin animé » lisibles de dos : tête un peu plus petite, bras plus longs (la pose se voit)
     if (r.bones.head && !r.kay) r.bones.head.scale.setScalar(HUMAN_FIT.head);
     const P = HUMAN_POSES[pose];
-    const L = !m.isGhost && this.liveLimbs(h); // imitation en direct du joueur
+    const L = !m.isGhost && (m.liveL || this.liveLimbs(h)); // imitation en direct du joueur (m.liveL : chambre)
     const long = P || L ? HUMAN_FIT.arm : 1; // bras un peu plus longs pendant une pose (on la voit mieux)
     if (!r.kay) for (const n of ['arm-left', 'arm-right']) if (r.bones[n]) r.bones[n].scale.set(long, 1, 1);
     // De face (modèle à imiter, fruits) : son bras gauche est à droite de l'écran, on échange gauche / droite
@@ -1784,7 +1784,7 @@ class Scene3D extends DepthScene {
     const add = (geo, c, x, y, z, sx, sy, sz, parent = scene) => { const m = new T.Mesh(geo, lam(c)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = m.receiveShadow = true; parent.add(m); return m; };
     const kids = (data.kids && data.kids.length ? data.kids : [{}]).slice(0, 2), duo = kids.length > 1;
     // (objets à toucher : act(obj) appelé au toucher ; le plus proche sous le doigt gagne)
-    const acts = [], act = (o, f) => { o.userData.act = f; acts.push(o); return o; };
+    const acts = [], act = (o, f, name = '') => { o.userData.act = f; o.userData.name = name; acts.push(o); return o; };
     // Petites images flottantes (cœurs, étoiles, Zzz, gommettes) : sprites à partir d'émojis
     const emoTex = new Map(), emo = (ch) => {
       if (!emoTex.has(ch)) { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.font = '100px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 64, 70); const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; emoTex.set(ch, t); }
@@ -1814,16 +1814,16 @@ class Scene3D extends DepthScene {
     place('fu-shelf_B_large_decorated', -4.6, -3.9, 0, 1.3); place('fu-rug_rectangle_stripes_A', 2.6, -1.4, 0, 1.6); place('fu-pillow_A', -1.6, 2.6, 0.4, 1);
     const lampM = place('fu-lamp_standing', -5.2, -3.6, 0, 1.4);
     let lampOn = true;
-    if (lampM) act(lampM, () => { lampOn = !lampOn; Audio8.sample('click', 0.7) || Audio8.tick(); });
+    if (lampM) act(lampM, () => { lampOn = !lampOn; Audio8.sample('click', 0.7) || Audio8.tick(); }, 'La lampe');
     const win = add(box, '#a7e3ff', -5.85, 4.2, 0.5, 0.05, 2, 2.6); add(box, '#ffffff', -5.82, 4.2, 0.5, 0.05, 0.08, 2.6);
     const winStars = [0, 1, 2, 3].map((i) => { const sp = new T.Sprite(new T.SpriteMaterial({ map: emo(i ? '⭐' : '🌙'), transparent: true, opacity: 0 })); sp.scale.setScalar(i ? 0.3 : 0.6); sp.position.set(-5.78, 3.6 + (i % 2) * 0.9 + (i ? 0 : 0.3), -0.4 + i * 0.6); scene.add(sp); return sp; });
     let night = false; const sleeping = new Set();
     const setNight = () => { const n = sleeping.size > 0 || night; if (n !== setNight.was) { setNight.was = n; if (n) Audio8.say(sleeping.size ? 'Chut… bonne nuit !' : 'La nuit tombe !'); } };
-    act(win, () => { night = !night; Audio8.spell(); setNight(); });
+    act(win, () => { night = !night; Audio8.spell(); setNight(); }, 'La fenêtre');
     // Étagères : créatures amies et trophées (or : 3 étoiles, argent : 2, bronze : 1)
     for (const y of [2.2, 4.0]) add(box, '#8d5a3b', 1.8, y, -4.1, 6.5, 0.15, 0.7);
     const hops = []; // (créatures qui sautent quand on les touche)
-    const creature = (c, cr) => { act(c.group, () => { c.hopT = performance.now(); Audio8.cry(cr.id, true); Audio8.say(cr.name); puff(c.group.position.clone().add(new T.Vector3(0, 0.6, 0.2)), ['💖', '✨'], 5, { size: 0.35 }); }); c.cr = cr; c.base = c.group.position.y; hops.push(c); };
+    const creature = (c, cr) => { act(c.group, () => { c.hopT = performance.now(); Audio8.cry(cr.id, true); Audio8.say(cr.name); puff(c.group.position.clone().add(new T.Vector3(0, 0.6, 0.2)), ['💖', '✨'], 5, { size: 0.35 }); }, cr.name); c.cr = cr; c.base = c.group.position.y; hops.push(c); };
     data.friends.slice(0, 7).forEach((f, i) => {
       try {
         const c = buildCreature3D(this, f.cr, f.evolved);
@@ -1838,7 +1838,7 @@ class Scene3D extends DepthScene {
       add(new T.CylinderGeometry(0.05, 0.05, 0.18, 8), col, 0, 0.17, 0, 1, 1, 1, g);
       add(box, '#5b3a29', 0, 0.05, 0, 0.3, 0.1, 0.3, g);
       g.position.set(-1.1 + i * 0.78, 4.08, -4.05); scene.add(g);
-      act(g, () => { g.userData.spinT = performance.now(); Audio8.coin(); puff(g.position.clone().add(new T.Vector3(0, 0.7, 0.2)), ['⭐'], st, { size: 0.3, up: 1.6 }); }); spins.push(g);
+      act(g, () => { g.userData.spinT = performance.now(); Audio8.coin(); puff(g.position.clone().add(new T.Vector3(0, 0.7, 0.2)), ['⭐'], st, { size: 0.3, up: 1.6 }); }, 'Un trophée'); spins.push(g);
     });
     // Cadres photos au mur (souvenirs de fin de partie, des deux enfants) : on les touche pour les voir en grand
     const loader = new T.TextureLoader();
@@ -1847,7 +1847,7 @@ class Scene3D extends DepthScene {
       const tex = loader.load(url); tex.colorSpace = T.SRGBColorSpace;
       const p = new T.Mesh(new T.PlaneGeometry(1.36, 0.8), new T.MeshBasicMaterial({ map: tex }));
       p.position.set(-4.2 + i * 0.05, 4.6 - i * 1.25, -4.31); scene.add(p);
-      const show = () => { Audio8.photo(); if (data.onPhoto) data.onPhoto(url); }; act(fr, show); act(p, show);
+      const show = () => { Audio8.photo(); if (data.onPhoto) data.onPhoto(url); }; act(fr, show, 'Une photo'); act(p, show);
     });
     // Affiche de gommettes (une par enfant, sur le mur de gauche) : on la touche, les gommettes s'envolent
     kids.forEach((k, ki) => {
@@ -1860,7 +1860,7 @@ class Scene3D extends DepthScene {
       const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
       const p = new T.Mesh(new T.PlaneGeometry(1.8, 1.35), new T.MeshBasicMaterial({ map: tex }));
       p.position.set(-5.85, 2.2, duo ? -2.9 + ki * 2.2 : -2.3); p.rotation.y = Math.PI / 2; scene.add(p);
-      act(p, () => { Audio8.boing(); puff(p.position.clone().add(new T.Vector3(0.4, 0, 0)), st.slice(0, 8), 8, { size: 0.4, up: 2.4 }); });
+      act(p, () => { Audio8.boing(); puff(p.position.clone().add(new T.Vector3(0.4, 0, 0)), st.slice(0, 8), 8, { size: 0.4, up: 2.4 }); }, 'Les gommettes');
     });
     // Les dresseurs (ils saluent quand on les touche), chacun avec son compagnon et son lit (couverture de sa couleur)
     const people = kids.map((k, i) => {
@@ -1872,7 +1872,8 @@ class Scene3D extends DepthScene {
         if (sleeping.has(i)) return wake(me, i);
         me.waveT = performance.now(); Audio8.say(k.name ? `Coucou ${k.name} !` : 'Coucou !'); Audio8.good();
         puff(hero.group.position.clone().add(new T.Vector3(0, 2.4, 0.3)), ['💖', '⭐', '✨'], 6);
-      });
+      }, k.name || 'Toi');
+      hero.facing = true; // (de face : il imite l'enfant comme dans un miroir, voir applyHumanPose)
       if (k.companion) {
         try {
           const c = buildCreature3D(this, k.companion.cr, k.companion.level >= COMPANION_MAX);
@@ -1894,7 +1895,7 @@ class Scene3D extends DepthScene {
         if (k.name || duo) { const lb = label(k.name || `Joueur ${i + 1}`, k.color || '#7b2cbf'); lb.position.set(c.x, duo ? top + 0.45 : bb.max.y + 0.5, duo ? bb.max.z + 0.1 : c.z); scene.add(lb); } // (à deux : prénom au pied du lit, sous l'étagère)
         const pc = c.clone().addScaledVector(along, len * 0.5 - 0.35), pivot = new T.Group(); pivot.position.set(pc.x, top + 0.3, pc.z); pivot.rotation.y = duo ? Math.PI : Math.PI / 2; // (tête vers l'oreiller ; repère du dormeur, hors scène)
         me.bed = bed; me.pivot = pivot;
-        const go = () => (sleeping.has(i) ? wake(me, i) : sleep(me, i)); act(bed, go); act(blanket, go);
+        const go = () => (sleeping.has(i) ? wake(me, i) : sleep(me, i)); act(bed, go, duo ? `Le lit de ${k.name || 'joueur ' + (i + 1)}` : 'Le lit'); act(blanket, go);
       }
       return me;
     });
@@ -1921,6 +1922,27 @@ class Scene3D extends DepthScene {
     const onMove = (e) => { canvas.style.cursor = pick(e.clientX, e.clientY) ? 'pointer' : 'default'; };
     canvas.addEventListener('click', onClick); canvas.addEventListener('pointermove', onMove);
     canvas.classList.add('gTarget'); canvas.gestureHit = (x, y) => pick(x, y); // (la petite main ne se remplit que sur un objet)
+    // Aux bras (comme le menu) : un bras tendu à gauche / à droite promène la petite main 👇 d'un objet à l'autre (dans
+    // l'ordre où on les voit, de gauche à droite), les bras levés tenus « touchent » l'objet ; tout à droite, le bouton
+    // « Retour » (retour au menu). (une seule cible par objet : le cadre d'une photo, pas aussi l'image ; la couverture
+    // compte avec son lit)
+    const navList = acts.filter((o) => o.userData.name);
+    const back = { isBack: true, userData: { name: 'Retour au menu', act: () => data.onBack && data.onBack() } };
+    navList.push(back);
+    const screenX = (o) => (o.isBack ? 9 : new T.Box3().setFromObject(o).getCenter(new T.Vector3()).project(cam).x);
+    const ptr = new T.Sprite(new T.SpriteMaterial({ map: emo('👇'), transparent: true, depthTest: false })); ptr.scale.setScalar(0.9); ptr.renderOrder = 9; ptr.visible = false; scene.add(ptr);
+    let sel = -1;
+    const choose = (d) => {
+      const order = navList.map((o) => ({ o, x: screenX(o) })).sort((a, b) => a.x - b.x).map((e) => e.o);
+      const cur = sel >= 0 ? order.indexOf(navList[sel]) : (d > 0 ? -1 : order.length);
+      const next = order[(cur + d + order.length) % order.length];
+      sel = navList.indexOf(next); ptr.visible = !next.isBack;
+      Audio8.tick(); Audio8.say(next.userData.name);
+      if (data.onSelect) data.onSelect(next.userData.name, !!next.isBack);
+    };
+    const tapSel = () => { if (sel < 0) return; const o = navList[sel]; if (!o.isBack) puff(ptr.position.clone(), ['✨'], 3, { size: 0.3 }); o.userData.act(o); };
+    // Saut de l'enfant : toutes les créatures sautent avec lui
+    const jumpAll = () => { const now = performance.now(); for (const c of hops) c.hopT = now; Audio8.boing(); };
     const t0 = performance.now(), fake = { lane: 0, y: 0, holdPose: null };
     let lastT = t0, nightK = 0;
     const loop = () => {
@@ -1934,6 +1956,12 @@ class Scene3D extends DepthScene {
       scene.background.copy(DAY).lerp(NIGHT, nightK); hemi.intensity = 1.3 - nightK * 0.95; sun.intensity = 1.7 * (1 - nightK * 0.9);
       lamp.intensity += ((lampOn ? 6 + nightK * 4 : 0) - lamp.intensity) * Math.min(1, dt * 8);
       win.material.color.set('#a7e3ff').lerp(new T.Color('#1d2b64'), nightK); winStars.forEach((sp) => (sp.material.opacity = nightK));
+      // commandes aux bras (si la caméra est allumée) et miroir : le personnage de chaque enfant copie ses bras
+      const g = data.arms ? data.arms(now) : null;
+      if (g) { if (g.side) choose(g.side === 'left' ? -1 : 1); if (g.ok) tapSel(); }
+      if (data.onHold) data.onHold(g ? g.upP : 0);
+      for (const [i, me] of people.entries()) me.hero.liveL = !sleeping.has(i) && data.limbs ? data.limbs(i) : null;
+      if (sel >= 0 && !navList[sel].isBack) { const o = navList[sel], b = new T.Box3().setFromObject(o); ptr.position.set((b.min.x + b.max.x) / 2, Math.min(b.max.y + 0.45, 4.7) + Math.abs(Math.sin(now / 250)) * 0.15, (b.min.z + b.max.z) / 2 + 0.2); } // (sous le haut de l'image : la fenêtre est haute)
       const save = this.heroY3; this.heroY3 = () => 0;
       try {
         for (const [i, me] of people.entries()) {
@@ -1960,7 +1988,7 @@ class Scene3D extends DepthScene {
       r.render(scene, cam);
       this.roomRAF = requestAnimationFrame(loop);
     };
-    this.room = { r, scene, people, sleeping, off: () => { canvas.removeEventListener('click', onClick); canvas.removeEventListener('pointermove', onMove); canvas.gestureHit = null; for (const t of emoTex.values()) t.dispose(); } };
+    this.room = { r, scene, people, sleeping, jump: jumpAll, off: () => { canvas.removeEventListener('click', onClick); canvas.removeEventListener('pointermove', onMove); canvas.gestureHit = null; for (const t of emoTex.values()) t.dispose(); } };
     loop();
   }
 

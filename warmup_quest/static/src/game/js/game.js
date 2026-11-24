@@ -116,7 +116,7 @@ function chooseStarter(i, name) {
 let menuSel = Math.max(0, WORLDS.findIndex((w) => w.id === store('lastWorld')));
 const carThumbs = new Map(); // (aperçus 3D des mondes, faits une fois)
 const menuBusy = () => phase !== 'menu' || !$('carnet').classList.contains('hidden') || $('parentsBox').open
-  || !!document.querySelector('.trainerBg, .studioBg, .roomBg');
+  || !!document.querySelector('.trainerBg, .studioBg') || ($('room') && !$('room').classList.contains('hidden')); // (chambre ouverte : ses propres commandes)
 function moveMenu(d) {
   if (menuBusy()) return;
   menuSel = (menuSel + d + WORLDS.length) % WORLDS.length;
@@ -700,6 +700,19 @@ function startCountdown(done = startGame) {
 
 // ---------------- Partie ----------------
 // Partie courte : on garde l'intro, la fin, les nouveaux jeux, et une étape sur deux du reste
+// Direction de chaque bras / jambe d'un enfant (repère écran en miroir, y vers le haut) ; aussi pour la chambre
+function bodyLimbs(b) {
+  if (!b.lm || !b.state.present) return null;
+  // (poignet hors de l'image, bras tendu sur le côté ou en l'air : on suit le coude ; cheville cachée : le genou)
+  const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.3, A = camAspect();
+  const dir = (a, z, z2) => {
+    const e = vis(z) ? z : vis(z2) ? z2 : null;
+    return vis(a) && e != null ? [-(lm[e].x - lm[a].x) * A, -(lm[e].y - lm[a].y)] : null;
+  };
+  const legs = tracker.mode !== 'upper';
+  return { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14), 'leg-left': legs ? dir(23, 27, 25) : null, 'leg-right': legs ? dir(24, 28, 26) : null };
+}
+
 class Game {
   constructor(w, mul) {
     this.world = w;
@@ -936,16 +949,9 @@ class Game {
   // Direction de chaque bras / jambe du joueur (repère écran en miroir, y vers le haut, unité = hauteur)
   limbsOf(b, i = 0) {
     if (DEV.get('fakelimbs')) return fakeLimbs(i);
-    if (!b.lm || !b.state.present) return null;
-    // (poignet hors de l'image, bras tendu sur le côté ou en l'air : on suit le coude ; cheville cachée : le genou)
-    const lm = b.lm, vis = (k) => (lm[k].visibility ?? 1) > 0.3, A = camAspect();
-    const dir = (a, z, z2) => {
-      const e = vis(z) ? z : vis(z2) ? z2 : null;
-      return vis(a) && e != null ? [-(lm[e].x - lm[a].x) * A, -(lm[e].y - lm[a].y)] : null;
-    };
-    const legs = tracker.mode !== 'upper';
-    return { 'arm-left': dir(11, 15, 13), 'arm-right': dir(12, 16, 14), 'leg-left': legs ? dir(23, 27, 25) : null, 'leg-right': legs ? dir(24, 28, 26) : null };
+    return bodyLimbs(b);
   }
+
 
   // ---------- Bulles autour du personnage sur le chemin ; les mains du joueur y sont des gants lumineux.
   // Repère : épaules du joueur / du héros, unité = longueur du torse (x vers la droite de l'écran).
@@ -2119,13 +2125,18 @@ function openRoom() {
   if (!el) {
     el = document.createElement('section');
     el.id = 'room'; el.className = 'screen hidden';
-    el.innerHTML = '<h2>🏠 Ma chambre</h2><p class="roomTip">👆 Touche les choses : les lits, la lampe, la fenêtre, les créatures, les trophées…</p>' +
-      '<canvas id="roomCanvas"></canvas><div class="row"><button class="btn" id="roomBack">← Retour</button></div><div id="roomPhoto" class="hidden"><img alt=""></div>';
+    el.innerHTML = '<h2>🏠 Ma chambre</h2><p class="roomTip" id="roomTip"></p>' +
+      '<canvas id="roomCanvas"></canvas><div class="holdbar roomHold"><div id="roomBar"></div></div>' +
+      '<div class="row"><button class="btn" id="roomBack">← Retour</button></div><div id="roomPhoto" class="hidden"><img alt=""></div>';
     document.body.appendChild(el);
-    $('roomBack').onclick = () => { scene3d.closeRoom(); show('room', false); show('menu'); };
+    $('roomBack').onclick = closeRoomScreen;
     $('roomPhoto').onclick = () => show('roomPhoto', false);
   }
   show('menu', false); show('room');
+  $('roomBack').classList.remove('armSel');
+  $('roomTip').textContent = Gestures.on ? '👈 👉 Bras sur le côté pour choisir · 🙌 bras levés pour toucher · ⬆️ saute : les créatures sautent avec toi !'
+    : '👆 Touche les choses : les lits, la lampe, la fenêtre, les créatures, les trophées…';
+  Gestures.reset(); // (bras encore levés depuis le menu : on attend qu'ils se baissent)
   // (à deux : chacun son lit, son dresseur, son compagnon, ses photos et ses gommettes)
   const carnet = Carnet.get(), looks = trainerLooks(), players = WUQStore.players().slice(0, 2);
   const friends = CREATURES.filter((x) => carnet[x.id]).sort((a, b) => carnet[b.id] - carnet[a.id]).map((x) => ({ cr: x, evolved: carnet[x.id] >= EVOLVE_AT }));
@@ -2135,12 +2146,21 @@ function openRoom() {
       companion: cr ? { cr, level: Progress.companionLevel(c) } : null, photos: Photos.list(i), stickers: WUQStore.getStickers(i) };
   });
   const data = { kids, friends, trophies: WORLDS.map((w) => Progress.stars(w)),
-    onPhoto: (url) => { $('roomPhoto').querySelector('img').src = url; show('roomPhoto'); } };
+    onPhoto: (url) => { $('roomPhoto').querySelector('img').src = url; show('roomPhoto'); },
+    // aux bras (caméra allumée) : choisir / toucher, et le personnage de l'enfant qui copie ses bras
+    arms: (now) => (Gestures.on && $('roomPhoto').classList.contains('hidden') ? Gestures.read(now) : (Gestures.on && Gestures.read(now).ok && show('roomPhoto', false), null)),
+    limbs: (i) => (Gestures.on && tracker.bodies[i] ? bodyLimbs(tracker.bodies[i]) : null),
+    onSelect: (name, isBack) => { $('roomTip').textContent = (isBack ? '🚪 ' : '👇 ') + name + ' · 🙌 bras levés pour ' + (isBack ? 'sortir' : 'toucher'); $('roomBack').classList.toggle('armSel', isBack); },
+    onHold: (p) => { $('roomBar').style.width = p * 100 + '%'; },
+    onBack: closeRoomScreen };
   const keys = [...kids.flatMap((k) => lookKeys(k.look)), ...creatureModels([...friends.slice(0, 7).map((f) => f.cr), ...kids.map((k) => k.companion && k.companion.cr).filter(Boolean)]),
     ...['fu-bed_single_A', 'fu-couch_pillows', 'fu-lamp_standing', 'fu-cactus_medium_A', 'fu-shelf_B_large_decorated', 'fu-rug_rectangle_stripes_A', 'fu-pillow_A'].map((n) => 'kaykit/' + n)];
   scene3d.load().then(() => scene3d.P.preload(keys)).then(() => scene3d.openRoom($('roomCanvas'), data)).catch((e) => console.warn(e));
   Audio8.theme('jardin3d');
 }
+function closeRoomScreen() { scene3d.closeRoom(); show('room', false); show('menu'); Gestures.reset(); }
+// Dans la chambre : quand l'enfant saute, ses créatures sautent avec lui
+tracker.on((type) => { if (type === 'jump' && phase === 'menu' && scene3d.room && $('room') && !$('room').classList.contains('hidden')) scene3d.room.jump(); });
 $('carnetBack').onclick = () => { show('carnet', false); show('menu'); };
 
 $('againBtn').onclick = () => { show('results', false); startWorld(world); };

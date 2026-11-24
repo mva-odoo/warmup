@@ -867,3 +867,7 @@ body.armLeft .carHint .armL, body.armRight .carHint .armR { opacity: 1; transfor
 .carCard.far { height: min(26vh, 230px); }
 .carTag { margin: 2px 0 0; }
 #menu .menuBottom { margin-top: 2px; }
+/* Chambre aux bras : barre « bras levés » et bouton Retour choisi */
+#room .roomHold { width: min(320px, 60vw); height: 12px; margin: 6px auto 0; }
+#room .roomHold > div { height: 100%; width: 0; background: #22c55e; border-radius: inherit; }
+#roomBack.armSel { box-shadow: 0 0 0 5px #ffd166, 0 0 24px rgba(255, 209, 102, .8); transform: scale(1.08); }
