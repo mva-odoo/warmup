@@ -444,14 +444,16 @@ class Scene3D extends DepthScene {
     for (const c of this.clouds) c.visible = !night && !water && !kit.flat; // (pas de nuages dans le supermarché)
     this.disc.visible = !water;
     if (water) this.skyU.glow.value = 0.2; // (lumière diffuse sous l'eau)
-    this.colorTerrain(b, !!kit.grass, !!kit.tiles);
-    // Carrelage au sol (Le Bain) : texture de carreaux sur le terrain, qui défile avec lui
-    const tileMap = kit.tiles ? this.tileTex() : null;
+    this.colorTerrain(b, !!kit.grass, !!(kit.tiles || kit.pitch));
+    // Carrelage au sol (Le Bain), pelouse tondue en bandes (Le Stade) : texture sur le terrain, qui défile avec lui
+    const tileMap = kit.tiles ? this.tileTex() : kit.pitch ? this.pitchTex(b) : null;
     if (this.terMat && this.terMat.map !== tileMap) { this.terMat.map = tileMap; this.terMat.needsUpdate = true; }
     this.flatK = kit.flat ? 0.04 : 1; // (supermarché : le sol est plat)
     if (this.chunks) for (const c of this.chunks) c.mesh.scale.y = this.flatK;
     this.mat.leaf2.color.set(shade(b.grass, -0.1));
     this.paintPath(b, night);
+    // (Stade : pas de liseré sombre de chemin, seulement la ligne blanche, comme une ligne de touche)
+    this.edges.forEach((e, i) => { e.visible = !(kit.pitch && i % 2); });
 
     // Arrière-plan du paysage
     if (this.backdrops) this.dispose(this.backdrops);
@@ -496,6 +498,16 @@ class Scene3D extends DepthScene {
     const grad = g.createLinearGradient(0, 0, 0, N);
     grad.addColorStop(0, b.path); grad.addColorStop(0.5, b.path2); grad.addColorStop(1, b.path);
     g.fillStyle = grad; g.fillRect(0, 0, N, N);
+    const pitch = !!(KITS[this.kitName] || {}).pitch;
+    this.pathTex.repeat.set(1, pitch ? 20 : 30); // (Stade : 8 m par motif, deux bandes de 4 m comme la pelouse autour)
+    if (pitch) { // Le Stade : la même pelouse tondue en bandes, et les couloirs tracés à la craie
+      for (let j = 0; j < 2; j++) { g.fillStyle = j % 2 ? b.path : b.path2; g.fillRect(0, j * N / 2, N, N / 2); }
+      for (let i = 0; i < 500; i++) { g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'; g.fillRect(rnd() * N, rnd() * N, 1 + rnd() * 2, 2 + rnd() * 4); } // (brins d'herbe)
+      g.fillStyle = 'rgba(255,255,255,0.55)';
+      for (const x of [N / 3, (2 * N) / 3]) for (let y = 8; y < N; y += 64) { g.beginPath(); g.roundRect(x - 2, y, 4, 34, 2); g.fill(); }
+      this.pathTex.anisotropy = 4; this.pathTex.needsUpdate = true;
+      return;
+    }
     if ((KITS[this.kitName] || {}).tiles) { // Le Bain : grand tapis de bain moelleux (carreaux de couleur, bords à franges, pointillés des couloirs)
       const sz = N / 6;
       for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { g.fillStyle = (i + j) % 2 ? shade(b.path, 0.12) : shade(b.path2, 0.04); g.beginPath(); g.roundRect(i * sz + 3, j * sz + 3, sz - 6, sz - 6, 6); g.fill(); }
@@ -617,6 +629,19 @@ class Scene3D extends DepthScene {
     return tex;
   }
 
+  // Pelouse du Stade : larges bandes claires / foncées comme une pelouse tondue (une par couleur de paysage)
+  pitchTex(b) {
+    const key = b.grass + b.grass2;
+    if (this._pitchTex && this._pitchFor === this.terMat && this._pitchKey === key) return this._pitchTex;
+    const T = this.T, cv = document.createElement('canvas'); cv.width = 64; cv.height = 128;
+    const x = cv.getContext('2d');
+    x.fillStyle = '#ffffff'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#e4e4e4'; x.fillRect(0, 64, 64, 64); // (teinte posée sur la couleur du sol)
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping;
+    tex.repeat.set(1, TER_PERIOD / 8); tex.anisotropy = 4; // (une bande tous les 4 m)
+    this._pitchTex = tex; this._pitchFor = this.terMat; this._pitchKey = key;
+    return tex;
+  }
+
   // Hauteur du sol à une position du monde (pour poser le décor sur les collines)
   groundY(x, z) { return terrainH(x, z - this.terOff - TER_PERIOD / 2) * (this.flatK ?? 1); } // (sol plat au supermarché)
 
@@ -644,6 +669,8 @@ class Scene3D extends DepthScene {
     if (d.userData.name === 'shelf' || d.userData.name === 'fruitCrate') { // (rayons et cageots face au chemin)
       d.position.set(side * (LANE * 1.5 + 2.4 + Math.random() * 7), 0, z); d.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; return;
     }
+    if (d.userData.name === 'adBoard') { d.position.set(side * (LANE * 1.5 + 1.9), 0, z); d.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; return; } // (Stade : le long de la touche)
+    if (d.userData.name === 'cornerFlag' || d.userData.name === 'ballStack') { d.position.set(side * (LANE * 1.5 + 1.3 + Math.random() * 0.4), 0, z); return; } // (entre la touche et les panneaux)
     if (d.userData.name === 'creature') { d.position.set(side * (LANE * 1.5 + 1.8 + Math.random() * 2.2), 0, z); return; } // dans les herbes
     const nm = d.userData.name || '';
     const big = /ship|tower|hangar/.test(nm) ? 7 : /bathtub|dino|igloo|palm|bigMushroom|appleTree|roundTree|tree_|trees_|cherryTree|cherry-tree|torii|bamboo|satellite|lollypop|popsicle|crystalsLarge/.test(nm) ? 2.2 : 0;

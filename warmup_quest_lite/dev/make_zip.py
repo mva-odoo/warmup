@@ -1,6 +1,8 @@
 """Fabrique warmup_quest_lite.zip, le module SANS Python, prêt pour « Applications › Importer un module ».
 
-    python3 warmup_quest_lite/dev/make_zip.py          -> dist/warmup_quest_lite.zip
+    python3 warmup_quest_lite/dev/make_zip.py          -> dist/warmup_quest_lite.zip        (≈ 25 Mo)
+    python3 warmup_quest_lite/dev/make_zip.py --leger  -> dist/warmup_quest_lite_leger.zip  (≈ 11 Mo, sans les voix
+                                                          enregistrées : le jeu parle avec la voix du navigateur)
 
 Tout ce qui est commun avec le module Python (warmup_quest) est repris de lui au moment de fabriquer le zip, pour que
 les deux versions restent identiques sans rien recopier dans le dépôt :
@@ -171,6 +173,7 @@ def build_models(consts, player, voice):
         for name, ttype, desc, opt in fields:
             (later if ttype == 'one2many' or 'compute' in opt else out).append(field_xml(model, name, ttype, desc, opt, sel))
     out += later
+    out += selection_xml(models, sel)
     # (l'ordre de tri se pose à la fin : Odoo vérifie que les champs triés existent déjà)
     for model, (_l, order, _f) in models.items():
         out += [f'    <record id="model_{model}" model="ir.model">', f'        <field name="order">{order}</field>', '    </record>']
@@ -194,11 +197,48 @@ def field_xml(model, name, ttype, desc, opt, sel):
     if 'compute' in opt:
         lines.append(f'        <field name="compute"><![CDATA[{opt["compute"]}]]></field>')
         lines.append('        <field name="readonly" eval="True"/>')
-    if ttype == 'selection':
-        values = ', '.join(f"Command.create({{'value': {v!r}, 'name': {n!r}, 'sequence': {i}}})" for i, (v, n) in enumerate(sel[opt['selection']]))
-        lines.append(f'        <field name="selection_ids" eval={quoteattr(f"[{values}]")}/>')
     lines.append('    </record>')
     return '\n'.join(lines)
+
+
+def selection_xml(models, sel):
+    """Choix des listes : un enregistrement chacun, avec son identifiant (et pas « Command.create » dans le champ) ;
+    en réimportant le zip, Odoo met à jour les choix existants au lieu de vouloir les recréer (valeur en double).
+    Les bases où la toute première version (20.0.1.0.0, choix sans identifiant) est installée : une action rattache
+    d'abord les choix déjà là à leur identifiant, sans rien supprimer (les valeurs enregistrées restent)."""
+    recs, pairs = [], []
+    for model, (_l, _o, fields) in models.items():
+        for name, ttype, _d, opt in fields:
+            if ttype != 'selection':
+                continue
+            for i, (v, n) in enumerate(sel[opt['selection']]):
+                xid = 'sel_' + re.sub(r'[^a-z0-9_]', '_', f'{model}_{name}_{v}'.lower())
+                pairs.append((xid, f'field_{model}_{name}', v))
+                recs += [f'    <record id="{xid}" model="ir.model.fields.selection">',
+                         f'        <field name="field_id" ref="field_{model}_{name}"/>',
+                         f'        <field name="value">{escape(v)}</field>',
+                         f'        <field name="name">{escape(n)}</field>',
+                         f'        <field name="sequence">{i}</field>',
+                         '    </record>']
+    code = (f"pairs = {pairs!r}\n"
+            f"module = '{NAME}'\n"
+            "Data = env['ir.model.data'].sudo()\n"
+            "for xid, fxid, value in pairs:\n"
+            "    if Data.search_count([('module', '=', module), ('name', '=', xid)]):\n"
+            "        continue\n"
+            "    field = env.ref(module + '.' + fxid, raise_if_not_found=False)\n"
+            "    old = field and env['ir.model.fields.selection'].sudo().search([('field_id', '=', field.id), ('value', '=', value)], limit=1)\n"
+            "    if old:\n"
+            "        Data.create({'module': module, 'name': xid, 'model': 'ir.model.fields.selection', 'res_id': old.id})\n")
+    head = ['    <!-- (bases où la version 20.0.1.0.0 est installée : ses choix de listes reçoivent leur identifiant) -->',
+            '    <record id="action_adopt_selection" model="ir.actions.server">',
+            '        <field name="name">Warm-Up Quest : identifiants des choix (mise à jour)</field>',
+            '        <field name="model_id" ref="base.model_ir_model_fields_selection"/>',
+            '        <field name="state">code</field>',
+            f'        <field name="code"><![CDATA[{code}]]></field>',
+            '    </record>',
+            '    <function model="ir.actions.server" name="run" eval="[ref(\'action_adopt_selection\')]"/>']
+    return head + recs
 
 
 # ---------------------------------------------------------------- data/sequences.xml et data/creatures.xml
@@ -275,6 +315,8 @@ def build_page(html):
 
 
 def main():
+    import sys
+    light = '--leger' in sys.argv[1:]  # (sans voice/piper : 940 fichiers, 15 Mo ; Voice.init() passe alors à la synthèse)
     consts, player, voice, hooks, creatures, version = load_sources()
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / NAME
@@ -292,7 +334,7 @@ def main():
         src = FULL / 'static/src/game'
         for path in src.rglob('*'):
             rel = path.relative_to(src)
-            if path.is_file() and not GAME_EXCLUDED & set(rel.parts):
+            if path.is_file() and not GAME_EXCLUDED & set(rel.parts) and not (light and rel.parts[:2] == ('voice', 'piper')):
                 dest = root / 'static/src/game' / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, dest)
@@ -307,7 +349,7 @@ def main():
         for xml in (root / 'data').glob('*.xml'):
             ET.parse(xml)
         DIST.mkdir(exist_ok=True)
-        target = DIST / f'{NAME}.zip'
+        target = DIST / f'{NAME}{"_leger" if light else ""}.zip'
         with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(root.rglob('*')):
                 if path.is_file():

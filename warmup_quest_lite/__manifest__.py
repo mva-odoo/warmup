@@ -1,6 +1,6 @@
 {
     'name': 'Warm-Up Quest (module importable)',
-    'version': '20.0.1.0.0',
+    'version': '20.0.1.1.0',
     'summary': "Jeu d'échauffement pour enfants contrôlé par webcam — version sans Python, à importer",
     'description': """
 Warm-Up Quest, en module de données (XML + fichiers statiques, sans Python) : il s'installe avec

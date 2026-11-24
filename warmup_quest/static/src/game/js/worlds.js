@@ -240,7 +240,7 @@ const WORLDS = [
     obstacles: ['cone', 'tackle', 'cone', 'giant'], // (foot : plot = change de couloir, tacle = saute, grand joueur = baisse-toi)
     biomes: [
       { name: 'Le terrain', sky0: '#4cc9f0', sky1: '#e0fbff', sun: '#fff6c2', mount0: '#90e0ef', mount1: '#52b788',
-        grass: '#57cc99', grass2: '#4fbf8e', path: '#f8f9fa', path2: '#e9ecef', fog: '#e9fbff',
+        grass: '#4caf50', grass2: '#43a047', path: '#5dbb63', path2: '#4ea955', fog: '#e9fbff',
         deco: ['🏟️', '🚩', '🎈', '⚽', '🏀', '🚩'], ambient: ['birds'] },
     ],
     endText: 'Quel match ! Tu es un vrai champion !',

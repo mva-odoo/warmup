@@ -46,7 +46,8 @@ const KITS = {
   marketFruit: { props: [['kk:re-crate_carrots', 2], ['kk:re-crate_tomatoes', 2], ['kk:re-crate_onions', 1], ['kk:re-crate_potatoes', 1], ['kk:re-crate_lettuce', 1], ['fruitCrate', 2], ['shelf', 2], ['parkedCart', 1]], backdrop: ['mall'], flat: true },
   // Le Bain : salle de bain gaie (carrelage clair, baignoires, canards géants, flacons, serviettes, bulles de savon)
   bathroom: { props: [['bathtub', 2], ['rubberDuck', 3], ['soapBottles', 2], ['towelRack', 2], ['bubbleCluster', 2], ['bathSink', 1], ['kk:fu-cactus_medium_A', 1]], backdrop: ['bathroom'], particles: 'soap', flat: true, tiles: true },
-  stadium: { grass: true, props: [['lightPole', 3], ['balloon', 2], ['c:flag', 2], ['t:banner-red', 1], ['kk:hex-tree_single_A', 2], ['k:plant_bushDetailed', 2], ['pf:flowers', 1]], backdrop: ['hills'], particles: 'petals' },
+  // Le Stade : un vrai terrain de foot (pelouse tondue en bandes, lignes blanches), panneaux le long de la touche, tribunes
+  stadium: { props: [['adBoard', 6], ['cornerFlag', 1], ['ballStack', 1]], backdrop: ['stadium'], flat: true, pitch: true },
   disco:    { props: [['speaker', 3], ['balloon', 3], ['lightPole', 3]], backdrop: ['stage'], particles: 'fireflies', night: true },
   dojo: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 2], ['cu:cherry-tree-b', 2], ['cu:stone-lantern', 2], ['cu:torii', 1], ['k:rock_smallFlatA', 1], ['pf:flowers', 1], ['t:banner-red', 1], ['k:plant_bushSmall', 1]], backdrop: ['pagoda', 'hills'], particles: 'petals' },
   dojoNight: { grass: true, props: [['k:crops_bambooStageB', 4], ['cu:cherry-tree-a', 1], ['cu:cherry-tree-b', 1], ['cu:stone-lantern', 2], ['t:lantern', 2], ['h:lantern', 1], ['k:campfire_stones', 1]], backdrop: ['pagoda'], particles: 'fireflies', night: true },
@@ -599,6 +600,29 @@ class Props3D {
     const ph = Math.random() * 6;
     g.userData.anim = (t) => { b.position.y = 2.2 + Math.sin(t * 0.002 + ph) * 0.15; };
   }
+  // ---------- Stade : panneau publicitaire le long de la ligne de touche, drapeau de coin, ballons d'entraînement
+  adBoard(g) {
+    const T = this.T, words = ['⚽ BUT !', 'WARM-UP', '🏆 CHAMPION', 'ALLEZ !', '⭐ BRAVO', '🧤 ARRÊT !'], cols = [['#e63946', '#ffffff'], ['#1d3557', '#ffd166'], ['#06d6a0', '#ffffff'], ['#ffd166', '#1d3557']];
+    const [bg, fg] = cols[Math.floor(Math.random() * cols.length)], cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+    const x = cv.getContext('2d'); x.fillStyle = bg; x.fillRect(0, 0, 512, 96); x.fillStyle = fg;
+    x.font = '800 60px "Baloo 2", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(words[Math.floor(Math.random() * words.length)], 256, 52);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const face = new T.Mesh(new T.BoxGeometry(4.2, 0.8, 0.12), [this.toon('#333344'), this.toon('#333344'), this.toon('#333344'), this.toon('#333344'), new T.MeshBasicMaterial({ map: tex }), new T.MeshBasicMaterial({ map: tex })]);
+    face.position.y = 0.45; g.add(face);
+  }
+  cornerFlag(g) {
+    this.add(g, 'cyl', '#ffffff', 0, 0.75, 0, 0.03, 1.5, 0.03);
+    const flag = this.add(g, 'box', Math.random() < 0.5 ? '#ffd166' : '#e63946', 0.22, 1.32, 0, 0.42, 0.3, 0.02);
+    const ph = Math.random() * 6;
+    g.userData.anim = (t) => { flag.rotation.y = Math.sin(t * 0.004 + ph) * 0.35; };
+  }
+  ballStack(g) {
+    for (const [x, z] of [[0, 0], [0.45, 0.1], [0.2, 0.42], [-0.3, 0.3]]) {
+      const b = this.add(g, 'sphere', '#ffffff', x, 0.2, z, 0.2, 0.2, 0.2);
+      for (const a of [0, 2.1, 4.2]) this.add(g, 'sphere', '#1e1e1e', x + Math.cos(a) * 0.13, 0.27, z + Math.sin(a) * 0.13, 0.07, 0.04, 0.07); // (taches du ballon)
+      void b;
+    }
+  }
   lightPole(g) {
     this.add(g, 'cyl', '#3d3d3d', 0, 1.2, 0, 0.06, 2.4, 0.06);
     const bulb = this.add(g, 'sphere', '#ffffff', 0, 2.5, 0, 0.28, 0.28, 0.28, { emissive: '#ffffff', emissiveIntensity: 1 });
@@ -803,6 +827,45 @@ class Props3D {
         for (let i = 0; i < 10; i++) drops.push(this.add(g, 'sphere', '#7dd3fc', 26, y0 + 15, z0 + 1.6, 0.18, 0.3, 0.18));
         g.userData.anim = (t) => drops.forEach((d, i) => { const k = (t * 0.0006 + i / 10) % 1; d.position.set(26 + Math.sin(i * 2.4) * 1.2, y0 + 15.8 - k * 15, z0 + 1.6 + Math.cos(i * 1.7) * 0.6); });
         void shower; void mirror;
+        break;
+      }
+      case 'stadium': { // Le Stade : lignes de touche, tribunes pleines de supporters des deux côtés et au fond, le but au bout du terrain
+        const lift = (z) => { const d = Math.max(0, 7 - z - BEND_START); return d * d * BEND_K * 0.7; };
+        const touch = LANE * 1.5 + 1.0;
+        // tribunes : gradins en escalier, public en petits carrés de couleur (texture), toit
+        const crowd = () => {
+          const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const x = cv.getContext('2d');
+          x.fillStyle = '#2b2d42'; x.fillRect(0, 0, 256, 128);
+          const cs = ['#e63946', '#ffd166', '#ffffff', '#4cc9f0', '#06d6a0', '#f4a261', '#e63946', '#ffffff'];
+          for (let r = 0; r < 8; r++) for (let c = 0; c < 32; c++) { x.fillStyle = cs[(r * 7 + c * 3 + Math.floor(Math.random() * 3)) % cs.length]; x.beginPath(); x.arc(c * 8 + 4 + (r % 2) * 2, r * 16 + 8, 3.2, 0, Math.PI * 2); x.fill(); }
+          const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.wrapS = tex.wrapT = T.RepeatWrapping; return tex;
+        };
+        for (const sd of [-1, 1]) {
+          const tex = crowd(); tex.repeat.set(10, 1);
+          for (let k = 0; k < 4; k++) { // 4 gradins, de plus en plus hauts et loin
+            const x = sd * (touch + 7 + k * 2.2), y = 0.9 + k * 1.6;
+            const stand = new T.Mesh(new T.BoxGeometry(2.2, 1.6, 110), this.toon('#8d99ae'));
+            stand.position.set(x, y - 0.8, -40); g.add(stand);
+            const fans = new T.Mesh(new T.PlaneGeometry(110, 1.4), new T.MeshLambertMaterial({ map: tex }));
+            fans.rotation.y = -sd * Math.PI / 2; fans.position.set(x - sd * 1.12, y - 0.1, -40); g.add(fans);
+          }
+          const roof = new T.Mesh(new T.BoxGeometry(10, 0.3, 110), this.toon('#edf2f4')); roof.position.set(sd * (touch + 10.5), 8.2, -40); g.add(roof);
+          for (let i = 0; i < 5; i++) add('cyl', '#adb5bd', sd * (touch + 14.5), 4.1, 10 - i * 25, 0.15, 8.2, 0.15);
+        }
+        // tribune du fond, grand écran, et le but au bout du terrain
+        const z0 = -66, y0 = lift(z0), back = crowd(); back.repeat.set(8, 3);
+        const wall = new T.Mesh(new T.PlaneGeometry(90, 14), new T.MeshLambertMaterial({ map: back, fog: false })); wall.position.set(0, y0 + 7, z0); g.add(wall);
+        const screen = this.add(g, 'box', '#1d3557', 0, y0 + 16.5, z0 + 0.5, 16, 5, 0.4, { fog: false });
+        const cv = document.createElement('canvas'); cv.width = 512; cv.height = 160; const sx = cv.getContext('2d');
+        sx.fillStyle = '#1d3557'; sx.fillRect(0, 0, 512, 160); sx.fillStyle = '#ffd166'; sx.font = '800 96px "Baloo 2", sans-serif'; sx.textAlign = 'center'; sx.textBaseline = 'middle'; sx.fillText('⚽ GOAL !', 256, 86);
+        const st = new T.CanvasTexture(cv); st.colorSpace = T.SRGBColorSpace;
+        const disp = new T.Mesh(new T.PlaneGeometry(15, 4.6), new T.MeshBasicMaterial({ map: st, fog: false })); disp.position.set(0, y0 + 16.5, z0 + 0.75); g.add(disp); void screen;
+        const gz = -58, gy = lift(gz);
+        for (const x of [-3.7, 3.7]) add('box', '#ffffff', x, gy + 1.25, gz, 0.18, 2.5, 0.18, { fog: false });
+        add('box', '#ffffff', 0, gy + 2.5, gz, 7.6, 0.18, 0.18, { fog: false });
+        const net = new T.Mesh(new T.PlaneGeometry(7.4, 2.4), new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, side: T.DoubleSide, fog: false }));
+        net.position.set(0, gy + 1.25, gz - 0.9); g.add(net);
+        g.traverse((o) => { if (o.isMesh && o.material && !Array.isArray(o.material)) o.material.fog = o.material.fog && o.position.z > -50; });
         break;
       }
       case 'hills':
